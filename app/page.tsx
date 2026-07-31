@@ -208,9 +208,9 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-card border-t border-border py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <Logo size="sm" variant="text-only" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            <div className="col-span-2 md:col-span-1">
+              <Logo size="md" href="/" />
               <p className="text-muted-foreground text-sm mt-4">Photography platform built for Rwanda.</p>
             </div>
             <div>
@@ -238,7 +238,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-border pt-8 text-center text-muted-foreground text-sm">
-            <p>&copy; 2024 ifotoset. All rights reserved.</p>
+            <p suppressHydrationWarning>&copy; {new Date().getFullYear()} ifotoset. All rights reserved.</p>
           </div>
         </div>
       </footer>

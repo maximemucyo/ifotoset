@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Check } from 'lucide-react'
+import { Logo } from '@/components/logo'
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -91,10 +92,9 @@ export default function SignUpPage() {
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary mb-6">
-            <span className="text-xl">📸</span>
-            ifotoset
-          </Link>
+          <div className="flex justify-center mb-6">
+            <Logo size="md" href="/" />
+          </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Join ifotoset</h1>
           <p className="text-muted-foreground">Create your free account and start building your portfolio</p>
         </div>
