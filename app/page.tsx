@@ -17,10 +17,10 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <h1 className="text-5xl md:text-7xl font-bold text-foreground mb-6 text-balance">
-            Your Photography Platform Built for Rwanda
+            Your Photography Platform Built for East Africa & Beyond
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 text-balance max-w-3xl mx-auto">
-            Showcase your work, deliver galleries to clients, and manage your photography business—all in one powerful platform built for Rwandan creatives.
+            Showcase your work, deliver galleries to clients, and manage your photography business—all in one powerful platform built for modern photographers.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -45,7 +45,7 @@ export default function Home() {
             Everything You Need
           </h2>
           <p className="text-xl text-center text-muted-foreground mb-16 text-balance">
-            Built for Rwandan photographers who want to focus on their craft, not on complicated software.
+            Built for modern photographers who want to focus on their craft, not on complicated software.
           </p>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -197,7 +197,7 @@ export default function Home() {
             Ready to Transform Your Photography Business?
           </h2>
           <p className="text-xl mb-8 text-primary-foreground/90">
-            Join hundreds of Rwandan photographers already using ifotoset to showcase their work and grow their business.
+            Join hundreds of modern photographers already using ifotoset to showcase their work and grow their business.
           </p>
           <Link href="/signup" className="inline-block px-8 py-4 bg-background text-primary rounded-lg font-semibold hover:bg-secondary transition-colors">
             Start Your Free Trial
@@ -211,7 +211,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div className="col-span-2 md:col-span-1">
               <Logo size="md" href="/" />
-              <p className="text-muted-foreground text-sm mt-4">Photography platform built for Rwanda.</p>
+              <p className="text-muted-foreground text-sm mt-4">Photography platform built for modern photographers.</p>
             </div>
             <div>
               <h4 className="font-semibold text-foreground mb-4">Product</h4>
