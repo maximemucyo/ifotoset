@@ -28,7 +28,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="bg-card border-t border-border py-12">
-        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div className="col-span-2 md:col-span-1">
               <Logo size="md" href="/" />

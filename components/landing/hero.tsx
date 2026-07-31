@@ -11,7 +11,7 @@ export function Hero() {
         <div className="absolute bottom-20 left-[-10%] w-96 h-96 bg-accent rounded-full mix-blend-multiply filter blur-3xl"></div>
       </div>
 
-      <div className="relative max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+      <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 w-full grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
         {/* Left Column - Content */}
         <div className="lg:col-span-6 text-center lg:text-left flex flex-col items-center lg:items-start">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-foreground leading-[1.1] mb-6 text-balance">
