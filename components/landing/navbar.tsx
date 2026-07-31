@@ -31,7 +31,7 @@ export function Navbar() {
           : 'bg-transparent py-5'
       }`}
     >
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+      <nav className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         <Logo size="md" href="/" />
 
         {/* Desktop Navbar */}
@@ -55,7 +55,7 @@ export function Navbar() {
             href="/signup"
             className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors text-sm font-semibold shadow-sm"
           >
-            Start Free Trial
+            Get Started Free
           </Link>
           <ThemeToggle />
         </div>
@@ -99,7 +99,7 @@ export function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className="w-full px-5 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors text-center font-semibold shadow-sm"
               >
-                Start Free Trial
+                Get Started Free
               </Link>
             </div>
           </div>

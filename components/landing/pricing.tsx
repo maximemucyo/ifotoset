@@ -14,13 +14,13 @@ export function Pricing() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-[1920px] mx-auto">
         {pricingPlans.map((plan) => (
           <div
             key={plan.name}
             className={`relative rounded-2xl p-8 border transition-all duration-300 flex flex-col justify-between ${
               plan.highlighted
-                ? 'border-primary bg-card scale-105 shadow-xl shadow-primary/5 ring-1 ring-primary'
+                ? 'border-primary bg-card xl:scale-105 shadow-xl shadow-primary/5 ring-1 ring-primary z-10'
                 : 'border-border bg-card hover:border-primary/45 shadow-sm'
             }`}
           >
@@ -74,6 +74,10 @@ export function Pricing() {
           </div>
         ))}
       </div>
+
+      <p className="text-center text-xs text-muted-foreground mt-12">
+        * Unlimited storage is subject to our <Link href="#" className="underline hover:text-primary transition-colors">Fair Use Policy</Link>.
+      </p>
     </Section>
   )
 }

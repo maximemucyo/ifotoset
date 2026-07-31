@@ -11,7 +11,7 @@ export function Hero() {
         <div className="absolute bottom-20 left-[-10%] w-96 h-96 bg-accent rounded-full mix-blend-multiply filter blur-3xl"></div>
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+      <div className="relative max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full grid lg:grid-cols-12 gap-12 lg:gap-8 items-center">
         {/* Left Column - Content */}
         <div className="lg:col-span-6 text-center lg:text-left flex flex-col items-center lg:items-start">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-foreground leading-[1.1] mb-6 text-balance">
@@ -26,7 +26,7 @@ export function Hero() {
               href="/signup"
               className="px-8 py-4 bg-primary text-primary-foreground text-center rounded-lg font-semibold hover:bg-accent transition-all shadow-md hover:shadow-lg text-lg"
             >
-              Start Free Trial
+              Get Started Free
             </Link>
             <Link
               href="#showcase"
@@ -39,13 +39,13 @@ export function Hero() {
           {/* Trust Row */}
           <div className="flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-muted-foreground text-sm font-medium">
             <div className="flex items-center gap-1.5">
-              <span className="text-primary font-bold">✓</span> 30-day free trial
+              <span className="text-primary font-bold">✓</span> Free plan available
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-primary font-bold">✓</span> No credit card required
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-primary font-bold">✓</span> Cancel anytime
+              <span className="text-primary font-bold">✓</span> Upgrade anytime
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ export default function Payments() {
     { id: '#TX001', user: 'Sarah Photography', amount: 4999, date: '2024-01-15', method: 'MTN Mobile Money', status: 'Completed' },
     { id: '#TX002', user: 'Tech Events', amount: 12499, date: '2024-01-14', method: 'MTN Mobile Money', status: 'Completed' },
     { id: '#TX003', user: 'John Studio', amount: 4999, date: '2024-01-13', method: 'MTN Mobile Money', status: 'Completed' },
-    { id: '#TX004', user: 'Emma Portraits', amount: 0, date: '2024-01-12', method: 'Free Trial', status: 'Active' },
+    { id: '#TX004', user: 'Emma Portraits', amount: 0, date: '2024-01-12', method: 'Free Plan', status: 'Active' },
     { id: '#TX005', user: 'Fashion Brand', amount: 4999, date: '2024-01-11', method: 'MTN Mobile Money', status: 'Failed' },
   ])
 

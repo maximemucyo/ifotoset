@@ -22,7 +22,7 @@ export function CTA() {
             href="/signup"
             className="px-8 py-4 bg-background text-primary hover:text-accent font-bold rounded-xl transition-all shadow-md hover:shadow-xl hover:scale-[1.03] text-base sm:text-lg"
           >
-            Start Free Trial
+            Get Started Free
           </Link>
         </div>
       </div>

@@ -96,7 +96,7 @@ export default function SignUpPage() {
             <Logo size="md" href="/" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Join ifotoset</h1>
-          <p className="text-muted-foreground">Create your free account and start building your portfolio</p>
+          <p className="text-muted-foreground">Start for free. Upgrade whenever you're ready.</p>
         </div>
 
         {/* Form Card */}
@@ -305,7 +305,7 @@ export default function SignUpPage() {
         {/* Features */}
         <div className="mt-8 grid md:grid-cols-3 gap-4">
           {[
-            { icon: '✓', title: 'Free Trial', desc: '30-day free trial, no card required' },
+            { icon: '✓', title: 'Free Plan', desc: 'Free plan included. No credit card required.' },
             { icon: '🔒', title: 'Secure', desc: 'Enterprise-grade security' },
             { icon: '🚀', title: 'Easy Setup', desc: 'Get started in minutes' }
           ].map((feature, idx) => (
