@@ -28,8 +28,10 @@ export interface FeatureItem {
 
 export interface PricingPlan {
   name: string
-  price: string
-  period: string
+  subtitle: string
+  priceMonthly: string
+  priceYearly: string
+  priceYearlyBilled: string
   description: string
   features: string[]
   highlighted?: boolean
@@ -131,13 +133,16 @@ export const featureItems: FeatureItem[] = [
 export const pricingPlans: PricingPlan[] = [
   {
     name: 'Free',
-    price: 'RWF 0',
-    period: '/month',
+    subtitle: 'Learn the platform',
+    priceMonthly: 'RWF 0',
+    priceYearly: 'RWF 0',
+    priceYearlyBilled: 'RWF 0',
     description: 'Perfect for new photographers starting to establish their presence.',
     features: [
       'Portfolio Website',
       'Unlimited Galleries',
       '2 GB Optimized Storage',
+      'Photo galleries only',
       'Email Support',
     ],
     ctaText: 'Get Started Free',
@@ -145,13 +150,16 @@ export const pricingPlans: PricingPlan[] = [
   },
   {
     name: 'Basic',
-    price: 'RWF 8,999',
-    period: '/month',
-    description: 'For growing photographers who need more storage.',
+    subtitle: 'Start delivering professionally',
+    priceMonthly: 'RWF 10,999',
+    priceYearly: 'RWF 8,999',
+    priceYearlyBilled: 'RWF 107,988',
+    description: 'For growing photographers who need more storage and video tools.',
     features: [
       'Portfolio Website',
       'Unlimited Galleries',
       '50 GB Optimized Storage',
+      'Up to 30 minutes of hosted video',
       'Email Support',
     ],
     ctaText: 'Choose Basic',
@@ -159,17 +167,19 @@ export const pricingPlans: PricingPlan[] = [
   },
   {
     name: 'Professional',
-    price: 'RWF 24,999',
-    period: '/month',
-    description: 'For established photographers running a business.',
+    subtitle: 'Run your photography business',
+    priceMonthly: 'RWF 29,999',
+    priceYearly: 'RWF 24,999',
+    priceYearlyBilled: 'RWF 299,988',
+    description: 'For established photographers running a full-time business.',
     features: [
       'Everything in Basic',
-      'Unlimited Galleries',
       '1 TB Optimized Storage',
+      'Up to 5 hours of hosted video',
       'Booking Manager',
       'Secure Payments integration',
       'Custom Domain Support',
-      'Priority Email/Chat Support',
+      'Priority Support',
     ],
     highlighted: true,
     ctaText: 'Choose Professional',
@@ -177,14 +187,18 @@ export const pricingPlans: PricingPlan[] = [
   },
   {
     name: 'Business',
-    price: 'RWF 49,999',
-    period: '/month',
+    subtitle: 'Scale your studio',
+    priceMonthly: 'RWF 59,999',
+    priceYearly: 'RWF 49,999',
+    priceYearlyBilled: 'RWF 599,988',
     description: 'For agencies, studios, and teams scaling their operations.',
     features: [
       'Everything in Professional',
-      'Unlimited* Storage',
-      'Multi-user / Team Accounts',
-      'Dedicated Support & Setup',
+      '3 TB Optimized Storage',
+      'Up to 15 hours of hosted video',
+      'Multi-user team accounts',
+      'Dedicated setup & onboarding',
+      'Priority Support',
     ],
     ctaText: 'Choose Business',
     ctaHref: '/signup',
@@ -210,11 +224,15 @@ export const faqItems: FaqItem[] = [
   },
   {
     question: 'Can clients download their photos?',
-    answer: 'Yes. You have full control over download privileges. You can allow clients to download high-resolution or web-sized versions, apply watermarks, or disable downloads altogether based on your agreement.',
+    answer: 'Yes. You have control over download privileges. You can allow clients to download high-resolution or web-sized versions, apply watermarks, or disable downloads altogether based on your agreement.',
   },
   {
     question: 'How much storage do I get?',
-    answer: 'The Starter plan includes 50 GB of optimized storage, while the Professional plan supports scale-ready storage limits suited to handle high-volume RAW and high-resolution JPEG delivery.',
+    answer: 'The Free plan includes 2 GB of storage. Basic includes 50 GB, Professional includes 1 TB, and Business provides 3 TB of optimized storage to handle high-volume RAW and high-resolution JPEG delivery.',
+  },
+  {
+    question: 'How does video hosting work?',
+    answer: 'Video hosting is optimized for premium client delivery (such as highlight films, ceremony recordings, or commercial clips). Basic includes up to 30 minutes, Professional includes up to 5 hours, and Business includes up to 15 hours of total hosted video. All uploads are transcoded and optimized to ensure ultra-fast client playback.',
   },
   {
     question: 'Can I customize my portfolio?',
@@ -226,6 +244,6 @@ export const faqItems: FaqItem[] = [
   },
   {
     question: 'Can I cancel anytime?',
-    answer: 'Yes. ifotoset runs on a monthly subscription with no long-term contracts. You can cancel, upgrade, or downgrade your plan at any point in your billing settings.',
+    answer: 'Yes. ifotoset runs on a monthly or yearly subscription with no long-term contracts. You can cancel, upgrade, or downgrade your plan at any point in your billing settings.',
   },
 ]
