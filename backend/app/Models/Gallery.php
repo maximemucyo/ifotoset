@@ -8,10 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Ramsey\Uuid\Uuid;
 
 class Gallery extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Gallery $gallery) {
+            if (empty($gallery->uuid)) {
+                $gallery->uuid = Uuid::uuid7()->toString();
+            }
+        });
+    }
 
     protected $fillable = [
         'uuid',
@@ -54,6 +64,11 @@ class Gallery extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(GalleryInvitation::class);
     }
 }
 ?>

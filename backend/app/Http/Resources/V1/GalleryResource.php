@@ -35,6 +35,21 @@ class GalleryResource extends JsonResource
             'photos' => PhotoResource::collection($this->whenLoaded('photos')),
             'expires_at' => $this->expires_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
+            'invitations' => $this->whenLoaded('invitations', function() {
+                return $this->invitations->map(function ($invitation) {
+                    return [
+                        'id' => $invitation->id,
+                        'email' => $invitation->email,
+                        'accepted' => !empty($invitation->accepted_at),
+                        'accepted_at' => $invitation->accepted_at?->toIso8601String(),
+                        'expired' => $invitation->expires_at ? $invitation->expires_at->isPast() : false,
+                        'expires_at' => $invitation->expires_at?->toIso8601String(),
+                        'revoked' => !empty($invitation->revoked_at),
+                        'revoked_at' => $invitation->revoked_at?->toIso8601String(),
+                        'created_at' => $invitation->created_at->toIso8601String(),
+                    ];
+                });
+            }),
         ];
     }
 }

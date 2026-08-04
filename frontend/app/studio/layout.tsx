@@ -1,4 +1,5 @@
 import { StudioSidebar } from '@/components/studio-sidebar'
+import { AuthGuard } from '@/components/auth-guard'
 
 export default function StudioLayout({
   children,
@@ -6,9 +7,11 @@ export default function StudioLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-screen bg-background">
-      <StudioSidebar />
-      {children}
-    </div>
+    <AuthGuard>
+      <div className="flex min-h-screen bg-background">
+        <StudioSidebar />
+        {children}
+      </div>
+    </AuthGuard>
   )
 }

@@ -26,12 +26,18 @@ class LoginController extends Controller
             $user = Auth::user();
 
             return response()->json([
-                'message' => 'Login successful.',
-                'user' => [
-                    'uuid' => $user->uuid,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'plan' => $user->plan->slug ?? 'free',
+                'data' => [
+                    'user' => [
+                        'uuid' => $user->uuid,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'plan' => $user->plan->slug ?? 'free',
+                        'storage_used_bytes' => (int) $user->storage_used_bytes,
+                    ],
+                    'permissions' => $user->role === 'admin'
+                        ? ['admin.access', 'galleries.manage']
+                        : ['galleries.manage'],
                 ]
             ], 200);
         }

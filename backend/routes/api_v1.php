@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Callback\PawaPayCallbackController;
 use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\UploadController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,10 @@ Route::get('/health', function () {
     ]);
 });
 
+// Public Gallery Endpoints (Rate Limited)
+Route::middleware('throttle:60,1')->get('/public/galleries/{slug}', [GalleryController::class, 'showPublic']);
+Route::middleware('throttle:10,1')->post('/public/galleries/{slug}/unlock', [GalleryController::class, 'unlockPublic']);
+
 // Authentication Endpoints
 Route::post('/auth/register', [RegisterController::class, 'register']);
 Route::post('/auth/login', [LoginController::class, 'login']);
@@ -39,8 +44,25 @@ Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCall
 // Authenticated Routes (Sanctum SPA cookie / Bearer Token)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', function (Request $request) {
-        return response()->json($request->user());
+        $user = $request->user();
+        return response()->json([
+            'data' => [
+                'user' => [
+                    'uuid' => $user->uuid,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'plan' => $user->plan->slug ?? 'free',
+                    'storage_used_bytes' => (int) $user->storage_used_bytes,
+                ],
+                'permissions' => $user->role === 'admin'
+                    ? ['admin.access', 'galleries.manage']
+                    : ['galleries.manage'],
+            ]
+        ]);
     });
+
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
     // Upload Sessions
     Route::post('/uploads/request', [UploadController::class, 'requestUpload']);

@@ -48,12 +48,16 @@ class RegisterController extends Controller
         Auth::login($user);
 
         return response()->json([
-            'message' => 'Registration successful.',
-            'user' => [
-                'uuid' => $user->uuid,
-                'name' => $user->name,
-                'email' => $user->email,
-                'plan' => $freePlan->slug,
+            'data' => [
+                'user' => [
+                    'uuid' => $user->uuid,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'plan' => $freePlan->slug,
+                    'storage_used_bytes' => (int) $user->storage_used_bytes,
+                ],
+                'permissions' => ['galleries.manage'],
             ]
         ], 201);
     }

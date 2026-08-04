@@ -1,11 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authFetch } from '../auth';
 
-export interface UserProfile {
+export interface User {
   uuid: string;
   name: string;
   email: string;
+  role: 'admin' | 'photographer';
   plan: string;
+  storage_used_bytes: number;
+}
+
+export interface UserProfile {
+  user: User;
+  permissions: string[];
 }
 
 /**
@@ -13,9 +20,10 @@ export interface UserProfile {
  */
 export async function getCurrentUser(): Promise<UserProfile | null> {
   try {
-    return await authFetch<UserProfile>('/auth/user', {
+    const res = await authFetch<{ data: UserProfile }>('/auth/user', {
       method: 'GET',
     });
+    return res.data;
   } catch (error) {
     // If unauthorized (401), return null
     return null;
@@ -26,22 +34,22 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
  * Logs in the user.
  */
 export async function loginUser(credentials: Record<string, any>): Promise<UserProfile> {
-  const data = await authFetch<{ user: UserProfile }>('/auth/login', {
+  const res = await authFetch<{ data: UserProfile }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });
-  return data.user;
+  return res.data;
 }
 
 /**
  * Registers a new photographer.
  */
 export async function registerUser(fields: Record<string, any>): Promise<UserProfile> {
-  const data = await authFetch<{ user: UserProfile }>('/auth/register', {
+  const res = await authFetch<{ data: UserProfile }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(fields),
   });
-  return data.user;
+  return res.data;
 }
 
 /**
@@ -71,6 +79,11 @@ export function useLoginMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: loginUser,
+    onMutate: async () => {
+      // Cancel any in-flight /auth/user requests so they don't overwrite
+      // the cache after login succeeds (race condition prevention)
+      await queryClient.cancelQueries({ queryKey: ['currentUser'] });
+    },
     onSuccess: (user) => {
       queryClient.setQueryData(['currentUser'], user);
     },

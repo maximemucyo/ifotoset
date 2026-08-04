@@ -1,16 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Check } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { useRegisterMutation, useCurrentUser } from '@/lib/queries/auth'
+import { Routes } from '@/lib/routes'
 
 export default function SignUpPage() {
   const router = useRouter()
+  const { data: currentUser, isLoading: isUserLoading } = useCurrentUser()
+  const registerMutation = useRegisterMutation()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [userType, setUserType] = useState<'photographer' | 'studio'>('photographer')
   const [formData, setFormData] = useState({
     fullName: '',
@@ -20,6 +24,12 @@ export default function SignUpPage() {
     studioName: '',
     agreeToTerms: false
   })
+
+  useEffect(() => {
+    if (!isUserLoading && currentUser?.user) {
+      router.push(Routes.studioDashboard)
+    }
+  }, [currentUser, isUserLoading, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -49,39 +59,43 @@ export default function SignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMsg(null)
     
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match')
+      setErrorMsg('Passwords do not match')
       return
     }
     
-    if (formData.password.length < 6) {
-      alert('Password must be at least 6 characters')
+    if (formData.password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters')
       return
     }
 
     if (!formData.agreeToTerms) {
-      alert('You must agree to the terms and conditions')
+      setErrorMsg('You must agree to the terms and conditions')
       return
     }
 
-    setIsLoading(true)
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Store mock session
-    localStorage.setItem('user_email', formData.email)
-    localStorage.setItem('user_name', formData.fullName)
-    localStorage.setItem('user_type', userType)
-    localStorage.setItem('is_authenticated', 'true')
-    
-    // Redirect to studio dashboard
-    router.push('/studio/dashboard')
-    
-    setIsLoading(false)
+    registerMutation.mutate(
+      {
+        name: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        password_confirmation: formData.confirmPassword
+      },
+      {
+        onSuccess: () => {
+          router.push(Routes.studioDashboard)
+        },
+        onError: (err: any) => {
+          setErrorMsg(err.message || 'Registration failed')
+        }
+      }
+    )
   }
+
+  const isLoading = registerMutation.isPending || isUserLoading
 
   const strength = passwordStrength()
   const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500']
@@ -102,6 +116,11 @@ export default function SignUpPage() {
         {/* Form Card */}
         <div className="bg-card rounded-lg border border-border p-8 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {errorMsg && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-lg text-center">
+                {errorMsg}
+              </div>
+            )}
             {/* User Type Selection */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-3">I am a</label>

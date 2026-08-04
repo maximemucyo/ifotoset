@@ -1,20 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { useLoginMutation, useCurrentUser } from '@/lib/queries/auth'
+import { Routes } from '@/lib/routes'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { data: currentUser, isLoading: isUserLoading } = useCurrentUser()
+  const loginMutation = useLoginMutation()
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     remember: false
   })
+
+  useEffect(() => {
+    if (!isUserLoading && currentUser?.user) {
+      if (currentUser.permissions?.includes('admin.access')) {
+        router.replace(Routes.adminDashboard)
+      } else {
+        router.replace(Routes.studioDashboard)
+      }
+    }
+  }, [currentUser, isUserLoading, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
@@ -26,29 +40,34 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setErrorMsg(null)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Mock authentication - check if email format is valid
-    if (formData.email && formData.password.length >= 6) {
-      // Store mock session
-      localStorage.setItem('user_email', formData.email)
-      localStorage.setItem('is_authenticated', 'true')
-      
-      // Determine if admin or studio based on email
-      if (formData.email.includes('admin')) {
-        router.push('/admin/dashboard')
-      } else {
-        router.push('/studio/dashboard')
+    loginMutation.mutate(
+      {
+        email: formData.email,
+        password: formData.password,
+        remember: formData.remember
+      },
+      {
+        onSuccess: (profile) => {
+          // Use window.location.href for a hard navigation after login.
+          // router.replace() can be silently cancelled by AuthGuard's own
+          // redirect logic in Next.js App Router, causing an infinite loop.
+          // A hard navigation guarantees we land on the dashboard and the
+          // session cookies are re-validated from scratch.
+          const destination = profile.permissions?.includes('admin.access')
+            ? Routes.adminDashboard
+            : Routes.studioDashboard
+          window.location.href = destination
+        },
+        onError: (err: any) => {
+          setErrorMsg(err.message || 'Invalid email or password')
+        }
       }
-    } else {
-      alert('Invalid email or password')
-    }
-    
-    setIsLoading(false)
+    )
   }
+
+  const isLoading = loginMutation.isPending
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center px-4">
@@ -65,6 +84,11 @@ export default function LoginPage() {
         {/* Form Card */}
         <div className="bg-card rounded-lg border border-border p-8 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {errorMsg && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-lg text-center">
+                {errorMsg}
+              </div>
+            )}
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
