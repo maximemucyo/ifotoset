@@ -74,7 +74,9 @@ export async function uploadPhotoDirectly(
         });
       }
       xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
-      xhr.setRequestHeader('x-amz-checksum-sha256', sha256);
+      if (!session.headers || !session.headers['x-amz-checksum-sha256']) {
+        xhr.setRequestHeader('x-amz-checksum-sha256', sha256);
+      }
 
       if (onProgress) {
         xhr.upload.onprogress = (e) => {

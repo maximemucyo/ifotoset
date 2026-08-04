@@ -17,7 +17,7 @@ class StorageService
     /**
      * Generates an S3 presigned upload URL with SHA-256 checksum header enforcement.
      */
-    public function generatePresignedUploadUrl(string $objectKey, string $sha256, DateTimeInterface $expiresAt): string
+    public function generatePresignedUploadUrl(string $objectKey, string $base64Sha256, DateTimeInterface $expiresAt): string
     {
         // AWS S3 / Backblaze B2 Flysystem driver presigned URL generation
         $client = Storage::disk('b2')->getClient();
@@ -26,7 +26,7 @@ class StorageService
         $cmd = $client->getCommand('PutObject', [
             'Bucket' => $bucket,
             'Key' => $objectKey,
-            'ChecksumSHA256' => $sha256,
+            'ChecksumSHA256' => $base64Sha256,
         ]);
 
         $request = $client->createPresignedRequest($cmd, $expiresAt);
@@ -61,7 +61,7 @@ class StorageService
     /**
      * Computes deterministic CDN asset URL.
      */
-    public function getCdnUrl(string $path, ?string $size = null): string
+    public function getCdnUrl(string $path, ?string $size = null, ?string $filename = null): string
     {
         $domain = rtrim($this->cdnDomain, '/');
         $cleanPath = ltrim($path, '/');
@@ -70,7 +70,8 @@ class StorageService
             return "https://{$domain}/{$cleanPath}/{$size}.webp";
         }
 
-        return "https://{$domain}/{$cleanPath}";
+        $file = $filename ?? 'original.jpg';
+        return "https://{$domain}/{$cleanPath}/{$file}";
     }
 }
 ?>

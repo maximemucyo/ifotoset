@@ -52,7 +52,7 @@ class UploadController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'code' => 'UPLOAD_REQUEST_FAILED',
-                'message' => $e->getMessage(),
+                'message' => mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8'),
             ], 400);
         }
     }
@@ -77,7 +77,7 @@ class UploadController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'code' => 'UPLOAD_CONFIRMATION_FAILED',
-                'message' => $e->getMessage(),
+                'message' => mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8'),
             ], 422);
         }
     }

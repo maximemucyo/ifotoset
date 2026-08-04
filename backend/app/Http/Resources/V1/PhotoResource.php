@@ -16,7 +16,9 @@ class PhotoResource extends JsonResource
     public function toArray(Request $request): array
     {
         $storageService = app(StorageService::class);
-        $baseCdnUrl = $storageService->getCdnUrl($this->path);
+        $baseCdnUrl = $storageService->getCdnUrl($this->path, null, $this->filename);
+
+        $isReady = $this->status === \App\Enums\PhotoStatus::Ready->value;
 
         return [
             'uuid' => $this->uuid,
@@ -29,13 +31,13 @@ class PhotoResource extends JsonResource
             'blurhash' => $this->blurhash,
             'status' => $this->status,
             'cdn_url' => $baseCdnUrl,
-            'variants' => [
-                'xs' => $storageService->getCdnUrl($this->path, 'xs'),
-                'sm' => $storageService->getCdnUrl($this->path, 'sm'),
-                'md' => $storageService->getCdnUrl($this->path, 'md'),
-                'lg' => $storageService->getCdnUrl($this->path, 'lg'),
-                'xl' => $storageService->getCdnUrl($this->path, 'xl'),
-            ],
+            'variants' => $isReady ? [
+                'xs' => $storageService->getCdnUrl($this->path, 'xs', $this->filename),
+                'sm' => $storageService->getCdnUrl($this->path, 'sm', $this->filename),
+                'md' => $storageService->getCdnUrl($this->path, 'md', $this->filename),
+                'lg' => $storageService->getCdnUrl($this->path, 'lg', $this->filename),
+                'xl' => $storageService->getCdnUrl($this->path, 'xl', $this->filename),
+            ] : null,
             'taken_at' => $this->taken_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
         ];

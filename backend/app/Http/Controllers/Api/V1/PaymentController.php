@@ -88,7 +88,7 @@ class PaymentController extends Controller
         } catch (Exception $e) {
             return response()->json([
                 'code' => 'PAYMENT_INITIATION_FAILED',
-                'message' => $e->getMessage(),
+                'message' => mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8'),
             ], 400);
         }
     }

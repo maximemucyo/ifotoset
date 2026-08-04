@@ -46,9 +46,10 @@ class UploadService
             ->first();
 
         if ($existingSession) {
+            $base64Sha256 = base64_encode(hex2bin($existingSession->expected_sha256));
             $presignedUrl = $this->storageService->generatePresignedUploadUrl(
                 $existingSession->object_key,
-                $existingSession->expected_sha256,
+                $base64Sha256,
                 $existingSession->expires_at
             );
 
@@ -57,11 +58,16 @@ class UploadService
                 'object_key' => $existingSession->object_key,
                 'presigned_url' => $presignedUrl,
                 'headers' => [
-                    'x-amz-checksum-sha256' => $existingSession->expected_sha256,
+                    'x-amz-checksum-sha256' => $base64Sha256,
                 ],
                 'expires_at' => $existingSession->expires_at->toIso8601String(),
             ];
         }
+
+        // Delete any existing inactive/expired session with the same idempotency key to prevent unique constraint violation
+        UploadSession::where('user_id', $user->id)
+            ->where('idempotency_key', $idempotencyKey)
+            ->delete();
 
         // Generate unique UUID and object path
         $photoUuid = Uuid::uuid7()->toString();
@@ -80,9 +86,11 @@ class UploadService
             'expires_at' => $expiresAt,
         ]);
 
+        $base64Sha256 = base64_encode(hex2bin($sha256));
+
         $presignedUrl = $this->storageService->generatePresignedUploadUrl(
             $objectKey,
-            $sha256,
+            $base64Sha256,
             $expiresAt
         );
 
@@ -91,7 +99,7 @@ class UploadService
             'object_key' => $session->object_key,
             'presigned_url' => $presignedUrl,
             'headers' => [
-                'x-amz-checksum-sha256' => $sha256,
+                'x-amz-checksum-sha256' => $base64Sha256,
             ],
             'expires_at' => $expiresAt->toIso8601String(),
         ];
@@ -147,6 +155,11 @@ class UploadService
             $session->update([
                 'status' => UploadStatus::Completed->value,
             ]);
+
+            // Dispatch background WebP resize and metadata extraction job
+            DB::afterCommit(function () use ($photo) {
+                \App\Jobs\ProcessPhotoJob::dispatch($photo);
+            });
 
             return $photo;
         });

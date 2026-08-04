@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Plan extends Model
 {
+    use HasBinaryUuid;
     protected $fillable = [
         'uuid',
         'slug',

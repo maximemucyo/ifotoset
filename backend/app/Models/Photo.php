@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Photo extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, HasBinaryUuid;
 
     protected $fillable = [
         'uuid',

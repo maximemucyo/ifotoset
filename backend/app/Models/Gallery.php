@@ -3,25 +3,17 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Ramsey\Uuid\Uuid;
 
 class Gallery extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, HasBinaryUuid;
 
-    protected static function booted(): void
-    {
-        static::creating(function (Gallery $gallery) {
-            if (empty($gallery->uuid)) {
-                $gallery->uuid = Uuid::uuid7()->toString();
-            }
-        });
-    }
 
     protected $fillable = [
         'uuid',

@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 
 class UploadSession extends Model
 {
+    use HasBinaryUuid;
     protected $fillable = [
         'uuid',
         'user_id',
