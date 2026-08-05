@@ -35,6 +35,9 @@ class GalleryResource extends JsonResource
             'photos' => PhotoResource::collection($this->whenLoaded('photos')),
             'expires_at' => $this->expires_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
+            'deleted_at' => $this->deleted_at?->toIso8601String(),
+            'trash_expires_at' => $this->deleted_at ? $this->deleted_at->copy()->addDays(config('filesystems.trash_retention_days', 30))->toIso8601String() : null,
+            'days_remaining' => $this->deleted_at ? max(0, (int) ceil(now()->diffInDays($this->deleted_at->copy()->addDays(config('filesystems.trash_retention_days', 30)), false))) : null,
             'invitations' => $this->whenLoaded('invitations', function() {
                 return $this->invitations->map(function ($invitation) {
                     return [

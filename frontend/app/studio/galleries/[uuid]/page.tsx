@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Upload, Trash2, Edit, Share2, Lock, Globe, Image, Download,
-  Heart, Eye, MoreHorizontal, X, Check, AlertTriangle, CloudUpload
+  Heart, Eye, MoreHorizontal, X, Check, AlertTriangle, CloudUpload,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
-import { useGallery, useDeleteGalleryMutation, PhotoItem } from '@/lib/queries/galleries'
+import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation } from '@/lib/queries/galleries'
 import { uploadPhotoDirectly } from '@/lib/storage'
 import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
@@ -35,6 +36,89 @@ export default function GalleryDetail() {
   const [shareTooltip, setShareTooltip] = useState(false)
 
   const gallery = data?.data
+  const photos = gallery?.photos ?? []
+  const activeUploads = uploads.filter((u) => u.status !== 'done')
+
+  const deletePhotoMutation = useDeletePhotoMutation(uuid)
+
+  // Precompute slideshow indices
+  const currentIndex = selectedPhoto ? photos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1
+  const nextIndex = selectedPhoto && photos.length > 0 ? (currentIndex + 1) % photos.length : -1
+  const prevIndex = selectedPhoto && photos.length > 0 ? (currentIndex - 1 + photos.length) % photos.length : -1
+
+  const handlePrevPhoto = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (prevIndex !== -1 && photos[prevIndex]) {
+      setSelectedPhoto(photos[prevIndex])
+    }
+  }, [prevIndex, photos])
+
+  const handleNextPhoto = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (nextIndex !== -1 && photos[nextIndex]) {
+      setSelectedPhoto(photos[nextIndex])
+    }
+  }, [nextIndex, photos])
+
+  const handleDeletePhoto = useCallback((photoUuid: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (deletePhotoMutation.isPending) return
+    if (!confirm('Are you sure you want to delete this photo? It will be moved to the Trash and kept for 7 days.')) return
+
+    // Precalculate post-delete target before mutation runs
+    const cIdx = photos.findIndex((p) => p.uuid === photoUuid)
+    let nextPhoto: PhotoItem | null = null
+    if (photos.length > 1) {
+      const nIdx = (cIdx + 1) % photos.length
+      const pIdx = (cIdx - 1 + photos.length) % photos.length
+      if (photos[nIdx] && photos[nIdx].uuid !== photoUuid) {
+        nextPhoto = photos[nIdx]
+      } else if (photos[pIdx] && photos[pIdx].uuid !== photoUuid) {
+        nextPhoto = photos[pIdx]
+      }
+    }
+
+    deletePhotoMutation.mutate(photoUuid, {
+      onSuccess: () => {
+        setSelectedPhoto(nextPhoto)
+      },
+      onError: () => {
+        alert('Failed to delete the photo. Please try again.')
+        const restored = photos.find((p) => p.uuid === photoUuid)
+        if (restored) {
+          setSelectedPhoto(restored)
+        }
+      }
+    })
+  }, [deletePhotoMutation, photos])
+
+  useEffect(() => {
+    if (!selectedPhoto) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
+        handlePrevPhoto()
+      } else if (e.key === 'ArrowRight') {
+        handleNextPhoto()
+      } else if (e.key === 'Escape') {
+        setSelectedPhoto(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedPhoto, handlePrevPhoto, handleNextPhoto])
 
   const updateUpload = (id: string, patch: Partial<UploadFile>) => {
     setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)))
@@ -128,8 +212,7 @@ export default function GalleryDetail() {
     )
   }
 
-  const photos = gallery.photos ?? []
-  const activeUploads = uploads.filter((u) => u.status !== 'done')
+
 
   return (
     <main className="flex-1 min-h-screen bg-background">
@@ -327,27 +410,65 @@ export default function GalleryDetail() {
       {/* Photo Lightbox */}
       {selectedPhoto && (
         <div
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 select-none"
           onClick={() => setSelectedPhoto(null)}
         >
           <button
-            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-colors"
+            className="absolute top-4 right-4 p-2.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-50 bg-black/40"
             onClick={() => setSelectedPhoto(null)}
+            aria-label="Close lightbox"
           >
-            <X size={28} />
+            <X size={24} />
           </button>
-          <img
-            src={selectedPhoto.variants?.lg || selectedPhoto.cdn_url}
-            alt={selectedPhoto.filename}
-            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <div
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-4 py-2 rounded-full"
-            onClick={(e) => e.stopPropagation()}
+
+          <button
+            className="absolute top-4 right-16 p-2.5 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors z-50 bg-black/40 disabled:opacity-50"
+            onClick={(e) => handleDeletePhoto(selectedPhoto.uuid, e)}
+            disabled={deletePhotoMutation.isPending}
+            aria-label="Delete photo"
+            title="Delete photo from gallery"
           >
-            {selectedPhoto.filename} · {formatBytes(selectedPhoto.size)}
+            {deletePhotoMutation.isPending ? (
+              <div className="w-6 h-6 border-2 border-red-400/20 border-t-red-500 rounded-full animate-spin" />
+            ) : (
+              <Trash2 size={24} />
+            )}
+          </button>
+
+          {photos.length > 1 && (
+            <button
+              className="absolute left-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-50 bg-black/20"
+              onClick={handlePrevPhoto}
+              aria-label="Previous photo"
+            >
+              <ChevronLeft size={36} />
+            </button>
+          )}
+
+          <div className="relative max-w-full max-h-[85vh] flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={selectedPhoto.variants?.lg || selectedPhoto.cdn_url}
+              alt={selectedPhoto.filename}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+            />
+            <div className="mt-4 bg-black/60 backdrop-blur-md text-white text-xs px-4 py-2 rounded-full flex items-center gap-4">
+              <span className="font-medium truncate max-w-[200px]">{selectedPhoto.filename}</span>
+              <span className="opacity-40">·</span>
+              <span>{formatBytes(selectedPhoto.size)}</span>
+              <span className="opacity-40">·</span>
+              <span>{currentIndex + 1} of {photos.length}</span>
+            </div>
           </div>
+
+          {photos.length > 1 && (
+            <button
+              className="absolute right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-50 bg-black/20"
+              onClick={handleNextPhoto}
+              aria-label="Next photo"
+            >
+              <ChevronRight size={36} />
+            </button>
+          )}
         </div>
       )}
 
@@ -360,12 +481,12 @@ export default function GalleryDetail() {
                 <AlertTriangle size={20} className="text-destructive" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground">Delete Gallery</h3>
-                <p className="text-sm text-muted-foreground">This action cannot be undone.</p>
+                <h3 className="font-bold text-foreground">Move Gallery to Trash?</h3>
+                <p className="text-sm text-muted-foreground">This gallery can be restored within 7 days.</p>
               </div>
             </div>
             <p className="text-sm text-foreground mb-6">
-              Are you sure you want to delete <strong>"{gallery.title}"</strong>? All photos and data will be permanently removed.
+              Are you sure you want to delete <strong>"{gallery.title}"</strong>? The gallery will be moved to Trash and kept for 7 days. After 7 days it will be permanently deleted along with all original files and generated image variants.
             </p>
             <div className="flex gap-3">
               <button
@@ -381,7 +502,7 @@ export default function GalleryDetail() {
                 disabled={deleteMutation.isPending}
                 className="flex-1 py-2.5 px-4 bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors font-semibold text-sm disabled:opacity-60"
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Gallery'}
+                {deleteMutation.isPending ? 'Deleting...' : 'Move to Trash'}
               </button>
             </div>
           </div>

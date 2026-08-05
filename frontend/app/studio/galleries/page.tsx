@@ -227,12 +227,12 @@ export default function Galleries() {
                 <AlertTriangle size={20} className="text-destructive" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground">Delete Gallery</h3>
-                <p className="text-sm text-muted-foreground">This action cannot be undone.</p>
+                <h3 className="font-bold text-foreground">Move Gallery to Trash?</h3>
+                <p className="text-sm text-muted-foreground">This gallery can be restored within 7 days.</p>
               </div>
             </div>
             <p className="text-sm text-foreground mb-6">
-              Are you sure you want to delete <strong>&quot;{deleteTarget.title}&quot;</strong>? All photos and data will be permanently removed.
+              Are you sure you want to delete <strong>&quot;{deleteTarget.title}&quot;</strong>? The gallery will be moved to Trash and kept for 7 days. After 7 days it will be permanently deleted along with all original files and generated image variants.
             </p>
             <div className="flex gap-3">
               <button
@@ -246,7 +246,7 @@ export default function Galleries() {
                 disabled={deleteMutation.isPending}
                 className="flex-1 py-2.5 px-4 bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors font-semibold text-sm disabled:opacity-60"
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Gallery'}
+                {deleteMutation.isPending ? 'Deleting...' : 'Move to Trash'}
               </button>
             </div>
           </div>

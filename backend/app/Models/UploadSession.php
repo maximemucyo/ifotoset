@@ -15,6 +15,7 @@ class UploadSession extends Model
         'gallery_id',
         'idempotency_key',
         'object_key',
+        'original_filename',
         'expected_size',
         'expected_sha256',
         'status',

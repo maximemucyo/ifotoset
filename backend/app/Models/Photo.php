@@ -19,6 +19,8 @@ class Photo extends Model
         'disk_id',
         'path',
         'filename',
+        'original_filename',
+        'stored_filename',
         'mime_type',
         'size',
         'width',

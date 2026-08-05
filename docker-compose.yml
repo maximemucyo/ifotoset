@@ -23,6 +23,29 @@ services:
       - mysql
       - redis
 
+  queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ifotoset_queue
+    command: php artisan queue:work --verbose --tries=3
+    volumes:
+      - './backend:/var/www/html'
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=ifotoset
+      - DB_USERNAME=ifotoset_user
+      - DB_PASSWORD=secret
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mysql
+      - redis
+
   mysql:
     image: 'mysql/mysql-server:8.0'
     container_name: ifotoset_mysql

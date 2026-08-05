@@ -31,7 +31,10 @@ Route::get('/health', function () {
 
 // Public Gallery Endpoints (Rate Limited)
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}', [GalleryController::class, 'showPublic']);
+Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/photos', [GalleryController::class, 'publicPhotos']);
 Route::middleware('throttle:10,1')->post('/public/galleries/{slug}/unlock', [GalleryController::class, 'unlockPublic']);
+Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/download', [GalleryController::class, 'recordDownload']);
+Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [GalleryController::class, 'toggleFavorite']);
 
 // Authentication Endpoints
 Route::post('/auth/register', [RegisterController::class, 'register']);
@@ -64,6 +67,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
+    // Admin Panel Routes
+    Route::middleware('can:access-admin')->prefix('admin')->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'dashboard']);
+        Route::get('/queue', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'queue']);
+        Route::get('/users', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'users']);
+        Route::get('/galleries', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'galleries']);
+    });
+
     // Upload Sessions
     Route::post('/uploads/request', [UploadController::class, 'requestUpload']);
     Route::post('/uploads/confirm', [UploadController::class, 'confirmUpload']);
@@ -75,6 +86,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/galleries/{uuid}', [GalleryController::class, 'show']);
     Route::patch('/galleries/{uuid}', [GalleryController::class, 'update']);
     Route::delete('/galleries/{uuid}', [GalleryController::class, 'destroy']);
+
+    // Photos CRUD
+    Route::delete('/photos/{uuid}', [\App\Http\Controllers\Api\V1\PhotoController::class, 'destroy']);
+
+    // Trash Management
+    Route::get('/trash', [\App\Http\Controllers\Api\V1\TrashController::class, 'index']);
+    Route::post('/trash/restore', [\App\Http\Controllers\Api\V1\TrashController::class, 'restore']);
+    Route::delete('/trash/purge', [\App\Http\Controllers\Api\V1\TrashController::class, 'purge']);
+    Route::post('/trash/empty', [\App\Http\Controllers\Api\V1\TrashController::class, 'empty']);
 
     // MoMo Payments
     Route::post('/payments/initiate', [PaymentController::class, 'initiate']);

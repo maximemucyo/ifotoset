@@ -150,9 +150,51 @@ class GalleryController extends Controller
     public function showPublic(Request $request, string $slug): JsonResponse
     {
         $gallery = Gallery::where('slug', $slug)
-            ->with(['stats', 'coverPhoto', 'photos'])
+            ->with(['stats', 'coverPhoto'])
             ->firstOrFail();
 
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        return (new GalleryResource($gallery))->response();
+    }
+
+    /**
+     * Get paginated photos of a public gallery.
+     * GET /api/v1/public/galleries/{slug}/photos
+     */
+    public function publicPhotos(Request $request, string $slug): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $perPage = $request->integer('per_page', 60);
+        $perPage = max(1, min(100, $perPage));
+
+        $photos = $gallery->photos()
+            ->orderBy('sort_date', 'asc')
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->cursorPaginate($perPage);
+
+        return response()->json([
+            'data' => \App\Http\Resources\V1\PhotoResource::collection($photos->items()),
+            'next_cursor' => $photos->nextCursor() ? $photos->nextCursor()->encode() : null,
+            'has_more' => $photos->hasMorePages(),
+        ]);
+    }
+
+    /**
+     * Verify if the request has access to the given public/private gallery.
+     */
+    private function verifyGalleryAccess(Gallery $gallery, Request $request): ?JsonResponse
+    {
         // Check if gallery is expired
         if ($gallery->expires_at && $gallery->expires_at->isPast()) {
             return response()->json([
@@ -164,7 +206,7 @@ class GalleryController extends Controller
         $visibility = $gallery->visibility;
 
         if ($visibility === 'public') {
-            return (new GalleryResource($gallery))->response();
+            return null; // Access granted
         }
 
         // If private, check access method
@@ -175,7 +217,7 @@ class GalleryController extends Controller
             $expectedToken = hash_hmac('sha256', $gallery->uuid, config('app.key'));
 
             if ($token && hash_equals($expectedToken, $token)) {
-                return (new GalleryResource($gallery))->response();
+                return null; // Access granted
             }
 
             return response()->json([
@@ -215,7 +257,7 @@ class GalleryController extends Controller
                     $invitation->update(['accepted_at' => now()]);
                 }
 
-                return (new GalleryResource($gallery))->response();
+                return null; // Access granted
             }
         }
 
@@ -312,6 +354,99 @@ class GalleryController extends Controller
         $gallery->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Record download analytics for a public gallery.
+     * POST /api/v1/public/galleries/{slug}/download
+     */
+    public function recordDownload(Request $request, string $slug): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $validated = $request->validate([
+            'photo_uuid' => ['nullable', 'string'],
+            'email' => ['nullable', 'string', 'email'],
+        ]);
+
+        $gallery->stats()->increment('downloads_count');
+        $gallery->stats()->update(['updated_at' => now()]);
+
+        $email = isset($validated['email']) ? strtolower(trim($validated['email'])) : null;
+
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => 'photo_downloaded',
+            'properties' => json_encode([
+                'photo_uuid' => $validated['photo_uuid'] ?? null,
+                'email' => $email,
+                'action' => 'download',
+            ]),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Download recorded successfully.',
+            'downloads_count' => $gallery->stats->fresh()->downloads_count,
+        ]);
+    }
+
+    /**
+     * Increment or decrement favorites count for a public gallery.
+     * POST /api/v1/public/galleries/{slug}/favorite
+     */
+    public function toggleFavorite(Request $request, string $slug): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $validated = $request->validate([
+            'photo_uuid' => ['nullable', 'string'],
+            'is_favorite' => ['required', 'boolean'],
+            'email' => ['nullable', 'string', 'email'],
+        ]);
+
+        $isFavorite = $validated['is_favorite'];
+        $email = isset($validated['email']) ? strtolower(trim($validated['email'])) : null;
+
+        if ($isFavorite) {
+            $gallery->stats()->increment('favorites_count');
+        } else {
+            // Ensure we don't decrement below 0
+            if ($gallery->stats->favorites_count > 0) {
+                $gallery->stats()->decrement('favorites_count');
+            }
+        }
+        $gallery->stats()->update(['updated_at' => now()]);
+
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => $isFavorite ? 'photo_favorited' : 'photo_unfavorited',
+            'properties' => json_encode([
+                'photo_uuid' => $validated['photo_uuid'] ?? null,
+                'email' => $email,
+                'action' => $isFavorite ? 'favorite' : 'unfavorite',
+            ]),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => $isFavorite ? 'Favorite added.' : 'Favorite removed.',
+            'favorites_count' => $gallery->stats->fresh()->favorites_count,
+        ]);
     }
 }
 ?>

@@ -59,6 +59,24 @@ class StorageService
     }
 
     /**
+     * Deletes folder/prefix recursively from storage.
+     * Returns true if the directory is successfully deleted or already absent.
+     * Throws an exception on structural connection or API failure.
+     */
+    public function deleteDirectory(string $directoryKey): bool
+    {
+        try {
+            return Storage::disk('b2')->deleteDirectory($directoryKey);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Backblaze B2 deleteDirectory failed.', [
+                'directory_key' => $directoryKey,
+                'exception' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Computes deterministic CDN asset URL.
      */
     public function getCdnUrl(string $path, ?string $size = null, ?string $filename = null): string
@@ -67,7 +85,8 @@ class StorageService
         $cleanPath = ltrim($path, '/');
 
         if ($size) {
-            return "https://{$domain}/{$cleanPath}/{$size}.webp";
+            $baseName = $filename ? pathinfo($filename, PATHINFO_FILENAME) : 'original';
+            return "https://{$domain}/{$cleanPath}/{$baseName}_{$size}.webp";
         }
 
         $file = $filename ?? 'original.jpg';

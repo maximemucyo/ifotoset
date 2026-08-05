@@ -2,6 +2,7 @@
 
 return [
     'default' => env('FILESYSTEM_DISK', 'local'),
+    'trash_retention_days' => env('TRASH_RETENTION_DAYS', 7),
     'disks' => [
         'local' => [
             'driver' => 'local',

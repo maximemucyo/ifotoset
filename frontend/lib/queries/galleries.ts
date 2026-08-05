@@ -28,6 +28,9 @@ export interface PhotoItem {
   };
   taken_at: string | null;
   created_at: string;
+  deleted_at?: string | null;
+  trash_expires_at?: string | null;
+  days_remaining?: number | null;
 }
 
 export interface GalleryInvitation {
@@ -58,6 +61,9 @@ export interface GalleryItem {
   expires_at?: string | null;
   invitations?: GalleryInvitation[];
   created_at: string;
+  deleted_at?: string | null;
+  trash_expires_at?: string | null;
+  days_remaining?: number | null;
 }
 
 export interface GalleriesResponse {
@@ -207,3 +213,127 @@ export async function unlockPublicGallery(
   })
 }
 
+export interface PaginatedPhotosResponse {
+  data: PhotoItem[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export async function getPublicGalleryPhotos(
+  slug: string,
+  cursor?: string | null,
+  perPage = 60,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<PaginatedPhotosResponse> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/photos?per_page=${perPage}`
+  if (cursor) {
+    url += `&cursor=${cursor}`
+  }
+  if (inviteToken) {
+    url += `&invite=${inviteToken}`
+  }
+
+  return authFetch<PaginatedPhotosResponse>(url, {
+    method: 'GET',
+    headers,
+  })
+}
+
+export async function deletePhoto(photoUuid: string): Promise<void> {
+  await authFetch<void>(`/photos/${photoUuid}`, {
+    method: 'DELETE',
+  })
+}
+
+export function useDeletePhotoMutation(galleryUuid: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deletePhoto,
+    onMutate: async (photoUuid) => {
+      await queryClient.cancelQueries({ queryKey: ['gallery', galleryUuid] })
+
+      const previousGallery = queryClient.getQueryData<{ data: GalleryItem }>(['gallery', galleryUuid])
+
+      if (previousGallery) {
+        queryClient.setQueryData<{ data: GalleryItem }>(['gallery', galleryUuid], {
+          ...previousGallery,
+          data: {
+            ...previousGallery.data,
+            photos: previousGallery.data.photos?.filter((p) => p.uuid !== photoUuid),
+            stats: {
+              ...previousGallery.data.stats,
+              photo_count: Math.max(0, previousGallery.data.stats.photo_count - 1),
+            },
+          },
+        })
+      }
+
+      return { previousGallery }
+    },
+    onError: (err, photoUuid, context) => {
+      if (context?.previousGallery) {
+        queryClient.setQueryData(['gallery', galleryUuid], context.previousGallery)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryUuid] })
+      queryClient.invalidateQueries({ queryKey: ['galleries'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] })
+    },
+  })
+}
+
+export async function recordPublicPhotoDownload(
+  slug: string,
+  photoUuid: string,
+  email?: string | null,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<void> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/download`
+  if (inviteToken) {
+    url += `?invite=${inviteToken}`
+  }
+
+  await authFetch<void>(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ photo_uuid: photoUuid, email }),
+  })
+}
+
+export async function togglePublicPhotoFavorite(
+  slug: string,
+  photoUuid: string,
+  isFavorite: boolean,
+  email?: string | null,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<void> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/favorite`
+  if (inviteToken) {
+    url += `?invite=${inviteToken}`
+  }
+
+  await authFetch<void>(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ photo_uuid: photoUuid, is_favorite: isFavorite, email }),
+  })
+}

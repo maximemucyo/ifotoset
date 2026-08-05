@@ -71,7 +71,12 @@ class UploadService
 
         // Generate unique UUID and object path
         $photoUuid = Uuid::uuid7()->toString();
-        $objectKey = "galleries/{$gallery->uuid}/photos/{$photoUuid}/original." . pathinfo($filename, PATHINFO_EXTENSION);
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $sanitizedBasename = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $basename);
+        $sanitizedFilename = $sanitizedBasename . '.' . $extension;
+
+        $objectKey = "galleries/{$gallery->uuid}/photos/{$photoUuid}/{$sanitizedFilename}";
         $expiresAt = now()->addHours(2);
 
         $session = UploadSession::create([
@@ -80,6 +85,7 @@ class UploadService
             'gallery_id' => $gallery->id,
             'idempotency_key' => $idempotencyKey,
             'object_key' => $objectKey,
+            'original_filename' => $filename,
             'expected_size' => $fileSize,
             'expected_sha256' => $sha256,
             'status' => UploadStatus::Requested->value,
@@ -140,13 +146,26 @@ class UploadService
                 'cdn_domain' => config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com'),
             ]);
 
+            $extension = pathinfo($session->object_key, PATHINFO_EXTENSION);
+            $mimeType = match(strtolower($extension)) {
+                'png' => 'image/png',
+                'gif' => 'image/gif',
+                'webp' => 'image/webp',
+                'heic' => 'image/heic',
+                'heif' => 'image/heif',
+                'tiff' => 'image/tiff',
+                default => 'image/jpeg',
+            };
+
             $photo = Photo::create([
                 'uuid' => $session->uuid,
                 'gallery_id' => $session->gallery_id,
                 'disk_id' => $defaultDisk->id,
                 'path' => dirname($session->object_key),
                 'filename' => basename($session->object_key),
-                'mime_type' => 'image/jpeg',
+                'original_filename' => $session->original_filename ?? basename($session->object_key),
+                'stored_filename' => basename($session->object_key),
+                'mime_type' => $mimeType,
                 'size' => $session->expected_size,
                 'checksum' => $session->expected_sha256,
                 'status' => PhotoStatus::Processing->value,
@@ -154,6 +173,15 @@ class UploadService
 
             $session->update([
                 'status' => UploadStatus::Completed->value,
+            ]);
+
+            // Seed initial media job tracking record in queued status
+            \App\Models\MediaJob::create([
+                'photo_id' => $photo->id,
+                'job_name' => \App\Jobs\ProcessPhotoJob::class,
+                'job_type' => \App\Jobs\ProcessPhotoJob::class,
+                'status' => \App\Enums\MediaJobStatus::Queued->value,
+                'progress' => 'Queued',
             ]);
 
             // Dispatch background WebP resize and metadata extraction job

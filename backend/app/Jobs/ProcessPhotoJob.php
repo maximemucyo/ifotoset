@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
-use Kornrunner\Blurhash;
+use kornrunner\Blurhash\Blurhash;
 use Throwable;
 
 class ProcessPhotoJob implements ShouldQueue
@@ -38,16 +38,39 @@ class ProcessPhotoJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
+    /**
+     * Create a new job instance.
+     */
     public function __construct(
         protected Photo $photo
     ) {}
+
+    /**
+     * Get the Photo model instance.
+     */
+    public function getPhoto(): Photo
+    {
+        return $this->photo;
+    }
 
     /**
      * Execute the job.
      */
     public function handle(): void
     {
+        ini_set('memory_limit', '512M');
+
         $photo = $this->photo;
+
+        // Find the current media job tracking record
+        $mediaJob = \App\Models\MediaJob::where('photo_id', $photo->id)->orderBy('id', 'desc')->first();
+
+        // Helper to update progress
+        $updateProgress = function (string $progress) use ($mediaJob) {
+            if ($mediaJob) {
+                $mediaJob->update(['progress' => $progress]);
+            }
+        };
 
         // Ensure status is processing
         $photo->update(['status' => PhotoStatus::Processing->value]);
@@ -65,6 +88,7 @@ class ProcessPhotoJob implements ShouldQueue
 
         try {
             // 1. Download original from B2
+            $updateProgress('Downloading Original');
             $originalPath = $photo->path . '/' . $photo->filename;
             $originalContent = Storage::disk('b2')->get($originalPath);
             
@@ -74,7 +98,14 @@ class ProcessPhotoJob implements ShouldQueue
 
             File::put($tempFilePath, $originalContent);
 
+            // Ensure temporary file is fully flushed to disk before validation
+            clearstatcache(true, $tempFilePath);
+            
+            // Verify MIME type using content-inspection (fall back to current DB value if fail)
+            $verifiedMimeType = File::mimeType($tempFilePath) ?? $photo->mime_type;
+
             // 2. Extract Metadata
+            $updateProgress('Extracting Metadata');
             $exifData = $this->extractExif($tempFilePath);
 
             // 3. Initialize Intervention Image Manager with GD Driver
@@ -89,9 +120,11 @@ class ProcessPhotoJob implements ShouldQueue
             $height = $image->height();
 
             // 5. Compute BlurHash
+            $updateProgress('Generating BlurHash');
             $blurhash = $this->calculateBlurhash($image);
 
             // 6. Generate responsive variants
+            $updateProgress('Generating & Uploading WebP');
             $variants = config('images.variants', [
                 'xs' => 200,
                 'sm' => 480,
@@ -100,6 +133,8 @@ class ProcessPhotoJob implements ShouldQueue
                 'xl' => 2560,
             ]);
             $quality = config('images.quality', 82);
+
+            $baseName = pathinfo($photo->filename, PATHINFO_FILENAME);
 
             foreach ($variants as $sizeName => $targetWidth) {
                 $variantImg = clone $image;
@@ -114,7 +149,7 @@ class ProcessPhotoJob implements ShouldQueue
                 $encodedWebp = $variantImg->toWebp($quality);
 
                 // Upload variant to B2
-                $variantPath = $photo->path . '/' . $sizeName . '.webp';
+                $variantPath = $photo->path . '/' . $baseName . '_' . $sizeName . '.webp';
                 Storage::disk('b2')->put($variantPath, (string) $encodedWebp);
 
                 // Verify upload succeeded
@@ -126,11 +161,13 @@ class ProcessPhotoJob implements ShouldQueue
             }
 
             // 7. Update database records in transaction
-            \Illuminate\Support\Facades\DB::transaction(function () use ($photo, $width, $height, $blurhash, $exifData) {
+            $updateProgress('Updating Statistics');
+            \Illuminate\Support\Facades\DB::transaction(function () use ($photo, $width, $height, $blurhash, $exifData, $verifiedMimeType) {
                 $photo->update([
                     'width' => $width,
                     'height' => $height,
                     'blurhash' => $blurhash,
+                    'mime_type' => $verifiedMimeType,
                     'taken_at' => $exifData['taken_at'] ?? $photo->taken_at,
                     'status' => PhotoStatus::Ready->value,
                 ]);

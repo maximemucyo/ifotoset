@@ -40,6 +40,9 @@ class PhotoResource extends JsonResource
             ] : null,
             'taken_at' => $this->taken_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
+            'deleted_at' => $this->deleted_at?->toIso8601String(),
+            'trash_expires_at' => $this->deleted_at ? $this->deleted_at->copy()->addDays(config('filesystems.trash_retention_days', 30))->toIso8601String() : null,
+            'days_remaining' => $this->deleted_at ? max(0, (int) ceil(now()->diffInDays($this->deleted_at->copy()->addDays(config('filesystems.trash_retention_days', 30)), false))) : null,
         ];
     }
 }
