@@ -48,6 +48,7 @@ Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCall
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', function (Request $request) {
         $user = $request->user();
+        $storageStats = app(\App\Services\StorageStatisticsService::class)->getStorageStats($user);
         return response()->json([
             'data' => [
                 'user' => [
@@ -56,12 +57,31 @@ Route::middleware('auth:sanctum')->group(function () {
                     'email' => $user->email,
                     'role' => $user->role,
                     'plan' => $user->plan->slug ?? 'free',
-                    'storage_used_bytes' => (int) $user->storage_used_bytes,
+                    'storage' => $storageStats,
                 ],
                 'permissions' => $user->role === 'admin'
                     ? ['admin.access', 'galleries.manage']
                     : ['galleries.manage'],
             ]
+        ]);
+    });
+
+    Route::get('/plans', function () {
+        return response()->json([
+            'data' => \App\Models\Plan::all()->map(function ($plan) {
+                return [
+                    'uuid' => $plan->uuid,
+                    'slug' => $plan->slug,
+                    'name' => $plan->name,
+                    'monthly_price' => (float) $plan->monthly_price,
+                    'annual_price' => (float) $plan->annual_price,
+                    'currency' => $plan->currency,
+                    'storage_limit' => $plan->storage_limit,
+                    'video_limit' => $plan->video_limit,
+                    'gallery_limit' => $plan->gallery_limit,
+                    'team_limit' => $plan->team_limit,
+                ];
+            })
         ]);
     });
 

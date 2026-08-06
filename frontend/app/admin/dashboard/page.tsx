@@ -20,6 +20,7 @@ import {
 import Link from 'next/link'
 import { useAdminDashboard, useAdminQueue } from '@/lib/queries/admin'
 import { formatBytes } from '@/lib/utils'
+import { ResponsiveTable } from '@/components/ui/responsive-table'
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'queue'>('overview')
@@ -99,17 +100,17 @@ export default function AdminDashboard() {
   return (
     <main className="flex-1 bg-background text-foreground flex flex-col min-h-screen">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="border-b border-border bg-card p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Admin Console</h1>
-          <p className="text-muted-foreground mt-1 text-sm font-medium flex items-center gap-1.5">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">Admin Console</h1>
+          <p className="text-muted-foreground mt-1 text-xs md:text-sm font-medium flex items-center gap-1.5">
             <Activity className={`w-4 h-4 ${hasActiveJobs ? 'text-primary animate-pulse' : 'text-muted-foreground'}`} />
             System status: {hasActiveJobs ? 'Processing queue active' : 'Queue idle'}
           </p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex bg-secondary rounded-lg p-1 border border-border">
+        <div className="flex bg-secondary rounded-lg p-1 border border-border shrink-0">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 text-xs font-semibold rounded-md transition-all ${
@@ -136,12 +137,12 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="p-6 flex-1 space-y-8 max-w-[1400px] w-full mx-auto">
+      <div className="p-4 md:p-6 flex-1 space-y-6 md:space-y-8 max-w-[1400px] w-full mx-auto">
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <>
             {/* Stats Grid */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {statCards.map((card, idx) => {
                 const Icon = card.icon
                 return (
@@ -162,11 +163,11 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Queue Widget */}
-            <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-card border border-border rounded-xl p-4 md:p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Activity className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-bold">Image Processing Status</h3>
+                  <h3 className="text-lg font-bold text-foreground">Image Processing Status</h3>
                 </div>
                 <button 
                   onClick={() => setActiveTab('queue')}
@@ -176,7 +177,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="p-4 rounded-xl border border-border bg-secondary/30 text-center">
                   <p className="text-xs text-muted-foreground font-bold">Queued</p>
                   <p className="text-2xl font-extrabold text-foreground mt-1">{queueStats?.queued ?? 0}</p>
@@ -199,79 +200,119 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Users and Galleries Grid */}
-            <div className="grid lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
               {/* Users */}
-              <div className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold">Recent Registered Studios</h3>
+              <div className="space-y-4 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-foreground">Recent Registered Studios</h3>
                   <Link href="/admin/users" className="text-primary hover:text-accent text-xs font-bold">
                     Manage Studios
                   </Link>
                 </div>
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-muted-foreground text-xs font-semibold">
-                        <th className="pb-3 pr-4">Studio Name</th>
-                        <th className="pb-3 pr-4">Email</th>
-                        <th className="pb-3 pr-4">Plan</th>
-                        <th className="pb-3 pr-4">Galleries</th>
+
+                <ResponsiveTable
+                  items={recentUsers}
+                  emptyText="No registered studios"
+                  desktopHeader={
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr className="text-muted-foreground text-xs font-semibold">
+                        <th className="py-3 px-4">Studio Name</th>
+                        <th className="py-3 px-4">Email</th>
+                        <th className="py-3 px-4">Plan</th>
+                        <th className="py-3 px-4 text-right">Galleries</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {recentUsers.map((user) => (
-                        <tr key={user.uuid} className="border-b border-border/50 hover:bg-secondary/20 transition-colors text-foreground/90">
-                          <td className="py-3.5 pr-4 font-semibold text-xs sm:text-sm">{user.name}</td>
-                          <td className="py-3.5 pr-4 text-xs text-muted-foreground">{user.email}</td>
-                          <td className="py-3.5 pr-4 text-xs">
-                            <span className="bg-secondary px-2 py-0.5 rounded text-muted-foreground font-semibold">
-                              {user.plan}
-                            </span>
-                          </td>
-                          <td className="py-3.5 pr-4 font-bold text-xs">{user.galleries_count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  }
+                  renderDesktopRow={(user) => (
+                    <tr key={user.uuid} className="border-b border-border/50 hover:bg-secondary/20 transition-colors text-foreground/90">
+                      <td className="py-3.5 px-4 font-semibold text-xs sm:text-sm">{user.name}</td>
+                      <td className="py-3.5 px-4 text-xs text-muted-foreground">{user.email}</td>
+                      <td className="py-3.5 px-4 text-xs">
+                        <span className="bg-secondary px-2 py-0.5 rounded text-muted-foreground font-semibold">
+                          {user.plan}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-xs text-right">{user.galleries_count}</td>
+                    </tr>
+                  )}
+                  renderMobileCard={(user) => (
+                    <div key={user.uuid} className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-primary/50 transition-colors shadow-sm">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-foreground text-sm truncate">{user.name}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{user.email}</p>
+                        </div>
+                        <span className="bg-secondary px-2 py-0.5 rounded text-[10px] text-muted-foreground font-semibold uppercase tracking-wider shrink-0">
+                          {user.plan}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs pt-2 border-t border-border/50">
+                        <span className="text-muted-foreground">Galleries count:</span>
+                        <strong className="text-foreground font-semibold">{user.galleries_count}</strong>
+                      </div>
+                    </div>
+                  )}
+                />
               </div>
 
               {/* Galleries */}
-              <div className="bg-card border border-border rounded-xl p-6 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold">Recent Published Galleries</h3>
+              <div className="space-y-4 flex flex-col">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-foreground">Recent Published Galleries</h3>
                   <span className="text-xs text-muted-foreground font-semibold">Latest updates</span>
                 </div>
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-muted-foreground text-xs font-semibold">
-                        <th className="pb-3 pr-4">Gallery Title</th>
-                        <th className="pb-3 pr-4">Photographer</th>
-                        <th className="pb-3 pr-4">Photos</th>
-                        <th className="pb-3 pr-4">Visibility</th>
+
+                <ResponsiveTable
+                  items={recentGalleries}
+                  emptyText="No published galleries"
+                  desktopHeader={
+                    <thead className="bg-secondary/40 border-b border-border">
+                      <tr className="text-muted-foreground text-xs font-semibold">
+                        <th className="py-3 px-4">Gallery Title</th>
+                        <th className="py-3 px-4">Photographer</th>
+                        <th className="py-3 px-4 text-center">Photos</th>
+                        <th className="py-3 px-4 text-right">Visibility</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {recentGalleries.map((gallery) => (
-                        <tr key={gallery.uuid} className="border-b border-border/50 hover:bg-secondary/20 transition-colors text-foreground/90">
-                          <td className="py-3.5 pr-4 font-semibold text-xs sm:text-sm">{gallery.title}</td>
-                          <td className="py-3.5 pr-4 text-xs text-muted-foreground">{gallery.owner}</td>
-                          <td className="py-3.5 pr-4 font-bold text-xs">{gallery.images}</td>
-                          <td className="py-3.5 pr-4">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                              gallery.visibility === 'public' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {gallery.visibility}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  }
+                  renderDesktopRow={(gallery) => (
+                    <tr key={gallery.uuid} className="border-b border-border/50 hover:bg-secondary/20 transition-colors text-foreground/90">
+                      <td className="py-3.5 px-4 font-semibold text-xs sm:text-sm">{gallery.title}</td>
+                      <td className="py-3.5 px-4 text-xs text-muted-foreground">{gallery.owner}</td>
+                      <td className="py-3.5 px-4 font-bold text-xs text-center">{gallery.images}</td>
+                      <td className="py-3.5 px-4 text-right">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          gallery.visibility === 'public' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {gallery.visibility}
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  renderMobileCard={(gallery) => (
+                    <div key={gallery.uuid} className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-primary/50 transition-colors shadow-sm">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-foreground text-sm truncate">{gallery.title}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">By {gallery.owner}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                          gallery.visibility === 'public' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {gallery.visibility}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs pt-2 border-t border-border/50">
+                        <span className="text-muted-foreground">Photos:</span>
+                        <strong className="text-foreground font-semibold">{gallery.images}</strong>
+                      </div>
+                    </div>
+                  )}
+                />
               </div>
             </div>
           </>

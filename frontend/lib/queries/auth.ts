@@ -1,13 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authFetch } from '../auth';
 
+export interface StorageStats {
+  plan_name: string;
+  limit_bytes: number | null;
+  active_bytes: number;
+  trash_bytes: number;
+  used_bytes: number;
+  remaining_bytes: number | null;
+  active_percent: number;
+  trash_percent: number;
+  percent_used: number;
+  is_unlimited: boolean;
+}
+
 export interface User {
   uuid: string;
   name: string;
   email: string;
   role: 'admin' | 'photographer';
   plan: string;
-  storage_used_bytes: number;
+  storage: StorageStats;
 }
 
 export interface UserProfile {

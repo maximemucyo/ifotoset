@@ -1,7 +1,10 @@
 # Frontend ignores
 frontend/node_modules/
 frontend/.next/
+frontend/.env
+frontend/.env.*
 frontend/.env*.local
+frontend/tsconfig.tsbuildinfo
 
 # Backend ignores
 backend/vendor/
@@ -9,7 +12,23 @@ backend/.env
 backend/.env.*
 backend/storage/*.key
 backend/public/storage
-backend/bootstrap/cache/*.php
+backend/bootstrap/cache/
+
+# Laravel runtime & generated files
+backend/storage/logs/
+backend/storage/framework/cache/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+backend/storage/app/public/
+backend/storage/app/tmp/
+
+# Stray test/temp files in storage
+backend/storage/*.jpg
+backend/storage/*.png
+backend/storage/*.gif
+backend/storage/*.webp
+backend/storage/*.txt
+backend/storage/*.zip
 
 # IDE & Environment
 .env

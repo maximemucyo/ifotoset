@@ -38,13 +38,15 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
+        $storageStats = app(\App\Services\StorageStatisticsService::class)->getStorageStats($user);
+
         return response()->json([
             'data' => [
                 'stats' => [
                     'active_galleries' => (int) ($stats->active_galleries ?? 0),
                     'total_downloads' => (int) ($stats->total_downloads ?? 0),
                     'total_favorites' => (int) ($stats->total_favorites ?? 0),
-                    'storage_used_bytes' => (int) ($user->storage_used_bytes ?? 0),
+                    'storage' => $storageStats,
                 ],
                 'recent_galleries' => GalleryResource::collection($recentGalleries),
             ]

@@ -9,6 +9,7 @@ import {
   usePurgeTrashMutation,
   useEmptyTrashMutation
 } from '@/lib/queries/trash'
+import { useCurrentUser } from '@/lib/queries/auth'
 import { GalleryItem, PhotoItem } from '@/lib/queries/galleries'
 
 export default function Trash() {
@@ -18,6 +19,7 @@ export default function Trash() {
   const perPage = 8
 
   // Queries
+  const { data: currentUser } = useCurrentUser()
   const { data: galleryData, isLoading: isLoadingGalleries } = useTrash<GalleryItem>('gallery', galleryPage, perPage)
   const { data: photoData, isLoading: isLoadingPhotos } = useTrash<PhotoItem>('photo', photoPage, perPage)
 
@@ -37,6 +39,8 @@ export default function Trash() {
   const photoMeta = photoData?.meta
 
   const isBackgroundPending = restoreMutation.isPending || purgeMutation.isPending || emptyTrashMutation.isPending
+
+  const trashBytes = currentUser?.user?.storage?.trash_bytes ?? 0
 
   const handleRestore = (type: 'gallery' | 'photo', uuid: string) => {
     restoreMutation.mutate({ type, uuid })
@@ -91,6 +95,40 @@ export default function Trash() {
               {emptyTrashMutation.isPending ? 'Emptying trash in background...' : 'Processing permanent deletion job...'}
             </p>
             <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Trash storage info card */}
+        {currentUser?.user && (
+          <div className="mb-6 bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-primary/30 transition-colors">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <HardDrive size={24} />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-base">Trash Storage Status</h3>
+                {trashBytes > 0 ? (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Trash currently occupies <span className="font-semibold text-foreground">{formatBytes(trashBytes)}</span> of space.{' '}
+                    <span className="text-accent font-medium">Emptying the trash will immediately free up {formatBytes(trashBytes)} of storage.</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Your trash is empty. No storage is currently being reserved by deleted items.
+                  </p>
+                )}
+              </div>
+            </div>
+            {trashBytes > 0 && (
+              <button
+                onClick={() => setShowEmptyConfirm(true)}
+                disabled={isBackgroundPending}
+                className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/20 rounded-lg hover:bg-destructive hover:text-white transition-colors flex items-center justify-center gap-2 font-semibold text-xs disabled:opacity-50 shrink-0 self-start sm:self-center"
+              >
+                <Trash2 size={14} />
+                Empty Trash
+              </button>
+            )}
           </div>
         )}
 

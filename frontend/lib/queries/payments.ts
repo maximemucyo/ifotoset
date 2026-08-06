@@ -64,3 +64,30 @@ export function usePaymentStatus(paymentUuid: string | null) {
     },
   });
 }
+
+export interface Plan {
+  uuid: string;
+  slug: string;
+  name: string;
+  monthly_price: number;
+  annual_price: number;
+  currency: string;
+  storage_limit: number;
+  video_limit: number;
+  gallery_limit: number;
+  team_limit: number;
+}
+
+export async function getPlans(): Promise<Plan[]> {
+  const res = await authFetch<{ data: Plan[] }>('/plans', {
+    method: 'GET',
+  });
+  return res.data;
+}
+
+export function usePlans() {
+  return useQuery<Plan[]>({
+    queryKey: ['plans'],
+    queryFn: getPlans,
+  });
+}

@@ -1,4 +1,4 @@
-import { AdminSidebar } from '@/components/admin-sidebar'
+import { AdminLayoutShell } from '@/components/admin-layout-shell'
 import { AuthGuard } from '@/components/auth-guard'
 
 export default function AdminLayout({
@@ -8,10 +8,9 @@ export default function AdminLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-background">
-        <AdminSidebar />
+      <AdminLayoutShell>
         {children}
-      </div>
+      </AdminLayoutShell>
     </AuthGuard>
   )
 }

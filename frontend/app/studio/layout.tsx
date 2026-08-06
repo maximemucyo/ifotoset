@@ -1,4 +1,4 @@
-import { StudioSidebar } from '@/components/studio-sidebar'
+import { StudioLayoutShell } from '@/components/studio-layout-shell'
 import { AuthGuard } from '@/components/auth-guard'
 
 export default function StudioLayout({
@@ -8,10 +8,9 @@ export default function StudioLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-background">
-        <StudioSidebar />
+      <StudioLayoutShell>
         {children}
-      </div>
+      </StudioLayoutShell>
     </AuthGuard>
   )
 }

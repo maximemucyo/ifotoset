@@ -18,11 +18,19 @@ import {
   DollarSign
 } from 'lucide-react'
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  isOpen?: boolean
+  setIsOpen?: (open: boolean) => void
+}
+
+export function AdminSidebar({ isOpen: controlledIsOpen, setIsOpen: controlledSetIsOpen }: AdminSidebarProps = {}) {
   const pathname = usePathname()
-  const [isOpen, setIsOpen] = useState(false)
+  const [localIsOpen, setLocalIsOpen] = useState(false)
   const logoutMutation = useLogoutMutation()
   const { data: currentUser } = useCurrentUser()
+
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : localIsOpen
+  const setIsOpen = controlledSetIsOpen !== undefined ? controlledSetIsOpen : setLocalIsOpen
 
   const isActive = (href: string) => pathname === href
 
@@ -39,13 +47,6 @@ export function AdminSidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <button
-        className="fixed top-4 left-4 z-50 md:hidden p-2 bg-primary text-primary-foreground rounded-lg"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Menu size={24} />
-      </button>
 
       {/* Sidebar */}
       <aside className={`fixed md:sticky md:top-0 md:self-start top-0 left-0 h-screen w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 transform ${

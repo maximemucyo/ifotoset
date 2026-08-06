@@ -47,6 +47,8 @@ class RegisterController extends Controller
 
         Auth::login($user);
 
+        $storageStats = app(\App\Services\StorageStatisticsService::class)->getStorageStats($user);
+
         return response()->json([
             'data' => [
                 'user' => [
@@ -55,7 +57,7 @@ class RegisterController extends Controller
                     'email' => $user->email,
                     'role' => $user->role,
                     'plan' => $freePlan->slug,
-                    'storage_used_bytes' => (int) $user->storage_used_bytes,
+                    'storage' => $storageStats,
                 ],
                 'permissions' => ['galleries.manage'],
             ]

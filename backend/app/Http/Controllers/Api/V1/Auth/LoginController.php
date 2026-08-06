@@ -24,6 +24,7 @@ class LoginController extends Controller
             $request->session()->regenerate();
 
             $user = Auth::user();
+            $storageStats = app(\App\Services\StorageStatisticsService::class)->getStorageStats($user);
 
             return response()->json([
                 'data' => [
@@ -33,7 +34,7 @@ class LoginController extends Controller
                         'email' => $user->email,
                         'role' => $user->role,
                         'plan' => $user->plan->slug ?? 'free',
-                        'storage_used_bytes' => (int) $user->storage_used_bytes,
+                        'storage' => $storageStats,
                     ],
                     'permissions' => $user->role === 'admin'
                         ? ['admin.access', 'galleries.manage']

@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Gallery;
 use App\Services\GalleryStatisticsService;
+use App\Services\StorageStatisticsService;
 
 class GalleryObserver
 {
@@ -33,6 +34,8 @@ class GalleryObserver
             'total_bytes' => 0,
             'updated_at' => now(),
         ]);
+
+        StorageStatisticsService::clearCache($gallery->user_id);
     }
 
     /**
@@ -40,6 +43,8 @@ class GalleryObserver
      */
     public function updated(Gallery $gallery): void
     {
+        StorageStatisticsService::clearCache($gallery->user_id);
+
         // If owner changed, recalculate for both old and new owners
         if ($gallery->isDirty('user_id')) {
             $this->statisticsService->recalculateUserStorage($gallery->user_id);
@@ -47,6 +52,7 @@ class GalleryObserver
             $oldUserId = $gallery->getOriginal('user_id');
             if ($oldUserId) {
                 $this->statisticsService->recalculateUserStorage($oldUserId);
+                StorageStatisticsService::clearCache($oldUserId);
             }
         }
     }
@@ -57,6 +63,7 @@ class GalleryObserver
     public function deleted(Gallery $gallery): void
     {
         $this->statisticsService->recalculateUserStorage($gallery->user_id);
+        StorageStatisticsService::clearCache($gallery->user_id);
     }
 
     /**
@@ -65,6 +72,7 @@ class GalleryObserver
     public function restored(Gallery $gallery): void
     {
         $this->statisticsService->recalculateUserStorage($gallery->user_id);
+        StorageStatisticsService::clearCache($gallery->user_id);
     }
 
     /**
@@ -73,6 +81,7 @@ class GalleryObserver
     public function forceDeleted(Gallery $gallery): void
     {
         $this->statisticsService->recalculateUserStorage($gallery->user_id);
+        StorageStatisticsService::clearCache($gallery->user_id);
     }
 }
 ?>

@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Photo;
 use App\Services\GalleryStatisticsService;
+use App\Services\StorageStatisticsService;
 
 class PhotoObserver
 {
@@ -77,9 +78,10 @@ class PhotoObserver
         if ($photo->gallery_id) {
             $this->statisticsService->recalculateGallery($photo->gallery_id);
             
-            $gallery = $photo->gallery;
+            $gallery = \App\Models\Gallery::withTrashed()->find($photo->gallery_id);
             if ($gallery) {
                 $this->statisticsService->recalculateUserStorage($gallery->user_id);
+                StorageStatisticsService::clearCache($gallery->user_id);
             }
         }
     }

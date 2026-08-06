@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { authFetch } from '../auth'
+import { StorageStats } from './auth'
 
 export interface DashboardStats {
   active_galleries: number;
   total_downloads: number;
   total_favorites: number;
-  storage_used_bytes: number;
+  storage: StorageStats;
 }
 
 export interface RecentGallery {

@@ -36,6 +36,12 @@ class AppServiceProvider extends ServiceProvider
             \App\Listeners\QueueJobTracker::handleFailed($event);
         });
 
+        // Bind payment completed event to UpdateUserPlan listener
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\PaymentCompleted::class,
+            [\App\Listeners\UpdateUserPlan::class, 'handle']
+        );
+
         // Define access Gate for administrative panels
         \Illuminate\Support\Facades\Gate::define('access-admin', function (\App\Models\User $user) {
             return $user->role === 'admin';
