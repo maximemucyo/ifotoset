@@ -158,6 +158,23 @@ class GalleryController extends Controller
             return $errorResponse;
         }
 
+        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+        $source = $request->query('source') ?: $request->query('utm_source') ?: 'direct';
+        $referrer = $request->header('referer');
+        $campaign = $request->query('utm_campaign');
+
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => 'gallery_viewed',
+            'visitor_session_id' => $visitorSession,
+            'source' => $source,
+            'referrer' => $referrer,
+            'campaign' => $campaign,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+        ]);
+
         return (new GalleryResource($gallery))->response();
     }
 
@@ -379,9 +396,18 @@ class GalleryController extends Controller
 
         $email = isset($validated['email']) ? strtolower(trim($validated['email'])) : null;
 
+        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+        $source = $request->query('source') ?: $request->query('utm_source') ?: 'direct';
+        $referrer = $request->header('referer');
+        $campaign = $request->query('utm_campaign');
+
         \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
             'gallery_id' => $gallery->id,
             'event' => 'photo_downloaded',
+            'visitor_session_id' => $visitorSession,
+            'source' => $source,
+            'referrer' => $referrer,
+            'campaign' => $campaign,
             'properties' => json_encode([
                 'photo_uuid' => $validated['photo_uuid'] ?? null,
                 'email' => $email,
@@ -430,9 +456,18 @@ class GalleryController extends Controller
         }
         $gallery->stats()->update(['updated_at' => now()]);
 
+        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+        $source = $request->query('source') ?: $request->query('utm_source') ?: 'direct';
+        $referrer = $request->header('referer');
+        $campaign = $request->query('utm_campaign');
+
         \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
             'gallery_id' => $gallery->id,
             'event' => $isFavorite ? 'photo_favorited' : 'photo_unfavorited',
+            'visitor_session_id' => $visitorSession,
+            'source' => $source,
+            'referrer' => $referrer,
+            'campaign' => $campaign,
             'properties' => json_encode([
                 'photo_uuid' => $validated['photo_uuid'] ?? null,
                 'email' => $email,

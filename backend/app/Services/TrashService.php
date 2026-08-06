@@ -63,7 +63,7 @@ class TrashService
         $userId = $gallery->user_id;
         $galleryUuid = $gallery->uuid;
 
-        // Delete from B2 first. If this fails, it throws and aborts the DB transaction.
+        // Delete from storage first. If this fails, it throws and aborts the DB transaction.
         $this->storageService->deleteDirectory("galleries/{$galleryUuid}");
 
         DB::transaction(function () use ($gallery, $userId, $galleryUuid) {
@@ -99,10 +99,10 @@ class TrashService
         $photoPath = $photo->path;
         $photoUuid = $photo->uuid;
 
-        // Delete from B2 first
+        // Delete from storage first
         $this->storageService->deleteDirectory($photoPath);
 
-        DB::transaction(function () use ($photo, $galleryId, $photoUuid) {
+        DB::transaction(function () use ($photo, $galleryId, $photoPath, $photoUuid) {
             $gallery = Gallery::withTrashed()->find($galleryId);
             $userId = $gallery?->user_id;
 

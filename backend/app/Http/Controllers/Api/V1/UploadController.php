@@ -17,7 +17,7 @@ class UploadController extends Controller
     ) {}
 
     /**
-     * Request presigned B2 upload URL.
+     * Request presigned upload URL.
      * POST /api/v1/uploads/request
      */
     public function requestUpload(Request $request): JsonResponse
@@ -58,7 +58,7 @@ class UploadController extends Controller
     }
 
     /**
-     * Confirm successful browser upload to B2.
+     * Confirm successful browser upload.
      * POST /api/v1/uploads/confirm
      */
     public function confirmUpload(Request $request): JsonResponse

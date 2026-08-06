@@ -19,7 +19,7 @@ class StorageService
      */
     public function generatePresignedUploadUrl(string $objectKey, string $base64Sha256, DateTimeInterface $expiresAt): string
     {
-        // AWS S3 / Backblaze B2 Flysystem driver presigned URL generation
+        // AWS S3 Flysystem driver presigned URL generation
         $client = Storage::disk('b2')->getClient();
         $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
 
@@ -68,7 +68,7 @@ class StorageService
         try {
             return Storage::disk('b2')->deleteDirectory($directoryKey);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Backblaze B2 deleteDirectory failed.', [
+            \Illuminate\Support\Facades\Log::error('Storage deleteDirectory failed.', [
                 'directory_key' => $directoryKey,
                 'exception' => $e->getMessage(),
             ]);

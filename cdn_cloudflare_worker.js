@@ -1,4 +1,4 @@
-// === Cloudflare Worker: cdn.ifotoset.com proxy for Backblaze B2 ===
+// === Cloudflare Worker: cdn.ifotoset.com proxy for object storage ===
 
 const KEY_ID = '003ff5db745bcb20000000001';
 const APP_KEY = 'K003I1TxpXT7Q5JA3EMolBQ21T8DbbM';
@@ -28,10 +28,10 @@ async function handle(request, event) {
     }
 
     try {
-        // 1. Authorize with Backblaze B2 (caches authorization token in-memory)
-        await authorizeB2();
+        // 1. Authorize with storage backend (caches authorization token in-memory)
+        await authorizeStorage();
 
-        // 2. Fetch from B2 and cache/serve the asset
+        // 2. Fetch from storage and cache/serve the asset
         return await proxyAndCache(request, event);
     } catch (err) {
         const cors = corsHeaders(request.headers.get('Origin'));
@@ -43,7 +43,7 @@ async function handle(request, event) {
     }
 }
 
-async function authorizeB2() {
+async function authorizeStorage() {
     // If we have a cached token that hasn't expired (tokens last 24h, we refresh at 23h), reuse it
     if (authToken && downloadUrl && Date.now() < authExpiry) return;
 
@@ -53,7 +53,7 @@ async function authorizeB2() {
     });
 
     if (!res.ok) {
-        throw new Error(`B2 Authorization failed with status: ${res.status}`);
+        throw new Error(`Storage authorization failed with status: ${res.status}`);
     }
 
     const data = await res.json();
@@ -100,7 +100,7 @@ async function proxyAndCache(request, event) {
         });
     }
 
-    // 2. Cache Miss: Fetch from Backblaze B2
+    // 2. Cache Miss: Fetch from object storage
     const targetUrl = `${downloadUrl}/file/${BUCKET}${filePath}`;
     const upstreamHeaders = new Headers({ 'Authorization': authToken });
     
@@ -139,7 +139,7 @@ async function proxyAndCache(request, event) {
     outHeaders.set('Accept-Ranges', 'bytes');
     outHeaders.set('Vary', 'Origin, Accept');
 
-    // Strip internal S3/B2 headers
+    // Strip internal S3 headers
     const headersToRemove = ['via', 'x-cache', 'x-amz-cf-id', 'x-amz-cf-pop', 'x-amz-request-id', 'x-amz-version-id'];
     headersToRemove.forEach(h => outHeaders.delete(h));
     for (const [key] of upstreamRes.headers) {

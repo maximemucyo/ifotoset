@@ -8,6 +8,12 @@ use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\ClientController;
+use App\Http\Controllers\Api\V1\PackageController;
+use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\AnalyticsController;
+use App\Http\Controllers\Api\V1\SettingsController;
+use App\Http\Controllers\Api\V1\PublicBookingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +42,12 @@ Route::middleware('throttle:10,1')->post('/public/galleries/{slug}/unlock', [Gal
 Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/download', [GalleryController::class, 'recordDownload']);
 Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [GalleryController::class, 'toggleFavorite']);
 
+// Public Online Booking Endpoints (Rate Limited)
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('/public/booking/{username}', [PublicBookingController::class, 'show']);
+    Route::post('/public/booking/{username}', [PublicBookingController::class, 'store']);
+});
+
 // Authentication Endpoints
 Route::post('/auth/register', [RegisterController::class, 'register']);
 Route::post('/auth/login', [LoginController::class, 'login']);
@@ -48,17 +60,9 @@ Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCall
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/user', function (Request $request) {
         $user = $request->user();
-        $storageStats = app(\App\Services\StorageStatisticsService::class)->getStorageStats($user);
         return response()->json([
             'data' => [
-                'user' => [
-                    'uuid' => $user->uuid,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'plan' => $user->plan->slug ?? 'free',
-                    'storage' => $storageStats,
-                ],
+                'user' => new \App\Http\Resources\V1\UserResource($user),
                 'permissions' => $user->role === 'admin'
                     ? ['admin.access', 'galleries.manage']
                     : ['galleries.manage'],
@@ -119,4 +123,32 @@ Route::middleware('auth:sanctum')->group(function () {
     // MoMo Payments
     Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
     Route::get('/payments/{uuid}/status', [PaymentController::class, 'getStatus']);
+
+    // Clients CRUD & Filtering
+    Route::get('/clients', [ClientController::class, 'index']);
+    Route::apiResource('clients', ClientController::class)
+        ->except(['index'])
+        ->parameters(['clients' => 'uuid']);
+
+    // Packages CRUD & Filtering
+    Route::get('/packages', [PackageController::class, 'index']);
+    Route::apiResource('packages', PackageController::class)
+        ->except(['index'])
+        ->parameters(['packages' => 'uuid']);
+
+    // Bookings CRUD & Filtering
+    Route::get('/bookings', [BookingController::class, 'index']);
+    Route::apiResource('bookings', BookingController::class)
+        ->except(['index'])
+        ->parameters(['bookings' => 'uuid']);
+
+    // Analytics Dashboard
+    Route::get('/analytics', [AnalyticsController::class, 'index']);
+
+    // Settings Profile & Preferences
+    Route::patch('/settings/profile', [SettingsController::class, 'updateProfile']);
+    Route::post('/settings/password', [SettingsController::class, 'changePassword']);
+    Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications']);
+    Route::post('/settings/avatar/request', [SettingsController::class, 'requestAvatarUpload']);
+    Route::post('/settings/avatar/confirm', [SettingsController::class, 'confirmAvatarUpload']);
 });

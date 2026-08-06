@@ -20,7 +20,7 @@ class PurgeExpiredTrash extends Command
     /**
      * The console command description.
      */
-    protected $description = 'Permanently purge soft-deleted galleries and photos from database and B2 storage that have exceeded the retention window.';
+    protected $description = 'Permanently purge soft-deleted galleries and photos from database and storage that have exceeded the retention window.';
 
     /**
      * Execute the console command.

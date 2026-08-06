@@ -87,13 +87,13 @@ class ProcessPhotoJob implements ShouldQueue
         $uploadedVariants = [];
 
         try {
-            // 1. Download original from B2
+            // 1. Download original from storage
             $updateProgress('Downloading Original');
             $originalPath = $photo->path . '/' . $photo->filename;
             $originalContent = Storage::disk('b2')->get($originalPath);
             
             if (!$originalContent) {
-                throw new \Exception("Could not retrieve original image from B2 storage.");
+                throw new \Exception("Could not retrieve original image from storage.");
             }
 
             File::put($tempFilePath, $originalContent);
@@ -148,7 +148,7 @@ class ProcessPhotoJob implements ShouldQueue
                 // Encode to WebP
                 $encodedWebp = $variantImg->toWebp($quality);
 
-                // Upload variant to B2
+                // Upload variant to storage
                 $variantPath = $photo->path . '/' . $baseName . '_' . $sizeName . '.webp';
                 Storage::disk('b2')->put($variantPath, (string) $encodedWebp);
 
@@ -189,12 +189,12 @@ class ProcessPhotoJob implements ShouldQueue
         } catch (Throwable $e) {
             Log::error("Failed to process photo [{$photoUuid}]: " . $e->getMessage());
 
-            // Delete any partially uploaded variants to clean up B2 storage
+            // Delete any partially uploaded variants to clean up storage
             foreach ($uploadedVariants as $path) {
                 try {
                     Storage::disk('b2')->delete($path);
                 } catch (Throwable $cleanupError) {
-                    Log::warning("Failed to clean up variant {$path} on B2: " . $cleanupError->getMessage());
+                    Log::warning("Failed to clean up variant {$path} on storage: " . $cleanupError->getMessage());
                 }
             }
 

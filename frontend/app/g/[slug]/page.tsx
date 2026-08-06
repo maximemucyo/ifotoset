@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import {
   LockKeyhole, Mail, AlertTriangle, Calendar, User, ImageIcon,
-  Share2, Heart, Download, X, Copy, Check
+  Share2, Heart, Download, X, Copy, Check, SearchX
 } from 'lucide-react';
 import {
   getPublicGallery, unlockPublicGallery, GalleryItem, PhotoItem,
@@ -29,6 +29,7 @@ export default function PublicGalleryView() {
   const [errorState, setErrorState] = useState<{
     code: string;
     message: string;
+    httpStatus?: number;
     requiresPassword?: boolean;
     requiresInvitation?: boolean;
   } | null>(null);
@@ -266,6 +267,7 @@ export default function PublicGalleryView() {
         setErrorState({
           code: err.code,
           message: err.message,
+          httpStatus: err.status,
           requiresPassword: err.code === 'PASSWORD_REQUIRED',
           requiresInvitation: err.code === 'INVITATION_REQUIRED',
         });
@@ -386,14 +388,43 @@ export default function PublicGalleryView() {
     );
   }
 
+  // ─── Gallery Not Found Screen (404) ───────────────────────────────────────
+  if (errorState && (errorState.httpStatus === 404 || errorState.code === 'NOT_FOUND')) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
+        <div className="text-center max-w-md space-y-5">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto">
+            <SearchX className="w-10 h-10 text-muted-foreground" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Gallery Not Found</h1>
+            <p className="text-sm text-muted-foreground">
+              This gallery doesn&apos;t exist or may have been removed by the photographer.
+            </p>
+          </div>
+          <a
+            href="/"
+            className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/95 transition-colors"
+          >
+            Go to Homepage
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Other Errors Screen ───────────────────────────────────────────────────
   if (errorState) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
-        <div className="text-center max-w-md">
-          <AlertTriangle className="w-16 h-16 text-destructive mx-auto mb-4 opacity-75" />
-          <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-          <p className="text-sm text-muted-foreground mb-6">{errorState.message}</p>
+        <div className="text-center max-w-md space-y-5">
+          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+            <p className="text-sm text-muted-foreground">{errorState.message}</p>
+          </div>
           <a
             href="/"
             className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/95 transition-colors"

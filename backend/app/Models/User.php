@@ -24,6 +24,13 @@ class User extends Authenticatable
         'password',
         'storage_used_bytes',
         'is_active',
+        'username',
+        'phone',
+        'location',
+        'website',
+        'bio',
+        'avatar_path',
+        'notification_preferences',
     ];
 
     protected $hidden = [
@@ -35,6 +42,7 @@ class User extends Authenticatable
         'uuid' => UuidBinaryCast::class,
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
+        'notification_preferences' => 'array',
     ];
 
     public function plan(): BelongsTo
@@ -45,6 +53,21 @@ class User extends Authenticatable
     public function galleries(): HasMany
     {
         return $this->hasMany(Gallery::class);
+    }
+
+    public function clients(): HasMany
+    {
+        return $this->hasMany(Client::class);
+    }
+
+    public function packages(): HasMany
+    {
+        return $this->hasMany(Package::class);
+    }
+
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class);
     }
 }
 ?>

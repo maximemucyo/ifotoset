@@ -4,6 +4,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ifotoset_backend
+    restart: unless-stopped
     ports:
       - '8000:8000'
     volumes:
@@ -20,15 +21,18 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   queue:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: ifotoset_queue
-    command: php artisan queue:work --verbose --tries=3
+    restart: unless-stopped
+    command: php artisan queue:work --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
       - './backend:/var/www/html'
     environment:
@@ -40,11 +44,14 @@ services:
       - DB_DATABASE=ifotoset
       - DB_USERNAME=ifotoset_user
       - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=redis
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   mysql:
     image: 'mysql/mysql-server:8.0'

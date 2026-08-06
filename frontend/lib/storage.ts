@@ -35,7 +35,7 @@ export async function calculateSha256(file: File): Promise<string> {
 }
 
 /**
- * Executes a zero-bandwidth direct browser upload to Backblaze B2 via presigned URL.
+ * Executes a zero-bandwidth direct browser upload to object storage via presigned URL.
  */
 export async function uploadPhotoDirectly(
   galleryId: string,
@@ -62,7 +62,7 @@ export async function uploadPhotoDirectly(
   });
 
   try {
-    // 3. Direct HTTP PUT upload to Backblaze B2 presigned URL
+    // 3. Direct HTTP PUT upload to presigned URL
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', session.presigned_url, true);
@@ -91,12 +91,12 @@ export async function uploadPhotoDirectly(
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
-          reject(new Error(`B2 Upload failed with status ${xhr.status}: ${xhr.statusText}`));
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
         }
       };
 
-      xhr.onerror = () => reject(new Error('Network error during B2 direct upload'));
-      xhr.onabort = () => reject(new Error('B2 upload aborted by client'));
+      xhr.onerror = () => reject(new Error('Network error during direct upload'));
+      xhr.onabort = () => reject(new Error('Upload aborted by client'));
 
       xhr.send(file);
     });
@@ -123,3 +123,71 @@ export async function uploadPhotoDirectly(
     throw error;
   }
 }
+
+/**
+ * Executes a zero-bandwidth direct browser upload to object storage via presigned URL for user avatar.
+ */
+export async function uploadAvatarDirectly(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  const sha256 = await calculateSha256(file);
+
+  const session = await authFetch<{
+    object_key: string;
+    presigned_url: string;
+    headers: Record<string, string>;
+    expires_at: string;
+  }>('/settings/avatar/request', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      sha256: sha256,
+    }),
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', session.presigned_url, true);
+
+    if (session.headers) {
+      Object.entries(session.headers).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+    }
+    xhr.setRequestHeader('Content-Type', file.type || 'image/jpeg');
+    if (!session.headers || !session.headers['x-amz-checksum-sha256']) {
+      xhr.setRequestHeader('x-amz-checksum-sha256', sha256);
+    }
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during avatar upload'));
+    xhr.send(file);
+  });
+
+  const confirmRes = await authFetch<{ avatar_url: string }>('/settings/avatar/confirm', {
+    method: 'POST',
+    body: JSON.stringify({
+      object_key: session.object_key,
+    }),
+  });
+
+  return confirmRes.avatar_url;
+}
+

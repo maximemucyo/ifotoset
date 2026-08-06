@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authFetch } from '../auth';
+import { uploadAvatarDirectly } from '../storage';
 
 export interface StorageStats {
   plan_name: string;
@@ -17,9 +18,21 @@ export interface StorageStats {
 export interface User {
   uuid: string;
   name: string;
+  username: string | null;
   email: string;
   role: 'admin' | 'photographer';
   plan: string;
+  phone: string | null;
+  location: string | null;
+  website: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  notification_preferences: {
+    new_bookings: boolean;
+    new_messages: boolean;
+    gallery_activity: boolean;
+    payment_received: boolean;
+  } | null;
   storage: StorageStats;
 }
 
@@ -125,6 +138,128 @@ export function useLogoutMutation() {
     mutationFn: logoutUser,
     onSuccess: () => {
       queryClient.setQueryData(['currentUser'], null);
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    },
+  });
+}
+
+/**
+ * Hook to update user profile.
+ */
+export function useUpdateProfileMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fields: Record<string, any>) => {
+      const res = await authFetch<{ data: User }>('/settings/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(fields),
+      });
+      return res.data;
+    },
+    onMutate: async (updatedFields) => {
+      await queryClient.cancelQueries({ queryKey: ['currentUser'] });
+      const previousProfile = queryClient.getQueryData<UserProfile>(['currentUser']);
+
+      if (previousProfile) {
+        queryClient.setQueryData<UserProfile>(['currentUser'], {
+          ...previousProfile,
+          user: {
+            ...previousProfile.user,
+            ...updatedFields,
+          },
+        });
+      }
+
+      return { previousProfile };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(['currentUser'], context.previousProfile);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    },
+  });
+}
+
+/**
+ * Hook to change user password.
+ */
+export function useChangePasswordMutation() {
+  return useMutation({
+    mutationFn: async (fields: Record<string, any>) => {
+      await authFetch('/settings/password', {
+        method: 'POST',
+        body: JSON.stringify(fields),
+      });
+    },
+  });
+}
+
+/**
+ * Hook to update notification preferences.
+ */
+export function useUpdateNotificationsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fields: Record<string, boolean>) => {
+      await authFetch('/settings/notifications', {
+        method: 'PATCH',
+        body: JSON.stringify(fields),
+      });
+      return fields;
+    },
+    onMutate: async (updatedPrefs) => {
+      await queryClient.cancelQueries({ queryKey: ['currentUser'] });
+      const previousProfile = queryClient.getQueryData<UserProfile>(['currentUser']);
+
+      if (previousProfile) {
+        queryClient.setQueryData<UserProfile>(['currentUser'], {
+          ...previousProfile,
+          user: {
+            ...previousProfile.user,
+            notification_preferences: {
+              ...previousProfile.user.notification_preferences,
+              ...updatedPrefs,
+            } as any,
+          },
+        });
+      }
+
+      return { previousProfile };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousProfile) {
+        queryClient.setQueryData(['currentUser'], context.previousProfile);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    },
+  });
+}
+
+/**
+ * Hook to upload and confirm user avatar/logo.
+ */
+export function useUploadAvatarMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      return uploadAvatarDirectly(file);
+    },
+    onSuccess: (avatarUrl) => {
+      const previousProfile = queryClient.getQueryData<UserProfile>(['currentUser']);
+      if (previousProfile) {
+        queryClient.setQueryData<UserProfile>(['currentUser'], {
+          ...previousProfile,
+          user: {
+            ...previousProfile.user,
+            avatar_url: avatarUrl,
+          },
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['currentUser'] });
     },
   });

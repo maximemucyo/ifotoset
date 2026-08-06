@@ -22,7 +22,7 @@ class UploadService
     ) {}
 
     /**
-     * Creates or retrieves an existing presigned upload session for direct B2 browser upload.
+     * Creates or retrieves an existing presigned upload session for direct browser upload.
      */
     public function createUploadSession(
         User $user,
@@ -112,7 +112,7 @@ class UploadService
     }
 
     /**
-     * Verifies object presence on B2 via zero-bandwidth HeadObject check and confirms upload.
+     * Verifies object presence via zero-bandwidth HeadObject check and confirms upload.
      */
     public function confirmUpload(User $user, string $uploadSessionUuid): Photo
     {
@@ -124,7 +124,7 @@ class UploadService
             return Photo::where('checksum', $session->expected_sha256)->firstOrFail();
         }
 
-        // 1. Lightweight 0-byte HeadObject call to verify file presence and size on B2
+        // 1. Lightweight 0-byte HeadObject call to verify file presence and size in storage
         $exists = $this->storageService->exists($session->object_key);
         if (!$exists) {
             throw new Exception("File object was not found in storage bucket.");
