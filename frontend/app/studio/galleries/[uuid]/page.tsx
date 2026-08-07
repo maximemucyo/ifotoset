@@ -140,7 +140,13 @@ export default function GalleryDetail() {
 
       setUploads((prev) => [...prev, ...newUploads])
 
-      for (const uploadItem of newUploads) {
+      const CONCURRENCY_LIMIT = 4
+      let index = 0
+
+      const uploadNext = async () => {
+        if (index >= newUploads.length) return
+        const uploadItem = newUploads[index++]
+
         updateUpload(uploadItem.id, { status: 'uploading' })
         try {
           await uploadPhotoDirectly(gallery.uuid, uploadItem.file, (pct) => {
@@ -153,8 +159,17 @@ export default function GalleryDetail() {
             status: 'error',
             error: err instanceof Error ? err.message : 'Upload failed',
           })
+        } finally {
+          await uploadNext()
         }
       }
+
+      const promises = []
+      const poolSize = Math.min(CONCURRENCY_LIMIT, newUploads.length)
+      for (let i = 0; i < poolSize; i++) {
+        promises.push(uploadNext())
+      }
+      await Promise.all(promises)
     },
     [gallery, uuid, queryClient]
   )

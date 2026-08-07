@@ -19,7 +19,8 @@ module.exports = {
       script: '/www/server/php/84/bin/php',
       args: 'artisan queue:work --sleep=3 --tries=3 --timeout=300 --max-time=3600',
       exec_mode: 'fork',
-      instances: 1,
+      instances: 2,
+      max_memory_restart: '350M',
       autorestart: true,
       watch: false
     }

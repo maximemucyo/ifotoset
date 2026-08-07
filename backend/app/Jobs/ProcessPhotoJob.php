@@ -7,6 +7,7 @@ use App\Models\Photo;
 use App\Models\PhotoMetadata;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -18,9 +19,25 @@ use Intervention\Image\ImageManager;
 use kornrunner\Blurhash\Blurhash;
 use Throwable;
 
-class ProcessPhotoJob implements ShouldQueue
+class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * The unique ID of the job.
+     */
+    public function uniqueId(): string
+    {
+        return $this->photo->uuid;
+    }
+
+    /**
+     * The number of seconds after which the job's unique lock will be released.
+     */
+    public function uniqueFor(): int
+    {
+        return 600; // 10 minutes lock
+    }
 
     /**
      * The number of times the job may be attempted.
@@ -119,11 +136,7 @@ class ProcessPhotoJob implements ShouldQueue
             $width = $image->width();
             $height = $image->height();
 
-            // 5. Compute BlurHash
-            $updateProgress('Generating BlurHash');
-            $blurhash = $this->calculateBlurhash($image);
-
-            // 6. Generate responsive variants
+            // 5. Generate responsive variants (XL -> XS) sequentially
             $updateProgress('Generating & Uploading WebP');
             $variants = config('images.variants', [
                 'xs' => 200,
@@ -132,21 +145,19 @@ class ProcessPhotoJob implements ShouldQueue
                 'lg' => 1600,
                 'xl' => 2560,
             ]);
+            // Sort variants descending by size to allow sequential downscaling
+            arsort($variants);
             $quality = config('images.quality', 82);
-
             $baseName = pathinfo($photo->filename, PATHINFO_FILENAME);
 
             foreach ($variants as $sizeName => $targetWidth) {
-                $variantImg = clone $image;
-                $originalWidth = $variantImg->width();
-
-                // If original is smaller than the target width, never upscale
-                if ($originalWidth > $targetWidth) {
-                    $variantImg->scale(width: $targetWidth);
+                // If original/current image is wider than the target width, scale it down in-place
+                if ($image->width() > $targetWidth) {
+                    $image->scale(width: $targetWidth);
                 }
 
                 // Encode to WebP
-                $encodedWebp = $variantImg->toWebp($quality);
+                $encodedWebp = $image->toWebp($quality);
 
                 // Upload variant to storage
                 $variantPath = $photo->path . '/' . $baseName . '_' . $sizeName . '.webp';
@@ -158,7 +169,17 @@ class ProcessPhotoJob implements ShouldQueue
                 }
 
                 $uploadedVariants[] = $variantPath;
+
+                unset($encodedWebp);
+                gc_collect_cycles();
             }
+
+            // 6. Compute BlurHash from the final XS variant
+            $updateProgress('Generating BlurHash');
+            $blurhash = $this->calculateBlurhash($image);
+
+            unset($image);
+            gc_collect_cycles();
 
             // 7. Update database records in transaction
             $updateProgress('Updating Statistics');
