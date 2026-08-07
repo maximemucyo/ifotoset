@@ -183,19 +183,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-secondary/30 rounded-lg border border-border">
-          <p className="text-sm font-medium text-foreground mb-2">Demo Credentials:</p>
-          <p className="text-sm text-muted-foreground">
-            <strong>Studio:</strong> studio@ifotoset.com
-          </p>
-          <p className="text-sm text-muted-foreground">
-            <strong>Admin:</strong> admin@ifotoset.com
-          </p>
-          <p className="text-sm text-muted-foreground">
-            <strong>Password:</strong> demo123
-          </p>
-        </div>
+
       </div>
     </div>
   )
