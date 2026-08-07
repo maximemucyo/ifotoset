@@ -19,10 +19,9 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_filter([
-        env('FRONTEND_URL', 'http://localhost:3000'),
-        env('FRONTEND_URL_LAN'),
-    ]),
+    'allowed_origins' => array_filter(
+        explode(',', env('ALLOWED_ORIGINS', 'https://ifotoset.com,https://www.ifotoset.com,http://localhost:3000'))
+    ),
 
     'allowed_origins_patterns' => [],
 
