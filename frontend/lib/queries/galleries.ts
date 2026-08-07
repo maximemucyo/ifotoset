@@ -219,6 +219,20 @@ export interface PaginatedPhotosResponse {
   has_more: boolean;
 }
 
+export async function getGalleryPhotos(
+  uuid: string,
+  cursor?: string | null,
+  perPage = 60
+): Promise<PaginatedPhotosResponse> {
+  let url = `/galleries/${uuid}/photos?per_page=${perPage}`
+  if (cursor) {
+    url += `&cursor=${cursor}`
+  }
+  return authFetch<PaginatedPhotosResponse>(url, {
+    method: 'GET',
+  })
+}
+
 export async function getPublicGalleryPhotos(
   slug: string,
   cursor?: string | null,

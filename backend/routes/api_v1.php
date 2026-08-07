@@ -122,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/galleries', [GalleryController::class, 'index']);
     Route::post('/galleries', [GalleryController::class, 'store']);
     Route::get('/galleries/{uuid}', [GalleryController::class, 'show']);
+    Route::get('/galleries/{uuid}/photos', [GalleryController::class, 'photos']);
     Route::patch('/galleries/{uuid}', [GalleryController::class, 'update']);
     Route::delete('/galleries/{uuid}', [GalleryController::class, 'destroy']);
 

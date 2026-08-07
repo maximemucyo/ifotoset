@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -12,6 +12,7 @@ import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation
 import { uploadPhotoDirectly } from '@/lib/storage'
 import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
+import { useInfiniteStudioGallery } from './hooks/useInfiniteStudioGallery'
 
 interface UploadFile {
   id: string
@@ -29,6 +30,14 @@ export default function GalleryDetail() {
   const { data, isLoading, error } = useGallery(uuid)
   const deleteMutation = useDeleteGalleryMutation()
 
+  const {
+    photos,
+    setPhotos,
+    hasMore,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteStudioGallery(uuid as string)
+
   const [uploads, setUploads] = useState<UploadFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -36,10 +45,28 @@ export default function GalleryDetail() {
   const [shareTooltip, setShareTooltip] = useState(false)
 
   const gallery = data?.data
-  const photos = gallery?.photos ?? []
   const activeUploads = uploads.filter((u) => u.status !== 'done')
 
-  const deletePhotoMutation = useDeletePhotoMutation(uuid)
+  const deletePhotoMutation = useDeletePhotoMutation(uuid as string)
+
+  // Infinite Scroll Sentinel Observer
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!sentinelRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { rootMargin: '400px' }
+    )
+
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMore, isFetchingNextPage, fetchNextPage])
 
   // Precompute slideshow indices
   const currentIndex = selectedPhoto ? photos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1
@@ -81,6 +108,7 @@ export default function GalleryDetail() {
     deletePhotoMutation.mutate(photoUuid, {
       onSuccess: () => {
         setSelectedPhoto(nextPhoto)
+        setPhotos((prev) => prev.filter((p) => p.uuid !== photoUuid))
       },
       onError: () => {
         alert('Failed to delete the photo. Please try again.')
@@ -90,7 +118,7 @@ export default function GalleryDetail() {
         }
       }
     })
-  }, [deletePhotoMutation, photos])
+  }, [deletePhotoMutation, photos, setPhotos])
 
   useEffect(() => {
     if (!selectedPhoto) return
@@ -149,10 +177,27 @@ export default function GalleryDetail() {
 
         updateUpload(uploadItem.id, { status: 'uploading' })
         try {
-          await uploadPhotoDirectly(gallery.uuid, uploadItem.file, (pct) => {
+          const res = await uploadPhotoDirectly(gallery.uuid, uploadItem.file, (pct) => {
             updateUpload(uploadItem.id, { progress: pct })
           })
           updateUpload(uploadItem.id, { status: 'done', progress: 100 })
+
+          const newPhotoItem: PhotoItem = {
+            uuid: res.photo_id,
+            filename: uploadItem.file.name,
+            mime_type: uploadItem.file.type,
+            size: uploadItem.file.size,
+            width: null,
+            height: null,
+            blurhash: null,
+            status: 'processing',
+            cdn_url: res.cdn_url,
+            variants: { xs: '', sm: '', md: '', lg: '', xl: '' },
+            taken_at: null,
+            created_at: new Date().toISOString(),
+          }
+          setPhotos((prev) => [newPhotoItem, ...prev])
+
           queryClient.invalidateQueries({ queryKey: ['gallery', uuid] })
         } catch (err) {
           updateUpload(uploadItem.id, {
@@ -171,7 +216,7 @@ export default function GalleryDetail() {
       }
       await Promise.all(promises)
     },
-    [gallery, uuid, queryClient]
+    [gallery, uuid, queryClient, setPhotos]
   )
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -400,25 +445,44 @@ export default function GalleryDetail() {
             <p className="text-muted-foreground text-sm">Upload your first photos to get started.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {photos.map((photo) => (
-              <button
-                key={photo.uuid}
-                onClick={() => setSelectedPhoto(photo)}
-                className="group relative aspect-square bg-muted rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all"
-              >
-                <img
-                  src={photo.variants?.sm || photo.cdn_url}
-                  alt={photo.filename}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {photos.map((photo) => (
+                <button
+                  key={photo.uuid}
+                  onClick={() => setSelectedPhoto(photo)}
+                  className="group relative aspect-square bg-muted rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all"
+                >
+                  <img
+                    src={photo.variants?.sm || photo.cdn_url}
+                    alt={photo.filename}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Infinite Scroll Sentinel */}
+            <div ref={sentinelRef} className="w-full h-10 mt-6 flex justify-center items-center">
+              {isFetchingNextPage ? (
+                <div className="flex items-center gap-2 py-4">
+                  <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                  <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
                 </div>
-              </button>
-            ))}
-          </div>
+              ) : hasMore ? (
+                <button
+                  onClick={() => fetchNextPage()}
+                  className="text-xs text-muted-foreground hover:text-foreground font-medium underline py-2"
+                >
+                  Load More
+                </button>
+              ) : null}
+            </div>
+          </>
         )}
       </div>
 

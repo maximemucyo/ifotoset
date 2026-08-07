@@ -138,7 +138,7 @@ class GalleryController extends Controller
 
         $this->authorize('view', $gallery);
 
-        $gallery->load(['stats', 'coverPhoto', 'photos', 'invitations']);
+        $gallery->load(['stats', 'coverPhoto', 'invitations']);
 
         return (new GalleryResource($gallery))->response();
     }
@@ -190,6 +190,32 @@ class GalleryController extends Controller
         if ($errorResponse) {
             return $errorResponse;
         }
+
+        $perPage = $request->integer('per_page', 60);
+        $perPage = max(1, min(100, $perPage));
+
+        $photos = $gallery->photos()
+            ->orderBy('sort_date', 'asc')
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('id', 'asc')
+            ->cursorPaginate($perPage);
+
+        return response()->json([
+            'data' => \App\Http\Resources\V1\PhotoResource::collection($photos->items()),
+            'next_cursor' => $photos->nextCursor() ? $photos->nextCursor()->encode() : null,
+            'has_more' => $photos->hasMorePages(),
+        ]);
+    }
+
+    /**
+     * Get paginated photos of a gallery (private/studio dashboard).
+     * GET /api/v1/galleries/{uuid}/photos
+     */
+    public function photos(Request $request, string $uuid): JsonResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+
+        $this->authorize('view', $gallery);
 
         $perPage = $request->integer('per_page', 60);
         $perPage = max(1, min(100, $perPage));
