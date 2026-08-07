@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
+        $middleware->trustProxies(
+            at: ['127.0.0.1', '::1']
+        );
 
         // Exempt payment webhooks from CSRF verification
         $middleware->validateCsrfTokens(except: [
