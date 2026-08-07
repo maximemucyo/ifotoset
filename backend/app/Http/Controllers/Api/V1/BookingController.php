@@ -62,6 +62,8 @@ class BookingController extends Controller
         try {
             $booking = $action->execute($request->user(), $request->validated());
 
+            $request->user()->clearAvailabilityCache();
+
             return (new BookingResource($booking->load(['client', 'package'])))
                 ->response()
                 ->setStatusCode(201);
@@ -98,6 +100,8 @@ class BookingController extends Controller
         try {
             $updatedBooking = $action->execute($booking, $request->validated());
 
+            $request->user()->clearAvailabilityCache();
+
             return (new BookingResource($updatedBooking->load(['client', 'package'])))->response();
         } catch (BookingOverlapException $e) {
             return response()->json([
@@ -118,6 +122,8 @@ class BookingController extends Controller
         $this->authorize('delete', $booking);
 
         $booking->delete();
+
+        $request->user()->clearAvailabilityCache();
 
         return response()->json(null, 204);
     }

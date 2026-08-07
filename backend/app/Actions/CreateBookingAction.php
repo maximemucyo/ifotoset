@@ -7,11 +7,16 @@ use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Package;
 use App\Models\User;
+use App\Services\AvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class CreateBookingAction
 {
+    public function __construct(
+        protected AvailabilityService $availabilityService
+    ) {}
+
     /**
      * Create a new booking.
      *
@@ -20,6 +25,9 @@ class CreateBookingAction
     public function execute(User $user, array $data): Booking
     {
         return DB::transaction(function () use ($user, $data) {
+            // 1. Acquire row lock on existing bookings for this photographer to prevent concurrent inserts/race conditions
+            Booking::where('user_id', $user->id)->lockForUpdate()->get();
+
             // Resolve Client ID from UUID
             $clientId = null;
             if (!empty($data['client_id'])) {
@@ -31,6 +39,7 @@ class CreateBookingAction
 
             // Resolve Package ID from UUID
             $packageId = null;
+            $package = null;
             if (!empty($data['package_id'])) {
                 $package = Package::where('uuid', $data['package_id'])
                     ->where('user_id', $user->id)
@@ -39,17 +48,29 @@ class CreateBookingAction
             }
 
             $startsAt = new Carbon($data['starts_at']);
-            $endsAt = isset($data['ends_at']) ? new Carbon($data['ends_at']) : null;
+            
+            // If the package is set, auto-calculate the ends_at duration
+            if ($package && empty($data['ends_at'])) {
+                $endsAt = (clone $startsAt)->addMinutes($package->duration_minutes);
+            } else {
+                $endsAt = isset($data['ends_at']) ? new Carbon($data['ends_at']) : (clone $startsAt)->addHour();
+            }
 
-            // Overlap check
+            // 2. Validate availability using AvailabilityService if requested (public flow)
+            $validateAvailability = filter_var($data['validate_availability'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if ($validateAvailability && $package) {
+                $isAvailable = $this->availabilityService->isSlotAvailable($user, $startsAt, $package);
+                if (!$isAvailable) {
+                    throw new \RuntimeException("The selected time slot is no longer available. Please select another time.");
+                }
+            }
+
+            // 3. Fallback standard overlap check (if not ignoring overlaps)
             $ignoreOverlap = filter_var($data['ignore_overlap'] ?? false, FILTER_VALIDATE_BOOLEAN);
             if (!$ignoreOverlap) {
-                $newEnd = $endsAt ? clone $endsAt : (clone $startsAt)->addHour();
-
                 $conflicts = Booking::where('user_id', $user->id)
                     ->whereNull('deleted_at')
-                    ->where('starts_at', '<', $newEnd)
-                    ->whereRaw('COALESCE(ends_at, DATE_ADD(starts_at, INTERVAL 1 HOUR)) > ?', [$startsAt])
+                    ->overlapping($startsAt, $endsAt)
                     ->get();
 
                 if ($conflicts->isNotEmpty()) {
@@ -64,11 +85,11 @@ class CreateBookingAction
                 'title' => $data['title'],
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
-                'timezone' => $data['timezone'] ?? config('app.timezone', 'UTC'),
+                'timezone' => $data['timezone'] ?? $user->timezone ?? config('app.timezone', 'UTC'),
                 'location' => $data['location'] ?? null,
                 'status' => $data['status'] ?? 'pending',
-                'price' => $data['price'] ?? null,
-                'currency' => $data['currency'] ?? 'RWF',
+                'price' => $data['price'] ?? ($package ? $package->price : null),
+                'currency' => $data['currency'] ?? ($package ? $package->currency : 'RWF'),
                 'notes' => $data['notes'] ?? null,
             ]);
         });

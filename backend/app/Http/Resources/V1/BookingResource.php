@@ -14,6 +14,7 @@ class BookingResource extends JsonResource
     {
         return [
             'uuid' => $this->uuid,
+            'reference' => 'BK-' . $this->starts_at->format('Ymd') . '-' . str_pad($this->id, 4, '0', STR_PAD_LEFT),
             'title' => $this->title,
             'client' => new ClientResource($this->whenLoaded('client')),
             'package' => new PackageResource($this->whenLoaded('package')),

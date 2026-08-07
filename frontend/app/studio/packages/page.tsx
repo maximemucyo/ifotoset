@@ -1,11 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Edit2, Trash2, Loader2, Sparkles, X, Check } from 'lucide-react'
+import { Plus, Edit2, Trash2, Loader2, Sparkles, X, Check, Copy, ExternalLink } from 'lucide-react'
+import { useCurrentUser } from '@/lib/queries/auth'
 import { useStudioPackages, useCreatePackageMutation, useUpdatePackageMutation, useDeletePackageMutation, PackageItem } from '@/lib/queries/packages'
 
 export default function Packages() {
+  const { data: currentUser } = useCurrentUser()
   const [activeTab, setActiveTab] = useState<'all' | 'active'>('all')
+  const [copiedPackageUuid, setCopiedPackageUuid] = useState<string | null>(null)
 
   // Modal & form states
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -22,6 +25,8 @@ export default function Packages() {
     durationUnit: 'hours', // 'mins' | 'hours' | 'days'
     deliverables: [''],
     is_active: true,
+    deposit_type: 'none' as 'none' | 'fixed' | 'percentage',
+    deposit_amount: 0,
   })
 
   // Queries & Mutations
@@ -57,6 +62,8 @@ export default function Packages() {
         durationUnit: unit,
         deliverables: pkg.deliverables.length > 0 ? [...pkg.deliverables] : [''],
         is_active: pkg.is_active,
+        deposit_type: pkg.deposit_type || 'none',
+        deposit_amount: pkg.deposit_amount || 0,
       })
     } else {
       setFormData({
@@ -68,6 +75,8 @@ export default function Packages() {
         durationUnit: 'hours',
         deliverables: [''],
         is_active: true,
+        deposit_type: 'none',
+        deposit_amount: 0,
       })
     }
     setIsFormOpen(true)
@@ -119,6 +128,8 @@ export default function Packages() {
       duration_minutes: durationMinutes,
       deliverables: filteredDeliverables,
       is_active: formData.is_active,
+      deposit_type: formData.deposit_type,
+      deposit_amount: formData.deposit_type !== 'none' ? Number(formData.deposit_amount) : null,
     }
 
     if (activePackage) {
@@ -256,6 +267,13 @@ export default function Packages() {
                       {pkg.currency} {pkg.price.toLocaleString()}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">Duration: {pkg.duration_label}</p>
+                    {pkg.deposit_type && pkg.deposit_type !== 'none' && (
+                      <p className="text-xs text-primary font-bold mt-1">
+                        Deposit: {pkg.deposit_type === 'percentage'
+                          ? `${pkg.deposit_amount}% (${pkg.currency} ${Math.round(pkg.price * (pkg.deposit_amount || 0) / 100).toLocaleString()})`
+                          : `${pkg.currency} ${(pkg.deposit_amount || 0).toLocaleString()}`}
+                      </p>
+                    )}
                   </div>
 
                   {pkg.deliverables && pkg.deliverables.length > 0 && (
@@ -270,6 +288,23 @@ export default function Packages() {
                     </div>
                   )}
                 </div>
+
+                {currentUser?.user?.username && pkg.is_active && (
+                  <div className="mb-3 pt-2">
+                    <button
+                      onClick={() => {
+                        const link = `${window.location.origin}/p/${currentUser.user.username}?package=${pkg.uuid}`
+                        navigator.clipboard.writeText(link)
+                        setCopiedPackageUuid(pkg.uuid)
+                        setTimeout(() => setCopiedPackageUuid(null), 2000)
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors font-bold text-xs"
+                    >
+                      <Copy size={12} />
+                      {copiedPackageUuid === pkg.uuid ? 'Copied Direct Link!' : 'Copy Direct Booking Link'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex gap-2 pt-4 border-t border-border mt-auto">
                   <button
@@ -371,6 +406,38 @@ export default function Packages() {
                       placeholder="RWF"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">Deposit Type</label>
+                    <select
+                      value={formData.deposit_type}
+                      onChange={(e) => setFormData({ ...formData, deposit_type: e.target.value as any })}
+                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-foreground text-sm focus:outline-none focus:border-primary font-medium"
+                    >
+                      <option value="none">No Deposit</option>
+                      <option value="fixed">Fixed Amount</option>
+                      <option value="percentage">Percentage (%)</option>
+                    </select>
+                  </div>
+                  {formData.deposit_type !== 'none' && (
+                    <div>
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">
+                        {formData.deposit_type === 'fixed' ? 'Deposit Amount *' : 'Deposit Percentage (%) *'}
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={formData.deposit_type === 'percentage' ? 100 : undefined}
+                        value={formData.deposit_amount || ''}
+                        onChange={(e) => setFormData({ ...formData, deposit_amount: Number(e.target.value) })}
+                        className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:border-primary"
+                        placeholder={formData.deposit_type === 'fixed' ? 'e.g. 50000' : 'e.g. 20'}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -1,14 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock, Plus, Loader2, Sparkles, X, AlertTriangle, Eye, Trash2 } from 'lucide-react'
+import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock, Plus, Loader2, Sparkles, X, AlertTriangle, Eye, Trash2, Copy, ExternalLink } from 'lucide-react'
+import { useCurrentUser } from '@/lib/queries/auth'
 import { useBookings, useCreateBookingMutation, useUpdateBookingMutation, useDeleteBookingMutation, BookingItem, BookingStatus } from '@/lib/queries/bookings'
 import { useClients } from '@/lib/queries/clients'
 import { useStudioPackages } from '@/lib/queries/packages'
 
 export default function Bookings() {
+  const { data: currentUser } = useCurrentUser()
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming')
   const [page, setPage] = useState(1)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   // Modals & Details states
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -154,6 +157,53 @@ export default function Bookings() {
         </button>
       </div>
 
+      {/* Public Booking Link Banner */}
+      {currentUser?.user?.username ? (
+        <div className="bg-primary/5 border-b border-border px-4 py-3 md:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs md:text-sm flex-shrink-0">
+          <div className="flex items-center gap-2 text-foreground">
+            <span className="font-bold text-primary">Your Booking Link:</span>
+            <code className="bg-secondary px-2.5 py-1 rounded text-xs select-all text-foreground">
+              {`${typeof window !== 'undefined' ? window.location.origin : ''}/p/${currentUser.user.username}`}
+            </code>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const link = `${window.location.origin}/p/${currentUser.user.username}`
+                navigator.clipboard.writeText(link)
+                setCopiedLink(true)
+                setTimeout(() => setCopiedLink(false), 2000)
+              }}
+              className="px-3 py-1.5 bg-secondary hover:bg-muted text-foreground rounded font-semibold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <Copy size={12} />
+              {copiedLink ? 'Copied!' : 'Copy Link'}
+            </button>
+            <a
+              href={`/p/${currentUser.user.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-accent rounded font-semibold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <ExternalLink size={12} />
+              Open Page
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-yellow-500/10 border-b border-border px-4 py-3 md:px-6 text-xs md:text-sm flex-shrink-0 text-yellow-700 dark:text-yellow-500 flex items-center justify-between gap-4">
+          <span>
+            ⚠️ Set a username in your <strong>Studio Settings</strong> to activate your public portfolio and online booking page.
+          </span>
+          <a
+            href="/studio/settings"
+            className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-700 dark:text-yellow-500 rounded font-bold text-xs transition-colors shrink-0"
+          >
+            Go to Settings
+          </a>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="border-b border-border bg-card-muted/30 px-4 pt-3 flex flex-shrink-0 gap-4">
         <button
@@ -223,7 +273,12 @@ export default function Bookings() {
               <div key={booking.uuid} className="bg-card border border-border rounded-xl p-5 hover:border-primary transition-all shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-extrabold text-foreground truncate">{booking.title}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-extrabold text-foreground truncate">{booking.title}</h3>
+                      <span className="text-[10px] bg-secondary text-foreground px-2 py-0.5 rounded font-mono uppercase tracking-wider shrink-0">
+                        {booking.reference}
+                      </span>
+                    </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-xs text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <User size={14} className="text-primary shrink-0" />
@@ -474,8 +529,13 @@ export default function Bookings() {
       {isDetailsOpen && selectedBooking && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl p-6 relative">
-            <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
-              <h3 className="text-lg font-bold text-foreground truncate">{selectedBooking.title}</h3>
+            <div className="flex justify-between items-start mb-6 border-b border-border pb-4">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-foreground truncate">{selectedBooking.title}</h3>
+                <span className="text-[10px] bg-secondary text-foreground px-2 py-0.5 rounded font-mono uppercase tracking-wider mt-1 inline-block">
+                  {selectedBooking.reference}
+                </span>
+              </div>
               <button
                 onClick={() => {
                   setIsDetailsOpen(false)

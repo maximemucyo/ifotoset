@@ -14,6 +14,10 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\AnalyticsController;
 use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\PublicBookingController;
+use App\Http\Controllers\Api\V1\PublicPhotographerController;
+use App\Http\Controllers\Api\V1\PublicBookingPaymentController;
+use App\Http\Controllers\Api\V1\PublicAvailabilityController;
+use App\Http\Controllers\Api\V1\StudioAvailabilityController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -44,8 +48,18 @@ Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [G
 
 // Public Online Booking Endpoints (Rate Limited)
 Route::middleware('throttle:30,1')->group(function () {
-    Route::get('/public/booking/{username}', [PublicBookingController::class, 'show']);
+    // Dedicated photographer profile endpoint
+    Route::get('/public/photographers/{username}', [PublicPhotographerController::class, 'show']);
+    // Available time slots lookup on a date
+    Route::get('/public/photographers/{username}/slots', [PublicAvailabilityController::class, 'slots']);
+    // Available days lookup on a month
+    Route::get('/public/photographers/{username}/available-days', [PublicAvailabilityController::class, 'availableDays']);
+    // Booking submission
     Route::post('/public/booking/{username}', [PublicBookingController::class, 'store']);
+    // Deposit payment for a booking (resource-oriented)
+    Route::post('/public/bookings/{bookingUuid}/payments', [PublicBookingPaymentController::class, 'store']);
+    // Public payment status polling (booking deposits only)
+    Route::get('/public/payments/{uuid}/status', [PublicBookingPaymentController::class, 'getStatus']);
 });
 
 // Authentication Endpoints
@@ -151,4 +165,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications']);
     Route::post('/settings/avatar/request', [SettingsController::class, 'requestAvatarUpload']);
     Route::post('/settings/avatar/confirm', [SettingsController::class, 'confirmAvatarUpload']);
+
+    // Studio Availability Settings, Exceptions, and Blocked Slots
+    Route::get('/availability/settings', [StudioAvailabilityController::class, 'getSettings']);
+    Route::put('/availability/settings', [StudioAvailabilityController::class, 'updateSettings']);
+    Route::get('/availability/exceptions', [StudioAvailabilityController::class, 'getExceptions']);
+    Route::post('/availability/exceptions', [StudioAvailabilityController::class, 'storeException']);
+    Route::delete('/availability/exceptions/{uuid}', [StudioAvailabilityController::class, 'deleteException']);
+    Route::get('/availability/blocked', [StudioAvailabilityController::class, 'getBlocked']);
+    Route::post('/availability/blocked', [StudioAvailabilityController::class, 'storeBlocked']);
+    Route::delete('/availability/blocked/{uuid}', [StudioAvailabilityController::class, 'deleteBlocked']);
 });

@@ -31,6 +31,8 @@ class User extends Authenticatable
         'bio',
         'avatar_path',
         'notification_preferences',
+        'timezone',
+        'slot_interval_minutes',
     ];
 
     protected $hidden = [
@@ -68,6 +70,16 @@ class User extends Authenticatable
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    public function clearAvailabilityCache(): void
+    {
+        $key = "availability-version:photographer_id:{$this->id}";
+        if (\Illuminate\Support\Facades\Cache::has($key)) {
+            \Illuminate\Support\Facades\Cache::increment($key);
+        } else {
+            \Illuminate\Support\Facades\Cache::put($key, 2, now()->addDays(30));
+        }
     }
 }
 ?>

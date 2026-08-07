@@ -16,7 +16,8 @@ import {
   Calendar,
   BarChart3,
   Settings,
-  Trash2
+  Trash2,
+  Clock
 } from 'lucide-react'
 
 interface StudioSidebarProps {
@@ -42,6 +43,7 @@ export function StudioSidebar({ userId, isOpen: controlledIsOpen, setIsOpen: con
     { href: '/studio/clients', icon: Users, label: 'Clients' },
     { href: '/studio/packages', icon: Package, label: 'Packages' },
     { href: '/studio/bookings', icon: Calendar, label: 'Bookings' },
+    { href: '/studio/availability', icon: Clock, label: 'Availability' },
     { href: '/studio/analytics', icon: BarChart3, label: 'Analytics' },
     { href: '/studio/settings', icon: Settings, label: 'Settings' },
     { href: '/studio/trash', icon: Trash2, label: 'Trash' }

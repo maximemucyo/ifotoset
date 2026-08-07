@@ -36,6 +36,10 @@ class PackageResource extends JsonResource
             'deliverables' => $this->deliverables ?? [],
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,
+            // Deposit configuration
+            'deposit_type' => $this->deposit_type ?? 'none',
+            'deposit_amount' => $this->deposit_amount !== null ? (float) $this->deposit_amount : null,
+            'computed_deposit_amount' => $this->computedDepositAmount(),
             'created_at' => $this->created_at->toIso8601String(),
         ];
     }

@@ -29,6 +29,7 @@ class Gallery extends Model
         'invite_token',
         'expires_at',
         'version',
+        'featured_order',
     ];
 
     protected $casts = [
@@ -36,7 +37,16 @@ class Gallery extends Model
         'event_date' => 'date',
         'expires_at' => 'datetime',
         'version' => 'integer',
+        'featured_order' => 'integer',
     ];
+
+    /**
+     * Scope to galleries explicitly featured on the photographer's public profile.
+     */
+    public function scopeFeatured(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNotNull('featured_order')->orderBy('featured_order', 'asc');
+    }
 
     public function user(): BelongsTo
     {

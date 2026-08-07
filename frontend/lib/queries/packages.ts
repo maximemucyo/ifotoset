@@ -12,6 +12,8 @@ export interface PackageItem {
   deliverables: string[];
   sort_order: number;
   is_active: boolean;
+  deposit_type?: 'none' | 'fixed' | 'percentage';
+  deposit_amount?: number | null;
   created_at: string;
 }
 
@@ -40,6 +42,8 @@ export interface CreatePackageRequest {
   deliverables: string[];
   sort_order?: number;
   is_active?: boolean;
+  deposit_type?: 'none' | 'fixed' | 'percentage';
+  deposit_amount?: number | null;
 }
 
 export interface UpdatePackageRequest extends Partial<CreatePackageRequest> {

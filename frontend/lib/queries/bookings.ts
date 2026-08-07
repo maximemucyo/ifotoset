@@ -7,6 +7,7 @@ export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
 export interface BookingItem {
   uuid: string;
+  reference: string;
   title: string;
   client?: ClientItem | null;
   package?: PackageItem | null;

@@ -25,16 +25,34 @@ class Package extends Model
         'deliverables',
         'sort_order',
         'is_active',
+        'deposit_type',
+        'deposit_amount',
     ];
 
     protected $casts = [
         'uuid' => UuidBinaryCast::class,
         'price' => 'decimal:2',
+        'deposit_amount' => 'decimal:2',
         'duration_minutes' => 'integer',
         'deliverables' => 'array',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
+
+    /**
+     * Compute the actual deposit amount in the package's currency.
+     * Returns null if no deposit is required.
+     */
+    public function computedDepositAmount(): ?float
+    {
+        return match ($this->deposit_type) {
+            'fixed' => $this->deposit_amount ? (float) $this->deposit_amount : null,
+            'percentage' => $this->deposit_amount
+                ? round((float) $this->price * ((float) $this->deposit_amount / 100), 2)
+                : null,
+            default => null,
+        };
+    }
 
     public function user(): BelongsTo
     {
