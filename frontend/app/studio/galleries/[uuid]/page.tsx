@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Upload, Trash2, Edit, Share2, Lock, Globe, Image, Download,
   Heart, Eye, MoreHorizontal, X, Check, AlertTriangle, CloudUpload,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, RotateCcw, Wifi, WifiOff
 } from 'lucide-react'
 import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation } from '@/lib/queries/galleries'
 import { uploadPhotoDirectly } from '@/lib/storage'
@@ -14,12 +14,15 @@ import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInfiniteStudioGallery } from './hooks/useInfiniteStudioGallery'
 
+type UploadStatus = 'queued' | 'uploading' | 'paused' | 'error' | 'done'
+
 interface UploadFile {
   id: string
   file: File
-  status: 'queued' | 'uploading' | 'done' | 'error'
+  status: UploadStatus
   progress: number
   error?: string
+  retryCount: number
 }
 
 export default function GalleryDetail() {
@@ -43,6 +46,70 @@ export default function GalleryDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null)
   const [shareTooltip, setShareTooltip] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
+  const networkPausedRef = useRef<Set<string>>(new Set())
+  const runningUploadsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    // Safely check navigator.onLine on client-side mount
+    setIsOnline(window.navigator.onLine)
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      setUploads((prev) =>
+        prev.map((u) => {
+          if (u.status === 'paused' && u.retryCount < 1) {
+            return {
+              ...u,
+              status: 'queued',
+              progress: 0,
+              error: undefined,
+              retryCount: u.retryCount + 1,
+            }
+          } else if (u.status === 'paused') {
+            return {
+              ...u,
+              status: 'error',
+              error: 'Reconnection retry limit reached. Please retry manually.',
+            }
+          }
+          return u
+        })
+      )
+    }
+
+    const handleOffline = () => {
+      setIsOnline(false)
+      setUploads((prev) =>
+        prev.map((u) => {
+          if (u.status === 'uploading') {
+            networkPausedRef.current.add(u.id)
+            const controller = abortControllersRef.current.get(u.id)
+            if (controller) {
+              controller.abort('network-paused')
+            }
+            return {
+              ...u,
+              status: 'paused',
+              progress: 0,
+              error: 'Network connection lost',
+            }
+          }
+          return u
+        })
+      )
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   const gallery = data?.data
   const activeUploads = uploads.filter((u) => u.status !== 'done')
@@ -148,12 +215,109 @@ export default function GalleryDetail() {
     }
   }, [selectedPhoto, handlePrevPhoto, handleNextPhoto])
 
-  const updateUpload = (id: string, patch: Partial<UploadFile>) => {
+  const updateUpload = useCallback((id: string, patch: Partial<UploadFile>) => {
     setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)))
-  }
+  }, [])
+
+  const startUpload = useCallback(
+    async (item: UploadFile) => {
+      if (!gallery) return
+      if (runningUploadsRef.current.has(item.id)) return
+      runningUploadsRef.current.add(item.id)
+
+      const controller = new AbortController()
+      abortControllersRef.current.set(item.id, controller)
+
+      updateUpload(item.id, { status: 'uploading', error: undefined })
+
+      try {
+        const res = await uploadPhotoDirectly(
+          gallery.uuid,
+          item.file,
+          (pct) => {
+            updateUpload(item.id, { progress: pct })
+          },
+          controller.signal
+        )
+
+        updateUpload(item.id, { status: 'done', progress: 100 })
+
+        const newPhotoItem: PhotoItem = {
+          uuid: res.photo_id,
+          filename: item.file.name,
+          mime_type: item.file.type,
+          size: item.file.size,
+          width: null,
+          height: null,
+          blurhash: null,
+          status: 'processing',
+          cdn_url: res.cdn_url,
+          variants: { xs: '', sm: '', md: '', lg: '', xl: '' },
+          taken_at: null,
+          created_at: new Date().toISOString(),
+        }
+        setPhotos((prev) => [newPhotoItem, ...prev])
+
+        queryClient.invalidateQueries({ queryKey: ['gallery', uuid] })
+      } catch (err: any) {
+        if (networkPausedRef.current.has(item.id)) {
+          networkPausedRef.current.delete(item.id)
+          return
+        }
+
+        // If it was aborted by client cancellation, it will have been cleaned up/removed
+        if (err.name === 'AbortError' && !abortControllersRef.current.has(item.id)) {
+          return
+        }
+
+        updateUpload(item.id, {
+          status: 'error',
+          error: err instanceof Error ? err.message : 'Upload failed',
+        })
+      } finally {
+        runningUploadsRef.current.delete(item.id)
+        abortControllersRef.current.delete(item.id)
+      }
+    },
+    [gallery, uuid, queryClient, setPhotos]
+  )
+
+  const handleCancelUpload = useCallback((id: string) => {
+    const controller = abortControllersRef.current.get(id)
+    if (controller) {
+      controller.abort('user-cancelled')
+      abortControllersRef.current.delete(id)
+    }
+    runningUploadsRef.current.delete(id)
+    networkPausedRef.current.delete(id)
+    setUploads((prev) => prev.filter((u) => u.id !== id))
+  }, [])
+
+  const handleRetryUpload = useCallback((id: string) => {
+    updateUpload(id, {
+      status: 'queued',
+      progress: 0,
+      error: undefined,
+      retryCount: 0,
+    })
+  }, [])
+
+  const handleRetryAllFailed = useCallback(() => {
+    setUploads((prev) =>
+      prev.map((u) =>
+        u.status === 'error'
+          ? { ...u, status: 'queued', progress: 0, error: undefined, retryCount: 0 }
+          : u
+      )
+    )
+  }, [])
+
+  const handleClearAllFailed = useCallback(() => {
+    setUploads((prev) => prev.filter((u) => u.status !== 'error'))
+  }, [])
 
   const processFiles = useCallback(
-    async (files: File[]) => {
+    (files: File[]) => {
       if (!gallery) return
 
       const imageFiles = files.filter((f) => f.type.startsWith('image/'))
@@ -164,60 +328,29 @@ export default function GalleryDetail() {
         file,
         status: 'queued',
         progress: 0,
+        retryCount: 0,
       }))
 
       setUploads((prev) => [...prev, ...newUploads])
-
-      const CONCURRENCY_LIMIT = 4
-      let index = 0
-
-      const uploadNext = async () => {
-        if (index >= newUploads.length) return
-        const uploadItem = newUploads[index++]
-
-        updateUpload(uploadItem.id, { status: 'uploading' })
-        try {
-          const res = await uploadPhotoDirectly(gallery.uuid, uploadItem.file, (pct) => {
-            updateUpload(uploadItem.id, { progress: pct })
-          })
-          updateUpload(uploadItem.id, { status: 'done', progress: 100 })
-
-          const newPhotoItem: PhotoItem = {
-            uuid: res.photo_id,
-            filename: uploadItem.file.name,
-            mime_type: uploadItem.file.type,
-            size: uploadItem.file.size,
-            width: null,
-            height: null,
-            blurhash: null,
-            status: 'processing',
-            cdn_url: res.cdn_url,
-            variants: { xs: '', sm: '', md: '', lg: '', xl: '' },
-            taken_at: null,
-            created_at: new Date().toISOString(),
-          }
-          setPhotos((prev) => [newPhotoItem, ...prev])
-
-          queryClient.invalidateQueries({ queryKey: ['gallery', uuid] })
-        } catch (err) {
-          updateUpload(uploadItem.id, {
-            status: 'error',
-            error: err instanceof Error ? err.message : 'Upload failed',
-          })
-        } finally {
-          await uploadNext()
-        }
-      }
-
-      const promises = []
-      const poolSize = Math.min(CONCURRENCY_LIMIT, newUploads.length)
-      for (let i = 0; i < poolSize; i++) {
-        promises.push(uploadNext())
-      }
-      await Promise.all(promises)
     },
-    [gallery, uuid, queryClient, setPhotos]
+    [gallery]
   )
+
+  const CONCURRENCY_LIMIT = 4
+
+  useEffect(() => {
+    const queuedItems = uploads.filter((u) => u.status === 'queued')
+    const uploadingItems = uploads.filter((u) => u.status === 'uploading')
+
+    if (queuedItems.length > 0 && uploadingItems.length < CONCURRENCY_LIMIT) {
+      const slotsAvailable = CONCURRENCY_LIMIT - uploadingItems.length
+      const itemsToStart = queuedItems.slice(0, slotsAvailable)
+
+      itemsToStart.forEach((item) => {
+        startUpload(item)
+      })
+    }
+  }, [uploads, startUpload])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) processFiles(Array.from(e.target.files))
@@ -367,6 +500,16 @@ export default function GalleryDetail() {
 
       {/* Content */}
       <div className="p-6">
+        {/* Offline Warning Banner */}
+        {!isOnline && (
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl p-4 flex items-center gap-3 backdrop-blur-sm">
+            <WifiOff size={20} className="shrink-0 animate-pulse text-amber-500" />
+            <div className="text-sm">
+              🔌 You're offline. Active uploads are paused and will automatically resume when your connection is restored.
+            </div>
+          </div>
+        )}
+
         {/* Upload Zone */}
         <div
           id="upload-drop-zone"
@@ -406,34 +549,101 @@ export default function GalleryDetail() {
         {/* Active Uploads */}
         {activeUploads.length > 0 && (
           <div className="mb-6 bg-card border border-border rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-foreground mb-2">Uploading ({activeUploads.length})</h3>
-            {activeUploads.map((u) => (
-              <div key={u.id}>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-foreground truncate max-w-[70%]">{u.file.name}</p>
-                  <span className="text-xs text-muted-foreground">
-                    {u.status === 'error' ? (
-                      <span className="text-destructive">Error</span>
-                    ) : u.status === 'uploading' ? (
-                      `${u.progress}%`
-                    ) : (
-                      'Queued'
-                    )}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      u.status === 'error' ? 'bg-destructive' : 'bg-primary'
-                    }`}
-                    style={{ width: `${u.status === 'error' ? 100 : u.progress}%` }}
-                  />
-                </div>
-                {u.status === 'error' && u.error && (
-                  <p className="text-destructive text-xs mt-0.5">{u.error}</p>
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Uploading ({activeUploads.length})</h3>
+              <div className="flex items-center gap-2">
+                {activeUploads.some((u) => u.status === 'error') && (
+                  <>
+                    <button
+                      onClick={handleRetryAllFailed}
+                      disabled={!isOnline}
+                      className="text-xs font-semibold px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                      title={isOnline ? 'Retry all failed uploads' : 'Reconnect to retry'}
+                    >
+                      {isOnline ? 'Retry Failed' : 'Retry when online'}
+                    </button>
+                    <button
+                      onClick={handleClearAllFailed}
+                      className="text-xs font-semibold px-2 py-1 rounded bg-secondary text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Clear Failed
+                    </button>
+                  </>
                 )}
               </div>
-            ))}
+            </div>
+
+            <div className="space-y-3">
+              {activeUploads.map((u) => {
+                let statusLabel = 'Waiting...';
+                let progressColor = 'bg-muted';
+                
+                if (u.status === 'uploading') {
+                  statusLabel = `Uploading ${u.progress}%`;
+                  progressColor = 'bg-primary';
+                } else if (u.status === 'paused') {
+                  statusLabel = 'Paused — waiting for connection';
+                  progressColor = 'bg-amber-500';
+                } else if (u.status === 'error') {
+                  statusLabel = 'Upload failed';
+                  progressColor = 'bg-destructive';
+                }
+
+                return (
+                  <div key={u.id} className="space-y-1.5 pb-3 border-b border-border/30 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-xs font-medium text-foreground truncate max-w-[50%]" title={u.file.name}>
+                        {u.file.name}
+                      </p>
+                      
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          u.status === 'error'
+                            ? 'bg-destructive/10 text-destructive'
+                            : u.status === 'paused'
+                            ? 'bg-amber-500/10 text-amber-500'
+                            : u.status === 'uploading'
+                            ? 'bg-primary/10 text-primary animate-pulse'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {statusLabel}
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          {u.status === 'error' && (
+                            <button
+                              onClick={() => handleRetryUpload(u.id)}
+                              disabled={!isOnline}
+                              className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                              title={isOnline ? 'Retry upload' : 'Reconnect to retry'}
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleCancelUpload(u.id)}
+                            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-destructive transition-colors"
+                            title="Cancel upload"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${progressColor}`}
+                        style={{ width: `${u.status === 'error' || u.status === 'paused' ? 100 : u.progress}%` }}
+                      />
+                    </div>
+                    {u.status === 'error' && u.error && (
+                      <p className="text-destructive text-[11px] mt-0.5">{u.error}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
