@@ -25,6 +25,10 @@ return [
             'endpoint' => env('BACKBLAZE_B2_ENDPOINT'), // e.g. https://s3.us-east-005.backblazeb2.com
             'use_path_style_endpoint' => true,
             'cdn_domain' => env('CLOUDFLARE_CDN_DOMAIN', 'cdn.ifotoset.com'),
+            'http' => [
+                'connect_timeout' => 10,
+                'timeout' => 30,
+            ],
         ],
     ],
     'links' => [
