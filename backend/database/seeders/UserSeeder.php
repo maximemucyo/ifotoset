@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
             'name' => 'Sarah Photography Studio',
             'password' => bcrypt('demo123'),
             'role' => 'photographer',
-            'storage_used_bytes' => 12.5 * 1024 * 1024 * 1024, // 12.5 GB
+            'storage_used_bytes' => 0,
             'is_active' => true,
         ]);
 

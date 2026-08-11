@@ -17,9 +17,15 @@ return Application::configure(basePath: dirname(__DIR__))
             at: ['127.0.0.1', '::1']
         );
 
-        // Exempt payment webhooks from CSRF verification
+        // Exempt public endpoints from CSRF verification
         $middleware->validateCsrfTokens(except: [
             'api/v1/callbacks/*',
+            'api/v1/public/booking/*',
+            'api/v1/public/bookings/*/payments',
+            'api/v1/public/galleries/*/unlock',
+            'api/v1/public/galleries/*/download',
+            'api/v1/public/galleries/*/favorite',
+            'api/v1/public/photographers/*/reviews',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

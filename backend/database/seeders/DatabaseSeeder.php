@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
         DB::table('users')->truncate();
         DB::table('galleries')->truncate();
         DB::table('gallery_stats')->truncate();
+        DB::table('reviews')->truncate();
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // 2. Orchestrate seeders
@@ -28,6 +29,7 @@ class DatabaseSeeder extends Seeder
             FeatureSeeder::class,
             UserSeeder::class,
             GallerySeeder::class,
+            ReviewSeeder::class,
         ]);
     }
 }

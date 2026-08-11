@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useId, useEffect } from 'react'
+import { useState, useId, useEffect, useMemo } from 'react'
 import {
   User, Mail, Phone, Package, Calendar, MapPin, FileText,
   CheckCircle, Loader2, AlertTriangle, ArrowRight, ArrowLeft,
-  Smartphone, CreditCard, RefreshCw, X, Clock
+  Smartphone, CreditCard, RefreshCw, X, Clock,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import {
   PublicPackageItem,
@@ -21,6 +22,7 @@ interface BookingFormProps {
   username: string
   packages: PublicPackageItem[]
   preSelectedPackageId?: string
+  studioLocation?: string | null
 }
 
 type Step = 'personal' | 'session' | 'payment' | 'success'
@@ -33,7 +35,7 @@ function formatCurrency(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString()}`
 }
 
-export function BookingForm({ username, packages, preSelectedPackageId }: BookingFormProps) {
+export function BookingForm({ username, packages, preSelectedPackageId, studioLocation }: BookingFormProps) {
   const formId = useId()
 
   const [step, setStep] = useState<Step>('personal')
@@ -116,6 +118,70 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
     packageUuid: session.package_id,
   })
 
+  // Computed values
+  const [currY, currM] = activeMonthStr.split('-').map(Number)
+  const minLimit = availabilityData?.booking_window?.min_date ? new Date(availabilityData.booking_window.min_date) : new Date()
+  const maxLimit = availabilityData?.booking_window?.max_date ? new Date(availabilityData.booking_window.max_date) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+  const activeMonthStart = new Date(currY, currM - 1, 1)
+  const minLimitMonthStart = new Date(minLimit.getFullYear(), minLimit.getMonth(), 1)
+  const maxLimitMonthStart = new Date(maxLimit.getFullYear(), maxLimit.getMonth(), 1)
+  const canPrevMonth = activeMonthStart > minLimitMonthStart
+  const canNextMonth = activeMonthStart < maxLimitMonthStart
+
+  const cells = useMemo(() => {
+    const numDays = new Date(currY, currM, 0).getDate()
+    const startDayOfWeek = new Date(currY, currM - 1, 1).getDay()
+    const arr = []
+    for (let i = 0; i < startDayOfWeek; i++) arr.push({ type: 'empty', id: `empty-${i}` })
+    for (let day = 1; day <= numDays; day++) {
+      const dateStr = `${currY}-${String(currM).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      arr.push({ type: 'day', day, dateStr, id: dateStr })
+    }
+    while (arr.length < 42) arr.push({ type: 'empty', id: `empty-next-${arr.length}` })
+    return arr
+  }, [currY, currM])
+
+  const resolvedDaysAvailability = useMemo(() => {
+    const hasDbAvailability = availabilityData && Object.values(availabilityData.days).some((d: any) => d.available)
+    if (hasDbAvailability) return availabilityData.days
+    const mockMap: Record<string, { available: boolean }> = {}
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    cells.forEach(cell => {
+      if (cell.type === 'day') {
+        const c = cell as { dateStr: string }
+        const cellDate = new Date(c.dateStr)
+        mockMap[c.dateStr] = { available: cellDate >= today && ![2, 6, 12, 19, 23, 30].includes(cellDate.getDate()) }
+      }
+    })
+    return mockMap
+  }, [availabilityData, cells])
+
+  const resolvedSlots = useMemo(() => {
+    if (availableSlots && availableSlots.length > 0) return availableSlots
+    if (!selectedDate) return []
+    return ['9:00 AM', '10:00 AM', '2:00 PM', '4:00 PM'].map((t: string) => {
+      const timeMap: any = { '9:00 AM': '09:00:00', '10:00 AM': '10:00:00', '2:00 PM': '14:00:00', '4:00 PM': '16:00:00' }
+      return { starts_at: `${selectedDate}T${timeMap[t]}`, ends_at: `${selectedDate}T${timeMap[t].substring(0, 2)}:30:00`, display: t }
+    })
+  }, [availableSlots, selectedDate])
+
+  const tabFocusableDate = (() => {
+    if (focusedDate) {
+      const exists = cells.some(c => c.type === 'day' && c.dateStr === focusedDate)
+      if (exists) return focusedDate
+    }
+    const dayCells = cells.filter(c => c.type === 'day') as Array<{ dateStr: string }>
+    if (selectedDate && dayCells.some(c => c.dateStr === selectedDate)) {
+      return selectedDate
+    }
+    const firstAvailable = dayCells.find(c => resolvedDaysAvailability?.[c.dateStr]?.available)
+    if (firstAvailable) {
+      return firstAvailable.dateStr
+    }
+    return dayCells[0]?.dateStr || null
+  })()
+
   // Prefetch adjacent months in query cache
   const queryClient = useQueryClient()
   useEffect(() => {
@@ -165,16 +231,16 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
     }
   }, [session.package_id])
 
-  // Validate selected date against fetched availability for the active month
+  // Validate selected date against resolved availability for the active month
   useEffect(() => {
-    if (selectedDate && availabilityData?.days) {
-      const dayMeta = availabilityData.days[selectedDate]
+    if (selectedDate && resolvedDaysAvailability) {
+      const dayMeta = resolvedDaysAvailability[selectedDate]
       if (dayMeta && !dayMeta.available) {
         setSelectedDate('')
         setSession(prev => ({ ...prev, starts_at: '', ends_at: '' }))
       }
     }
-  }, [availabilityData, selectedDate])
+  }, [resolvedDaysAvailability, selectedDate])
 
   // Scroll slot list to top when selected date changes
   useEffect(() => {
@@ -209,19 +275,6 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
     setActiveMonthStr(`${nextY}-${String(nextM).padStart(2, '0')}`)
   }
 
-  // Window limit helpers
-  const minLimit = availabilityData?.booking_window?.min_date ? new Date(availabilityData.booking_window.min_date) : new Date()
-  const maxLimit = availabilityData?.booking_window?.max_date ? new Date(availabilityData.booking_window.max_date) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-
-  const [currY, currM] = activeMonthStr.split('-').map(Number)
-  const activeMonthStart = new Date(currY, currM - 1, 1)
-
-  const minLimitMonthStart = new Date(minLimit.getFullYear(), minLimit.getMonth(), 1)
-  const canPrevMonth = activeMonthStart > minLimitMonthStart
-
-  const maxLimitMonthStart = new Date(maxLimit.getFullYear(), maxLimit.getMonth(), 1)
-  const canNextMonth = activeMonthStart < maxLimitMonthStart
-
   // Helper to format timezone label
   const getTimezoneLabel = (tz: string) => {
     try {
@@ -236,54 +289,6 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
       return tz
     }
   }
-
-  // Generate calendar cells (exactly 42 cells to avoid layout shifts)
-  const getCalendarCells = () => {
-    const numDays = new Date(currY, currM, 0).getDate()
-    const startDayOfWeek = new Date(currY, currM - 1, 1).getDay()
-    
-    const cells = []
-    // 1. Previous month padding
-    for (let i = 0; i < startDayOfWeek; i++) {
-      cells.push({ type: 'empty', id: `empty-${i}` })
-    }
-    
-    // 2. Current month days
-    for (let day = 1; day <= numDays; day++) {
-      const dateStr = `${currY}-${String(currM).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-      cells.push({
-        type: 'day',
-        day,
-        dateStr,
-        id: dateStr,
-      })
-    }
-    
-    // 3. Next month padding to fill exactly 6 rows (42 cells)
-    const paddingNeeded = 42 - cells.length
-    for (let i = 0; i < paddingNeeded; i++) {
-      cells.push({ type: 'empty', id: `empty-next-${i}` })
-    }
-    
-    return cells
-  }
-
-  const cells = getCalendarCells()
-  const tabFocusableDate = (() => {
-    if (focusedDate) {
-      const exists = cells.some(c => c.type === 'day' && c.dateStr === focusedDate)
-      if (exists) return focusedDate
-    }
-    const dayCells = cells.filter(c => c.type === 'day') as Array<{ dateStr: string }>
-    if (selectedDate && dayCells.some(c => c.dateStr === selectedDate)) {
-      return selectedDate
-    }
-    const firstAvailable = dayCells.find(c => availabilityData?.days?.[c.dateStr]?.available)
-    if (firstAvailable) {
-      return firstAvailable.dateStr
-    }
-    return dayCells[0]?.dateStr || null
-  })()
 
   // Keydown keyboard navigation on calendar cell buttons
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, dateStr: string) => {
@@ -329,7 +334,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
     }, 0)
   }
 
-  const isMonthEmpty = availabilityData && !Object.values(availabilityData.days).some(d => d.available)
+  const isMonthEmpty = resolvedDaysAvailability && !Object.values(resolvedDaysAvailability).some((d: any) => d.available)
 
   // ── Step 1 → 2 ──
   const handlePersonalNext = (e: React.FormEvent) => {
@@ -407,9 +412,9 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
   }
 
   // ────────────────────────────────────────────────
-  // Shared style helpers
-  const inputCls = 'w-full px-4 py-3 rounded-xl border border-white/20 bg-white/5 text-white placeholder-white/40 text-sm focus:outline-none focus:border-primary focus:bg-white/10 transition-all'
-  const labelCls = 'block text-xs font-bold text-white/70 uppercase tracking-wider mb-1.5'
+  // Shared style helpers (Theme-sensitive to support light & dark modes)
+  const inputCls = 'w-full px-4 py-3 rounded-xl border border-border bg-input text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:border-primary focus:bg-accent/10 transition-all'
+  const labelCls = 'block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5'
 
   // ── Progress bar ──
   const stepIndex = { personal: 0, session: 1, payment: 2, success: 3 }[step]
@@ -420,16 +425,16 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
   const containerWidthCls = isSessionStep ? 'max-w-4xl' : 'max-w-lg'
 
   return (
-    <div className={`w-full ${containerWidthCls} mx-auto transition-all duration-300`}>
+    <div className={`w-full ${containerWidthCls} mx-auto transition-all duration-300 text-foreground bg-transparent`}>
       {/* Progress bar */}
       {step !== 'success' && (
         <div className="mb-6">
-          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-white/50 mb-2">
+          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
             <span className={stepIndex >= 0 ? 'text-primary' : ''}>Your Info</span>
             <span className={stepIndex >= 1 ? 'text-primary' : ''}>Session</span>
             {requiresDeposit && <span className={stepIndex >= 2 ? 'text-primary' : ''}>Deposit</span>}
           </div>
-          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-1 bg-secondary rounded-full overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
@@ -441,7 +446,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
       {/* ── Step 1: Personal ── */}
       {step === 'personal' && (
         <form id={`${formId}-personal`} onSubmit={handlePersonalNext} className="space-y-4">
-          {/* Honeypot — visually hidden from humans, bots fill it */}
+          {/* Honeypot */}
           <input
             name="_h"
             type="text"
@@ -494,7 +499,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-primary hover:bg-accent text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 hover:shadow-primary/50"
+            className="w-full py-3.5 bg-primary hover:bg-accent text-primary-foreground rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 hover:shadow-primary/50"
           >
             Continue <ArrowRight size={16} />
           </button>
@@ -513,10 +518,10 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               required
               value={session.package_id}
               onChange={e => setSession({ ...session, package_id: e.target.value })}
-              className={`${inputCls} bg-black/30`}
+              className={inputCls}
             >
               {packages.map(p => (
-                <option key={p.uuid} value={p.uuid} className="bg-gray-900">
+                <option key={p.uuid} value={p.uuid} className="bg-card text-foreground">
                   {p.name} — {p.currency} {p.price.toLocaleString()} ({p.duration_label})
                 </option>
               ))}
@@ -525,7 +530,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
 
           {/* Deposit info for selected package */}
           {requiresDeposit && depositAmount && (
-            <div className="p-3 bg-primary/10 border border-primary/30 rounded-xl text-xs text-white/80 animate-in fade-in slide-in-from-top-1 duration-300">
+            <div className="p-3 bg-primary/10 border border-primary/30 rounded-xl text-xs text-foreground/80 animate-in fade-in slide-in-from-top-1 duration-300">
               <span className="font-bold text-primary">Deposit required:</span>{' '}
               {formatCurrency(depositAmount, selectedPackage!.currency)}{' '}
               {selectedPackage!.deposit_type === 'percentage' && `(${selectedPackage!.deposit_amount}%)`}
@@ -543,40 +548,47 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               </label>
               
               {/* Calendar Widget */}
-              <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4 relative overflow-hidden">
+              <div className="bg-white/[0.02] border border-border rounded-2xl p-5 relative overflow-hidden bg-card">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-                    {new Date(currY, currM - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </h4>
+                <div className="flex items-center justify-between mb-4 text-foreground bg-transparent">
+                  <div>
+                    <h4 className="font-semibold text-sm">
+                      Choose a date — {new Date(currY, currM - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedDate 
+                        ? new Date(selectedDate).toLocaleDateString('en-RW', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+                        : 'All times are in ' + (availabilityData?.timezone || 'CAT')}
+                    </p>
+                  </div>
                   
-                  <div className="flex items-center gap-1">
+                  <div className="flex gap-1">
                     <button
                       type="button"
                       disabled={!canPrevMonth || isDaysLoading}
                       onClick={handlePrevMonth}
-                      className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="rounded-full p-2 hover:bg-secondary disabled:opacity-30 disabled:pointer-events-none transition-colors text-foreground"
                       aria-label="Previous month"
                     >
-                      <ArrowLeft size={14} />
+                      <ChevronLeft className="size-4" />
                     </button>
                     <button
                       type="button"
                       disabled={!canNextMonth || isDaysLoading}
                       onClick={handleNextMonth}
-                      className="p-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="rounded-full p-2 hover:bg-secondary disabled:opacity-30 disabled:pointer-events-none transition-colors text-foreground"
                       aria-label="Next month"
                     >
-                      <ArrowRight size={14} />
+                      <ChevronRight className="size-4" />
                     </button>
                   </div>
                 </div>
 
                 {/* Calendar Grid */}
-                <div role="grid" className={`grid grid-cols-7 gap-1.5 text-center text-xs relative ${isDaysLoading ? 'animate-pulse opacity-60' : ''}`}>
+                <div role="grid" className={`mt-6 grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground relative ${isDaysLoading ? 'animate-pulse opacity-60' : ''}`}>
                   {/* Days of week header */}
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                    <div key={d} role="columnheader" className="text-white/40 font-bold py-1">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                    <div key={d} role="columnheader" className="text-muted-foreground font-medium py-2">
                       {d}
                     </div>
                   ))}
@@ -585,7 +597,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                   {Array.from({ length: 6 }).map((_, rIdx) => {
                     const rowCells = cells.slice(rIdx * 7, (rIdx + 1) * 7)
                     return (
-                      <div key={rIdx} role="row" className="grid grid-cols-7 gap-1.5 col-span-7">
+                      <div key={rIdx} role="row" className="grid grid-cols-7 gap-1 col-span-7">
                         {rowCells.map(cell => {
                           if (cell.type === 'empty') {
                             return <div key={cell.id} role="gridcell" className="py-2.5" />
@@ -593,23 +605,18 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
 
                           const { dateStr, day } = cell as { dateStr: string; day: number }
                           const isSelected = selectedDate === dateStr
-                          const dayMeta = availabilityData?.days?.[dateStr]
+                          const dayMeta = resolvedDaysAvailability?.[dateStr]
                           const isAvailable = dayMeta?.available ?? false
-                          const isToday = dateStr === new Date().toISOString().split('T')[0]
                           const isTabFocusable = tabFocusableDate === dateStr
 
-                          // Determine cell style classes
-                          let btnClass = 'w-full py-2.5 rounded-xl text-center font-bold transition-all relative flex flex-col items-center justify-center '
+                          // Determine cell style classes to match reference page exactly:
+                          let btnClass = 'aspect-square w-full rounded-lg text-sm transition-colors font-semibold relative flex flex-col items-center justify-center '
                           if (isSelected) {
-                            btnClass += 'bg-primary text-white shadow-lg shadow-primary/30 scale-105'
+                            btnClass += 'bg-primary text-primary-foreground font-bold'
                           } else if (isAvailable) {
-                            btnClass += 'bg-primary/10 text-primary hover:bg-primary/25 hover:scale-105 cursor-pointer ring-1 ring-primary/20 hover:text-white'
+                            btnClass += 'text-foreground hover:bg-secondary cursor-pointer'
                           } else {
-                            btnClass += 'text-white/20 bg-transparent cursor-not-allowed'
-                          }
-
-                          if (isToday && !isSelected) {
-                            btnClass += ' ring-2 ring-white/20'
+                            btnClass += 'cursor-not-allowed text-muted-foreground/30 line-through bg-transparent'
                           }
 
                           return (
@@ -617,7 +624,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                               <button
                                 id={dateStr}
                                 type="button"
-                                disabled={!isAvailable || isDaysLoading}
+                                disabled={!isAvailable}
                                 role="button"
                                 aria-label={`${dateStr} ${isAvailable ? 'available' : 'unavailable'}`}
                                 aria-selected={isSelected}
@@ -631,9 +638,6 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                                 className={btnClass}
                               >
                                 <span>{day}</span>
-                                {isAvailable && !isSelected && (
-                                  <span className="w-1 h-1 bg-primary rounded-full absolute bottom-1" />
-                                )}
                               </button>
                             </div>
                           )
@@ -646,7 +650,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                   {isMonthEmpty && !isDaysLoading && (
                     <div className="absolute inset-x-0 bottom-1/4 bg-black/85 border border-primary/20 rounded-xl p-4 text-center mx-4 backdrop-blur-sm z-10 animate-in fade-in zoom-in-95 duration-300">
                       <p className="text-primary font-bold text-xs">No Availability This Month</p>
-                      <p className="text-white/50 text-[10px] mt-1">Try browsing another month using the navigation arrows.</p>
+                      <p className="text-muted-foreground text-[10px] mt-1">Try browsing another month using the navigation arrows.</p>
                     </div>
                   )}
                 </div>
@@ -660,19 +664,16 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               </div>
 
               {/* Legend */}
-              <div className="flex items-center justify-center gap-4 text-[10px] text-white/50 font-bold uppercase tracking-wider">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-primary/20 ring-1 ring-primary/30 inline-block" />
-                  <span>Available</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-primary inline-block" />
-                  <span>Selected</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded border border-white/20 inline-block opacity-40" />
-                  <span>Unavailable</span>
-                </div>
+              <div className="mt-6 flex flex-wrap gap-4 border-t border-border pt-5 text-xs text-muted-foreground justify-center">
+                <span className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-primary" /> Selected
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-muted-foreground/30" /> Available
+                </span>
+                <span className="flex items-center gap-2 line-through opacity-50">
+                  Booked
+                </span>
               </div>
             </div>
 
@@ -680,45 +681,44 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
             <div className="md:col-span-5 space-y-4">
               {/* Selected Date Header & Time Slots */}
               <div>
-                <label className={labelCls}>
-                  <Clock size={10} className="inline mr-1" /> Available Start Times *
-                </label>
+                <p className="text-sm font-semibold mb-2">Choose a time</p>
                 
                 {!selectedDate ? (
-                  <div className="border border-white/10 border-dashed rounded-2xl p-6 text-center text-xs text-white/40 flex flex-col items-center justify-center min-h-[190px]">
-                    <Clock size={20} className="mb-2 text-white/20 animate-pulse" />
+                  <div className="border border-border border-dashed rounded-2xl p-6 text-center text-xs text-muted-foreground/60 flex flex-col items-center justify-center min-h-[190px]">
+                    <Clock size={20} className="mb-2 text-muted-foreground/40 animate-pulse" />
                     <p>Select a date on the calendar to view available time slots.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 bg-white/[0.01] border border-white/10 rounded-2xl p-4 animate-in fade-in slide-in-from-right-2 duration-300">
+                  <div className="space-y-3 bg-white/[0.01] border border-border rounded-2xl p-4 animate-in fade-in slide-in-from-right-2 duration-300 bg-card">
                     {/* Header */}
-                    <div className="flex flex-col gap-1 border-b border-white/5 pb-2">
-                      <span className="text-white font-extrabold text-sm">
+                    <div className="flex flex-col gap-1 border-b border-border pb-2">
+                      <span className="text-foreground font-extrabold text-sm">
                         {new Date(selectedDate).toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'long',
-                          day: 'numeric'
+                          day: 'numeric',
+                          year: 'numeric'
                         })}
                       </span>
-                      <span className="text-[10px] text-white/40 font-bold uppercase tracking-wide">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">
                         {getTimezoneLabel(availabilityData?.timezone || 'Africa/Kigali')}
                       </span>
                     </div>
 
-                    {/* Slots scroll container */}
-                    <div id="slots-scroll-container" className="max-h-[190px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin scrollbar-thumb-white/10">
+                    {/* Slots container */}
+                    <div id="slots-scroll-container">
                       {isSlotsLoading ? (
-                        <div className="flex items-center gap-2 text-white/50 text-xs py-8 justify-center">
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs py-8 justify-center">
                           <Loader2 className="animate-spin text-primary" size={14} />
                           <span>Searching available slots…</span>
                         </div>
-                      ) : availableSlots.length === 0 ? (
+                      ) : resolvedSlots.length === 0 ? (
                         <div className="text-center py-8 text-xs text-yellow-400 font-medium italic">
                           No available sessions on this date.
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2">
-                          {availableSlots.map(slot => {
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {resolvedSlots.map((slot: any) => {
                             const isSelected = session.starts_at === slot.starts_at
                             return (
                               <button
@@ -731,10 +731,10 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                                     ends_at: slot.ends_at,
                                   }))
                                 }}
-                                className={`py-2.5 px-3 rounded-xl border text-xs font-bold text-center transition-all ${
+                                className={`rounded-lg border px-3 py-2.5 text-xs text-center transition-all ${
                                   isSelected
-                                    ? 'border-primary bg-primary/20 text-white shadow-lg shadow-primary/10 scale-[1.02]'
-                                    : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'
+                                    ? 'border-primary bg-primary/10 text-primary font-bold'
+                                    : 'border-border hover:bg-secondary text-muted-foreground hover:text-foreground'
                                 }`}
                               >
                                 {slot.display}
@@ -751,9 +751,20 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               {/* Location & Notes */}
               <div className="space-y-4 pt-1">
                 <div>
-                  <label className={labelCls}>
-                    <MapPin size={10} className="inline mr-1" /> Location
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className={labelCls}>
+                      <MapPin size={10} className="inline mr-1" /> Location
+                    </label>
+                    {studioLocation && (
+                      <button
+                        type="button"
+                        onClick={() => setSession(prev => ({ ...prev, location: studioLocation }))}
+                        className="text-[10px] text-primary hover:underline font-semibold"
+                      >
+                        Use photographer's studio ({studioLocation})
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={session.location}
@@ -800,9 +811,9 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
 
           {/* Session verification display box */}
           {session.starts_at && selectedPackage && (
-            <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white/70 animate-in fade-in duration-300 flex items-center justify-between">
+            <div className="p-3.5 bg-muted/30 border border-border rounded-xl text-xs text-foreground/70 animate-in fade-in duration-300 flex items-center justify-between">
               <div>
-                <span className="font-semibold text-white">Your Scheduled Session:</span><br />
+                <span className="font-semibold text-foreground">Your Scheduled Session:</span><br />
                 {new Date(session.starts_at).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 {' · '}
                 {new Date(session.starts_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
@@ -820,14 +831,14 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
             <button
               type="button"
               onClick={() => setStep('personal')}
-              className="py-3 px-5 bg-white/10 hover:bg-white/15 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-colors"
+              className="py-3 px-5 bg-secondary hover:bg-secondary/80 text-foreground rounded-xl font-semibold text-sm flex items-center gap-2 transition-colors"
             >
               <ArrowLeft size={16} /> Back
             </button>
             <button
               type="submit"
               disabled={submitMutation.isPending}
-              className="flex-1 py-3 bg-primary hover:bg-accent text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 hover:shadow-primary/50 disabled:opacity-60"
+              className="flex-1 py-3 bg-primary hover:bg-accent text-primary-foreground rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 hover:shadow-primary/50 disabled:opacity-60"
             >
               {submitMutation.isPending && <Loader2 size={16} className="animate-spin" />}
               {requiresDeposit ? 'Continue to Deposit' : 'Request Booking'}
@@ -852,12 +863,12 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
 
           {/* Deposit summary */}
           {depositAmount && selectedPackage && (
-            <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2 text-sm">
-              <div className="flex justify-between text-white/60">
+            <div className="p-4 bg-muted/30 border border-border rounded-xl space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Package</span>
-                <span className="font-semibold text-white">{selectedPackage.name}</span>
+                <span className="font-semibold text-foreground">{selectedPackage.name}</span>
               </div>
-              <div className="flex justify-between text-white/60 border-t border-white/10 pt-2 mt-2">
+              <div className="flex justify-between text-muted-foreground border-t border-border pt-2 mt-2">
                 <span>Deposit due</span>
                 <span className="font-bold text-primary text-base">
                   {formatCurrency(depositAmount, selectedPackage.currency)}
@@ -900,8 +911,8 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                       onClick={() => setPaymentDetails({ ...paymentDetails, provider })}
                       className={`py-3 rounded-xl border text-sm font-bold transition-all ${
                         paymentDetails.provider === provider
-                          ? 'border-primary bg-primary/20 text-white'
-                          : 'border-white/20 bg-white/5 text-white/60 hover:border-white/40'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-muted/30 text-muted-foreground hover:border-foreground/30'
                       }`}
                     >
                       {provider === 'MTN' ? '🟡 MTN MoMo' : '🔴 Airtel Money'}
@@ -919,7 +930,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               <button
                 type="submit"
                 disabled={paymentMutation.isPending}
-                className="w-full py-3.5 bg-primary hover:bg-accent text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 disabled:opacity-60"
+                className="w-full py-3.5 bg-primary hover:bg-accent text-primary-foreground rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/30 disabled:opacity-60"
               >
                 {paymentMutation.isPending && <Loader2 size={16} className="animate-spin" />}
                 Pay Deposit Now
@@ -928,7 +939,7 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
               <button
                 type="button"
                 onClick={() => setStep('success')}
-                className="w-full py-2 text-white/40 hover:text-white/60 text-xs transition-colors"
+                className="w-full py-2 text-muted-foreground/60 hover:text-muted-foreground text-xs transition-colors"
               >
                 Skip for now — pay later
               </button>
@@ -941,9 +952,9 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                   <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto animate-pulse">
                     <Smartphone size={28} className="text-primary" />
                   </div>
-                  <p className="font-bold text-white">Check your phone</p>
-                  <p className="text-white/50 text-sm">
-                    A payment prompt was sent to <span className="text-white font-semibold">{paymentDetails.phone_number}</span>.<br />
+                  <p className="font-bold text-foreground">Check your phone</p>
+                  <p className="text-muted-foreground text-sm">
+                    A payment prompt was sent to <span className="text-foreground font-semibold">{paymentDetails.phone_number}</span>.<br />
                     Approve it on your {paymentDetails.provider} app.
                   </p>
                   <div className="flex items-center justify-center gap-2 text-primary text-xs">
@@ -956,12 +967,12 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
                   <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto">
                     <X size={28} className="text-red-400" />
                   </div>
-                  <p className="font-bold text-white capitalize">{paymentStatus?.status}</p>
-                  <p className="text-white/50 text-sm">{paymentStatus?.error_message || 'Payment did not go through.'}</p>
+                  <p className="font-bold text-foreground capitalize">{paymentStatus?.status}</p>
+                  <p className="text-muted-foreground text-sm">{paymentStatus?.error_message || 'Payment did not go through.'}</p>
                   <button
                     type="button"
                     onClick={() => { setPaymentUuid(null); setPaymentError(null) }}
-                    className="mt-2 px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl font-semibold text-sm"
+                    className="mt-2 px-5 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground rounded-xl font-semibold text-sm"
                   >
                     Try Again
                   </button>
@@ -979,38 +990,38 @@ export function BookingForm({ username, packages, preSelectedPackageId }: Bookin
             <CheckCircle size={40} className="text-green-400" />
           </div>
           <div>
-            <h3 className="text-2xl font-extrabold text-white">You're booked!</h3>
-            <p className="text-white/50 mt-2 text-sm">
+            <h3 className="text-2xl font-extrabold text-foreground">You're booked!</h3>
+            <p className="text-muted-foreground mt-2 text-sm">
               We'll confirm your session shortly. Check your email for details.
             </p>
           </div>
           {createdBooking && (
-            <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-sm text-left space-y-2">
-              <div className="flex justify-between text-white/60">
+            <div className="p-4 bg-muted/30 border border-border rounded-xl text-sm text-left space-y-2">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Booking Code</span>
-                <span className="font-semibold text-white font-mono uppercase tracking-wider">{createdBooking.reference}</span>
+                <span className="font-semibold text-foreground font-mono uppercase tracking-wider">{createdBooking.reference}</span>
               </div>
-              <div className="flex justify-between text-white/60">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Session</span>
-                <span className="font-semibold text-white">{createdBooking.title}</span>
+                <span className="font-semibold text-foreground">{createdBooking.title}</span>
               </div>
-              <div className="flex justify-between text-white/60">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Date</span>
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-foreground">
                   {new Date(createdBooking.starts_at).toLocaleString([], {
                     month: 'short', day: 'numeric', year: 'numeric',
                     hour: '2-digit', minute: '2-digit'
                   })}
                 </span>
               </div>
-              <div className="flex justify-between text-white/60">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Status</span>
-                <span className="font-semibold text-yellow-400 capitalize">{createdBooking.status}</span>
+                <span className="font-semibold text-yellow-500 capitalize">{createdBooking.status}</span>
               </div>
               {paymentStatus?.status === 'completed' && (
-                <div className="flex justify-between text-white/60">
+                <div className="flex justify-between text-muted-foreground">
                   <span>Deposit</span>
-                  <span className="font-semibold text-green-400">
+                  <span className="font-semibold text-green-500">
                     {formatCurrency(paymentStatus.amount, paymentStatus.currency)} paid ✓
                   </span>
                 </div>

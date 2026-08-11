@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../apiClient'
 import { PackageItem } from './packages'
 
@@ -170,6 +170,61 @@ export function usePublicPaymentStatus(paymentUuid: string | null) {
         return false
       }
       return 3000
+    },
+  })
+}
+
+// ─── Public Photographer Reviews ──────────────────────────────────────────────
+
+export interface PublicReviewItem {
+  uuid: string
+  name: string
+  quote: string
+  rating: number
+  detail: string | null
+  date: string
+}
+
+export interface SubmitPublicReviewRequest {
+  name: string
+  quote: string
+  rating: number
+  detail?: string | null
+  _h?: string
+}
+
+export async function getPhotographerReviews(username: string): Promise<PublicReviewItem[]> {
+  const res = await publicFetch<{ data: PublicReviewItem[] }>(`/public/photographers/${encodeURIComponent(username)}/reviews`, {
+    method: 'GET',
+  })
+  return res.data
+}
+
+export async function submitPhotographerReview(
+  username: string,
+  payload: SubmitPublicReviewRequest
+): Promise<PublicReviewItem> {
+  return publicFetch<PublicReviewItem>(`/public/photographers/${encodeURIComponent(username)}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, _h: '' }), // honey pot empty by default
+  })
+}
+
+export function usePhotographerReviews(username: string) {
+  return useQuery<PublicReviewItem[], Error>({
+    queryKey: ['photographer-reviews', username],
+    queryFn: () => getPhotographerReviews(username),
+    enabled: !!username,
+    staleTime: 2 * 60 * 1000,
+  })
+}
+
+export function useSubmitPhotographerReview(username: string) {
+  const queryClient = useQueryClient()
+  return useMutation<PublicReviewItem, Error, SubmitPublicReviewRequest>({
+    mutationFn: (payload) => submitPhotographerReview(username, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['photographer-reviews', username] })
     },
   })
 }

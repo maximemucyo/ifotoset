@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\PublicBookingController;
 use App\Http\Controllers\Api\V1\PublicPhotographerController;
 use App\Http\Controllers\Api\V1\PublicBookingPaymentController;
 use App\Http\Controllers\Api\V1\PublicAvailabilityController;
+use App\Http\Controllers\Api\V1\PublicReviewController;
 use App\Http\Controllers\Api\V1\StudioAvailabilityController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -60,6 +61,9 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::post('/public/bookings/{bookingUuid}/payments', [PublicBookingPaymentController::class, 'store']);
     // Public payment status polling (booking deposits only)
     Route::get('/public/payments/{uuid}/status', [PublicBookingPaymentController::class, 'getStatus']);
+    // Public reviews list & submission
+    Route::get('/public/photographers/{username}/reviews', [PublicReviewController::class, 'index']);
+    Route::post('/public/photographers/{username}/reviews', [PublicReviewController::class, 'store']);
 });
 
 // Authentication Endpoints
