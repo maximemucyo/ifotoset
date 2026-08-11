@@ -127,8 +127,11 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
     return () => observer.disconnect();
   }, [hasMore, isFetchingNextPage, fetchNextPage]);
 
+  // Compute gap internally based on container width to keep layout self-contained and responsive
+  const calculatedGap = containerWidth > 0 && containerWidth < 768 ? 12 : gap;
+
   // Layout and virtualization hooks
-  const { photos: computedPhotos, totalHeight } = useGalleryLayout(photos, containerWidth, gap);
+  const { photos: computedPhotos, totalHeight } = useGalleryLayout(photos, containerWidth, calculatedGap);
   const { visiblePhotos } = useGalleryVirtualizer(computedPhotos, scrollTop, viewportHeight);
 
   if (photos.length === 0 && !isFetchingNextPage) {
@@ -166,7 +169,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
                 onSelectPhoto(item.photo);
               }
             }}
-            className="overflow-hidden group cursor-pointer border border-border/10 rounded-sm hover:ring-2 hover:ring-primary hover:z-10 focus-within:ring-2 focus-within:ring-primary focus-within:z-10 transition-all duration-300 shadow-sm"
+            className="overflow-hidden group cursor-pointer border border-border/15 rounded-none hover:-translate-y-0.5 hover:shadow-md hover:z-10 focus-within:ring-2 focus-within:ring-primary focus-within:z-10 transition-all duration-300 shadow-sm"
           >
             <ProgressiveImage
               photo={item.photo}
@@ -177,7 +180,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
             
             {/* Persistent heart indicator when NOT hovered/focused */}
             {isFavorited && (
-              <div className="absolute top-3 right-3 p-1.5 rounded-full bg-black/65 backdrop-blur-sm text-rose-500 shadow-sm transition-opacity duration-300 group-hover:opacity-0 group-focus-within:opacity-0 pointer-events-none">
+              <div className="absolute top-3 right-3 p-1.5 rounded-none bg-black/65 backdrop-blur-sm text-rose-500 shadow-sm transition-opacity duration-300 group-hover:opacity-0 group-focus-within:opacity-0 pointer-events-none">
                 <Heart size={14} fill="currentColor" />
               </div>
             )}
@@ -196,7 +199,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
                   type="button"
                   aria-label="Favorite photo"
                   onClick={() => onToggleFavorite(item.photo)}
-                  className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-black hover:text-rose-500 flex items-center justify-center shadow-md transition-all hover:scale-105"
+                  className="w-8 h-8 rounded-none bg-white/90 hover:bg-white text-black hover:text-rose-500 flex items-center justify-center shadow-md transition-all hover:scale-105"
                 >
                   <Heart 
                     size={16} 
@@ -210,7 +213,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
                   type="button"
                   aria-label="Share photo"
                   onClick={() => onShare(item.photo)}
-                  className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-black hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105"
+                  className="w-8 h-8 rounded-none bg-white/90 hover:bg-white text-black hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105"
                 >
                   <Share2 size={16} />
                 </button>
@@ -221,7 +224,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
                   aria-label="Download photo"
                   disabled={isDownloading}
                   onClick={() => onDownload(item.photo)}
-                  className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-black hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="w-8 h-8 rounded-none bg-white/90 hover:bg-white text-black hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isDownloading ? (
                     <div className="w-4 h-4 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
@@ -233,10 +236,10 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
 
               {/* Bottom row: filename indicator & view eye */}
               <div className="flex items-center justify-between pointer-events-none">
-                <span className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md truncate max-w-[70%]">
+                <span className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-none truncate max-w-[70%]">
                   {item.photo.filename}
                 </span>
-                <div className="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-black shadow-sm shrink-0">
+                <div className="w-8 h-8 rounded-none bg-white/90 backdrop-blur-sm flex items-center justify-center text-black shadow-sm shrink-0">
                   <Eye size={14} />
                 </div>
               </div>

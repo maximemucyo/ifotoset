@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Heart, Download, Share2, Play, Pause, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { PhotoItem, recordPublicPhotoDownload, togglePublicPhotoFavorite } from '@/lib/queries/galleries';
+import { PhotoItem } from '@/lib/queries/galleries';
 
 interface LightboxProps {
   photo: PhotoItem;
@@ -41,6 +41,12 @@ export const Lightbox: React.FC<LightboxProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const preloadedImages = useRef<HTMLImageElement[]>([]);
+
+  // Swipe gesture trackers
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1200);
@@ -174,34 +180,84 @@ export const Lightbox: React.FC<LightboxProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onPrev, onNext, onClose, photo, onToggleFavorite, onDownload]);
 
+  // Touch Swipe Handlers for Mobile Devices
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    if (
+      touchStartX.current === null ||
+      touchEndX.current === null ||
+      touchStartY.current === null ||
+      touchEndY.current === null
+    ) {
+      return;
+    }
+
+    const diffX = touchStartX.current - touchEndX.current;
+    const diffY = touchStartY.current - touchEndY.current;
+    const minSwipeDistance = 50; // pixels
+
+    // Only transition if horizontal drag is dominant and exceeds threshold
+    if (Math.abs(diffX) > minSwipeDistance && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX > 0) {
+        onNext();
+      } else {
+        onPrev();
+      }
+    }
+
+    touchStartX.current = null;
+    touchEndX.current = null;
+    touchStartY.current = null;
+    touchEndY.current = null;
+  };
+
   return createPortal(
     <div
       ref={containerRef}
       role="dialog"
       aria-modal="true"
       tabIndex={-1}
-      className="fixed inset-0 bg-background/98 z-50 flex flex-col justify-between select-none focus:outline-none transition-colors duration-200"
+      className="fixed inset-0 h-screen w-screen bg-background/98 z-50 flex flex-col justify-between select-none focus:outline-none transition-colors duration-200 overflow-hidden touch-none"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Lightbox Header Bar */}
       <header
-        className="w-full px-6 py-4 flex items-center justify-between z-10"
+        className="w-full px-4 py-3 md:px-6 md:py-4 flex items-center justify-between z-10 shrink-0"
+        style={{
+          paddingTop: 'calc(0.75rem + env(safe-area-inset-top))',
+          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
           aria-label="Back to Gallery"
-          className="flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-secondary/25 px-4 py-2 rounded-lg font-medium transition-colors"
+          className="flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-secondary/25 px-4 py-2 rounded-none font-medium transition-colors"
         >
           <ArrowLeft size={20} />
-          <span>Gallery</span>
+          <span className="hidden sm:inline">Gallery</span>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 md:gap-3">
           <button
             onClick={() => setIsPlaying((p) => !p)}
             aria-label={isPlaying ? "Pause Slideshow" : "Play Slideshow"}
-            className={`p-2.5 rounded-lg transition-colors ${
+            className={`p-2.5 rounded-none transition-colors hidden sm:inline-flex ${
               isPlaying ? 'text-primary bg-primary/10' : 'text-foreground/80 hover:text-foreground hover:bg-secondary/25'
             }`}
           >
@@ -210,7 +266,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
           <button
             onClick={() => onToggleFavorite(photo)}
             aria-label="Favorite image"
-            className={`p-2.5 rounded-lg transition-colors ${
+            className={`p-2.5 rounded-none transition-colors ${
               isFavorited ? 'text-rose-500 bg-rose-500/10' : 'text-foreground/80 hover:text-foreground hover:bg-secondary/25'
             }`}
           >
@@ -219,7 +275,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
           <button
             onClick={() => onShare(photo)}
             aria-label="Copy photo link"
-            className="p-2.5 rounded-lg text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors"
+            className="p-2.5 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors"
           >
             <Share2 size={20} />
           </button>
@@ -227,7 +283,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
             onClick={() => onDownload(photo)}
             disabled={isDownloading}
             aria-label="Download high resolution image"
-            className="p-2.5 rounded-lg text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[40px] min-h-[40px]"
+            className="p-2.5 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center min-w-[40px] min-h-[40px]"
           >
             {isDownloading ? (
               <div className="w-5 h-5 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
@@ -238,7 +294,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
           <button
             onClick={onClose}
             aria-label="Close Lightbox"
-            className="p-2.5 rounded-lg text-foreground/60 hover:text-foreground hover:bg-secondary/25 transition-colors"
+            className="p-2.5 rounded-none text-foreground/60 hover:text-foreground hover:bg-secondary/25 transition-colors hidden sm:inline-flex"
           >
             <X size={20} />
           </button>
@@ -246,18 +302,18 @@ export const Lightbox: React.FC<LightboxProps> = ({
       </header>
 
       {/* Main Image Viewport Area */}
-      <div className="relative flex-1 w-full flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+      <div className="relative flex-1 min-h-0 w-full flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
         {/* Left Nav Chevron */}
         <button
           onClick={onPrev}
           aria-label="Previous photo"
-          className="absolute left-6 p-4 text-foreground/40 hover:text-foreground hover:bg-secondary/15 rounded-full transition-all duration-200 z-10"
+          className="absolute left-2 md:left-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 flex items-center justify-center"
         >
-          <ChevronLeft size={40} />
+          <ChevronLeft size={24} className="md:w-10 md:h-10" />
         </button>
 
         {/* Dynamic Decoded Image View */}
-        <div className="relative max-w-full max-h-[75vh] flex items-center justify-center">
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
           <img
             key={photo.uuid}
             src={currentFullUrl}
@@ -267,7 +323,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
             decoding="async"
             loading="eager"
             fetchPriority="high"
-            className="max-w-[90vw] max-h-[75vh] object-contain rounded-lg shadow-2xl transition-opacity duration-200"
+            className="max-w-full max-h-full object-contain rounded-none shadow-2xl transition-opacity duration-200"
           />
         </div>
 
@@ -275,15 +331,23 @@ export const Lightbox: React.FC<LightboxProps> = ({
         <button
           onClick={onNext}
           aria-label="Next photo"
-          className="absolute right-6 p-4 text-foreground/40 hover:text-foreground hover:bg-secondary/15 rounded-full transition-all duration-200 z-10"
+          className="absolute right-2 md:right-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 flex items-center justify-center"
         >
-          <ChevronRight size={40} />
+          <ChevronRight size={24} className="md:w-10 md:h-10" />
         </button>
       </div>
 
       {/* Lightbox Footer Bar */}
-      <footer className="w-full py-6 text-center z-10 flex flex-col items-center gap-1" onClick={(e) => e.stopPropagation()}>
-        <span className="text-sm font-medium text-foreground/90">{photo.filename}</span>
+      <footer
+        className="w-full py-3 md:py-6 text-center z-10 flex flex-col items-center gap-1 shrink-0"
+        style={{
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
+          paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+          paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm font-medium text-foreground/90 truncate max-w-[85vw]">{photo.filename}</span>
         <span className="text-xs text-muted-foreground">{currentIndex + 1} / {totalCount}</span>
       </footer>
     </div>,
