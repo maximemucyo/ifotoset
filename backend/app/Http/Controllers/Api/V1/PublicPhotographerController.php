@@ -38,8 +38,12 @@ class PublicPhotographerController extends Controller
 
         $serializeGallery = function (Gallery $gallery) use ($cdnDomain) {
             $coverUrl = null;
-            if ($gallery->coverPhoto && $gallery->coverPhoto->storage_path) {
-                $coverUrl = 'https://' . $cdnDomain . '/' . ltrim($gallery->coverPhoto->storage_path, '/');
+            if ($gallery->coverPhoto) {
+                $coverUrl = app(\App\Services\StorageService::class)->getCdnUrl(
+                    $gallery->coverPhoto->path,
+                    'sm',
+                    $gallery->coverPhoto->filename
+                );
             }
 
             return [

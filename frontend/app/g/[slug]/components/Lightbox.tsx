@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Heart, Download, Share2, Play, Pause, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, Heart, Download, Share2, Play, Pause, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { PhotoItem } from '@/lib/queries/galleries';
 
 interface LightboxProps {
@@ -48,6 +48,21 @@ export const Lightbox: React.FC<LightboxProps> = ({
   const touchStartY = useRef<number | null>(null);
   const touchEndY = useRef<number | null>(null);
 
+  // Zoom & Pan states
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  // Pinch zoom states
+  const pinchStartDistance = useRef<number | null>(null);
+  const pinchStartScale = useRef<number>(1);
+  const pinchStartCenter = useRef<{ x: number; y: number } | null>(null);
+  const isTouchPanning = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(1200);
 
@@ -81,6 +96,137 @@ export const Lightbox: React.FC<LightboxProps> = ({
   }, []);
 
   const currentFullUrl = photo.variants?.[targetVariant] || photo.cdn_url;
+
+  // Reset zoom whenever active photo changes
+  useEffect(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+    setIsDragging(false);
+  }, [photo.uuid]);
+
+  const clampPosition = useCallback((currentScale: number, x: number, y: number) => {
+    if (!imageRef.current || currentScale <= 1) {
+      return { x: 0, y: 0 };
+    }
+    const containerWidth = window.innerWidth;
+    const containerHeight = window.innerHeight;
+
+    const imageWidth = imageRef.current.clientWidth;
+    const imageHeight = imageRef.current.clientHeight;
+
+    const maxTranslateX = Math.max(0, (imageWidth * currentScale - containerWidth) / 2);
+    const maxTranslateY = Math.max(0, (imageHeight * currentScale - containerHeight) / 2);
+
+    return {
+      x: Math.max(-maxTranslateX, Math.min(maxTranslateX, x)),
+      y: Math.max(-maxTranslateY, Math.min(maxTranslateY, y)),
+    };
+  }, []);
+
+  const handleZoomIn = () => {
+    setScale((prev) => {
+      const nextScale = Math.min(5, prev + 0.5);
+      return nextScale;
+    });
+  };
+
+  const handleZoomOut = () => {
+    setScale((prev) => {
+      const nextScale = Math.max(1, prev - 0.5);
+      return nextScale;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  // Clamp translation whenever scale changes
+  useEffect(() => {
+    if (scale === 1) {
+      setPosition({ x: 0, y: 0 });
+    } else {
+      setPosition((prev) => clampPosition(scale, prev.x, prev.y));
+    }
+  }, [scale, clampPosition]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!imageRef.current) return;
+
+    const rect = imageRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left - rect.width / 2;
+    const mouseY = e.clientY - rect.top - rect.height / 2;
+
+    const zoomFactor = 1.1;
+    const direction = e.deltaY < 0 ? 1 : -1;
+    
+    let newScale = scale * (direction > 0 ? zoomFactor : 1 / zoomFactor);
+    newScale = Math.max(1, Math.min(5, newScale));
+
+    if (newScale === 1) {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    } else {
+      const imageX = (mouseX - position.x) / scale;
+      const imageY = (mouseY - position.y) / scale;
+
+      const nextX = mouseX - imageX * newScale;
+      const nextY = mouseY - imageY * newScale;
+
+      const clamped = clampPosition(newScale, nextX, nextY);
+      
+      setScale(newScale);
+      setPosition(clamped);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!imageRef.current) return;
+    
+    if (scale > 1) {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    } else {
+      const rect = imageRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left - rect.width / 2;
+      const mouseY = e.clientY - rect.top - rect.height / 2;
+
+      const targetScale = 2.5;
+      const imageX = (mouseX - position.x) / scale;
+      const imageY = (mouseY - position.y) / scale;
+
+      const nextX = mouseX - imageX * targetScale;
+      const nextY = mouseY - imageY * targetScale;
+
+      const clamped = clampPosition(targetScale, nextX, nextY);
+
+      setScale(targetScale);
+      setPosition(clamped);
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale <= 1) return;
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    const clamped = clampPosition(scale, newX, newY);
+    setPosition(clamped);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
 
   // Cancel obsolete image preloads and load adjacent ones in the background
   useEffect(() => {
@@ -180,20 +326,95 @@ export const Lightbox: React.FC<LightboxProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onPrev, onNext, onClose, photo, onToggleFavorite, onDownload]);
 
-  // Touch Swipe Handlers for Mobile Devices
+  // Touch Swipe / Pinch Handlers for Mobile Devices
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchEndX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    touchEndY.current = e.touches[0].clientY;
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartDistance.current = dist;
+      pinchStartScale.current = scale;
+      pinchStartCenter.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      };
+      isTouchPanning.current = false;
+    } else if (e.touches.length === 1) {
+      touchStartX.current = e.touches[0].clientX;
+      touchEndX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+      touchEndY.current = e.touches[0].clientY;
+      
+      if (scale > 1) {
+        dragStartRef.current = { ...position };
+        isTouchPanning.current = true;
+      } else {
+        isTouchPanning.current = false;
+      }
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-    touchEndY.current = e.touches[0].clientY;
+    if (e.touches.length === 2 && pinchStartDistance.current && pinchStartCenter.current && imageRef.current) {
+      e.stopPropagation();
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      
+      let newScale = pinchStartScale.current * (dist / pinchStartDistance.current);
+      newScale = Math.max(1, Math.min(5, newScale));
+
+      const center = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      };
+
+      const rect = imageRef.current.getBoundingClientRect();
+      const pinchCenterX = center.x - rect.left - rect.width / 2;
+      const pinchCenterY = center.y - rect.top - rect.height / 2;
+
+      const imageX = (pinchCenterX - position.x) / scale;
+      const imageY = (pinchCenterY - position.y) / scale;
+
+      const nextX = pinchCenterX - imageX * newScale;
+      const nextY = pinchCenterY - imageY * newScale;
+
+      const clamped = clampPosition(newScale, nextX, nextY);
+
+      setScale(newScale);
+      setPosition(clamped);
+    } else if (e.touches.length === 1) {
+      touchEndX.current = e.touches[0].clientX;
+      touchEndY.current = e.touches[0].clientY;
+
+      if (scale > 1 && isTouchPanning.current) {
+        e.stopPropagation();
+        const deltaX = e.touches[0].clientX - touchStartX.current!;
+        const deltaY = e.touches[0].clientY - touchStartY.current!;
+        
+        const newX = dragStartRef.current.x + deltaX;
+        const newY = dragStartRef.current.y + deltaY;
+        const clamped = clampPosition(scale, newX, newY);
+        setPosition(clamped);
+      }
+    }
   };
 
   const handleTouchEnd = () => {
+    pinchStartDistance.current = null;
+    pinchStartCenter.current = null;
+    isTouchPanning.current = false;
+
+    if (scale > 1) {
+      touchStartX.current = null;
+      touchEndX.current = null;
+      touchStartY.current = null;
+      touchEndY.current = null;
+      return; // Skip swipe transitions when zoomed in
+    }
+
     if (
       touchStartX.current === null ||
       touchEndX.current === null ||
@@ -291,6 +512,38 @@ export const Lightbox: React.FC<LightboxProps> = ({
               <Download size={20} />
             )}
           </button>
+          {/* Zoom Controls */}
+          <div className="hidden md:flex items-center gap-1 border-r border-border pr-3 mr-1">
+            <button
+              onClick={handleZoomOut}
+              disabled={scale <= 1}
+              aria-label="Zoom out"
+              className="p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors disabled:opacity-40"
+            >
+              <ZoomOut size={18} />
+            </button>
+            <span className="text-xs font-semibold text-muted-foreground w-10 text-center select-none">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              onClick={handleZoomIn}
+              disabled={scale >= 5}
+              aria-label="Zoom in"
+              className="p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/25 transition-colors disabled:opacity-40"
+            >
+              <ZoomIn size={18} />
+            </button>
+            {scale > 1 && (
+              <button
+                onClick={handleResetZoom}
+                aria-label="Reset zoom"
+                className="p-1 px-2 text-[10px] font-bold bg-secondary hover:bg-muted text-foreground rounded-none transition-colors ml-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
           <button
             onClick={onClose}
             aria-label="Close Lightbox"
@@ -313,8 +566,17 @@ export const Lightbox: React.FC<LightboxProps> = ({
         </button>
 
         {/* Dynamic Decoded Image View */}
-        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+        <div 
+          className="relative w-full h-full flex items-center justify-center overflow-hidden"
+          onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
           <img
+            ref={imageRef}
             key={photo.uuid}
             src={currentFullUrl}
             alt={photo.filename}
@@ -323,7 +585,11 @@ export const Lightbox: React.FC<LightboxProps> = ({
             decoding="async"
             loading="eager"
             fetchPriority="high"
-            className="max-w-full max-h-full object-contain rounded-none shadow-2xl transition-opacity duration-200"
+            className="max-w-full max-h-full object-contain rounded-none shadow-2xl transition-opacity duration-200 select-none pointer-events-none"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+              transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+            }}
           />
         </div>
 

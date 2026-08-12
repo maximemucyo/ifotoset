@@ -24,6 +24,7 @@ class GalleryResource extends JsonResource
             'has_password' => !empty($this->password_hash),
             'password_hint' => $this->password_hint,
             'version' => $this->version,
+            'has_explicit_cover' => (bool) $this->has_explicit_cover,
             'stats' => [
                 'photo_count' => $this->stats->photo_count ?? 0,
                 'video_count' => $this->stats->video_count ?? 0,

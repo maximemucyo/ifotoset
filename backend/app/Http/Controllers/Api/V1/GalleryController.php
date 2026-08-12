@@ -365,6 +365,8 @@ class GalleryController extends Controller
             'title' => ['sometimes', 'string', 'max:255'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'visibility' => ['sometimes', 'string', 'in:public,private'],
+            'cover_photo_uuid' => ['nullable', 'string'],
+            'clear_cover' => ['nullable', 'boolean'],
             'version' => ['required', 'integer'],
         ]);
 
@@ -376,12 +378,37 @@ class GalleryController extends Controller
             ], 409);
         }
 
+        $coverService = app(\App\Services\GalleryCoverService::class);
+
+        if (!empty($validated['clear_cover'])) {
+            $coverService->clearExplicitCover($gallery);
+        } elseif (array_key_exists('cover_photo_uuid', $validated)) {
+            $coverPhotoUuid = $validated['cover_photo_uuid'];
+            if (empty($coverPhotoUuid)) {
+                $coverService->clearExplicitCover($gallery);
+            } else {
+                $photo = \App\Models\Photo::where('gallery_id', $gallery->id)
+                    ->where('uuid', $coverPhotoUuid)
+                    ->whereNull('deleted_at')
+                    ->first();
+                if (!$photo) {
+                    return response()->json([
+                        'code' => 'INVALID_COVER_PHOTO',
+                        'message' => 'The selected photo does not exist in this gallery.',
+                    ], 422);
+                }
+                $coverService->setExplicitCover($gallery, $photo);
+            }
+        }
+
+        $updateData = collect($validated)->except(['cover_photo_uuid', 'clear_cover', 'version'])->toArray();
+
         $gallery->update([
-            ...$validated,
+            ...$updateData,
             'version' => $gallery->version + 1,
         ]);
 
-        return (new GalleryResource($gallery->load('stats')))->response();
+        return (new GalleryResource($gallery->load(['stats', 'coverPhoto'])))->response();
     }
 
     /**

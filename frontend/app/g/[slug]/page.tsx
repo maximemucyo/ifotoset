@@ -468,19 +468,66 @@ export default function PublicGalleryView() {
       </header>
 
       {/* Hero Banner Section */}
-      <section className="bg-gradient-to-b from-secondary/20 via-transparent to-transparent border-b border-border py-10 md:py-16 px-4 md:px-6 text-center">
-        <div className="max-w-3xl mx-auto space-y-3">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
-            {gallery.title}
-          </h2>
-          <p className="text-sm md:text-md text-muted-foreground max-w-xl mx-auto mt-3">
-            Welcome to your digital photo collection. View, browse, and explore high-resolution memories.
-          </p>
-        </div>
-      </section>
+      {gallery.cover_photo ? (
+        <section className="relative w-full h-[50vh] sm:h-[60vh] md:h-[65vh] xl:h-[70vh] min-h-[400px] border-b border-border overflow-hidden select-none">
+          <img
+            src={gallery.cover_photo.variants?.xl || gallery.cover_photo.cdn_url}
+            alt={gallery.title}
+            className="absolute inset-0 w-full h-full object-cover object-center"
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-black/35 flex flex-col justify-between py-12 px-6">
+            <div /> {/* Spacer */}
+            <div className="max-w-3xl mx-auto space-y-3 text-center text-white drop-shadow-lg">
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight">
+                {gallery.title}
+              </h2>
+              {gallery.client_name && (
+                <p className="text-md sm:text-lg font-medium text-white/90">
+                  For {gallery.client_name}
+                </p>
+              )}
+              {gallery.event_date && (
+                <p className="text-xs sm:text-sm text-white/80">
+                  {new Date(gallery.event_date).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetElement = document.querySelector('main');
+                  if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all animate-bounce"
+                aria-label="Scroll to photos"
+              >
+                <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                  <path d="M19 14l-7 7-7-7M12 21V3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="bg-gradient-to-b from-secondary/20 via-transparent to-transparent border-b border-border py-10 md:py-16 px-4 md:px-6 text-center">
+          <div className="max-w-3xl mx-auto space-y-3">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
+              {gallery.title}
+            </h2>
+            <p className="text-sm md:text-md text-muted-foreground max-w-xl mx-auto mt-3">
+              Welcome to your digital photo collection. View, browse, and explore high-resolution memories.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Photo Grid Section */}
-      <main className="w-full max-w-none px-4 md:px-8 xl:px-12 2xl:px-16 py-12">
+      <main className="w-full max-w-none py-12">
         <VirtualGalleryGrid
           photos={photos}
           hasMore={hasMore}

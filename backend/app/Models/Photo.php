@@ -12,6 +12,24 @@ class Photo extends Model
 {
     use SoftDeletes, HasBinaryUuid;
 
+    protected static function booted()
+    {
+        static::created(function ($photo) {
+            $gallery = $photo->gallery;
+            if ($gallery) {
+                app(\App\Services\GalleryCoverService::class)->setAutoCover($gallery);
+            }
+        });
+
+        static::deleted(function ($photo) {
+            // Retrieve relation even if it's soft-deleted
+            $gallery = $photo->gallery;
+            if ($gallery) {
+                app(\App\Services\GalleryCoverService::class)->handlePhotoDeletion($gallery, $photo);
+            }
+        });
+    }
+
     protected $fillable = [
         'uuid',
         'gallery_id',

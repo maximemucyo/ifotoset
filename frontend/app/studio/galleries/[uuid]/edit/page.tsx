@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save, Globe, Lock, User, Calendar, AlertTriangle } from 'lucide-react'
-import { useGallery, useUpdateGalleryMutation } from '@/lib/queries/galleries'
+import { ArrowLeft, Save, Globe, Lock, User, Calendar, AlertTriangle, Image as ImageIcon, X } from 'lucide-react'
+import { useGallery, useUpdateGalleryMutation, PhotoItem } from '@/lib/queries/galleries'
 import { ApiError } from '@/lib/apiClient'
+import { useInfiniteStudioGallery } from '../hooks/useInfiniteStudioGallery'
 
 export default function EditGallery() {
   const { uuid } = useParams<{ uuid: string }>()
@@ -18,7 +19,11 @@ export default function EditGallery() {
     title: '',
     client_name: '',
     visibility: 'private' as 'public' | 'private',
+    cover_photo_uuid: null as string | null,
+    clear_cover: false,
   })
+  const [selectedCoverPhoto, setSelectedCoverPhoto] = useState<PhotoItem | null>(null)
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [successMessage, setSuccessMessage] = useState('')
 
@@ -30,7 +35,10 @@ export default function EditGallery() {
         title: gallery.title,
         client_name: gallery.client_name ?? '',
         visibility: gallery.visibility,
+        cover_photo_uuid: gallery.cover_photo?.uuid ?? null,
+        clear_cover: false,
       })
+      setSelectedCoverPhoto(gallery.cover_photo ?? null)
     }
   }, [gallery])
 
@@ -51,6 +59,8 @@ export default function EditGallery() {
         title: form.title,
         client_name: form.client_name || null,
         visibility: form.visibility,
+        cover_photo_uuid: form.cover_photo_uuid,
+        clear_cover: form.clear_cover,
         version: gallery.version,
       },
       {
@@ -194,6 +204,71 @@ export default function EditGallery() {
               </div>
             </div>
 
+            {/* Featured Image / Cover Photo */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h2 className="text-xl font-bold text-foreground mb-4 font-semibold">Featured Cover Image</h2>
+              
+              <div className="flex flex-col md:flex-row gap-4 items-start">
+                <div className="w-full md:w-48 aspect-[3/2] bg-muted border border-border rounded-lg overflow-hidden relative shrink-0">
+                  {selectedCoverPhoto && !form.clear_cover ? (
+                    <img
+                      src={selectedCoverPhoto.variants?.sm || selectedCoverPhoto.cdn_url}
+                      alt="Cover Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-xs p-3 text-center">
+                      <ImageIcon size={24} className="mb-1 opacity-40" />
+                      <span>No explicit cover image set</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsPickerOpen(true)}
+                      className="px-4 py-2 bg-primary text-primary-foreground hover:bg-accent rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      Choose Cover Image
+                    </button>
+                    {(!form.clear_cover && selectedCoverPhoto) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm((p) => ({ ...p, cover_photo_uuid: null, clear_cover: true }))
+                          setSelectedCoverPhoto(null)
+                        }}
+                        className="px-4 py-2 bg-secondary text-foreground hover:bg-muted rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Reset to Auto-Cover
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    {form.clear_cover || !selectedCoverPhoto ? (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                        Auto-Cover Mode
+                      </div>
+                    ) : gallery?.cover_photo?.uuid === selectedCoverPhoto.uuid && gallery?.has_explicit_cover ? (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500/10 text-green-600 border border-green-500/20">
+                        Custom Featured Image
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                        Custom Featured Image (Pending Save)
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      Auto-Cover mode automatically sets the first uploaded photo in the gallery as the cover image. Choosing a custom image locks it as the featured cover.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Visibility */}
             <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -315,6 +390,111 @@ export default function EditGallery() {
           </form>
         </div>
       </div>
+      {/* Cover Image Picker Modal */}
+      {isPickerOpen && (
+        <ImagePickerModal
+          uuid={gallery.uuid}
+          currentCoverUuid={form.clear_cover ? null : selectedCoverPhoto?.uuid}
+          onClose={() => setIsPickerOpen(false)}
+          onSelect={(photo) => {
+            setSelectedCoverPhoto(photo)
+            setForm((p) => ({ ...p, cover_photo_uuid: photo.uuid, clear_cover: false }))
+            setIsPickerOpen(false)
+          }}
+        />
+      )}
     </main>
+  )
+}
+
+function ImagePickerModal({
+  uuid,
+  currentCoverUuid,
+  onClose,
+  onSelect,
+}: {
+  uuid: string
+  currentCoverUuid?: string | null
+  onClose: () => void
+  onSelect: (photo: PhotoItem) => void
+}) {
+  const { photos, hasMore, isFetchingNextPage, fetchNextPage } = useInfiniteStudioGallery(uuid)
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-foreground text-lg">Select Cover Photo</h3>
+            <p className="text-xs text-muted-foreground">Select an image from this gallery to feature as the cover</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content Grid */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {photos.length === 0 ? (
+            <div className="text-center py-12">
+              <ImageIcon className="w-12 h-12 text-muted-foreground/45 mx-auto mb-2" />
+              <p className="text-foreground font-semibold">No photos in gallery</p>
+              <p className="text-xs text-muted-foreground">Upload photos to the gallery first to choose a cover.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {photos.map((photo) => {
+                const isSelected = currentCoverUuid === photo.uuid
+                return (
+                  <button
+                    key={photo.uuid}
+                    type="button"
+                    onClick={() => onSelect(photo)}
+                    className={`aspect-square rounded-lg overflow-hidden bg-muted relative group transition-all ${
+                      isSelected ? 'ring-4 ring-primary scale-[0.97]' : 'hover:ring-2 hover:ring-primary/50'
+                    }`}
+                  >
+                    <img
+                      src={photo.variants?.sm || photo.cdn_url}
+                      alt={photo.filename}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                        <div className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          Selected
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Load More */}
+          {hasMore && (
+            <div className="flex justify-center mt-6">
+              <button
+                type="button"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="px-4 py-2 bg-secondary hover:bg-muted text-foreground text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isFetchingNextPage ? 'Loading...' : 'Load More Photos'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

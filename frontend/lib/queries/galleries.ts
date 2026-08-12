@@ -58,6 +58,7 @@ export interface GalleryItem {
   stats: GalleryStats;
   photos?: PhotoItem[];
   cover_photo?: PhotoItem | null;
+  has_explicit_cover?: boolean;
   expires_at?: string | null;
   invitations?: GalleryInvitation[];
   created_at: string;
@@ -144,6 +145,8 @@ export interface UpdateGalleryRequest {
   title?: string;
   client_name?: string | null;
   visibility?: 'public' | 'private';
+  cover_photo_uuid?: string | null;
+  clear_cover?: boolean;
   version: number;
 }
 

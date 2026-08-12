@@ -6,9 +6,9 @@ import Link from 'next/link'
 import {
   ArrowLeft, Upload, Trash2, Edit, Share2, Lock, Globe, Image, Download,
   Heart, Eye, MoreHorizontal, X, Check, AlertTriangle, CloudUpload,
-  ChevronLeft, ChevronRight, RotateCcw, Wifi, WifiOff
+  ChevronLeft, ChevronRight, RotateCcw, Wifi, WifiOff, Star, ZoomIn, ZoomOut
 } from 'lucide-react'
-import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation } from '@/lib/queries/galleries'
+import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation, useUpdateGalleryMutation, GalleryItem } from '@/lib/queries/galleries'
 import { uploadPhotoDirectly } from '@/lib/storage'
 import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
@@ -31,7 +31,266 @@ export default function GalleryDetail() {
   const queryClient = useQueryClient()
 
   const { data, isLoading, error } = useGallery(uuid)
+  const gallery = data?.data
   const deleteMutation = useDeleteGalleryMutation()
+  const updateGalleryMutation = useUpdateGalleryMutation()
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null)
+
+  // Zoom & Pan states
+  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isZoomDragging, setIsZoomDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  // Pinch zoom states
+  const pinchStartDistance = useRef<number | null>(null)
+  const pinchStartScale = useRef<number>(1)
+  const pinchStartCenter = useRef<{ x: number; y: number } | null>(null)
+  const isTouchPanning = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+  const touchStartX = useRef<number | null>(null)
+  const touchEndX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  const touchEndY = useRef<number | null>(null)
+
+  // Reset zoom whenever active photo changes
+  useEffect(() => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+    setIsZoomDragging(false)
+  }, [selectedPhoto?.uuid])
+
+  const clampPosition = useCallback((currentScale: number, x: number, y: number) => {
+    if (!imageRef.current || currentScale <= 1) {
+      return { x: 0, y: 0 }
+    }
+    const containerWidth = window.innerWidth
+    const containerHeight = window.innerHeight
+
+    const imageWidth = imageRef.current.clientWidth
+    const imageHeight = imageRef.current.clientHeight
+
+    const maxTranslateX = Math.max(0, (imageWidth * currentScale - containerWidth) / 2)
+    const maxTranslateY = Math.max(0, (imageHeight * currentScale - containerHeight) / 2)
+
+    return {
+      x: Math.max(-maxTranslateX, Math.min(maxTranslateX, x)),
+      y: Math.max(-maxTranslateY, Math.min(maxTranslateY, y)),
+    }
+  }, [])
+
+  const handleZoomIn = () => {
+    setScale((prev) => Math.min(5, prev + 0.5))
+  }
+
+  const handleZoomOut = () => {
+    setScale((prev) => Math.max(1, prev - 0.5))
+  }
+
+  const handleResetZoom = () => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+  }
+
+  // Clamp translation whenever scale changes
+  useEffect(() => {
+    if (scale === 1) {
+      setPosition({ x: 0, y: 0 })
+    } else {
+      setPosition((prev) => clampPosition(scale, prev.x, prev.y))
+    }
+  }, [scale, clampPosition])
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!imageRef.current) return
+
+    const rect = imageRef.current.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left - rect.width / 2
+    const mouseY = e.clientY - rect.top - rect.height / 2
+
+    const zoomFactor = 1.1
+    const direction = e.deltaY < 0 ? 1 : -1
+    
+    let newScale = scale * (direction > 0 ? zoomFactor : 1 / zoomFactor)
+    newScale = Math.max(1, Math.min(5, newScale))
+
+    if (newScale === 1) {
+      setScale(1)
+      setPosition({ x: 0, y: 0 })
+    } else {
+      const imageX = (mouseX - position.x) / scale
+      const imageY = (mouseY - position.y) / scale
+
+      const nextX = mouseX - imageX * newScale
+      const nextY = mouseY - imageY * newScale
+
+      const clamped = clampPosition(newScale, nextX, nextY)
+      
+      setScale(newScale)
+      setPosition(clamped)
+    }
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (!imageRef.current) return
+    
+    if (scale > 1) {
+      setScale(1)
+      setPosition({ x: 0, y: 0 })
+    } else {
+      const rect = imageRef.current.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left - rect.width / 2
+      const mouseY = e.clientY - rect.top - rect.height / 2
+
+      const targetScale = 2.5
+      const imageX = (mouseX - position.x) / scale
+      const imageY = (mouseY - position.y) / scale
+
+      const nextX = mouseX - imageX * targetScale
+      const nextY = mouseY - imageY * targetScale
+
+      const clamped = clampPosition(targetScale, nextX, nextY)
+
+      setScale(targetScale)
+      setPosition(clamped)
+    }
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale <= 1) return
+    e.preventDefault()
+    setIsZoomDragging(true)
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isZoomDragging) return
+    const newX = e.clientX - dragStart.x
+    const newY = e.clientY - dragStart.y
+    const clamped = clampPosition(scale, newX, newY)
+    setPosition(clamped)
+  }
+
+  const handleMouseUp = () => {
+    setIsZoomDragging(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      pinchStartDistance.current = dist
+      pinchStartScale.current = scale
+      pinchStartCenter.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      }
+      isTouchPanning.current = false
+    } else if (e.touches.length === 1) {
+      touchStartX.current = e.touches[0].clientX
+      touchStartY.current = e.touches[0].clientY
+      
+      if (scale > 1) {
+        dragStartRef.current = { ...position }
+        isTouchPanning.current = true
+      } else {
+        isTouchPanning.current = false
+      }
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchStartDistance.current && pinchStartCenter.current && imageRef.current) {
+      e.stopPropagation()
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      
+      let newScale = pinchStartScale.current * (dist / pinchStartDistance.current)
+      newScale = Math.max(1, Math.min(5, newScale))
+
+      const center = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      }
+
+      const rect = imageRef.current.getBoundingClientRect()
+      const pinchCenterX = center.x - rect.left - rect.width / 2
+      const pinchCenterY = center.y - rect.top - rect.height / 2
+
+      const imageX = (pinchCenterX - position.x) / scale
+      const imageY = (pinchCenterY - position.y) / scale
+
+      const nextX = pinchCenterX - imageX * newScale
+      const nextY = pinchCenterY - imageY * newScale
+
+      const clamped = clampPosition(newScale, nextX, nextY)
+
+      setScale(newScale)
+      setPosition(clamped)
+    } else if (e.touches.length === 1) {
+      if (scale > 1 && isTouchPanning.current && touchStartX.current && touchStartY.current) {
+        e.stopPropagation()
+        const deltaX = e.touches[0].clientX - touchStartX.current
+        const deltaY = e.touches[0].clientY - touchStartY.current
+        
+        const newX = dragStartRef.current.x + deltaX
+        const newY = dragStartRef.current.y + deltaY
+        const clamped = clampPosition(scale, newX, newY)
+        setPosition(clamped)
+      }
+    }
+  }
+
+  const handleTouchEnd = () => {
+    pinchStartDistance.current = null
+    pinchStartCenter.current = null
+    isTouchPanning.current = false
+  }
+
+  const handleMakeFeatured = useCallback((photo: PhotoItem, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (!gallery || updateGalleryMutation.isPending) return
+
+    const previousGallery = queryClient.getQueryData<{ data: GalleryItem }>(['gallery', uuid])
+
+    // Optimistic UI cache update
+    if (previousGallery) {
+      queryClient.setQueryData<{ data: GalleryItem }>(['gallery', uuid], {
+        ...previousGallery,
+        data: {
+          ...previousGallery.data,
+          cover_photo: photo,
+          has_explicit_cover: true,
+        }
+      })
+    }
+
+    updateGalleryMutation.mutate(
+      {
+        uuid: gallery.uuid,
+        cover_photo_uuid: photo.uuid,
+        version: gallery.version,
+      },
+      {
+        onError: () => {
+          // Revert cache on error
+          if (previousGallery) {
+            queryClient.setQueryData(['gallery', uuid], previousGallery)
+          }
+          alert('Failed to set featured image. Please try again.')
+        },
+      }
+    )
+  }, [gallery, uuid, queryClient, updateGalleryMutation])
 
   const {
     photos,
@@ -44,7 +303,6 @@ export default function GalleryDetail() {
   const [uploads, setUploads] = useState<UploadFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null)
   const [shareTooltip, setShareTooltip] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
 
@@ -111,7 +369,6 @@ export default function GalleryDetail() {
     }
   }, [])
 
-  const gallery = data?.data
   const activeUploads = uploads.filter((u) => u.status !== 'done')
 
   const deletePhotoMutation = useDeletePhotoMutation(uuid as string)
@@ -710,6 +967,38 @@ export default function GalleryDetail() {
             <X size={24} />
           </button>
 
+          {/* Zoom Controls */}
+          <div className="absolute top-4 right-40 hidden md:flex items-center gap-1 bg-black/40 rounded-full p-1 z-50 border border-white/10">
+            <button
+              onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
+              disabled={scale <= 1}
+              aria-label="Zoom out"
+              className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <span className="text-xs font-semibold text-white/90 w-10 text-center select-none">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
+              disabled={scale >= 5}
+              aria-label="Zoom in"
+              className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+            >
+              <ZoomIn size={16} />
+            </button>
+            {scale > 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleResetZoom(); }}
+                aria-label="Reset zoom"
+                className="text-[10px] font-bold bg-white/20 hover:bg-white/30 text-white rounded-full px-2 py-0.5 transition-colors ml-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
           <button
             className="absolute top-4 right-16 p-2.5 text-red-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors z-50 bg-black/40 disabled:opacity-50"
             onClick={(e) => handleDeletePhoto(selectedPhoto.uuid, e)}
@@ -724,6 +1013,21 @@ export default function GalleryDetail() {
             )}
           </button>
 
+          {/* Make Featured Star Button */}
+          <button
+            className={`absolute top-4 right-28 p-2.5 rounded-full transition-colors z-50 bg-black/40 disabled:opacity-50 flex items-center justify-center ${
+              gallery?.cover_photo?.uuid === selectedPhoto.uuid
+                ? 'text-yellow-400 hover:text-yellow-500 hover:bg-yellow-500/10'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            onClick={(e) => handleMakeFeatured(selectedPhoto, e)}
+            disabled={updateGalleryMutation.isPending}
+            aria-label="Make featured"
+            title={gallery?.cover_photo?.uuid === selectedPhoto.uuid ? "Featured Image" : "Make Featured Cover"}
+          >
+            <Star size={24} fill={gallery?.cover_photo?.uuid === selectedPhoto.uuid ? "currentColor" : "none"} />
+          </button>
+
           {photos.length > 1 && (
             <button
               className="absolute left-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-50 bg-black/20"
@@ -734,13 +1038,30 @@ export default function GalleryDetail() {
             </button>
           )}
 
-          <div className="relative max-w-full max-h-[85vh] flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="relative max-w-full max-h-[85vh] flex flex-col items-center justify-center overflow-hidden" 
+            onClick={(e) => e.stopPropagation()}
+            onWheel={handleWheel}
+            onDoubleClick={handleDoubleClick}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <img
+              ref={imageRef}
               src={selectedPhoto.variants?.lg || selectedPhoto.cdn_url}
               alt={selectedPhoto.filename}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl select-none pointer-events-none"
+              style={{
+                transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                transition: isZoomDragging ? 'none' : 'transform 0.15s ease-out',
+              }}
             />
-            <div className="mt-4 bg-black/60 backdrop-blur-md text-white text-xs px-4 py-2 rounded-full flex items-center gap-4">
+            <div className="mt-4 bg-black/60 backdrop-blur-md text-white text-xs px-4 py-2 rounded-full flex items-center gap-4 pointer-events-auto">
               <span className="font-medium truncate max-w-[200px]">{selectedPhoto.filename}</span>
               <span className="opacity-40">·</span>
               <span>{formatBytes(selectedPhoto.size)}</span>
