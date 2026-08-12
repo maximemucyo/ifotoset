@@ -61,6 +61,7 @@ export default function PublicGalleryView() {
   // Scroll navigation, CTA ref, and client side mounting states
   const [mounted, setMounted] = useState(false);
   const [showHeader, setShowHeader] = useState(true);
+  const [isHeaderTransparent, setIsHeaderTransparent] = useState(true);
   const lastScrollYRef = useRef(0);
   const mainRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +84,7 @@ export default function PublicGalleryView() {
     window.addEventListener('resize', updateHeaderHeight);
     return () => window.removeEventListener('resize', updateHeaderHeight);
   }, []);
+
 
   // Header scroll transition: hides on downward scroll, reveals on upward scroll, with movement threshold
   useEffect(() => {
@@ -277,6 +279,26 @@ export default function PublicGalleryView() {
     isFetchingNextPage,
     fetchNextPage,
   } = useInfiniteGallery(slug || '', inviteToken, galleryToken, 60);
+
+  // Header transparency controller based on scroll and cover photo presence
+  useEffect(() => {
+    if (!gallery) return;
+    const activeCover = gallery.cover_photo || photos[0] || null;
+    
+    if (!activeCover) {
+      setIsHeaderTransparent(false);
+      return;
+    }
+
+    const handleScrollTransparency = () => {
+      const currentScrollY = window.scrollY;
+      setIsHeaderTransparent(currentScrollY < 50);
+    };
+
+    handleScrollTransparency();
+    window.addEventListener('scroll', handleScrollTransparency, { passive: true });
+    return () => window.removeEventListener('scroll', handleScrollTransparency);
+  }, [gallery, photos]);
 
   // Precompute slideshow/lightbox index positioning
   const currentIndex = selectedPhoto ? photos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1;
@@ -499,42 +521,60 @@ export default function PublicGalleryView() {
 
   if (!gallery) return null;
 
+  const activeCoverPhoto = gallery.cover_photo || photos[0] || null;
+
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
       {/* Public Navbar Header */}
-      <header className={`border-b border-border bg-card/85 backdrop-blur-md sticky top-0 z-30 transition-transform duration-300 ${
+      <header className={`sticky top-0 z-30 transition-all duration-300 ${
+        isHeaderTransparent
+          ? 'bg-black/10 backdrop-blur-[2px] border-b border-white/5'
+          : 'bg-card/85 backdrop-blur-md border-b border-border'
+      } ${
         showHeader ? 'translate-y-0' : '-translate-y-full'
       }`}>
         <div className="w-full max-w-none px-4 md:px-8 xl:px-12 2xl:px-16 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Logo size="sm" href="/" />
-            <div className="h-5 w-px bg-border shrink-0" />
-            <h1 className="font-bold text-lg text-foreground truncate max-w-[140px] sm:max-w-sm shrink">
+            <Logo variant={isHeaderTransparent ? "light" : "default"} size="sm" href="/" />
+            <div className={`h-5 w-px shrink-0 transition-colors duration-300 ${
+              isHeaderTransparent ? 'bg-white/20' : 'bg-border'
+            }`} />
+            <h1 className={`font-bold text-lg truncate max-w-[140px] sm:max-w-sm shrink transition-colors duration-300 ${
+              isHeaderTransparent ? 'text-white' : 'text-foreground'
+            }`}>
               {gallery.title}
             </h1>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4 text-xs text-muted-foreground shrink-0">
+          <div className={`flex items-center gap-2 sm:gap-4 text-xs shrink-0 transition-colors duration-300 ${
+            isHeaderTransparent ? 'text-white/80' : 'text-muted-foreground'
+          }`}>
             {gallery.client_name && (
               <span className="hidden sm:flex items-center gap-1.5 font-medium">
-                <User size={14} /> {gallery.client_name}
+                <User size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> {gallery.client_name}
               </span>
             )}
             {gallery.event_date && (
               <span className="hidden sm:flex items-center gap-1.5 font-medium">
-                <Calendar size={14} /> {new Date(gallery.event_date).toLocaleDateString()}
+                <Calendar size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> {new Date(gallery.event_date).toLocaleDateString()}
               </span>
             )}
-            <div className="h-4 w-px bg-border hidden sm:block" />
-            <ThemeToggle />
+            <div className={`h-4 w-px hidden sm:block transition-colors duration-300 ${
+              isHeaderTransparent ? 'bg-white/20' : 'bg-border'
+            }`} />
+            <ThemeToggle className={
+              isHeaderTransparent
+                ? "p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
+                : "p-2 rounded-lg hover:bg-secondary transition-colors"
+            } />
           </div>
         </div>
       </header>
 
       {/* Hero Banner Section */}
-      {gallery.cover_photo ? (
-        <section className="relative w-full h-[calc(100svh-var(--header-height,68px))] border-b border-border overflow-hidden select-none">
+      {activeCoverPhoto ? (
+        <section className="relative w-full h-svh border-b border-border overflow-hidden select-none mt-[calc(-1*var(--header-height,68px))]">
           <img
-            src={gallery.cover_photo.variants?.xl || gallery.cover_photo.cdn_url}
+            src={activeCoverPhoto.variants?.xl || activeCoverPhoto.cdn_url}
             alt={gallery.title}
             className="absolute inset-0 w-full h-full object-cover object-center"
             fetchPriority="high"

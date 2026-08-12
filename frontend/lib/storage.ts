@@ -47,9 +47,9 @@ export async function uploadPhotoDirectly(
     throw new DOMException('Upload aborted', 'AbortError');
   }
 
-  // 1. Calculate SHA-256 checksum in browser
   const sha256 = await calculateSha256(file);
-  const idempotencyKey = `up-${galleryId}-${file.name}-${file.size}-${sha256.substring(0, 16)}`;
+  const safeName = file.name.substring(0, 30);
+  const idempotencyKey = `up-${galleryId}-${safeName}-${file.size}-${sha256.substring(0, 16)}`;
 
   // 2. Request presigned upload session from Laravel API
   const session = await authFetch<UploadSessionResponse>('/uploads/request', {
@@ -122,7 +122,7 @@ export async function uploadPhotoDirectly(
     }
 
     // 4. Confirm successful upload with Laravel API (triggers 0-byte HeadObject check & DB insertion)
-    const confirmedPhoto = await authFetch<PhotoConfirmResponse>('/uploads/confirm', {
+    const confirmedPhoto = await authFetch<any>('/uploads/confirm', {
       method: 'POST',
       body: JSON.stringify({
         upload_session_id: session.upload_session_id,
@@ -130,7 +130,14 @@ export async function uploadPhotoDirectly(
       signal,
     });
 
-    return confirmedPhoto;
+    const data = confirmedPhoto?.data || confirmedPhoto;
+
+    return {
+      photo_id: data?.uuid || data?.photo_id,
+      filename: data?.filename,
+      status: data?.status,
+      cdn_url: data?.cdn_url,
+    };
   } catch (error: any) {
     // If it's a network pause, do NOT notify backend to clean up so the session can be resumed later
     const isNetworkPaused = signal?.aborted && (signal.reason === 'network-paused' || !navigator.onLine);

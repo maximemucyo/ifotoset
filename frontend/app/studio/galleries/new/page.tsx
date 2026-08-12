@@ -126,21 +126,21 @@ export default function NewGallery() {
   return (
     <main className="flex-1 min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6 flex items-center gap-4">
+      <div className="border-b border-border bg-card p-4 sm:p-6 flex items-center gap-4">
         <Link
           href="/studio/galleries"
-          className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+          className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground shrink-0"
         >
           <ArrowLeft size={20} />
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">New Gallery</h1>
-          <p className="text-muted-foreground mt-1">Create a new photo gallery for your client</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">New Gallery</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">Create a new photo gallery for your client</p>
         </div>
       </div>
 
       {/* Content Container */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="max-w-5xl mx-auto">
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             

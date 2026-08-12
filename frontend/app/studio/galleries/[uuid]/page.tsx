@@ -305,6 +305,9 @@ export default function GalleryDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [shareTooltip, setShareTooltip] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [isCoverSelectOpen, setIsCoverSelectOpen] = useState(false)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0)
 
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const networkPausedRef = useRef<Set<string>>(new Set())
@@ -372,6 +375,102 @@ export default function GalleryDetail() {
   const activeUploads = uploads.filter((u) => u.status !== 'done')
 
   const deletePhotoMutation = useDeletePhotoMutation(uuid as string)
+
+  const handleClearCover = useCallback(() => {
+    if (!gallery || updateGalleryMutation.isPending) return
+
+    const previousGallery = queryClient.getQueryData<{ data: GalleryItem }>(['gallery', uuid])
+
+    if (previousGallery) {
+      queryClient.setQueryData<{ data: GalleryItem }>(['gallery', uuid], {
+        ...previousGallery,
+        data: {
+          ...previousGallery.data,
+          cover_photo: null,
+          has_explicit_cover: false,
+        }
+      })
+    }
+
+    updateGalleryMutation.mutate(
+      {
+        uuid: gallery.uuid,
+        clear_cover: true,
+        version: gallery.version,
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['gallery', uuid] })
+        },
+        onError: () => {
+          if (previousGallery) {
+            queryClient.setQueryData(['gallery', uuid], previousGallery)
+          }
+          alert('Failed to clear cover photo. Please try again.')
+        },
+      }
+    )
+  }, [gallery, uuid, queryClient, updateGalleryMutation])
+
+  const handleCoverUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0 || !gallery) return
+    const file = e.target.files[0]
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file.')
+      return
+    }
+
+    setIsUploadingCover(true)
+    setCoverUploadProgress(0)
+
+    try {
+      const res = await uploadPhotoDirectly(
+        gallery.uuid,
+        file,
+        (pct) => {
+          setCoverUploadProgress(pct)
+        }
+      )
+
+      const newPhotoItem: PhotoItem = {
+        uuid: res.photo_id,
+        filename: file.name,
+        mime_type: file.type,
+        size: file.size,
+        width: null,
+        height: null,
+        blurhash: null,
+        status: 'processing',
+        cdn_url: res.cdn_url,
+        variants: { xs: '', sm: '', md: '', lg: '', xl: '' },
+        taken_at: null,
+        created_at: new Date().toISOString(),
+      }
+      setPhotos((prev) => [newPhotoItem, ...prev])
+
+      updateGalleryMutation.mutate(
+        {
+          uuid: gallery.uuid,
+          cover_photo_uuid: res.photo_id,
+          version: gallery.version,
+        },
+        {
+          onSuccess: () => {
+            setIsCoverSelectOpen(false)
+            queryClient.invalidateQueries({ queryKey: ['gallery', uuid] })
+          },
+          onError: () => {
+            alert('Failed to set uploaded image as cover. Please choose it manually.')
+          }
+        }
+      )
+    } catch (err: any) {
+      alert(err instanceof Error ? err.message : 'Cover upload failed')
+    } finally {
+      setIsUploadingCover(false)
+      setCoverUploadProgress(0)
+    }
+  }, [gallery, uuid, queryClient, updateGalleryMutation, setPhotos])
 
   // Infinite Scroll Sentinel Observer
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -664,21 +763,121 @@ export default function GalleryDetail() {
 
 
 
+  const renderCoverPhotoCard = () => (
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Star size={16} className="text-yellow-500" />
+          Cover Photo
+        </h3>
+        {gallery?.has_explicit_cover && (
+          <span className="text-[10px] font-bold px-2 py-0.5 bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 rounded-full">
+            Custom
+          </span>
+        )}
+        {!gallery?.has_explicit_cover && gallery?.cover_photo && (
+          <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/10 text-blue-600 border border-blue-500/20 rounded-full">
+            Auto
+          </span>
+        )}
+      </div>
+
+      {/* Preview Container */}
+      <div className="relative aspect-[16/9] w-full rounded-lg bg-muted overflow-hidden border border-border flex items-center justify-center">
+        {gallery?.cover_photo ? (
+          <img
+            src={gallery.cover_photo.variants?.md || gallery.cover_photo.cdn_url}
+            alt="Cover photo preview"
+            className="w-full h-full object-cover"
+          />
+        ) : photos[0] ? (
+          <div className="relative w-full h-full">
+            <img
+              src={photos[0].variants?.md || photos[0].cdn_url}
+              alt="Default Cover preview"
+              className="w-full h-full object-cover opacity-60"
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+              <span className="text-white text-xs font-semibold px-2.5 py-1 bg-black/40 rounded-full backdrop-blur-sm">
+                Default Auto Cover
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center p-6 space-y-2">
+            <Image size={24} className="mx-auto text-muted-foreground/45" />
+            <p className="text-xs text-muted-foreground">No cover photo set</p>
+          </div>
+        )}
+
+        {/* Custom Cover Upload Progress Overlay */}
+        {isUploadingCover && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 gap-2">
+            <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            <p className="text-xs font-medium text-foreground">Uploading cover... {coverUploadProgress}%</p>
+          </div>
+        )}
+      </div>
+
+      {/* Details & Actions */}
+      <div className="space-y-2">
+        {gallery?.cover_photo && (
+          <p className="text-xs text-muted-foreground truncate max-w-full" title={gallery.cover_photo.filename}>
+            File: <strong className="text-foreground font-medium">{gallery.cover_photo.filename}</strong>
+          </p>
+        )}
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => setIsCoverSelectOpen(true)}
+            disabled={photos.length === 0}
+            className="w-full py-2 bg-secondary text-foreground hover:bg-muted font-semibold text-xs rounded-lg transition-colors border border-border flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            Choose Existing
+          </button>
+
+          <label className="w-full py-2 bg-primary text-primary-foreground hover:bg-accent font-semibold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center">
+            Upload Custom
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleCoverUpload}
+              disabled={isUploadingCover}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        {gallery?.has_explicit_cover && (
+          <button
+            type="button"
+            onClick={handleClearCover}
+            disabled={updateGalleryMutation.isPending}
+            className="w-full py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 font-semibold text-xs rounded-lg transition-colors border border-destructive/20 mt-1"
+          >
+            Revert to Automatic Cover
+          </button>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <main className="flex-1 min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
+      <div className="border-b border-border bg-card p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
             <Link
               href="/studio/galleries"
               className="p-2 mt-0.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground shrink-0"
             >
               <ArrowLeft size={20} />
             </Link>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-3xl font-bold text-foreground">{gallery.title}</h1>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3 flex-wrap min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate max-w-full" title={gallery.title}>{gallery.title}</h1>
                 <span
                   className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                     gallery.visibility === 'public'
@@ -693,7 +892,7 @@ export default function GalleryDetail() {
                   )}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
                 {gallery.client_name && <span>Client: <strong className="text-foreground">{gallery.client_name}</strong></span>}
                 {gallery.event_date && (
                   <span>
@@ -705,12 +904,12 @@ export default function GalleryDetail() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0">
+            <div className="relative w-full sm:w-auto">
               <button
                 id="share-gallery-btn"
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm w-full sm:w-auto"
               >
                 {shareTooltip ? <Check size={16} className="text-green-500" /> : <Share2 size={16} />}
                 {shareTooltip ? 'Copied!' : 'Share'}
@@ -719,7 +918,7 @@ export default function GalleryDetail() {
             <Link
               href={`/studio/galleries/${uuid}/edit`}
               id="edit-gallery-btn"
-              className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm w-full sm:w-auto"
             >
               <Edit size={16} />
               Edit
@@ -727,7 +926,7 @@ export default function GalleryDetail() {
             <button
               id="delete-gallery-btn"
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors font-semibold text-sm"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors font-semibold text-sm w-full sm:w-auto"
             >
               <Trash2 size={16} />
               Delete
@@ -736,7 +935,7 @@ export default function GalleryDetail() {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
           {[
             { icon: Image, label: 'Photos', value: gallery.stats.photo_count },
             { icon: Download, label: 'Downloads', value: gallery.stats.downloads_count },
@@ -756,8 +955,10 @@ export default function GalleryDetail() {
       </div>
 
       {/* Content */}
-      <div className="p-6">
-        {/* Offline Warning Banner */}
+      <div className="p-4 sm:p-6 max-w-none mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column (Upload Zone + Active Uploads + Photo Grid) */}
+        <div className="lg:col-span-2 space-y-6 min-w-0 flex-1">
+          {/* Offline Warning Banner */}
         {!isOnline && (
           <div className="mb-6 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl p-4 flex items-center gap-3 backdrop-blur-sm">
             <WifiOff size={20} className="shrink-0 animate-pulse text-amber-500" />
@@ -951,6 +1152,17 @@ export default function GalleryDetail() {
             </div>
           </>
         )}
+        </div>
+
+        {/* Cover Photo (Mobile Only) */}
+        <div className="lg:hidden">
+          {renderCoverPhotoCard()}
+        </div>
+
+        {/* Right Column (Cover Photo Sidebar Card) */}
+        <div className="hidden lg:block space-y-6">
+          {renderCoverPhotoCard()}
+        </div>
       </div>
 
       {/* Photo Lightbox */}
@@ -1113,6 +1325,68 @@ export default function GalleryDetail() {
                 className="flex-1 py-2.5 px-4 bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors font-semibold text-sm disabled:opacity-60"
               >
                 {deleteMutation.isPending ? 'Deleting...' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cover Photo Selection Modal */}
+      {isCoverSelectOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setIsCoverSelectOpen(false)}>
+          <div className="bg-card border border-border rounded-xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-2 border-b border-border shrink-0">
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Select Cover Photo</h3>
+                <p className="text-xs text-muted-foreground">Select an image from this gallery to feature as the cover</p>
+              </div>
+              <button
+                onClick={() => setIsCoverSelectOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[50vh] pr-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {photos.map((photo) => {
+                  const isCurrentCover = gallery?.cover_photo?.uuid === photo.uuid;
+                  return (
+                    <button
+                      key={photo.uuid}
+                      type="button"
+                      onClick={() => handleMakeFeatured(photo)}
+                      disabled={updateGalleryMutation.isPending}
+                      className={`group relative aspect-[3/2] bg-muted rounded-lg overflow-hidden transition-all border-2 ${
+                        isCurrentCover ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-muted-foreground'
+                      }`}
+                    >
+                      <img
+                        src={photo.variants?.sm || photo.cdn_url}
+                        alt={photo.filename}
+                        className="w-full h-full object-cover"
+                      />
+                      {isCurrentCover && (
+                        <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                          <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                            <Star size={10} fill="currentColor" /> Cover
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="pt-2 border-t border-border flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCoverSelectOpen(false)}
+                className="py-2 px-4 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-xs"
+              >
+                Close
               </button>
             </div>
           </div>

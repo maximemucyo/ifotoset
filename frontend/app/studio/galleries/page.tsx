@@ -52,19 +52,19 @@ export default function Galleries() {
   return (
     <main className="flex-1 min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Galleries</h1>
-          <p className="text-muted-foreground mt-1">Manage all your photo galleries and client deliveries</p>
+      <div className="border-b border-border bg-card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Galleries</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">Manage all your photo galleries and client deliveries</p>
         </div>
-        <Link href="/studio/galleries/new" className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors flex items-center gap-2 font-semibold">
+        <Link href="/studio/galleries/new" className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors flex items-center justify-center gap-2 font-semibold w-full sm:w-auto shrink-0">
           <Plus size={20} />
           New Gallery
         </Link>
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
@@ -168,20 +168,20 @@ export default function Galleries() {
                   </div>
                 </div>
 
-                <div className="flex gap-3 mt-6 pt-6 border-t border-border">
-                  <Link href={`/studio/galleries/${gallery.uuid}`} className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors text-center font-semibold text-sm">
+                <div className="flex flex-col sm:flex-row gap-2 mt-6 pt-6 border-t border-border">
+                  <Link href={`/studio/galleries/${gallery.uuid}`} className="w-full sm:flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors text-center font-semibold text-sm">
                     View Gallery
                   </Link>
                   <button
                     onClick={() => handleShare(gallery.uuid, gallery.slug)}
-                    className="flex-1 py-2 px-4 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+                    className="w-full sm:flex-1 py-2 px-4 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm flex items-center justify-center gap-2"
                   >
                     {copiedUuid === gallery.uuid ? <Check size={14} className="text-green-500" /> : <Share2 size={14} />}
                     {copiedUuid === gallery.uuid ? 'Copied!' : 'Share Link'}
                   </button>
                   <Link
                     href={`/studio/galleries/${gallery.uuid}/edit`}
-                    className="flex-1 py-2 px-4 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm text-center flex items-center justify-center gap-2"
+                    className="w-full sm:flex-1 py-2 px-4 bg-secondary text-foreground rounded-lg hover:bg-muted transition-colors font-semibold text-sm text-center flex items-center justify-center gap-2"
                   >
                     <Edit size={14} />
                     Edit

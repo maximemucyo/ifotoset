@@ -50,7 +50,7 @@ export default function Analytics() {
   const maxMonthlyCount = Math.max(...monthlyViews.map((d) => d.count), 1)
 
   return (
-    <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+    <main className="flex-1 flex flex-col bg-background">
       {/* Header */}
       <div className="border-b border-border bg-card p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 flex-shrink-0">
         <div>
@@ -77,7 +77,7 @@ export default function Analytics() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {isLoading ? (
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 animate-pulse">

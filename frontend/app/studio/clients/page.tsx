@@ -130,7 +130,7 @@ export default function Clients() {
   const meta = clientsData?.meta
 
   return (
-    <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+    <main className="flex-1 flex flex-col bg-background">
       {/* Header */}
       <div className="border-b border-border bg-card p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 flex-shrink-0">
         <div>
@@ -175,8 +175,8 @@ export default function Clients() {
         </div>
       </div>
 
-      {/* Scrollable Content Container */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      {/* Content Container */}
+      <div className="p-4 sm:p-6">
         {isLoading ? (
           <div className="grid md:grid-cols-2 gap-6">
             {[1, 2, 3, 4].map((idx) => (
@@ -350,11 +350,11 @@ export default function Clients() {
       {isFormOpen && (
         <div className="fixed inset-0 bg-black/70 z-50 flex justify-end">
           <div 
-            className="w-full max-w-lg bg-card border-l border-border h-full p-6 flex flex-col justify-between shadow-2xl relative animate-in slide-in-from-right duration-300"
+            className="w-full max-w-lg bg-card border-l border-border h-[100dvh] flex flex-col justify-between shadow-2xl relative animate-in slide-in-from-right duration-300"
           >
             {/* Header */}
-            <div>
-              <div className="flex justify-between items-center mb-6">
+            <div className="p-6 pb-4 border-b border-border shrink-0">
+              <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-primary" />
                   <h2 className="text-xl font-bold text-foreground">
@@ -368,7 +368,10 @@ export default function Clients() {
                   <X size={20} />
                 </button>
               </div>
+            </div>
 
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto p-6 pb-8 space-y-4">
               <form id="client-form" onSubmit={handleFormSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-1.5">Full Name *</label>
@@ -464,7 +467,7 @@ export default function Clients() {
             </div>
 
             {/* Form Footer */}
-            <div className="border-t border-border pt-4 flex gap-3">
+            <div className="border-t border-border p-6 flex gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}

@@ -123,15 +123,15 @@ export default function Settings() {
   const user = currentUser?.user
 
   return (
-    <main className="flex-1 flex flex-col h-screen bg-background overflow-hidden">
+    <main className="flex-1 flex flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-4 md:p-6 flex-shrink-0">
-        <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">Settings</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your studio profile, notifications, logo, and security</p>
+      <div className="border-b border-border bg-card p-4 sm:p-6 flex-shrink-0">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">Settings</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Manage your studio profile, notifications, logo, and security</p>
       </div>
 
-      {/* Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      {/* Content */}
+      <div className="p-4 sm:p-6">
         {isUserLoading ? (
           <div className="max-w-4xl mx-auto space-y-6 animate-pulse">
             <div className="bg-card border border-border h-48 rounded-xl" />

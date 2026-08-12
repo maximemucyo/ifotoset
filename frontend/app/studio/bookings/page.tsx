@@ -141,7 +141,7 @@ export default function Bookings() {
   const packages = packagesData?.data || []
 
   return (
-    <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+    <main className="flex-1 flex flex-col bg-background">
       {/* Header */}
       <div className="border-b border-border bg-card p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 flex-shrink-0">
         <div>
@@ -230,8 +230,8 @@ export default function Bookings() {
         </button>
       </div>
 
-      {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      {/* Bookings list */}
+      <div className="p-4 sm:p-6">
         {isLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((idx) => (

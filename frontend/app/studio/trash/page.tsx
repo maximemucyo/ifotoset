@@ -69,25 +69,25 @@ export default function Trash() {
   return (
     <main className="flex-1 min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Trash</h1>
-          <p className="text-muted-foreground mt-1">Review, restore, or permanently purge recently deleted items</p>
+      <div className="border-b border-border bg-card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Trash</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">Review, restore, or permanently purge recently deleted items</p>
         </div>
         {(galleries.length > 0 || photos.length > 0) && (
           <button
             onClick={() => setShowEmptyConfirm(true)}
             disabled={isBackgroundPending}
-            className="px-5 py-2.5 bg-destructive/10 text-destructive border border-destructive/20 rounded-lg hover:bg-destructive hover:text-white transition-colors flex items-center justify-center gap-2 font-semibold text-sm disabled:opacity-50"
+            className="px-5 py-2.5 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors flex items-center justify-center gap-2 font-semibold text-sm shadow-sm w-full sm:w-auto shrink-0"
           >
-            <Trash2 size={16} />
+            <Trash2 size={18} />
             Empty Trash
           </button>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Background Status Alert */}
         {isBackgroundPending && (
           <div className="mb-6 bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-between animate-pulse">

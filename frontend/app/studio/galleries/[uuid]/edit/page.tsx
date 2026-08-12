@@ -123,23 +123,23 @@ export default function EditGallery() {
   return (
     <main className="flex-1 min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card p-6 flex items-center gap-4">
+      <div className="border-b border-border bg-card p-4 sm:p-6 flex items-center gap-4">
         <Link
           href={`/studio/galleries/${uuid}`}
-          className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+          className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground shrink-0"
         >
           <ArrowLeft size={20} />
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Edit Gallery</h1>
-          <p className="text-muted-foreground mt-1">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit Gallery</h1>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base truncate max-w-full" title={gallery.title}>
             Editing: <span className="font-semibold text-foreground">{gallery.title}</span>
           </p>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Gallery Info */}

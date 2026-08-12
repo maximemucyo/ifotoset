@@ -73,7 +73,7 @@ class UploadController extends Controller
                 $validated['upload_session_id']
             );
 
-            return response()->json(new PhotoResource($photo), 200);
+            return (new PhotoResource($photo))->response();
         } catch (Exception $e) {
             return response()->json([
                 'code' => 'UPLOAD_CONFIRMATION_FAILED',

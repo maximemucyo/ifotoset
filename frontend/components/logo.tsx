@@ -18,8 +18,8 @@ const sizes = {
 export function Logo({ variant = 'default', size = 'md', href = '/' }: LogoProps) {
   const sizeConfig = sizes[size]
   
-  const textColor = variant === 'light' ? 'text-foreground' : 'text-foreground'
-  const accentColor = variant === 'light' ? 'text-muted-foreground' : 'text-primary'
+  const textColor = variant === 'light' ? 'text-white' : 'text-foreground'
+  const accentColor = 'text-primary'
 
   const content = (
     <div className="flex items-center gap-3">
