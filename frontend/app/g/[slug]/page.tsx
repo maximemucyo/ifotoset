@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import {
   LockKeyhole, Mail, AlertTriangle, Calendar, User, ImageIcon,
   Share2, Heart, Download, X, Copy, Check, SearchX
@@ -56,6 +57,66 @@ export default function PublicGalleryView() {
   // Share Modal State
   const [sharingPhoto, setSharingPhoto] = useState<PhotoItem | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Scroll navigation, CTA ref, and client side mounting states
+  const [mounted, setMounted] = useState(false);
+  const [showHeader, setShowHeader] = useState(true);
+  const lastScrollYRef = useRef(0);
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  const scrollToGallery = () => {
+    mainRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Mount effect: Set client-safe mounted flag and track dynamic header height CSS variable
+  useEffect(() => {
+    setMounted(true);
+
+    const updateHeaderHeight = () => {
+      const headerEl = document.querySelector('header');
+      if (headerEl) {
+        document.documentElement.style.setProperty('--header-height', `${headerEl.offsetHeight}px`);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+  // Header scroll transition: hides on downward scroll, reveals on upward scroll, with movement threshold
+  useEffect(() => {
+    const threshold = 10;
+    const handleScroll = () => {
+      // Disable header hide behavior while lightbox or another modal is active
+      const isAnyModalOpen = selectedPhoto !== null || isEmailModalOpen || sharingPhoto !== null;
+      if (isAnyModalOpen) {
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const diff = currentScrollY - lastScrollY;
+
+      // Always show at the top of the page
+      if (currentScrollY <= 50) {
+        setShowHeader(true);
+      } else if (Math.abs(diff) > threshold) {
+        if (diff > 0) {
+          // Scrolling down (content moving up) -> hide header
+          setShowHeader(false);
+        } else {
+          // Scrolling up (content moving down) -> show header
+          setShowHeader(true);
+        }
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [selectedPhoto, isEmailModalOpen, sharingPhoto]);
 
   // Load identity and favorites on mount
   useEffect(() => {
@@ -441,7 +502,9 @@ export default function PublicGalleryView() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
       {/* Public Navbar Header */}
-      <header className="border-b border-border bg-card/85 backdrop-blur-md sticky top-0 z-30">
+      <header className={`border-b border-border bg-card/85 backdrop-blur-md sticky top-0 z-30 transition-transform duration-300 ${
+        showHeader ? 'translate-y-0' : '-translate-y-full'
+      }`}>
         <div className="w-full max-w-none px-4 md:px-8 xl:px-12 2xl:px-16 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <Logo size="sm" href="/" />
@@ -469,7 +532,7 @@ export default function PublicGalleryView() {
 
       {/* Hero Banner Section */}
       {gallery.cover_photo ? (
-        <section className="relative w-full h-[50vh] sm:h-[60vh] md:h-[65vh] xl:h-[70vh] min-h-[400px] border-b border-border overflow-hidden select-none">
+        <section className="relative w-full h-[calc(100svh-var(--header-height,68px))] border-b border-border overflow-hidden select-none">
           <img
             src={gallery.cover_photo.variants?.xl || gallery.cover_photo.cdn_url}
             alt={gallery.title}
@@ -494,15 +557,17 @@ export default function PublicGalleryView() {
               )}
             </div>
             
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-4">
               <button
                 type="button"
-                onClick={() => {
-                  const targetElement = document.querySelector('main');
-                  if (targetElement) {
-                    targetElement.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
+                onClick={scrollToGallery}
+                className="px-6 py-3 bg-white text-black hover:bg-white/90 active:scale-95 font-semibold text-sm rounded-full shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+              >
+                View Gallery
+              </button>
+              <button
+                type="button"
+                onClick={scrollToGallery}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all animate-bounce"
                 aria-label="Scroll to photos"
               >
@@ -527,7 +592,7 @@ export default function PublicGalleryView() {
       )}
 
       {/* Photo Grid Section */}
-      <main className="w-full max-w-none py-12">
+      <main ref={mainRef} className="w-full max-w-none py-12">
         <VirtualGalleryGrid
           photos={photos}
           hasMore={hasMore}
@@ -565,8 +630,8 @@ export default function PublicGalleryView() {
       )}
 
       {/* ─── Email Collection Modal ─────────────────────────────────────────── */}
-      {isEmailModalOpen && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsEmailModalOpen(false)}>
+      {mounted && isEmailModalOpen && createPortal(
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setIsEmailModalOpen(false)}>
           <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-foreground">Save Your Favorites</h3>
@@ -607,17 +672,18 @@ export default function PublicGalleryView() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── Social Share Modal ─────────────────────────────────────────────── */}
-      {sharingPhoto && (() => {
+      {mounted && sharingPhoto && (() => {
         const shareUrl = `${window.location.origin}/g/${slug}?photo=${sharingPhoto.uuid}`;
         const encodedUrl = encodeURIComponent(shareUrl);
         const shareText = encodeURIComponent(`Check out this photo from the gallery: ${shareUrl}`);
         
-        return (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSharingPhoto(null)}>
+        return createPortal(
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setSharingPhoto(null)}>
             <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-5 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-bold text-foreground">Share Photo</h3>
@@ -767,7 +833,8 @@ export default function PublicGalleryView() {
                 </a>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
     </div>
