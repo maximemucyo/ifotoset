@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle2, AlertCircle, XCircle, ExternalLink, Loader2, ArrowLeft, Mail, Info } from 'lucide-react'
+import { CheckCircle2, AlertCircle, XCircle, ExternalLink, Loader2, ArrowLeft, Info } from 'lucide-react'
 import { 
   callbackGooglePhotos, 
   getGooglePhotosSyncStatus, 
@@ -11,7 +11,7 @@ import {
   GooglePhotosSyncStatus 
 } from '@/lib/queries/galleries'
 
-export default function GooglePhotosCallback() {
+function GooglePhotosCallbackInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -358,5 +358,20 @@ export default function GooglePhotosCallback() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function GooglePhotosCallback() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="w-12 h-12 text-primary animate-spin" />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
+      </main>
+    }>
+      <GooglePhotosCallbackInner />
+    </Suspense>
   )
 }
