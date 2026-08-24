@@ -47,6 +47,12 @@ Route::middleware('throttle:10,1')->post('/public/galleries/{slug}/unlock', [Gal
 Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/download', [GalleryController::class, 'recordDownload']);
 Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [GalleryController::class, 'toggleFavorite']);
 
+// Public Gallery ZIP download & Google Photos Sync
+Route::middleware('throttle:30,1')->get('/public/galleries/{slug}/download-zip', [GalleryController::class, 'downloadZip']);
+Route::middleware('throttle:15,1')->post('/public/galleries/{slug}/google-photos/authorize', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'authorizePhotos']);
+Route::middleware('throttle:15,1')->post('/public/google-photos/callback', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'handleCallback']);
+Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/google-photos/syncs/{uuid}/status', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'syncStatus']);
+
 // Public Online Booking Endpoints (Rate Limited)
 Route::middleware('throttle:30,1')->group(function () {
     // Dedicated photographer profile endpoint
@@ -115,6 +121,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/queue', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'queue']);
         Route::get('/users', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'users']);
         Route::get('/galleries', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'galleries']);
+        
+        // SMTP Settings routes
+        Route::get('/settings/smtp', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'getSmtpSettings']);
+        Route::put('/settings/smtp', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'updateSmtpSettings'])
+            ->middleware('throttle:10,1');
     });
 
     // Upload Sessions

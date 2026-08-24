@@ -11,8 +11,11 @@ use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+use App\Traits\VerifiesGalleryAccess;
+
 class GalleryController extends Controller
 {
+    use VerifiesGalleryAccess;
     /**
      * List authenticated photographer's galleries.
      * GET /api/v1/galleries
@@ -39,6 +42,9 @@ class GalleryController extends Controller
             'client_name' => ['nullable', 'string', 'max:255'],
             'event_date' => ['nullable', 'date'],
             'visibility' => ['nullable', 'string', 'in:public,private'],
+            'allow_photo_downloads' => ['nullable', 'boolean'],
+            'allow_gallery_downloads' => ['nullable', 'boolean'],
+            'allow_google_photos' => ['nullable', 'boolean'],
             'password' => ['nullable', 'string', 'min:6'],
             'password_hint' => ['nullable', 'string', 'max:255'],
             'expires_at' => ['nullable', 'date', 'after:now'],
@@ -70,6 +76,9 @@ class GalleryController extends Controller
                 'client_name' => $validated['client_name'] ?? null,
                 'event_date' => $validated['event_date'] ?? null,
                 'visibility' => $validated['visibility'] ?? Visibility::Public->value,
+                'allow_photo_downloads' => $validated['allow_photo_downloads'] ?? true,
+                'allow_gallery_downloads' => $validated['allow_gallery_downloads'] ?? true,
+                'allow_google_photos' => $validated['allow_google_photos'] ?? true,
                 'password_hash' => ($isPrivate && $accessMethod === 'password' && !empty($validated['password'])) ? bcrypt($validated['password']) : null,
                 'password_hint' => ($isPrivate && $accessMethod === 'password') ? ($validated['password_hint'] ?? null) : null,
                 'expires_at' => $validated['expires_at'] ?? null,
@@ -233,83 +242,7 @@ class GalleryController extends Controller
         ]);
     }
 
-    /**
-     * Verify if the request has access to the given public/private gallery.
-     */
-    private function verifyGalleryAccess(Gallery $gallery, Request $request): ?JsonResponse
-    {
-        // Check if gallery is expired
-        if ($gallery->expires_at && $gallery->expires_at->isPast()) {
-            return response()->json([
-                'code' => 'GALLERY_EXPIRED',
-                'message' => 'This gallery has expired and is no longer accessible.',
-            ], 403);
-        }
 
-        $visibility = $gallery->visibility;
-
-        if ($visibility === 'public') {
-            return null; // Access granted
-        }
-
-        // If private, check access method
-        // 1. Password protection
-        if (!empty($gallery->password_hash)) {
-            // Check for stateless token in header or query
-            $token = $request->header('X-Gallery-Token') ?: $request->query('token');
-            $expectedToken = hash_hmac('sha256', $gallery->uuid, config('app.key'));
-
-            if ($token && hash_equals($expectedToken, $token)) {
-                return null; // Access granted
-            }
-
-            return response()->json([
-                'code' => 'PASSWORD_REQUIRED',
-                'message' => 'This gallery is password-protected.',
-                'requires_password' => true,
-                'password_hint' => $gallery->password_hint,
-            ], 403);
-        }
-
-        // 2. Invitation list protection
-        // Check for 'invite' token in query parameter
-        $inviteToken = $request->query('invite');
-        if ($inviteToken) {
-            $hashedToken = hash('sha256', $inviteToken);
-            $invitation = \App\Models\GalleryInvitation::where('gallery_id', $gallery->id)
-                ->where('token', $hashedToken)
-                ->first();
-
-            if ($invitation) {
-                if ($invitation->revoked_at) {
-                    return response()->json([
-                        'code' => 'INVITATION_REVOKED',
-                        'message' => 'This invitation has been revoked.',
-                    ], 403);
-                }
-
-                if ($invitation->expires_at && $invitation->expires_at->isPast()) {
-                    return response()->json([
-                        'code' => 'INVITATION_EXPIRED',
-                        'message' => 'This invitation has expired.',
-                    ], 403);
-                }
-
-                // Accept invitation if not already accepted
-                if (!$invitation->accepted_at) {
-                    $invitation->update(['accepted_at' => now()]);
-                }
-
-                return null; // Access granted
-            }
-        }
-
-        return response()->json([
-            'code' => 'INVITATION_REQUIRED',
-            'message' => 'This gallery is private and requires a valid invitation link.',
-            'requires_invitation' => true,
-        ], 403);
-    }
 
     /**
      * Unlock a password-protected public gallery.
@@ -365,6 +298,9 @@ class GalleryController extends Controller
             'title' => ['sometimes', 'string', 'max:255'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'visibility' => ['sometimes', 'string', 'in:public,private'],
+            'allow_photo_downloads' => ['sometimes', 'boolean'],
+            'allow_gallery_downloads' => ['sometimes', 'boolean'],
+            'allow_google_photos' => ['sometimes', 'boolean'],
             'cover_photo_uuid' => ['nullable', 'string'],
             'clear_cover' => ['nullable', 'boolean'],
             'version' => ['required', 'integer'],
@@ -534,6 +470,103 @@ class GalleryController extends Controller
         return response()->json([
             'message' => $isFavorite ? 'Favorite added.' : 'Favorite removed.',
             'favorites_count' => $gallery->stats->fresh()->favorites_count,
+        ]);
+    }
+
+    /**
+     * Download the entire gallery packaged as a ZIP file.
+     * GET /api/v1/public/galleries/{slug}/download-zip
+     */
+    public function downloadZip(Request $request, string $slug): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        if (!$gallery->allow_gallery_downloads) {
+            return response()->json([
+                'code' => 'DOWNLOADS_DISABLED',
+                'message' => 'Full gallery downloads are disabled for this gallery.',
+            ], 403);
+        }
+
+        $photos = $gallery->photos()
+            ->where('status', \App\Enums\PhotoStatus::Ready->value)
+            ->orderBy('id')
+            ->get(['id', 'updated_at']);
+
+        if ($photos->isEmpty()) {
+            return response()->json([
+                'status' => 'empty',
+                'message' => 'No ready photos in this gallery to pack.',
+            ], 400);
+        }
+
+        // Deterministic photo snapshot hash calculation
+        $hashInput = $photos->map(fn($p) => $p->id . '-' . $p->updated_at->timestamp)->join(',');
+        $snapshotHash = md5($hashInput);
+
+        $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
+            ->where('photo_snapshot_hash', $snapshotHash)
+            ->first();
+
+        $storageService = app(\App\Services\StorageService::class);
+
+        if ($download && $download->status === 'ready' && $download->storage_path) {
+            if (Storage::disk('b2')->exists($download->storage_path)) {
+                // Increment downloads count when ZIP is served
+                $gallery->stats()->increment('downloads_count');
+                $gallery->stats()->update(['updated_at' => now()]);
+
+                // Record public activity log
+                $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+                \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+                    'gallery_id' => $gallery->id,
+                    'event' => 'gallery_zipped_downloaded',
+                    'visitor_session_id' => $visitorSession,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'created_at' => now(),
+                ]);
+
+                return response()->json([
+                    'status' => 'ready',
+                    'download_url' => $storageService->getCdnUrl(dirname($download->storage_path), null, basename($download->storage_path)),
+                    'size' => $download->size,
+                ]);
+            } else {
+                // ZIP was deleted in B2, reset mapping
+                $download->delete();
+                $download = null;
+            }
+        }
+
+        if ($download && $download->status === 'processing') {
+            return response()->json([
+                'status' => 'processing',
+            ]);
+        }
+
+        // Dispatch background packaging job if missing or stale
+        if (!$download) {
+            $download = \App\Models\GalleryDownload::create([
+                'gallery_id' => $gallery->id,
+                'status' => 'pending',
+                'photo_snapshot_hash' => $snapshotHash,
+            ]);
+        } else {
+            $download->update([
+                'status' => 'pending',
+            ]);
+        }
+
+        \App\Jobs\GenerateGalleryZipJob::dispatch($gallery->id, $download->id);
+
+        return response()->json([
+            'status' => 'processing',
         ]);
     }
 }

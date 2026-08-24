@@ -24,6 +24,9 @@ class Gallery extends Model
         'client_name',
         'event_date',
         'visibility',
+        'allow_photo_downloads',
+        'allow_gallery_downloads',
+        'allow_google_photos',
         'password_hash',
         'password_hint',
         'invite_token',
@@ -38,6 +41,9 @@ class Gallery extends Model
         'expires_at' => 'datetime',
         'version' => 'integer',
         'featured_order' => 'integer',
+        'allow_photo_downloads' => 'boolean',
+        'allow_gallery_downloads' => 'boolean',
+        'allow_google_photos' => 'boolean',
     ];
 
     /**

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authFetch } from '../auth'
 
 export interface AdminStats {
@@ -141,5 +141,52 @@ export function useAdminUsers(search?: string, plan?: string, page = 1) {
     queryKey: ['adminUsers', search, plan, page],
     queryFn: () => getAdminUsers(search, plan, page),
     placeholderData: (previousData) => previousData,
+  })
+}
+
+export interface SmtpSettings {
+  host: string;
+  port: number;
+  username: string;
+  encryption: string;
+  from_address: string;
+  from_name: string;
+  has_password?: boolean;
+}
+
+export interface UpdateSmtpResponse {
+  message: string;
+  test_sent: boolean;
+  test_error: string | null;
+}
+
+export async function getAdminSmtpSettings(): Promise<SmtpSettings> {
+  const res = await authFetch<{ data: SmtpSettings }>('/admin/settings/smtp', {
+    method: 'GET',
+  })
+  return res.data
+}
+
+export function useAdminSmtpSettings() {
+  return useQuery<SmtpSettings>({
+    queryKey: ['adminSmtpSettings'],
+    queryFn: getAdminSmtpSettings,
+  })
+}
+
+export async function updateAdminSmtpSettings(data: SmtpSettings & { password?: string; test_email?: string }): Promise<UpdateSmtpResponse> {
+  return authFetch<UpdateSmtpResponse>('/admin/settings/smtp', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export function useUpdateAdminSmtpSettings() {
+  const queryClient = useQueryClient()
+  return useMutation<UpdateSmtpResponse, Error, SmtpSettings & { password?: string; test_email?: string }>({
+    mutationFn: updateAdminSmtpSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminSmtpSettings'] })
+    },
   })
 }

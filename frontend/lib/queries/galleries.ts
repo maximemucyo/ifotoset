@@ -52,6 +52,9 @@ export interface GalleryItem {
   client_name: string | null;
   event_date: string | null;
   visibility: 'public' | 'private';
+  allow_photo_downloads?: boolean;
+  allow_gallery_downloads?: boolean;
+  allow_google_photos?: boolean;
   has_password: boolean;
   password_hint: string | null;
   version: number;
@@ -145,6 +148,9 @@ export interface UpdateGalleryRequest {
   title?: string;
   client_name?: string | null;
   visibility?: 'public' | 'private';
+  allow_photo_downloads?: boolean;
+  allow_gallery_downloads?: boolean;
+  allow_google_photos?: boolean;
   cover_photo_uuid?: string | null;
   clear_cover?: boolean;
   version: number;
@@ -354,3 +360,108 @@ export async function togglePublicPhotoFavorite(
     body: JSON.stringify({ photo_uuid: photoUuid, is_favorite: isFavorite, email }),
   })
 }
+
+export interface ZipDownloadStatus {
+  status: 'pending' | 'processing' | 'ready' | 'empty' | 'failed';
+  download_url?: string;
+  size?: number;
+}
+
+export async function downloadGalleryZip(
+  slug: string,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<ZipDownloadStatus> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/download-zip`
+  if (inviteToken) {
+    url += `?invite=${inviteToken}`
+  }
+
+  return authFetch<ZipDownloadStatus>(url, {
+    method: 'GET',
+    headers,
+  })
+}
+
+export interface GooglePhotosAuthorizeResponse {
+  url: string;
+  state: string;
+}
+
+export async function authorizeGooglePhotos(
+  slug: string,
+  photoUuids?: string[] | null,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<GooglePhotosAuthorizeResponse> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/google-photos/authorize`
+  if (inviteToken) {
+    url += `?invite=${inviteToken}`
+  }
+
+  return authFetch<GooglePhotosAuthorizeResponse>(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ photo_uuids: photoUuids || null }),
+  })
+}
+
+export interface GooglePhotosCallbackResponse {
+  status: 'processing';
+  sync_uuid: string;
+  gallery_slug: string;
+}
+
+export async function callbackGooglePhotos(
+  code: string,
+  state: string
+): Promise<GooglePhotosCallbackResponse> {
+  return authFetch<GooglePhotosCallbackResponse>('/public/google-photos/callback', {
+    method: 'POST',
+    body: JSON.stringify({ code, state }),
+  })
+}
+
+export interface GooglePhotosSyncStatus {
+  uuid: string;
+  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed';
+  total_photos: number;
+  processed_photos: number;
+  failed_photos: number;
+  album_url?: string | null;
+  error?: string | null;
+  completed_at?: string | null;
+}
+
+export async function getGooglePhotosSyncStatus(
+  slug: string,
+  syncUuid: string,
+  inviteToken?: string | null,
+  galleryToken?: string | null
+): Promise<GooglePhotosSyncStatus> {
+  const headers: Record<string, string> = {}
+  if (galleryToken) {
+    headers['X-Gallery-Token'] = galleryToken
+  }
+
+  let url = `/public/galleries/${slug}/google-photos/syncs/${syncUuid}/status`
+  if (inviteToken) {
+    url += `?invite=${inviteToken}`
+  }
+
+  return authFetch<GooglePhotosSyncStatus>(url, {
+    method: 'GET',
+    headers,
+  })
+}
+

@@ -22,6 +22,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Dynamically load dynamic SMTP settings from database
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                app(\App\Services\SmtpSettingsService::class)->loadMailSettings();
+            }
+        } catch (\Exception $e) {
+            // Gracefully handle unmigrated database state during CLI/migration commands
+        }
+
         \App\Models\Photo::observe(\App\Observers\PhotoObserver::class);
         \App\Models\Gallery::observe(\App\Observers\GalleryObserver::class);
 

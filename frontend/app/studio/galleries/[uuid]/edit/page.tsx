@@ -19,6 +19,9 @@ export default function EditGallery() {
     title: '',
     client_name: '',
     visibility: 'private' as 'public' | 'private',
+    allow_photo_downloads: true,
+    allow_gallery_downloads: true,
+    allow_google_photos: true,
     cover_photo_uuid: null as string | null,
     clear_cover: false,
   })
@@ -35,6 +38,9 @@ export default function EditGallery() {
         title: gallery.title,
         client_name: gallery.client_name ?? '',
         visibility: gallery.visibility,
+        allow_photo_downloads: gallery.allow_photo_downloads ?? true,
+        allow_gallery_downloads: gallery.allow_gallery_downloads ?? true,
+        allow_google_photos: gallery.allow_google_photos ?? true,
         cover_photo_uuid: gallery.cover_photo?.uuid ?? null,
         clear_cover: false,
       })
@@ -59,6 +65,9 @@ export default function EditGallery() {
         title: form.title,
         client_name: form.client_name || null,
         visibility: form.visibility,
+        allow_photo_downloads: form.allow_photo_downloads,
+        allow_gallery_downloads: form.allow_gallery_downloads,
+        allow_google_photos: form.allow_google_photos,
         cover_photo_uuid: form.cover_photo_uuid,
         clear_cover: form.clear_cover,
         version: gallery.version,
@@ -316,6 +325,51 @@ export default function EditGallery() {
                   </div>
                   <p className="text-xs text-muted-foreground">Anyone with the link can view the gallery.</p>
                 </button>
+              </div>
+            </div>
+
+            {/* Permissions & Downloads */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h2 className="text-xl font-bold text-foreground mb-4">Permissions & Downloads</h2>
+              <div className="space-y-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allow_photo_downloads}
+                    onChange={(e) => setForm((p) => ({ ...p, allow_photo_downloads: e.target.checked }))}
+                    className="mt-1 rounded border-border text-primary focus:ring-primary h-4 w-4 bg-background"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-foreground block">Allow individual photo downloads</span>
+                    <span className="text-xs text-muted-foreground">Allows public visitors to download individual photos in original quality.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allow_gallery_downloads}
+                    onChange={(e) => setForm((p) => ({ ...p, allow_gallery_downloads: e.target.checked }))}
+                    className="mt-1 rounded border-border text-primary focus:ring-primary h-4 w-4 bg-background"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-foreground block">Allow full gallery ZIP download</span>
+                    <span className="text-xs text-muted-foreground">Allows public visitors to request and download a ZIP file of the entire gallery.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.allow_google_photos}
+                    onChange={(e) => setForm((p) => ({ ...p, allow_google_photos: e.target.checked }))}
+                    className="mt-1 rounded border-border text-primary focus:ring-primary h-4 w-4 bg-background"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-foreground block">Allow saving photos to Google Photos</span>
+                    <span className="text-xs text-muted-foreground">Allows public visitors to synchronize the gallery or their selection directly to their Google Photos account.</span>
+                  </div>
+                </label>
               </div>
             </div>
 
