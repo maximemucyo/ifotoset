@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
+use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
 use App\Http\Controllers\Api\V1\Callback\PawaPayCallbackController;
 use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -48,10 +49,12 @@ Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/download', [G
 Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [GalleryController::class, 'toggleFavorite']);
 
 // Public Gallery ZIP download & Google Photos Sync
-Route::middleware('throttle:30,1')->get('/public/galleries/{slug}/download-zip', [GalleryController::class, 'downloadZip']);
+Route::middleware('throttle:30,1')->post('/public/galleries/{slug}/download-zip', [GalleryController::class, 'triggerZipDownload']);
+Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/download-zip/{id}', [GalleryController::class, 'getZipDownloadStatus']);
 Route::middleware('throttle:15,1')->post('/public/galleries/{slug}/google-photos/authorize', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'authorizePhotos']);
 Route::middleware('throttle:15,1')->post('/public/google-photos/callback', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'handleCallback']);
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/google-photos/syncs/{uuid}/status', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'syncStatus']);
+Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/google-photos/syncs/{uuid}/notify', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'updateSyncNotification']);
 
 // Public Online Booking Endpoints (Rate Limited)
 Route::middleware('throttle:30,1')->group(function () {
@@ -76,6 +79,10 @@ Route::middleware('throttle:30,1')->group(function () {
 Route::post('/auth/register', [RegisterController::class, 'register']);
 Route::post('/auth/login', [LoginController::class, 'login']);
 Route::post('/auth/logout', [LogoutController::class, 'logout']);
+Route::post('/auth/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail'])
+    ->middleware('throttle:5,1');
+Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
+    ->middleware('throttle:10,1');
 
 // PawaPay Callback Webhook (CSRF-exempt)
 Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCallback']);
@@ -121,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/queue', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'queue']);
         Route::get('/users', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'users']);
         Route::get('/galleries', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'galleries']);
+        Route::get('/exports', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'exports']);
         
         // SMTP Settings routes
         Route::get('/settings/smtp', [\App\Http\Controllers\Api\V1\Admin\AdminController::class, 'getSmtpSettings']);

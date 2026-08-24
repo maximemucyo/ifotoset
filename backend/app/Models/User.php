@@ -81,5 +81,16 @@ class User extends Authenticatable
             \Illuminate\Support\Facades\Cache::put($key, 2, now()->addDays(30));
         }
     }
+
+    /**
+     * Send the password reset notification.
+     *
+     * @param  string  $token
+     * @return void
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\QueuedResetPassword($token));
+    }
 }
 ?>

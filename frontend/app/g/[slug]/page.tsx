@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import {
   LockKeyhole, Mail, AlertTriangle, Calendar, User, ImageIcon,
-  Share2, Heart, Download, X, Copy, Check, SearchX
+  Share2, Heart, Download, X, Copy, Check, SearchX, Play
 } from 'lucide-react';
 import {
   getPublicGallery, unlockPublicGallery, GalleryItem, PhotoItem,
   recordPublicPhotoDownload, togglePublicPhotoFavorite,
-  downloadGalleryZip, authorizeGooglePhotos
+  authorizeGooglePhotos
 } from '@/lib/queries/galleries';
 import { ApiError } from '@/lib/apiClient';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -24,6 +24,7 @@ import { Lightbox } from './components/Lightbox';
 export default function PublicGalleryView() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const inviteToken = searchParams.get('invite');
 
   const [gallery, setGallery] = useState<GalleryItem | null>(null);
@@ -57,7 +58,13 @@ export default function PublicGalleryView() {
 
   // Share Modal State
   const [sharingPhoto, setSharingPhoto] = useState<PhotoItem | null>(null);
+  const [sharingGallery, setSharingGallery] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+
+  // New States for Gallery Actions
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [lightboxAutoPlay, setLightboxAutoPlay] = useState(false);
+  const [isDownloadOptionsModalOpen, setIsDownloadOptionsModalOpen] = useState(false);
 
   // ZIP Download & Google Photos Sync Modals State
   const [isZipModalOpen, setIsZipModalOpen] = useState(false);
@@ -283,53 +290,12 @@ export default function PublicGalleryView() {
 
   const closeZipModal = () => {
     setIsZipModalOpen(false);
-    if (zipPollIntervalRef.current) {
-      clearInterval(zipPollIntervalRef.current);
-      zipPollIntervalRef.current = null;
-    }
   };
 
-  const handleZipDownloadTrigger = async () => {
-    setIsZipModalOpen(true);
-    setZipDownloadStatus('processing');
-    setZipDownloadUrl(null);
-
-    const poll = async () => {
-      try {
-        const res = await downloadGalleryZip(slug || '', inviteToken, galleryToken);
-        if (res.status === 'ready' && res.download_url) {
-          setZipDownloadStatus('ready');
-          setZipDownloadUrl(res.download_url);
-          
-          const a = document.createElement('a');
-          a.href = res.download_url;
-          a.download = `${slug}-photos.zip`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          return true; // Stop polling
-        } else if (res.status === 'empty' || res.status === 'failed') {
-          setZipDownloadStatus(res.status);
-          return true; // Stop polling
-        }
-        return false; // Keep polling
-      } catch (err) {
-        console.error('ZIP poll failed', err);
-        setZipDownloadStatus('failed');
-        return true; // Stop polling
-      }
-    };
-
-    const stopped = await poll();
-    if (stopped) return;
-
-    zipPollIntervalRef.current = setInterval(async () => {
-      const stop = await poll();
-      if (stop) {
-        clearInterval(zipPollIntervalRef.current);
-        zipPollIntervalRef.current = null;
-      }
-    }, 4000);
+  const handleZipDownloadTrigger = () => {
+    const inviteQuery = inviteToken ? `&invite=${inviteToken}` : '';
+    const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
+    router.push(`/g/${slug}/export?type=zip${inviteQuery}${tokenQuery}`);
   };
 
   const handleGooglePhotosSyncTrigger = () => {
@@ -340,22 +306,56 @@ export default function PublicGalleryView() {
     }
   };
 
-  const executeGooglePhotosSync = async (target: 'all' | 'favorites') => {
-    setSyncingGoogle(true);
-    try {
-      const targetUuids = target === 'favorites' ? favorites : null;
-      const res = await authorizeGooglePhotos(slug || '', targetUuids, inviteToken, galleryToken);
-      if (res.url) {
-        sessionStorage.setItem(`google_photos_sync_target_${slug}`, target);
-        window.location.href = res.url;
-      } else {
-        throw new Error('Auth URL not returned.');
-      }
-    } catch (err) {
-      console.error('Google Photos auth failed', err);
-      alert('Failed to connect with Google Photos. Please try again.');
-      setSyncingGoogle(false);
+  const handleShareGallery = () => {
+    const canonicalUrl = `${window.location.origin}/g/${slug}`;
+    if (navigator.share) {
+      navigator.share({
+        title: gallery?.title || 'Photo Gallery',
+        text: `Check out the gallery "${gallery?.title || ''}"`,
+        url: canonicalUrl,
+      }).catch(err => {
+        console.error('Web Share failed', err);
+      });
+    } else {
+      setSharingGallery(true);
+      setIsCopied(false);
     }
+  };
+
+  const handleGalleryDownloadTrigger = () => {
+    if (!gallery) return;
+    const isZipEnabled = gallery.allow_gallery_downloads;
+    const isGooglePhotosEnabled = gallery.allow_google_photos;
+    
+    if (isZipEnabled && isGooglePhotosEnabled) {
+      setIsDownloadOptionsModalOpen(true);
+    } else if (isZipEnabled) {
+      handleZipDownloadTrigger();
+    } else if (isGooglePhotosEnabled) {
+      handleGooglePhotosSyncTrigger();
+    }
+  };
+
+  const startSlideshow = () => {
+    if (displayedPhotos.length > 0) {
+      setLightboxAutoPlay(true);
+      setSelectedPhoto(displayedPhotos[0]);
+    }
+  };
+
+  const executeGooglePhotosSync = (target: 'all' | 'favorites') => {
+    setIsGoogleModalOpen(false);
+    if (target === 'favorites') {
+      sessionStorage.setItem(`photos_export_favorites_${slug}`, JSON.stringify(favorites));
+    } else {
+      sessionStorage.removeItem(`photos_export_favorites_${slug}`);
+    }
+
+    const inviteQuery = inviteToken ? `&invite=${inviteToken}` : '';
+    const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
+    const targetQuery = `&target=${target}`;
+
+    router.push(`/g/${slug}/export?type=google-photos${targetQuery}${inviteQuery}${tokenQuery}`);
   };
 
   // Cleanup interval on unmount
@@ -375,6 +375,10 @@ export default function PublicGalleryView() {
     isFetchingNextPage,
     fetchNextPage,
   } = useInfiniteGallery(slug || '', inviteToken, galleryToken, 60);
+
+  const displayedPhotos = showFavoritesOnly
+    ? photos.filter(p => favorites.includes(p.uuid))
+    : photos;
 
   // Header transparency controller based on scroll and cover photo presence
   useEffect(() => {
@@ -397,31 +401,31 @@ export default function PublicGalleryView() {
   }, [gallery, photos]);
 
   // Precompute slideshow/lightbox index positioning
-  const currentIndex = selectedPhoto ? photos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1;
-  const totalCount = gallery?.stats?.photo_count ?? 0;
+  const currentIndex = selectedPhoto ? displayedPhotos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1;
+  const totalCount = showFavoritesOnly ? displayedPhotos.length : (gallery?.stats?.photo_count ?? 0);
 
   const handlePrevPhoto = useCallback(() => {
-    if (currentIndex !== -1 && photos.length > 0) {
-      const prevIndex = (currentIndex - 1 + photos.length) % photos.length;
-      setSelectedPhoto(photos[prevIndex] || null);
+    if (currentIndex !== -1 && displayedPhotos.length > 0) {
+      const prevIndex = (currentIndex - 1 + displayedPhotos.length) % displayedPhotos.length;
+      setSelectedPhoto(displayedPhotos[prevIndex] || null);
     }
-  }, [currentIndex, photos]);
+  }, [currentIndex, displayedPhotos]);
 
   const handleNextPhoto = useCallback(() => {
-    if (currentIndex !== -1 && photos.length > 0) {
-      const nextIndex = (currentIndex + 1) % photos.length;
-      setSelectedPhoto(photos[nextIndex] || null);
+    if (currentIndex !== -1 && displayedPhotos.length > 0) {
+      const nextIndex = (currentIndex + 1) % displayedPhotos.length;
+      setSelectedPhoto(displayedPhotos[nextIndex] || null);
     }
-  }, [currentIndex, photos]);
+  }, [currentIndex, displayedPhotos]);
 
   // Background fetch next page when user is inside the Lightbox and nearing the end of fetched photos
   useEffect(() => {
     if (selectedPhoto && currentIndex !== -1) {
-      if (currentIndex >= photos.length - 5 && hasMore && !isFetchingNextPage) {
+      if (currentIndex >= displayedPhotos.length - 5 && hasMore && !isFetchingNextPage) {
         fetchNextPage();
       }
     }
-  }, [selectedPhoto, currentIndex, photos.length, hasMore, isFetchingNextPage, fetchNextPage]);
+  }, [selectedPhoto, currentIndex, displayedPhotos.length, hasMore, isFetchingNextPage, fetchNextPage]);
 
   // Auto-open lightbox if `?photo={uuid}` is present in the URL on mount/photos load
   useEffect(() => {
@@ -727,41 +731,89 @@ export default function PublicGalleryView() {
         </section>
       )}
 
-      {/* Gallery Actions Toolbar */}
-      {mounted && (gallery.allow_gallery_downloads || gallery.allow_google_photos) && (
-        <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 py-6 border-b border-border">
-          <div className="text-sm text-muted-foreground flex items-center gap-2">
-            <span>{gallery.stats.photo_count} photos</span>
-            {favorites.length > 0 && (
-              <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
-                {favorites.length} favorite{favorites.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {gallery.allow_gallery_downloads && (
+      {/* Gallery Action Header Bar */}
+      {mounted && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 border-b border-border select-none">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            {/* Title / Subtitle Column */}
+            <div className="space-y-1">
+              <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-foreground">
+                {gallery.title}
+              </h2>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tracking-wider uppercase font-semibold text-muted-foreground">
+                {gallery.client_name && (
+                  <span>For {gallery.client_name}</span>
+                )}
+                {gallery.client_name && gallery.event_date && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                )}
+                {gallery.event_date && (
+                  <span>{new Date(gallery.event_date).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                )}
+                <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                <span>{displayedPhotos.length} {showFavoritesOnly ? 'favorites' : 'photos'}</span>
+              </div>
+            </div>
+
+            {/* Actions Button Group */}
+            <div className="flex items-center gap-2">
+              {/* Heart (Favorites Filter) */}
               <button
                 type="button"
-                onClick={handleZipDownloadTrigger}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border shadow-sm"
+                aria-label="Filter by favorites"
+                aria-pressed={showFavoritesOnly}
+                title={showFavoritesOnly ? "Show all photos" : "Show only favorites"}
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`flex items-center justify-center p-3 transition-colors border ${
+                  showFavoritesOnly
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
+                    : 'bg-secondary/40 border-border hover:bg-secondary text-foreground/80 hover:text-foreground'
+                }`}
+                style={{ minWidth: '44px', minHeight: '44px' }}
               >
-                <Download size={16} />
-                Download Entire Gallery
+                <Heart size={20} fill={showFavoritesOnly ? "currentColor" : "none"} />
               </button>
-            )}
-            {gallery.allow_google_photos && (
+
+              {/* Download (Zip/Google sync) */}
+              {(gallery.allow_gallery_downloads || gallery.allow_google_photos) && (
+                <button
+                  type="button"
+                  aria-label="Download gallery"
+                  title="Download options"
+                  onClick={handleGalleryDownloadTrigger}
+                  className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Download size={20} />
+                </button>
+              )}
+
+              {/* Share Gallery */}
               <button
                 type="button"
-                disabled={syncingGoogle}
-                onClick={handleGooglePhotosSyncTrigger}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-accent text-primary-foreground font-semibold text-sm rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                aria-label="Share gallery"
+                title="Share this gallery"
+                onClick={handleShareGallery}
+                className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                style={{ minWidth: '44px', minHeight: '44px' }}
               >
-                <svg className="w-4 h-4 fill-current shrink-0 animate-pulse" viewBox="0 0 24 24">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
-                </svg>
-                {favorites.length > 0 ? `Save Favorites to Google Photos` : 'Save to Google Photos'}
+                <Share2 size={20} />
               </button>
-            )}
+
+              {/* Play Slideshow */}
+              {displayedPhotos.length > 0 && (
+                <button
+                  type="button"
+                  aria-label="Play slideshow"
+                  title="Start slideshow"
+                  onClick={startSlideshow}
+                  className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Play size={20} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -769,8 +821,8 @@ export default function PublicGalleryView() {
       {/* Photo Grid Section */}
       <main ref={mainRef} className="w-full max-w-none py-12">
         <VirtualGalleryGrid
-          photos={photos}
-          hasMore={hasMore}
+          photos={displayedPhotos}
+          hasMore={showFavoritesOnly ? false : hasMore}
           isFetchingNextPage={isFetchingNextPage}
           fetchNextPage={fetchNextPage}
           onSelectPhoto={setSelectedPhoto}
@@ -780,6 +832,7 @@ export default function PublicGalleryView() {
           onToggleFavorite={handleToggleFavorite}
           onDownload={handleDownload}
           onShare={handleShare}
+          showFavoritesOnly={showFavoritesOnly}
         />
       </main>
 
@@ -787,10 +840,13 @@ export default function PublicGalleryView() {
       {selectedPhoto && currentIndex !== -1 && (
         <Lightbox
           photo={selectedPhoto}
-          photos={photos}
+          photos={displayedPhotos}
           currentIndex={currentIndex}
           totalCount={totalCount}
-          onClose={() => setSelectedPhoto(null)}
+          onClose={() => {
+            setSelectedPhoto(null);
+            setLightboxAutoPlay(false);
+          }}
           onPrev={handlePrevPhoto}
           onNext={handleNextPhoto}
           slug={slug || ''}
@@ -801,6 +857,7 @@ export default function PublicGalleryView() {
           onToggleFavorite={handleToggleFavorite}
           onDownload={handleDownload}
           onShare={handleShare}
+          autoPlay={lightboxAutoPlay}
         />
       )}
 
@@ -852,17 +909,24 @@ export default function PublicGalleryView() {
       )}
 
       {/* ─── Social Share Modal ─────────────────────────────────────────────── */}
-      {mounted && sharingPhoto && (() => {
-        const shareUrl = `${window.location.origin}/g/${slug}?photo=${sharingPhoto.uuid}`;
+      {mounted && (sharingPhoto || sharingGallery) && (() => {
+        const shareUrl = sharingPhoto
+          ? `${window.location.origin}/g/${slug}?photo=${sharingPhoto.uuid}`
+          : `${window.location.origin}/g/${slug}`;
         const encodedUrl = encodeURIComponent(shareUrl);
-        const shareText = encodeURIComponent(`Check out this photo from the gallery: ${shareUrl}`);
+        const shareText = encodeURIComponent(
+          sharingPhoto
+            ? `Check out this photo from the gallery: ${shareUrl}`
+            : `Check out the gallery "${gallery?.title || ''}": ${shareUrl}`
+        );
+        const titleText = sharingPhoto ? "Share Photo" : "Share Gallery";
         
         return createPortal(
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setSharingPhoto(null)}>
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => { setSharingPhoto(null); setSharingGallery(false); }}>
             <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-5 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold text-foreground">Share Photo</h3>
-                <button onClick={() => setSharingPhoto(null)} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
+                <h3 className="text-lg font-bold text-foreground">{titleText}</h3>
+                <button onClick={() => { setSharingPhoto(null); setSharingGallery(false); }} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
                   <X size={18} />
                 </button>
               </div>
@@ -909,7 +973,7 @@ export default function PublicGalleryView() {
                 >
                   <div className="w-10 h-10 rounded-none bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.455L0 24zm6.59-4.846c1.6.95 3.197 1.451 4.887 1.453 5.485 0 9.948-4.463 9.952-9.953.002-2.66-1.025-5.161-2.894-7.03C16.626 1.8 14.127.777 11.468.777c-5.482 0-9.94 4.466-9.944 9.954-.002 1.79.49 3.54 1.428 5.09L1.92 22.18l6.727-1.761c1.586.865 3.323 1.32 5.074 1.322z" />
+                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01c6.612.001 11.94 5.34 11.94 11.95 0 6.611-5.328 11.95-11.94 11.95a11.94 11.94 0 01-11.94-11.95c0-2.096.547-4.14 1.588-5.946L.057 24zm6.59-4.846c1.6.95 3.197 1.451 4.887 1.453 5.485 0 9.948-4.463 9.952-9.953.002-2.66-1.025-5.161-2.894-7.03C16.626 1.8 14.127.777 11.468.777c-5.482 0-9.94 4.466-9.944 9.954-.002 1.79.49 3.54 1.428 5.09L1.92 22.18l6.727-1.761c1.586.865 3.323 1.32 5.074 1.322z" />
                     </svg>
                   </div>
                   <span className="text-[10px] font-medium">WhatsApp</span>
@@ -953,7 +1017,7 @@ export default function PublicGalleryView() {
 
                 {/* Email */}
                 <a
-                  href={`mailto:?subject=Check%20out%20this%20photo&body=Here%20is%20the%20link%20to%20the%20photo%20I%20liked:%20${encodedUrl}`}
+                  href={`mailto:?subject=Check%20out%20this%20gallery&body=Here%20is%20the%20link:%20${encodedUrl}`}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
                 >
                   <div className="w-10 h-10 rounded-none bg-indigo-500/10 flex items-center justify-center text-indigo-500">
@@ -979,7 +1043,7 @@ export default function PublicGalleryView() {
 
                 {/* Pinterest */}
                 <a
-                  href={`https://pinterest.com/pin/create/button/?url=${encodedUrl}&media=${encodeURIComponent(sharingPhoto.cdn_url)}&description=${shareText}`}
+                  href={`https://pinterest.com/pin/create/button/?url=${encodedUrl}&media=${encodeURIComponent(sharingPhoto?.cdn_url || '')}&description=${shareText}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
@@ -1013,93 +1077,7 @@ export default function PublicGalleryView() {
         );
       })()}
 
-      {/* ─── ZIP Progress Modal ─────────────────────────────────────────────── */}
-      {mounted && isZipModalOpen && createPortal(
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={closeZipModal}>
-          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Download size={20} className="text-primary" />
-                Preparing ZIP Archive
-              </h3>
-              <button onClick={closeZipModal} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-secondary/50 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="py-4 flex flex-col items-center text-center space-y-3">
-              {(zipDownloadStatus === 'pending' || zipDownloadStatus === 'processing') && (
-                <>
-                  <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                  <p className="text-sm text-foreground font-medium">Packing your photos...</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    We are compiling your high-resolution photos into a ZIP archive. This might take a minute. Please don't close this window.
-                  </p>
-                </>
-              )}
 
-              {zipDownloadStatus === 'ready' && (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
-                    <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-foreground font-medium">Archive Ready!</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    Your download has started. If it did not open automatically, click the button below to retrieve your files.
-                  </p>
-                  {zipDownloadUrl && (
-                    <a
-                      href={zipDownloadUrl}
-                      download={`${slug}-photos.zip`}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-accent text-primary-foreground font-semibold text-sm rounded-lg transition-colors shadow"
-                    >
-                      <Download size={16} />
-                      Download ZIP Archive
-                    </a>
-                  )}
-                </>
-              )}
-
-              {zipDownloadStatus === 'empty' && (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <p className="text-sm text-foreground font-medium">No Photos Available</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    This gallery does not contain any ready photos for download.
-                  </p>
-                </>
-              )}
-
-              {zipDownloadStatus === 'failed' && (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive">
-                    <AlertTriangle size={24} />
-                  </div>
-                  <p className="text-sm text-foreground font-medium">Generation Failed</p>
-                  <p className="text-xs text-muted-foreground max-w-xs">
-                    We were unable to pack your ZIP file. Please try again later or contact the photographer.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-border flex justify-end">
-              <button
-                type="button"
-                onClick={closeZipModal}
-                className="px-4 py-2 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border"
-              >
-                Close Window
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* ─── Google Photos Sync Modal ──────────────────────────────────────── */}
       {mounted && isGoogleModalOpen && createPortal(
@@ -1176,6 +1154,74 @@ export default function PublicGalleryView() {
                 )}
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Download Options Modal ────────────────────────────────────────── */}
+      {mounted && isDownloadOptionsModalOpen && createPortal(
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setIsDownloadOptionsModalOpen(false)}>
+          <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Download size={20} className="text-primary" />
+                Download Options
+              </h3>
+              <button onClick={() => setIsDownloadOptionsModalOpen(false)} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Choose how you would like to download or save this gallery's photos:
+            </p>
+
+            <div className="space-y-2 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDownloadOptionsModalOpen(false);
+                  handleZipDownloadTrigger();
+                }}
+                className="w-full text-left flex items-center gap-3.5 p-3.5 border border-border hover:border-primary/50 bg-secondary/15 hover:bg-secondary/25 transition-all rounded-none"
+              >
+                <div className="p-2 bg-primary/10 rounded-none text-primary shrink-0">
+                  <Download size={18} />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">Download entire gallery (ZIP)</span>
+                  <span className="text-xs text-muted-foreground">Pack photos into a downloadable zip file.</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDownloadOptionsModalOpen(false);
+                  handleGooglePhotosSyncTrigger();
+                }}
+                className="w-full text-left flex items-center gap-3.5 p-3.5 border border-border hover:border-primary/50 bg-secondary/15 hover:bg-secondary/25 transition-all rounded-none"
+              >
+                <div className="p-2 bg-primary/10 rounded-none text-primary shrink-0">
+                  <svg className="w-[18px] h-[18px] fill-current" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">Sync to Google Photos</span>
+                  <span className="text-xs text-muted-foreground">Export photos directly to a Google Photos album.</span>
+                </div>
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setIsDownloadOptionsModalOpen(false)}
+              className="w-full py-2.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-none text-xs font-semibold transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>,
         document.body

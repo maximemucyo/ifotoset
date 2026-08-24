@@ -264,3 +264,42 @@ export function useUploadAvatarMutation() {
     },
   });
 }
+
+/**
+ * Sends a password reset link to the given email.
+ */
+export async function forgotPasswordUser(email: string): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+/**
+ * Resets the user's password using the token received by email.
+ */
+export async function resetPasswordUser(fields: Record<string, any>): Promise<{ message: string }> {
+  return authFetch<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(fields),
+  });
+}
+
+/**
+ * Hook to request a password reset link.
+ */
+export function useForgotPasswordMutation() {
+  return useMutation({
+    mutationFn: forgotPasswordUser,
+  });
+}
+
+/**
+ * Hook to reset password.
+ */
+export function useResetPasswordMutation() {
+  return useMutation({
+    mutationFn: resetPasswordUser,
+  });
+}
+

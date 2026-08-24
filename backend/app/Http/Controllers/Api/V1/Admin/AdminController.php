@@ -296,4 +296,143 @@ class AdminController extends Controller
             'test_error' => $testError,
         ]);
     }
+
+    /**
+     * Get recent and active exports (Zips and Google Photo syncs).
+     * GET /api/v1/admin/exports
+     */
+    public function exports(Request $request): JsonResponse
+    {
+        $downloadsQuery = \Illuminate\Support\Facades\DB::table('gallery_downloads')
+            ->join('galleries', 'gallery_downloads.gallery_id', '=', 'galleries.id')
+            ->join('users', 'galleries.user_id', '=', 'users.id')
+            ->select([
+                'gallery_downloads.id',
+                \Illuminate\Support\Facades\DB::raw("'zip' as type"),
+                'galleries.title as gallery_title',
+                'users.name as studio_name',
+                'gallery_downloads.status',
+                'gallery_downloads.email',
+                'gallery_downloads.notify_when_ready',
+                'gallery_downloads.total_photos',
+                'gallery_downloads.processed_photos',
+                'gallery_downloads.failed_photos',
+                'gallery_downloads.error',
+                'gallery_downloads.started_at',
+                'gallery_downloads.completed_at',
+                'gallery_downloads.created_at'
+            ]);
+
+        $syncsQuery = \Illuminate\Support\Facades\DB::table('google_photo_syncs')
+            ->join('galleries', 'google_photo_syncs.gallery_id', '=', 'galleries.id')
+            ->join('users', 'galleries.user_id', '=', 'users.id')
+            ->select([
+                'google_photo_syncs.id',
+                \Illuminate\Support\Facades\DB::raw("'google-photos' as type"),
+                'galleries.title as gallery_title',
+                'users.name as studio_name',
+                'google_photo_syncs.status',
+                'google_photo_syncs.email',
+                'google_photo_syncs.notify_when_ready',
+                'google_photo_syncs.total_photos',
+                'google_photo_syncs.processed_photos',
+                'google_photo_syncs.failed_photos',
+                'google_photo_syncs.error',
+                'google_photo_syncs.started_at',
+                'google_photo_syncs.completed_at',
+                'google_photo_syncs.created_at'
+            ]);
+
+        $unionQuery = $downloadsQuery->unionAll($syncsQuery);
+
+        $jobs = \Illuminate\Support\Facades\DB::query()
+            ->fromSub($unionQuery, 'combined')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        $progressService = app(\App\Services\ExportProgressService::class);
+
+        $items = collect($jobs->items())->map(function ($job) use ($progressService) {
+            $startedAt = $job->started_at ? \Carbon\Carbon::parse($job->started_at) : null;
+            $completedAt = $job->completed_at ? \Carbon\Carbon::parse($job->completed_at) : null;
+
+            $progress = $progressService->calculate(
+                $startedAt,
+                $completedAt,
+                $job->total_photos,
+                $job->processed_photos,
+                $job->failed_photos,
+                $job->status
+            );
+
+            return [
+                'id' => $job->id,
+                'type' => $job->type,
+                'gallery_title' => $job->gallery_title,
+                'studio_name' => $job->studio_name,
+                'status' => $job->status,
+                'email' => $this->maskEmail($job->email),
+                'notify_when_ready' => (bool)$job->notify_when_ready,
+                'total_photos' => (int)$job->total_photos,
+                'processed_photos' => (int)$job->processed_photos,
+                'failed_photos' => (int)$job->failed_photos,
+                'error' => $job->error,
+                'started_at' => $startedAt ? $startedAt->toIso8601String() : null,
+                'completed_at' => $completedAt ? $completedAt->toIso8601String() : null,
+                'created_at' => \Carbon\Carbon::parse($job->created_at)->toIso8601String(),
+                'percentage' => $progress['percentage'],
+                'remaining_seconds' => $progress['remaining_seconds'],
+                'estimated_finish_time' => $progress['estimated_finish_time'],
+            ];
+        });
+
+        return response()->json([
+            'data' => $items,
+            'links' => [
+                'first' => $jobs->url(1),
+                'last' => $jobs->url($jobs->lastPage()),
+                'prev' => $jobs->previousPageUrl(),
+                'next' => $jobs->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $jobs->currentPage(),
+                'from' => $jobs->firstItem(),
+                'last_page' => $jobs->lastPage(),
+                'path' => $jobs->path(),
+                'per_page' => $jobs->perPage(),
+                'to' => $jobs->lastItem(),
+                'total' => $jobs->total(),
+            ]
+        ]);
+    }
+
+    /**
+     * Dynamic deterministic email masking.
+     */
+    private function maskEmail(?string $email): ?string
+    {
+        if (!$email) {
+            return null;
+        }
+
+        $parts = explode('@', $email);
+        if (count($parts) !== 2) {
+            return substr($email, 0, 3) . '***';
+        }
+
+        $local = $parts[0];
+        $domain = $parts[1];
+        
+        $len = strlen($local);
+        if ($len <= 2) {
+            $maskedLocal = str_repeat('*', $len);
+        } elseif ($len === 3) {
+            $maskedLocal = $local[0] . '**';
+        } else {
+            $visibleLen = min(3, (int)ceil($len / 3));
+            $maskedLocal = substr($local, 0, $visibleLen) . str_repeat('*', $len - $visibleLen);
+        }
+
+        return $maskedLocal . '@' . $domain;
+    }
 }

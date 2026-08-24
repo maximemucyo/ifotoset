@@ -24,6 +24,9 @@ class GooglePhotoSync extends Model
         'error',
         'started_at',
         'completed_at',
+        'email',
+        'notify_when_ready',
+        'notification_sent_at',
     ];
 
     protected $casts = [
@@ -33,6 +36,8 @@ class GooglePhotoSync extends Model
         'failed_photos' => 'integer',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'notify_when_ready' => 'boolean',
+        'notification_sent_at' => 'datetime',
     ];
 
     public function gallery(): BelongsTo

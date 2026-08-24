@@ -65,6 +65,17 @@ class GooglePhotosController extends Controller
             }
         }
 
+        // Read email and opt-in settings from POST body
+        $email = $request->input('email');
+        $notifyWhenReady = (bool) $request->input('notify_when_ready', false);
+
+        if ($notifyWhenReady && (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            return response()->json([
+                'code' => 'INVALID_EMAIL',
+                'message' => 'A valid email address is required for notifications.',
+            ], 422);
+        }
+
         $state = Str::random(40);
 
         $auth = GooglePhotoAuthorization::create([
@@ -72,6 +83,8 @@ class GooglePhotosController extends Controller
             'state' => $state,
             'photo_uuids' => $photoUuids,
             'expires_at' => now()->addMinutes(15),
+            'email' => $notifyWhenReady ? $email : null,
+            'notify_when_ready' => $notifyWhenReady,
         ]);
 
         $clientId = config('services.google.client_id');
@@ -155,6 +168,8 @@ class GooglePhotosController extends Controller
         $sync = GooglePhotoSync::create([
             'gallery_id' => $gallery->id,
             'status' => 'pending',
+            'email' => $auth->email,
+            'notify_when_ready' => (bool)$auth->notify_when_ready,
         ]);
 
         // Secure credential persistence
@@ -192,15 +207,87 @@ class GooglePhotosController extends Controller
             ->where('uuid', $uuid)
             ->firstOrFail();
 
+        $progressService = app(\App\Services\ExportProgressService::class);
+        $progress = $progressService->calculate(
+            $sync->started_at,
+            $sync->completed_at,
+            $sync->total_photos,
+            $sync->processed_photos,
+            $sync->failed_photos,
+            $sync->status
+        );
+
         return response()->json([
             'uuid' => $sync->uuid,
             'status' => $sync->status,
+            'email' => $sync->email,
+            'notify_when_ready' => (bool)$sync->notify_when_ready,
             'total_photos' => $sync->total_photos,
             'processed_photos' => $sync->processed_photos,
             'failed_photos' => $sync->failed_photos,
             'album_url' => $sync->album_url,
             'error' => $sync->error,
             'completed_at' => $sync->completed_at?->toIso8601String(),
+            'percentage' => $progress['percentage'],
+            'remaining_seconds' => $progress['remaining_seconds'],
+            'estimated_finish_time' => $progress['estimated_finish_time'],
+        ]);
+    }
+
+    /**
+     * Update notification subscription for a sync.
+     * POST /api/v1/public/galleries/{slug}/google-photos/syncs/{uuid}/notify
+     */
+    public function updateSyncNotification(Request $request, string $slug, string $uuid): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $sync = GooglePhotoSync::where('gallery_id', $gallery->id)
+            ->where('uuid', $uuid)
+            ->firstOrFail();
+
+        $email = $request->input('email');
+        $notifyWhenReady = (bool) $request->input('notify_when_ready', false);
+
+        if ($notifyWhenReady && (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            return response()->json([
+                'code' => 'INVALID_EMAIL',
+                'message' => 'A valid email address is required for notifications.',
+            ], 422);
+        }
+
+        $sync->update([
+            'email' => $notifyWhenReady ? $email : null,
+            'notify_when_ready' => $notifyWhenReady,
+        ]);
+
+        // If it is already completed, and we haven't sent a notification yet, queue it immediately
+        if ($sync->status === 'completed' || $sync->status === 'completed_with_errors') {
+            if ($notifyWhenReady && is_null($sync->notification_sent_at)) {
+                \Illuminate\Support\Facades\DB::transaction(function () use ($sync) {
+                    $lockedSync = GooglePhotoSync::where('id', $sync->id)->lockForUpdate()->first();
+                    if ($lockedSync && is_null($lockedSync->notification_sent_at)) {
+                        $lockedSync->update(['notification_sent_at' => now()]);
+                        $emailAddr = $lockedSync->email;
+                        \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedSync, $emailAddr) {
+                            \Illuminate\Support\Facades\Mail::to($emailAddr)->queue(
+                                new \App\Mail\GooglePhotosSyncCompletedMail($lockedSync)
+                            );
+                        });
+                    }
+                });
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'email' => $sync->email,
+            'notify_when_ready' => (bool)$sync->notify_when_ready,
         ]);
     }
 }

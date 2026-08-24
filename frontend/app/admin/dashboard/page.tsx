@@ -15,20 +15,35 @@ import {
   Clock,
   ArrowRight,
   User,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Mail
 } from 'lucide-react'
 import Link from 'next/link'
-import { useAdminDashboard, useAdminQueue } from '@/lib/queries/admin'
+import { useAdminDashboard, useAdminQueue, useAdminExports } from '@/lib/queries/admin'
 import { formatBytes } from '@/lib/utils'
 import { ResponsiveTable } from '@/components/ui/responsive-table'
+import { useEffect } from 'react'
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'queue'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'queue' | 'exports'>('overview')
   
   // Queue filters
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [searchFilter, setSearchFilter] = useState<string>('')
   const [currentPage, setCurrentPage] = useState<number>(1)
+  
+  const [exportsPage, setExportsPage] = useState<number>(1)
+  const [hasActiveExports, setHasActiveExports] = useState(false)
+
+  // Fetch exports monitor data
+  const { data: exportsData, isLoading: isExportsLoading } = useAdminExports(exportsPage, hasActiveExports)
+
+  useEffect(() => {
+    if (exportsData?.data) {
+      const active = exportsData.data.some(job => ['pending', 'processing'].includes(job.status))
+      setHasActiveExports(active)
+    }
+  }, [exportsData])
 
   // 1. Initial poll check: does the dashboard see active jobs?
   const { data: dashboardData, isLoading: isDashLoading, error: dashError } = useAdminDashboard()
@@ -131,6 +146,19 @@ export default function AdminDashboard() {
           >
             Queue Monitor
             {hasActiveJobs && (
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('exports')}
+            className={`px-4 py-2 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+              activeTab === 'exports' 
+                ? 'bg-card text-foreground shadow-sm' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Export Monitor
+            {hasActiveExports && (
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             )}
           </button>
@@ -538,6 +566,176 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, queueData.meta?.last_page ?? 1))}
                       disabled={currentPage === queueData.meta.last_page}
+                      className="px-3.5 py-1.5 border border-border bg-card text-xs font-semibold rounded hover:bg-secondary transition-colors disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* EXPORT MONITOR TAB */}
+        {activeTab === 'exports' && (
+          <div className="space-y-6">
+            {/* Table */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-secondary/50 border-b border-border">
+                    <tr className="text-muted-foreground text-xs font-bold uppercase tracking-wider">
+                      <th className="py-4 px-6">Export Type</th>
+                      <th className="py-4 px-6">Studio & Gallery</th>
+                      <th className="py-4 px-6">Status</th>
+                      <th className="py-4 px-6">Progress</th>
+                      <th className="py-4 px-6">Recipient Notification</th>
+                      <th className="py-4 px-6">ETA / Duration</th>
+                      <th className="py-4 px-6">Timestamps</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isExportsLoading ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-muted-foreground font-medium">
+                          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                          Loading exports monitor...
+                        </td>
+                      </tr>
+                    ) : !exportsData?.data || exportsData.data.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-muted-foreground font-medium">
+                          No export jobs found.
+                        </td>
+                      </tr>
+                    ) : (
+                      exportsData.data.map((job) => {
+                        const statusClass = 
+                          ['completed', 'ready'].includes(job.status) ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400' :
+                          ['completed_with_errors', 'ready_with_errors'].includes(job.status) ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400' :
+                          job.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400' :
+                          job.status === 'processing' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400' :
+                          'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-400';
+
+                        // Calculate duration
+                        let durationStr = '—';
+                        if (job.started_at && job.completed_at) {
+                          const diff = new Date(job.completed_at).getTime() - new Date(job.started_at).getTime();
+                          durationStr = diff < 60000 
+                            ? `${(diff / 1000).toFixed(1)}s` 
+                            : `${Math.floor(diff / 60000)}m ${Math.floor((diff % 60000) / 1000)}s`;
+                        }
+
+                        return (
+                          <tr key={`${job.type}-${job.id}`} className="border-b border-border hover:bg-secondary/10 transition-colors">
+                            <td className="py-4 px-6 font-semibold">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                                  job.type === 'zip' ? 'bg-primary/10 text-primary' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400'
+                                }`}>
+                                  {job.type === 'zip' ? 'ZIP Archive' : 'Google Photos'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-1">ID: #{job.id}</div>
+                            </td>
+                            <td className="py-4 px-6">
+                              <div className="font-semibold text-foreground truncate max-w-[200px]" title={job.gallery_title}>
+                                {job.gallery_title}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={job.studio_name}>
+                                {job.studio_name}
+                              </div>
+                            </td>
+                            <td className="py-4 px-6">
+                              <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full ${statusClass}`}>
+                                {job.status.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6">
+                              {job.status === 'failed' ? (
+                                <div className="text-xs text-red-600 max-w-[250px] leading-snug">
+                                  <strong>Error:</strong> {job.error || 'Execution failed.'}
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5 max-w-[150px]">
+                                  <div className="flex justify-between text-xs font-semibold">
+                                    <span>{job.percentage}%</span>
+                                    <span className="text-muted-foreground text-[10px]">{job.processed_photos + job.failed_photos}/{job.total_photos}</span>
+                                  </div>
+                                  <div className="w-full bg-secondary/50 rounded-full h-1.5 overflow-hidden border border-border">
+                                    <div
+                                      className="bg-primary h-full rounded-full transition-all duration-300"
+                                      style={{ width: `${job.percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-4 px-6 text-xs text-muted-foreground">
+                              {job.notify_when_ready && job.email ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Mail size={14} className="text-primary shrink-0" />
+                                  <span className="font-semibold text-foreground">{job.email}</span>
+                                </div>
+                              ) : (
+                                <span className="italic text-muted-foreground">No Alert</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-6 font-mono text-xs text-foreground">
+                              {['pending', 'processing'].includes(job.status) ? (
+                                job.estimated_finish_time ? (
+                                  <span className="text-primary font-bold">
+                                    ~{job.remaining_seconds !== null ? (
+                                      job.remaining_seconds < 60 ? '1m' : `${Math.ceil(job.remaining_seconds / 60)}m`
+                                    ) : 'calc'}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground italic">Estimating...</span>
+                                )
+                              ) : (
+                                durationStr
+                              )}
+                            </td>
+                            <td className="py-4 px-6 text-xs text-muted-foreground space-y-1">
+                              {job.started_at && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-[9px] uppercase px-1 py-0.2 bg-secondary rounded text-muted-foreground">Start:</span>
+                                  <span>{new Date(job.started_at).toLocaleTimeString()}</span>
+                                </div>
+                              )}
+                              {job.completed_at && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold text-[9px] uppercase px-1 py-0.2 bg-secondary rounded text-muted-foreground">End:</span>
+                                  <span>{new Date(job.completed_at).toLocaleTimeString()}</span>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination controls */}
+              {exportsData?.meta && exportsData.meta.last_page > 1 && (
+                <div className="bg-secondary/40 border-t border-border px-6 py-4 flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Showing page {exportsData.meta.current_page} of {exportsData.meta.last_page} ({exportsData.meta.total} total exports)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setExportsPage(prev => Math.max(prev - 1, 1))}
+                      disabled={exportsPage === 1}
+                      className="px-3.5 py-1.5 border border-border bg-card text-xs font-semibold rounded hover:bg-secondary transition-colors disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setExportsPage(prev => Math.min(prev + 1, exportsData.meta?.last_page ?? 1))}
+                      disabled={exportsPage === exportsData.meta.last_page}
                       className="px-3.5 py-1.5 border border-border bg-card text-xs font-semibold rounded hover:bg-secondary transition-colors disabled:opacity-50"
                     >
                       Next

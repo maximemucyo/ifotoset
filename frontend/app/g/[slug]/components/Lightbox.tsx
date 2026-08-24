@@ -19,6 +19,7 @@ interface LightboxProps {
   onToggleFavorite: (photo: PhotoItem) => void;
   onDownload: (photo: PhotoItem) => void;
   onShare: (photo: PhotoItem) => void;
+  autoPlay?: boolean;
 }
 
 export const Lightbox: React.FC<LightboxProps> = ({
@@ -37,6 +38,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
   onToggleFavorite,
   onDownload,
   onShare,
+  autoPlay,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -64,6 +66,13 @@ export const Lightbox: React.FC<LightboxProps> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
 
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (autoPlay) {
+      setIsPlaying(true);
+    }
+  }, [autoPlay]);
+
   const [viewportWidth, setViewportWidth] = useState(1200);
 
   const targetVariant = viewportWidth < 768 ? 'lg' : 'xl';

@@ -477,7 +477,11 @@ class GalleryController extends Controller
      * Download the entire gallery packaged as a ZIP file.
      * GET /api/v1/public/galleries/{slug}/download-zip
      */
-    public function downloadZip(Request $request, string $slug): JsonResponse
+    /**
+     * Trigger background ZIP generation.
+     * POST /public/galleries/{slug}/download-zip
+     */
+    public function triggerZipDownload(Request $request, string $slug): JsonResponse
     {
         $gallery = Gallery::where('slug', $slug)->firstOrFail();
 
@@ -515,8 +519,42 @@ class GalleryController extends Controller
 
         $storageService = app(\App\Services\StorageService::class);
 
-        if ($download && $download->status === 'ready' && $download->storage_path) {
+        // Read email and opt-in settings from POST body
+        $email = $request->input('email');
+        $notifyWhenReady = (bool) $request->input('notify_when_ready', false);
+
+        if ($notifyWhenReady && (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            return response()->json([
+                'code' => 'INVALID_EMAIL',
+                'message' => 'A valid email address is required for notifications.',
+            ], 422);
+        }
+
+        if ($download && ($download->status === 'ready' || $download->status === 'ready_with_errors') && $download->storage_path) {
             if (Storage::disk('b2')->exists($download->storage_path)) {
+                // If it is already ready, but the user requested notifications and we haven't sent it yet, let's update email settings
+                if ($notifyWhenReady && is_null($download->notification_sent_at)) {
+                    $download->update([
+                        'email' => $email,
+                        'notify_when_ready' => true,
+                    ]);
+                    
+                    // Since it's ready, we can trigger the notification immediately
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($download, $storageService) {
+                        $lockedDownload = \App\Models\GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
+                        if ($lockedDownload && is_null($lockedDownload->notification_sent_at)) {
+                            $lockedDownload->update(['notification_sent_at' => now()]);
+                            $downloadUrl = $storageService->getCdnUrl(dirname($lockedDownload->storage_path), null, basename($lockedDownload->storage_path));
+                            $emailAddr = $lockedDownload->email;
+                            \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $downloadUrl, $emailAddr) {
+                                \Illuminate\Support\Facades\Mail::to($emailAddr)->queue(
+                                    new \App\Mail\GalleryZipReadyMail($lockedDownload, $downloadUrl)
+                                );
+                            });
+                        }
+                    });
+                }
+
                 // Increment downloads count when ZIP is served
                 $gallery->stats()->increment('downloads_count');
                 $gallery->stats()->update(['updated_at' => now()]);
@@ -534,6 +572,7 @@ class GalleryController extends Controller
 
                 return response()->json([
                     'status' => 'ready',
+                    'download_id' => $download->id,
                     'download_url' => $storageService->getCdnUrl(dirname($download->storage_path), null, basename($download->storage_path)),
                     'size' => $download->size,
                 ]);
@@ -544,9 +583,17 @@ class GalleryController extends Controller
             }
         }
 
-        if ($download && $download->status === 'processing') {
+        if ($download && ($download->status === 'processing' || $download->status === 'pending')) {
+            // Update email settings if the user is providing them now
+            if ($notifyWhenReady) {
+                $download->update([
+                    'email' => $email,
+                    'notify_when_ready' => true,
+                ]);
+            }
             return response()->json([
-                'status' => 'processing',
+                'status' => $download->status,
+                'download_id' => $download->id,
             ]);
         }
 
@@ -556,17 +603,72 @@ class GalleryController extends Controller
                 'gallery_id' => $gallery->id,
                 'status' => 'pending',
                 'photo_snapshot_hash' => $snapshotHash,
+                'email' => $notifyWhenReady ? $email : null,
+                'notify_when_ready' => $notifyWhenReady,
             ]);
         } else {
             $download->update([
                 'status' => 'pending',
+                'email' => $notifyWhenReady ? $email : null,
+                'notify_when_ready' => $notifyWhenReady,
             ]);
         }
 
         \App\Jobs\GenerateGalleryZipJob::dispatch($gallery->id, $download->id);
 
         return response()->json([
-            'status' => 'processing',
+            'status' => 'pending',
+            'download_id' => $download->id,
+        ]);
+    }
+
+    /**
+     * Retrieve status of a ZIP generation.
+     * GET /public/galleries/{slug}/download-zip/{id}
+     */
+    public function getZipDownloadStatus(Request $request, string $slug, int $id): JsonResponse
+    {
+        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $progressService = app(\App\Services\ExportProgressService::class);
+        $progress = $progressService->calculate(
+            $download->started_at,
+            $download->completed_at,
+            $download->total_photos,
+            $download->processed_photos,
+            $download->failed_photos,
+            $download->status
+        );
+
+        $storageService = app(\App\Services\StorageService::class);
+        $downloadUrl = null;
+        if (($download->status === 'ready' || $download->status === 'ready_with_errors') && $download->storage_path) {
+            $downloadUrl = $storageService->getCdnUrl(dirname($download->storage_path), null, basename($download->storage_path));
+        }
+
+        return response()->json([
+            'id' => $download->id,
+            'status' => $download->status,
+            'email' => $download->email,
+            'notify_when_ready' => (bool)$download->notify_when_ready,
+            'total_photos' => $download->total_photos,
+            'processed_photos' => $download->processed_photos,
+            'failed_photos' => $download->failed_photos,
+            'error' => $download->error,
+            'download_url' => $downloadUrl,
+            'size' => $download->size,
+            'percentage' => $progress['percentage'],
+            'remaining_seconds' => $progress['remaining_seconds'],
+            'estimated_finish_time' => $progress['estimated_finish_time'],
         ]);
     }
 }

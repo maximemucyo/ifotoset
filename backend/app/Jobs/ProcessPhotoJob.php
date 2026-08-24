@@ -60,7 +60,9 @@ class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
      */
     public function __construct(
         protected Photo $photo
-    ) {}
+    ) {
+        $this->queue = 'photos';
+    }
 
     /**
      * Get the Photo model instance.

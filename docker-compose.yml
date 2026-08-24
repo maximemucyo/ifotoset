@@ -32,7 +32,33 @@ services:
       dockerfile: Dockerfile
     container_name: ifotoset_queue
     restart: unless-stopped
-    command: php artisan queue:work --verbose --tries=3 --sleep=3 --max-time=3600
+    command: php artisan queue:work --queue=default --verbose --tries=3 --sleep=3 --max-time=3600
+    volumes:
+      - './backend:/var/www/html'
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=ifotoset
+      - DB_USERNAME=ifotoset_user
+      - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  queue_photos:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: php artisan queue:work --queue=photos --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
       - './backend:/var/www/html'
     environment:

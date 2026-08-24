@@ -12,6 +12,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->environment('production')) {
+            // In production, only seed plans and features safely using updateOrCreate/firstOrCreate
+            $this->call([
+                PlanSeeder::class,
+                FeatureSeeder::class,
+            ]);
+            return;
+        }
+
         // 1. Clear existing data in correct sequence to prevent FK errors
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('plan_features')->truncate();

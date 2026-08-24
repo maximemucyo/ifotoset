@@ -18,6 +18,8 @@ class GooglePhotoAuthorization extends Model
         'photo_uuids',
         'consumed_at',
         'expires_at',
+        'email',
+        'notify_when_ready',
     ];
 
     protected $casts = [
@@ -25,6 +27,7 @@ class GooglePhotoAuthorization extends Model
         'photo_uuids' => 'array',
         'consumed_at' => 'datetime',
         'expires_at' => 'datetime',
+        'notify_when_ready' => 'boolean',
     ];
 
     public function gallery(): BelongsTo

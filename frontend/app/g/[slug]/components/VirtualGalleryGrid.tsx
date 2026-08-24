@@ -17,6 +17,7 @@ interface VirtualGalleryGridProps {
   onToggleFavorite: (photo: PhotoItem) => void;
   onDownload: (photo: PhotoItem) => void;
   onShare: (photo: PhotoItem) => void;
+  showFavoritesOnly?: boolean;
 }
 
 export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
@@ -31,6 +32,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
   onToggleFavorite,
   onDownload,
   onShare,
+  showFavoritesOnly = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,16 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
   // Layout and virtualization hooks
   const { photos: computedPhotos, totalHeight } = useGalleryLayout(photos, containerWidth, calculatedGap);
   const { visiblePhotos } = useGalleryVirtualizer(computedPhotos, scrollTop, viewportHeight);
+
+  if (showFavoritesOnly && photos.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-16 text-center shadow-sm max-w-md mx-auto my-8">
+        <Heart className="w-16 h-16 text-rose-500/40 mx-auto mb-4" />
+        <h3 className="text-lg font-bold text-foreground mb-1">No favorites yet</h3>
+        <p className="text-sm text-muted-foreground">You haven't marked any photos as favorites. Go back to all photos and click the heart icon on any photo to build your collection.</p>
+      </div>
+    );
+  }
 
   if (photos.length === 0 && !isFetchingNextPage) {
     return (

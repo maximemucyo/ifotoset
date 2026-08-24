@@ -190,3 +190,38 @@ export function useUpdateAdminSmtpSettings() {
     },
   })
 }
+
+export interface AdminExportJob {
+  id: number;
+  type: 'zip' | 'google-photos';
+  gallery_title: string;
+  studio_name: string;
+  status: string;
+  email: string | null;
+  notify_when_ready: boolean;
+  total_photos: number;
+  processed_photos: number;
+  failed_photos: number;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  percentage: number;
+  remaining_seconds: number | null;
+  estimated_finish_time: string | null;
+}
+
+export async function getAdminExports(page = 1): Promise<PaginatedResponse<AdminExportJob>> {
+  return authFetch<PaginatedResponse<AdminExportJob>>(`/admin/exports?page=${page}`, {
+    method: 'GET',
+  })
+}
+
+export function useAdminExports(page = 1, hasActiveJobs = false) {
+  return useQuery<PaginatedResponse<AdminExportJob>>({
+    queryKey: ['adminExports', page],
+    queryFn: () => getAdminExports(page),
+    refetchInterval: hasActiveJobs ? 2000 : 30000,
+    placeholderData: (previousData) => previousData,
+  })
+}

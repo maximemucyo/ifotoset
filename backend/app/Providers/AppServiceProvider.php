@@ -56,6 +56,21 @@ class AppServiceProvider extends ServiceProvider
             return $user->role === 'admin';
         });
 
+        // Custom URL generator for password resets
+        \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function (\App\Models\User $user, string $token) {
+            $frontendUrl = config('app.frontend_url');
+            if (empty($frontendUrl)) {
+                throw new \RuntimeException('FRONTEND_URL is not configured.');
+            }
+            
+            $query = http_build_query([
+                'token' => $token,
+                'email' => $user->email,
+            ]);
+
+            return rtrim($frontendUrl, '/') . '/reset-password?' . $query;
+        });
+
         // Automatically clear admin dashboard cache on model changes
         $clearCache = fn () => \Illuminate\Support\Facades\Cache::forget('admin_dashboard_stats');
         

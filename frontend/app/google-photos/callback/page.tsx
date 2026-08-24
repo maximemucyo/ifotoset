@@ -3,8 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle2, AlertCircle, XCircle, ExternalLink, Loader2, ArrowLeft } from 'lucide-react'
-import { callbackGooglePhotos, getGooglePhotosSyncStatus, GooglePhotosSyncStatus } from '@/lib/queries/galleries'
+import { CheckCircle2, AlertCircle, XCircle, ExternalLink, Loader2, ArrowLeft, Mail, Info } from 'lucide-react'
+import { 
+  callbackGooglePhotos, 
+  getGooglePhotosSyncStatus, 
+  updateGooglePhotosSyncNotification, 
+  GooglePhotosSyncStatus 
+} from '@/lib/queries/galleries'
 
 export default function GooglePhotosCallback() {
   const searchParams = useSearchParams()
@@ -18,6 +23,11 @@ export default function GooglePhotosCallback() {
   const [syncUuid, setSyncUuid] = useState<string | null>(null)
   const [gallerySlug, setGallerySlug] = useState<string | null>(null)
   const [syncStatus, setSyncStatus] = useState<GooglePhotosSyncStatus | null>(null)
+
+  // Subscription states
+  const [email, setEmail] = useState('')
+  const [notify, setNotify] = useState(false)
+  const [updatingMail, setUpdatingMail] = useState(false)
 
   const isExchangingRef = useRef(false)
   const pollIntervalRef = useRef<any>(null)
@@ -48,45 +58,88 @@ export default function GooglePhotosCallback() {
     initiateSync()
   }, [code, state])
 
-  // Poll sync status once sync_uuid is available
-  useEffect(() => {
+  const checkStatus = async () => {
     if (!syncUuid || !gallerySlug) return
+    try {
+      const res = await getGooglePhotosSyncStatus(gallerySlug, syncUuid)
+      setSyncStatus(res)
 
-    const checkStatus = async () => {
-      try {
-        const res = await getGooglePhotosSyncStatus(gallerySlug, syncUuid)
-        setSyncStatus(res)
-
-        if (['completed', 'completed_with_errors', 'failed'].includes(res.status)) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
-          }
-        }
-      } catch (err) {
-        console.error('Status check failed', err)
+      // Initialize notify/email state from backend if present
+      if (res.notify_when_ready && res.email) {
+        setNotify(true)
+        setEmail(res.email)
       }
+
+      if (['completed', 'completed_with_errors', 'failed'].includes(res.status)) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+      }
+    } catch (err) {
+      console.error('Status check failed', err)
+    }
+  }
+
+  // Poll sync status once sync_uuid is available (visibility-aware)
+  useEffect(() => {
+    if (!syncUuid || !gallerySlug || ['completed', 'completed_with_errors', 'failed'].includes(syncStatus?.status || '')) return
+
+    const startPolling = () => {
+      if (pollIntervalRef.current) return
+      checkStatus() // Immediate check
+      pollIntervalRef.current = setInterval(checkStatus, 3000)
     }
 
-    // Initial check
-    checkStatus()
-
-    // Polling
-    pollIntervalRef.current = setInterval(checkStatus, 3000)
-
-    return () => {
+    const stopPolling = () => {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
       }
     }
-  }, [syncUuid, gallerySlug])
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    if (document.visibilityState === 'visible') {
+      startPolling()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [syncUuid, gallerySlug, syncStatus])
+
+  const handleUpdateNotify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!gallerySlug || !syncUuid) return
+    setUpdatingMail(true)
+
+    try {
+      await updateGooglePhotosSyncNotification(gallerySlug, syncUuid, email, notify)
+      // Re-fetch status immediately to sync UI
+      await checkStatus()
+    } catch (err) {
+      console.error('Failed to update email preferences', err)
+    } finally {
+      setUpdatingMail(false)
+    }
+  }
 
   // Progress computation
   const total = syncStatus?.total_photos || 0
   const processed = syncStatus?.processed_photos || 0
   const failed = syncStatus?.failed_photos || 0
   const totalProcessed = processed + failed
-  const progressPercent = total > 0 ? Math.min(100, Math.round((totalProcessed / total) * 100)) : 0
+  const progressPercent = syncStatus?.percentage ?? (total > 0 ? Math.min(100, Math.round((totalProcessed / total) * 100)) : 0)
 
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground">
@@ -163,8 +216,8 @@ export default function GooglePhotosCallback() {
 
             {/* Progress indicators */}
             {(syncStatus.status === 'pending' || syncStatus.status === 'processing') && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-sm font-medium">
+              <div className="space-y-4 p-4 border border-border rounded-xl bg-secondary/20">
+                <div className="flex justify-between items-center text-sm font-semibold">
                   <span className="text-muted-foreground">Progress</span>
                   <span>{progressPercent}%</span>
                 </div>
@@ -177,17 +230,65 @@ export default function GooglePhotosCallback() {
                   />
                 </div>
 
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Synced {processed} / {total} photos</span>
-                  {failed > 0 && <span className="text-destructive font-medium">{failed} failed</span>}
+                <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                  <span>Synced {processed + failed} / {total} photos</span>
+                  {failed > 0 && <span className="text-destructive font-semibold">{failed} skipped</span>}
                 </div>
+
+                {/* Dynamic ETA */}
+                {syncStatus.estimated_finish_time && (
+                  <p className="text-center text-xs text-primary font-semibold">
+                    Estimated completion: ~{typeof syncStatus.remaining_seconds === 'number' ? (
+                      syncStatus.remaining_seconds < 60 ? 'less than a minute' :
+                      `${Math.ceil(syncStatus.remaining_seconds / 60)} minute${Math.ceil(syncStatus.remaining_seconds / 60) > 1 ? 's' : ''}`
+                    ) : 'calculating...'}
+                  </p>
+                )}
               </div>
+            )}
+
+            {/* Notification signup if they didn't opt-in yet */}
+            {(syncStatus.status === 'pending' || syncStatus.status === 'processing') && !syncStatus.notify_when_ready && (
+              <form onSubmit={handleUpdateNotify} className="p-4 border border-border/80 rounded-xl bg-card/50 space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="notify_sync"
+                    checked={notify}
+                    onChange={(e) => setNotify(e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-primary w-4 h-4 bg-secondary cursor-pointer"
+                  />
+                  <label htmlFor="notify_sync" className="text-xs font-semibold text-foreground/90 cursor-pointer selection:bg-transparent">
+                    Email me when this export finishes
+                  </label>
+                </div>
+
+                {notify && (
+                  <div className="flex gap-2 animate-fadeIn">
+                    <input
+                      type="email"
+                      placeholder="e.g. user@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required={notify}
+                      className="flex-1 bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-colors text-foreground"
+                    />
+                    <button
+                      type="submit"
+                      disabled={updatingMail}
+                      className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
+                    >
+                      {updatingMail ? 'Saving...' : 'Opt-In'}
+                    </button>
+                  </div>
+                )}
+              </form>
             )}
 
             {/* Results/Details */}
             {syncStatus.status === 'completed' && (
               <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                All <strong>{processed}</strong> photos from your selection have been successfully uploaded to Google Photos. You can find them in your new library album!
+                All <strong>{processed}</strong> photos have been successfully uploaded to Google Photos. You can find them in your new album!
               </p>
             )}
 
@@ -208,9 +309,25 @@ export default function GooglePhotosCallback() {
             )}
 
             {syncStatus.status === 'failed' && (
-              <p className="text-sm text-destructive text-center font-medium bg-destructive/10 p-3 rounded-lg border border-destructive/20 leading-relaxed">
+              <p className="text-sm text-destructive text-center font-semibold bg-destructive/10 p-3 rounded-lg border border-destructive/20 leading-relaxed">
                 Error: {syncStatus.error || 'Google Photos API synchronization failed.'}
               </p>
+            )}
+
+            {/* opt-in safe exit instructions */}
+            {(syncStatus.status === 'pending' || syncStatus.status === 'processing') && (
+              <div className="p-4 border border-border/80 rounded-xl bg-card text-xs leading-relaxed text-muted-foreground space-y-2">
+                <p className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Info size={14} className="text-primary shrink-0" />
+                  Safe Exit
+                </p>
+                <p>
+                  {syncStatus.notify_when_ready && syncStatus.email
+                    ? `You can safely close this page. We will email you at ${syncStatus.email} when the sync is complete.`
+                    : 'You can safely close this page. You can return to your gallery later to verify the sync.'
+                  }
+                </p>
+              </div>
             )}
 
             {/* Actions button */}
@@ -220,7 +337,7 @@ export default function GooglePhotosCallback() {
                   href={syncStatus.album_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-accent text-primary-foreground font-semibold text-sm rounded-lg transition-colors shadow"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary hover:bg-accent text-primary-foreground font-bold text-sm rounded-lg transition-colors shadow"
                 >
                   Open Google Photos Album
                   <ExternalLink size={14} />
@@ -230,7 +347,7 @@ export default function GooglePhotosCallback() {
               {gallerySlug && (
                 <Link
                   href={`/g/${gallerySlug}`}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border"
                 >
                   <ArrowLeft size={16} />
                   Return to Gallery

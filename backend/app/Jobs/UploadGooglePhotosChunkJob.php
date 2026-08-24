@@ -164,11 +164,28 @@ class UploadGooglePhotosChunkJob implements ShouldQueue
                 $lockSync->processed_photos += $successCount;
                 $lockSync->failed_photos += $failedCount;
 
-                if ($lockSync->processed_photos + $lockSync->failed_photos >= $lockSync->total_photos) {
+                $isComplete = $lockSync->processed_photos + $lockSync->failed_photos >= $lockSync->total_photos;
+                if ($isComplete) {
                     $lockSync->status = $lockSync->failed_photos > 0 ? 'completed_with_errors' : 'completed';
                     $lockSync->completed_at = now();
                 }
                 $lockSync->save();
+
+                // Safe check for opt-in mail trigger on job completion
+                if ($isComplete && $lockSync->notify_when_ready && $lockSync->email && is_null($lockSync->notification_sent_at)) {
+                    $lockSync->update([
+                        'notification_sent_at' => now(),
+                    ]);
+
+                    $email = $lockSync->email;
+
+                    // Queue email after commit
+                    DB::afterCommit(function () use ($lockSync, $email) {
+                        \Illuminate\Support\Facades\Mail::to($email)->queue(
+                            new \App\Mail\GooglePhotosSyncCompletedMail($lockSync)
+                        );
+                    });
+                }
             }
         });
     }

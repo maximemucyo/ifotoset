@@ -58,24 +58,36 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         }
 
         // Double check status
-        if ($download->status === 'ready') {
+        if ($download->status === 'ready' || $download->status === 'ready_with_errors') {
             return;
         }
 
-        $download->update(['status' => 'processing']);
-
-        $photos = Photo::where('gallery_id', $gallery->id)
+        $totalPhotos = Photo::where('gallery_id', $gallery->id)
             ->where('status', PhotoStatus::Ready->value)
-            ->orderBy('id')
-            ->lazy();
+            ->count();
 
-        if ($photos->isEmpty()) {
+        if ($totalPhotos === 0) {
             $download->update([
                 'status' => 'failed',
                 'error' => 'No ready photos in gallery to pack.',
             ]);
             return;
         }
+
+        $download->update([
+            'status' => 'processing',
+            'total_photos' => $totalPhotos,
+            'processed_photos' => 0,
+            'failed_photos' => 0,
+            'started_at' => now(),
+            'completed_at' => null,
+            'error' => null,
+        ]);
+
+        $photos = Photo::where('gallery_id', $gallery->id)
+            ->where('status', PhotoStatus::Ready->value)
+            ->orderBy('id')
+            ->lazy();
 
         $tempJobId = uniqid();
         $tempDir = storage_path("app/tmp/zip_extraction/{$gallery->uuid}_{$tempJobId}");
@@ -94,6 +106,10 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         }
 
         $addedNames = [];
+        $processedCount = 0;
+        $failedCount = 0;
+        $lastDbUpdateAt = microtime(true);
+
         try {
             foreach ($photos as $photo) {
                 $photoPath = $photo->path . '/' . $photo->filename;
@@ -112,6 +128,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
                 }
                 $addedNames[] = $fileNameInZip;
 
+                $success = false;
                 if (Storage::disk('b2')->exists($photoPath)) {
                     $localPhotoPath = $tempDir . '/' . uniqid() . '_' . $photo->filename;
                     
@@ -122,12 +139,38 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
                         fclose($writeStream);
                         fclose($readStream);
                         
-                        $zip->addFile($localPhotoPath, $fileNameInZip);
+                        if (File::exists($localPhotoPath) && File::size($localPhotoPath) > 0) {
+                            if ($zip->addFile($localPhotoPath, $fileNameInZip)) {
+                                $success = true;
+                            }
+                        }
                     }
+                }
+
+                if ($success) {
+                    $processedCount++;
+                } else {
+                    $failedCount++;
+                }
+
+                // Batch database updates: every 10 photos or every 3 seconds
+                $nowTime = microtime(true);
+                if ((($processedCount + $failedCount) % 10 === 0) || ($nowTime - $lastDbUpdateAt >= 3.0)) {
+                    $download->update([
+                        'processed_photos' => $processedCount,
+                        'failed_photos' => $failedCount,
+                    ]);
+                    $lastDbUpdateAt = $nowTime;
                 }
             }
 
             $zip->close();
+
+            // Final count update
+            $download->update([
+                'processed_photos' => $processedCount,
+                'failed_photos' => $failedCount,
+            ]);
 
             // Check if file size is > 0
             if (!File::exists($tempZipPath) || File::size($tempZipPath) === 0) {
@@ -146,13 +189,41 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
                 throw new \Exception("Failed to verify ZIP presence in storage.");
             }
 
-            // Update database mapping atomically
-            $download->update([
-                'status' => 'ready',
-                'storage_path' => $b2ZipPath,
-                'size' => Storage::disk('b2')->size($b2ZipPath),
-                'generated_at' => now(),
-            ]);
+            $finalStatus = $failedCount > 0 ? 'ready_with_errors' : 'ready';
+
+            // DB Transaction for Atomic state change and Mailable trigger
+            \Illuminate\Support\Facades\DB::transaction(function () use ($download, $finalStatus, $b2ZipPath, $storageService) {
+                // Lock row
+                $lockedDownload = GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
+                if (!$lockedDownload) {
+                    return;
+                }
+
+                $lockedDownload->update([
+                    'status' => $finalStatus,
+                    'storage_path' => $b2ZipPath,
+                    'size' => Storage::disk('b2')->size($b2ZipPath),
+                    'completed_at' => now(),
+                    'generated_at' => now(),
+                ]);
+
+                // Safe check for opt-in mail trigger
+                if ($lockedDownload->notify_when_ready && $lockedDownload->email && is_null($lockedDownload->notification_sent_at)) {
+                    $lockedDownload->update([
+                        'notification_sent_at' => now(),
+                    ]);
+
+                    $downloadUrl = $storageService->getCdnUrl(dirname($lockedDownload->storage_path), null, basename($lockedDownload->storage_path));
+                    $email = $lockedDownload->email;
+
+                    // Queue email after commit
+                    \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $downloadUrl, $email) {
+                        \Illuminate\Support\Facades\Mail::to($email)->queue(
+                            new \App\Mail\GalleryZipReadyMail($lockedDownload, $downloadUrl)
+                        );
+                    });
+                }
+            });
 
         } catch (Throwable $e) {
             Log::error('ZIP generation failed: ' . $e->getMessage(), [
@@ -164,6 +235,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             $download->update([
                 'status' => 'failed',
                 'error' => $e->getMessage(),
+                'completed_at' => now(),
             ]);
             
             throw $e;
