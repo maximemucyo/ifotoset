@@ -23,7 +23,7 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   const xsUrl = photo.variants?.xs;
   const fullUrl = photo.variants?.[targetVariant] || photo.cdn_url;
 
-  const [src, setSrc] = useState<string | null>(null);
+  const [src, setSrc] = useState<string | null>(xsUrl || fullUrl || null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {

@@ -9,6 +9,28 @@ import { BrandStatement } from '@/components/landing/brand-statement'
 import { Pricing } from '@/components/landing/pricing'
 import { FAQ } from '@/components/landing/faq'
 import { CTA } from '@/components/landing/cta'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'ifotoset - Professional Photography Portfolios & Client Galleries',
+  description: 'Create stunning photography portfolios, deliver private client galleries, and manage your photography business. Built for modern photographers in East Africa.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: 'ifotoset - Professional Photography Portfolios & Client Galleries',
+    description: 'Create stunning photography portfolios, deliver private client galleries, and manage your business.',
+    url: '/',
+    siteName: 'ifotoset',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ifotoset - Professional Photography Portfolios & Client Galleries',
+    description: 'Create stunning photography portfolios, deliver private client galleries, and manage your business.',
+  },
+}
 
 export default function Home() {
   return (

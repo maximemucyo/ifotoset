@@ -76,4 +76,40 @@ class PublicPhotographerController extends Controller
             'featured_galleries' => $featuredGalleries->map($serializeGallery)->values(),
         ]);
     }
+
+    /**
+     * Get indexable sitemap data.
+     * GET /api/v1/public/sitemap
+     */
+    public function sitemapData(): \Illuminate\Http\JsonResponse
+    {
+        $photographers = User::select(['username', 'updated_at'])
+            ->where('is_active', true)
+            ->whereNotNull('username')
+            ->where('username', '!=', '')
+            ->get()
+            ->map(fn($u) => [
+                'username' => $u->username,
+                'lastModified' => $u->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+            ]);
+
+        $galleries = Gallery::select(['slug', 'updated_at'])
+            ->where('visibility', 'public')
+            ->where(function($q) {
+                $q->whereNull('password_hash')->orWhere('password_hash', '');
+            })
+            ->where(function($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->get()
+            ->map(fn($g) => [
+                'slug' => $g->slug,
+                'lastModified' => $g->updated_at?->toIso8601String() ?? now()->toIso8601String(),
+            ]);
+
+        return response()->json([
+            'photographers' => $photographers,
+            'galleries' => $galleries,
+        ]);
+    }
 }

@@ -5,11 +5,14 @@ export function useInfiniteGallery(
   slug: string,
   inviteToken: string | null,
   galleryToken: string | null,
-  pageSize = 60
+  pageSize = 60,
+  initialPhotos?: PhotoItem[],
+  initialNextCursor?: string | null,
+  initialHasMore?: boolean
 ) {
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
+  const [photos, setPhotos] = useState<PhotoItem[]>(initialPhotos || []);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor || null);
+  const [hasMore, setHasMore] = useState(initialHasMore !== undefined ? initialHasMore : true);
   const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -53,9 +56,13 @@ export function useInfiniteGallery(
 
   useEffect(() => {
     if (slug) {
+      if (initialPhotos && initialPhotos.length > 0) {
+        // Skip initial fetch if we already have preloaded photos from the server component
+        return;
+      }
       fetchNextPage(true);
     }
-  }, [slug, inviteToken]);
+  }, [slug, inviteToken, initialPhotos]);
 
   return {
     photos,

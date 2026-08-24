@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { AdminSidebar } from './admin-sidebar'
 import { MobileTopBar } from './mobile-top-bar'
 
@@ -10,6 +11,37 @@ interface AdminLayoutShellProps {
 
 export function AdminLayoutShell({ children }: AdminLayoutShellProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
+
+  // Sync browser document title based on pathname
+  useEffect(() => {
+    const routeMap: Record<string, string> = {
+      '/admin/dashboard': 'Dashboard',
+      '/admin/users': 'Users',
+      '/admin/galleries': 'Galleries',
+      '/admin/payments': 'Payments',
+      '/admin/moderation': 'Moderation',
+      '/admin/support': 'Support',
+      '/admin/analytics': 'Analytics',
+      '/admin/settings': 'Settings',
+    }
+
+    let currentTitle = 'Admin'
+    if (pathname) {
+      if (routeMap[pathname]) {
+        currentTitle = routeMap[pathname]
+      } else {
+        const parts = pathname.split('/')
+        if (parts.includes('users')) {
+          currentTitle = 'Users'
+        } else if (parts.includes('galleries')) {
+          currentTitle = 'Galleries'
+        }
+      }
+    }
+
+    document.title = `${currentTitle} | Admin | ifotoset`
+  }, [pathname])
 
   // Escape key listener & background body scroll lock
   useEffect(() => {

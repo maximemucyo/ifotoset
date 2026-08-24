@@ -102,13 +102,14 @@ export async function getPhotographerProfile(username: string): Promise<PublicPh
   })
 }
 
-export function usePhotographerProfile(username: string) {
+export function usePhotographerProfile(username: string, initialData?: PublicPhotographerData) {
   return useQuery<PublicPhotographerData>({
     queryKey: ['public-profile', username],
     queryFn: () => getPhotographerProfile(username),
     enabled: !!username,
     staleTime: 2 * 60 * 1000,
     retry: false,
+    initialData,
   })
 }
 
@@ -210,12 +211,13 @@ export async function submitPhotographerReview(
   })
 }
 
-export function usePhotographerReviews(username: string) {
+export function usePhotographerReviews(username: string, initialData?: PublicReviewItem[]) {
   return useQuery<PublicReviewItem[], Error>({
     queryKey: ['photographer-reviews', username],
     queryFn: () => getPhotographerReviews(username),
     enabled: !!username,
     staleTime: 2 * 60 * 1000,
+    initialData,
   })
 }
 

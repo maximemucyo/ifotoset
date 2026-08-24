@@ -1,0 +1,1194 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
+import {
+  LockKeyhole, Mail, AlertTriangle, Calendar, User,
+  Share2, Heart, Download, X, Copy, Check, SearchX, Play
+} from 'lucide-react';
+import {
+  getPublicGallery, unlockPublicGallery, GalleryItem, PhotoItem,
+  recordPublicPhotoDownload, togglePublicPhotoFavorite
+} from '@/lib/queries/galleries';
+import { ApiError } from '@/lib/apiClient';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { Logo } from '@/components/logo';
+
+// Modular Hooks and Components
+import { useInfiniteGallery } from './hooks/useInfiniteGallery';
+import { VirtualGalleryGrid } from './components/VirtualGalleryGrid';
+import { Lightbox } from './components/Lightbox';
+
+interface PublicGalleryViewClientProps {
+  slug: string;
+  inviteToken: string | null;
+  initialGallery: GalleryItem | null;
+  initialPhotos: PhotoItem[];
+  initialNextCursor: string | null;
+  initialHasMore: boolean;
+  initialError: any | null;
+}
+
+export function PublicGalleryViewClient({
+  slug,
+  inviteToken,
+  initialGallery,
+  initialPhotos,
+  initialNextCursor,
+  initialHasMore,
+  initialError,
+}: PublicGalleryViewClientProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const [gallery, setGallery] = useState<GalleryItem | null>(initialGallery);
+  const [loading, setLoading] = useState(!initialGallery && !initialError);
+  const [errorState, setErrorState] = useState<{
+    code: string;
+    message: string;
+    httpStatus?: number;
+    requiresPassword?: boolean;
+    requiresInvitation?: boolean;
+  } | null>(initialError);
+
+  // Password unlock state
+  const [password, setPassword] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+
+  // Lightbox state
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null);
+
+  // Lifted Gallery/Photo Stats & Selections State
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [visitorIdentity, setVisitorIdentity] = useState<{ email: string; created_at: string; version: number } | null>(null);
+  const [downloadingUuids, setDownloadingUuids] = useState<string[]>([]);
+  
+  // Email Modal State
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailModalTargetPhoto, setEmailModalTargetPhoto] = useState<PhotoItem | null>(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState('');
+
+  // Share Modal State
+  const [sharingPhoto, setSharingPhoto] = useState<PhotoItem | null>(null);
+  const [sharingGallery, setSharingGallery] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // New States for Gallery Actions
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [lightboxAutoPlay, setLightboxAutoPlay] = useState(false);
+  const [isDownloadOptionsModalOpen, setIsDownloadOptionsModalOpen] = useState(false);
+
+  // ZIP Download & Google Photos Sync Modals State
+  const [isZipModalOpen, setIsZipModalOpen] = useState(false);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
+  const [syncTarget, setSyncTarget] = useState<'all' | 'favorites'>('all');
+  const [syncingGoogle, setSyncingGoogle] = useState(false);
+
+  // Scroll navigation, CTA ref, and client side mounting states
+  const [mounted, setMounted] = useState(false);
+  const [showHeader, setShowHeader] = useState(true);
+  const [isHeaderTransparent, setIsHeaderTransparent] = useState(true);
+  const lastScrollYRef = useRef(0);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const zipPollIntervalRef = useRef<any>(null);
+
+  const scrollToGallery = () => {
+    mainRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Mount effect: Set client-safe mounted flag and track dynamic header height CSS variable
+  useEffect(() => {
+    setMounted(true);
+
+    const updateHeaderHeight = () => {
+      const headerEl = document.querySelector('header');
+      if (headerEl) {
+        document.documentElement.style.setProperty('--header-height', `${headerEl.offsetHeight}px`);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
+
+
+  // Header scroll transition: hides on downward scroll, reveals on upward scroll
+  useEffect(() => {
+    const threshold = 10;
+    const handleScroll = () => {
+      const isAnyModalOpen = selectedPhoto !== null || isEmailModalOpen || sharingPhoto !== null;
+      if (isAnyModalOpen) {
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      const diff = currentScrollY - lastScrollY;
+
+      if (currentScrollY <= 50) {
+        setShowHeader(true);
+      } else if (Math.abs(diff) > threshold) {
+        if (diff > 0) {
+          setShowHeader(false);
+        } else {
+          setShowHeader(true);
+        }
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [selectedPhoto, isEmailModalOpen, sharingPhoto]);
+
+  // Load identity and favorites on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && slug) {
+      const identityStr = localStorage.getItem(`visitor_identity_${slug}`);
+      if (identityStr) {
+        try {
+          setVisitorIdentity(JSON.parse(identityStr));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      const favoritesStr = localStorage.getItem(`gallery_favorites_${slug}`);
+      if (favoritesStr) {
+        try {
+          setFavorites(JSON.parse(favoritesStr));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [slug]);
+
+  // Fetch gallery on mount if not pre-fetched (specifically if we have a token in sessionStorage)
+  useEffect(() => {
+    if (slug) {
+      if (initialGallery) {
+        setLoading(false);
+        return;
+      }
+      const token = sessionStorage.getItem(`gallery_token_${slug}`);
+      if (initialError && token) {
+        fetchGallery();
+      } else {
+        setLoading(false);
+      }
+    }
+  }, [slug, inviteToken, initialGallery, initialError]);
+
+  const fetchGallery = async () => {
+    setLoading(true);
+    setErrorState(null);
+    try {
+      const token = sessionStorage.getItem(`gallery_token_${slug}`);
+      const res = await getPublicGallery(slug || '', inviteToken, token);
+      setGallery(res.data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setErrorState({
+          code: err.code,
+          message: err.message,
+          httpStatus: err.status,
+          requiresPassword: err.code === 'PASSWORD_REQUIRED',
+          requiresInvitation: err.code === 'INVITATION_REQUIRED',
+        });
+      } else {
+        setErrorState({
+          code: 'FETCH_ERROR',
+          message: err instanceof Error ? err.message : 'Failed to load gallery.',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleFavorite = async (photo: PhotoItem) => {
+    if (!visitorIdentity?.email) {
+      setEmailModalTargetPhoto(photo);
+      setEmailInput('');
+      setEmailError('');
+      setIsEmailModalOpen(true);
+      return;
+    }
+
+    const isCurrentlyFavorited = favorites.includes(photo.uuid);
+    const nextState = !isCurrentlyFavorited;
+
+    let updatedFavorites;
+    if (nextState) {
+      updatedFavorites = [...favorites, photo.uuid];
+    } else {
+      updatedFavorites = favorites.filter(id => id !== photo.uuid);
+    }
+    setFavorites(updatedFavorites);
+    localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(updatedFavorites));
+
+    try {
+      await togglePublicPhotoFavorite(
+        slug || '',
+        photo.uuid,
+        nextState,
+        visitorIdentity.email,
+        inviteToken,
+        galleryToken
+      );
+    } catch (err) {
+      console.error('Failed to toggle favorite on backend', err);
+    }
+  };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalizedEmail = emailInput.trim().toLowerCase();
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+
+    const newIdentity = {
+      email: normalizedEmail,
+      created_at: new Date().toISOString(),
+      version: 1
+    };
+
+    localStorage.setItem(`visitor_identity_${slug}`, JSON.stringify(newIdentity));
+    setVisitorIdentity(newIdentity);
+    setIsEmailModalOpen(false);
+
+    if (emailModalTargetPhoto) {
+      const photo = emailModalTargetPhoto;
+      setEmailModalTargetPhoto(null);
+      
+      const isCurrentlyFavorited = favorites.includes(photo.uuid);
+      const nextState = !isCurrentlyFavorited;
+
+      let updatedFavorites;
+      if (nextState) {
+        updatedFavorites = [...favorites, photo.uuid];
+      } else {
+        updatedFavorites = favorites.filter(id => id !== photo.uuid);
+      }
+      setFavorites(updatedFavorites);
+      localStorage.setItem(`gallery_favorites_${slug}`, JSON.stringify(updatedFavorites));
+
+      togglePublicPhotoFavorite(
+        slug || '',
+        photo.uuid,
+        nextState,
+        normalizedEmail,
+        inviteToken,
+        galleryToken
+      ).catch(err => {
+        console.error('Failed to toggle favorite on backend', err);
+      });
+    }
+  };
+
+  const handleDownload = async (photo: PhotoItem) => {
+    if (downloadingUuids.includes(photo.uuid)) return;
+
+    setDownloadingUuids(prev => [...prev, photo.uuid]);
+
+    try {
+      const email = visitorIdentity?.email || null;
+      await recordPublicPhotoDownload(slug || '', photo.uuid, email, inviteToken, galleryToken);
+    } catch (err) {
+      console.error('Failed to record download', err);
+    } finally {
+      setTimeout(() => {
+        setDownloadingUuids(prev => prev.filter(id => id !== photo.uuid));
+      }, 1500);
+    }
+
+    const a = document.createElement('a');
+    a.href = photo.cdn_url;
+    a.download = photo.filename;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleShare = (photo: PhotoItem) => {
+    const canonicalUrl = `${window.location.origin}/g/${slug}?photo=${photo.uuid}`;
+    if (navigator.share) {
+      navigator.share({
+        title: photo.filename,
+        text: `Check out this photo from the gallery "${gallery?.title || ''}"`,
+        url: canonicalUrl,
+      }).catch(err => {
+        console.error('Web Share failed', err);
+      });
+    } else {
+      setSharingPhoto(photo);
+      setIsCopied(false);
+    }
+  };
+
+  const handleZipDownloadTrigger = () => {
+    const inviteQuery = inviteToken ? `&invite=${inviteToken}` : '';
+    const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
+    router.push(`/g/${slug}/export?type=zip${inviteQuery}${tokenQuery}`);
+  };
+
+  const handleGooglePhotosSyncTrigger = () => {
+    if (favorites.length > 0) {
+      setIsGoogleModalOpen(true);
+    } else {
+      executeGooglePhotosSync('all');
+    }
+  };
+
+  const handleShareGallery = () => {
+    const canonicalUrl = `${window.location.origin}/g/${slug}`;
+    if (navigator.share) {
+      navigator.share({
+        title: gallery?.title || 'Photo Gallery',
+        text: `Check out the gallery "${gallery?.title || ''}"`,
+        url: canonicalUrl,
+      }).catch(err => {
+        console.error('Web Share failed', err);
+      });
+    } else {
+      setSharingGallery(true);
+      setIsCopied(false);
+    }
+  };
+
+  const handleGalleryDownloadTrigger = () => {
+    if (!gallery) return;
+    const isZipEnabled = gallery.allow_gallery_downloads;
+    const isGooglePhotosEnabled = gallery.allow_google_photos;
+    
+    if (isZipEnabled && isGooglePhotosEnabled) {
+      setIsDownloadOptionsModalOpen(true);
+    } else if (isZipEnabled) {
+      handleZipDownloadTrigger();
+    } else if (isGooglePhotosEnabled) {
+      handleGooglePhotosSyncTrigger();
+    }
+  };
+
+  const startSlideshow = () => {
+    if (displayedPhotos.length > 0) {
+      setLightboxAutoPlay(true);
+      setSelectedPhoto(displayedPhotos[0]);
+    }
+  };
+
+  const executeGooglePhotosSync = (target: 'all' | 'favorites') => {
+    setIsGoogleModalOpen(false);
+    if (target === 'favorites') {
+      sessionStorage.setItem(`photos_export_favorites_${slug}`, JSON.stringify(favorites));
+    } else {
+      sessionStorage.removeItem(`photos_export_favorites_${slug}`);
+    }
+
+    const inviteQuery = inviteToken ? `&invite=${inviteToken}` : '';
+    const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
+    const targetQuery = `&target=${target}`;
+
+    router.push(`/g/${slug}/export?type=google-photos${targetQuery}${inviteQuery}${tokenQuery}`);
+  };
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (zipPollIntervalRef.current) {
+        clearInterval(zipPollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Infinite Gallery Fetching Hook
+  const galleryToken = typeof window !== 'undefined' ? sessionStorage.getItem(`gallery_token_${slug}`) : null;
+  const {
+    photos,
+    hasMore,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteGallery(slug || '', inviteToken, galleryToken, 60, initialPhotos, initialNextCursor, initialHasMore);
+
+  const displayedPhotos = showFavoritesOnly
+    ? photos.filter(p => favorites.includes(p.uuid))
+    : photos;
+
+  // Header transparency controller based on scroll and cover photo presence
+  useEffect(() => {
+    if (!gallery) return;
+    const activeCover = gallery.cover_photo || photos[0] || null;
+    
+    if (!activeCover) {
+      setIsHeaderTransparent(false);
+      return;
+    }
+
+    const handleScrollTransparency = () => {
+      const currentScrollY = window.scrollY;
+      setIsHeaderTransparent(currentScrollY < 50);
+    };
+
+    handleScrollTransparency();
+    window.addEventListener('scroll', handleScrollTransparency, { passive: true });
+    return () => window.removeEventListener('scroll', handleScrollTransparency);
+  }, [gallery, photos]);
+
+  // Precompute slideshow/lightbox index positioning
+  const currentIndex = selectedPhoto ? displayedPhotos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1;
+  const totalCount = showFavoritesOnly ? displayedPhotos.length : (gallery?.stats?.photo_count ?? 0);
+
+  const handlePrevPhoto = useCallback(() => {
+    if (currentIndex !== -1 && displayedPhotos.length > 0) {
+      const prevIndex = (currentIndex - 1 + displayedPhotos.length) % displayedPhotos.length;
+      setSelectedPhoto(displayedPhotos[prevIndex] || null);
+    }
+  }, [currentIndex, displayedPhotos]);
+
+  const handleNextPhoto = useCallback(() => {
+    if (currentIndex !== -1 && displayedPhotos.length > 0) {
+      const nextIndex = (currentIndex + 1) % displayedPhotos.length;
+      setSelectedPhoto(displayedPhotos[nextIndex] || null);
+    }
+  }, [currentIndex, displayedPhotos]);
+
+  // Background fetch next page when user is inside the Lightbox and nearing the end of fetched photos
+  useEffect(() => {
+    if (selectedPhoto && currentIndex !== -1) {
+      if (currentIndex >= displayedPhotos.length - 5 && hasMore && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    }
+  }, [selectedPhoto, currentIndex, displayedPhotos.length, hasMore, isFetchingNextPage, fetchNextPage]);
+
+  // Auto-open lightbox if `?photo={uuid}` is present in the URL on mount/photos load
+  useEffect(() => {
+    const photoUuidParam = searchParams.get('photo');
+    if (photoUuidParam && photos.length > 0) {
+      const targetPhoto = photos.find(p => p.uuid === photoUuidParam);
+      if (targetPhoto) {
+        setSelectedPhoto(targetPhoto);
+      }
+    }
+  }, [searchParams, photos]);
+
+  const handleUnlockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim()) return;
+
+    setUnlocking(true);
+    setUnlockError(null);
+    try {
+      const res = await unlockPublicGallery(slug || '', password);
+      sessionStorage.setItem(`gallery_token_${slug}`, res.token);
+      setPassword('');
+      fetchGallery();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setUnlockError(err.message);
+      } else {
+        setUnlockError('Unlock failed. Please try again.');
+      }
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  // ─── Loading Screen ────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-muted-foreground font-medium text-sm">Opening gallery...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Password Required Screen ──────────────────────────────────────────────
+  if (errorState?.requiresPassword) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
+        <div className="bg-card border border-border rounded-none p-8 max-w-md w-full shadow-lg text-center space-y-6">
+          <div className="w-16 h-16 bg-primary/10 flex items-center justify-center mx-auto text-primary">
+            <LockKeyhole size={32} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Password Protected</h1>
+            <p className="text-sm text-muted-foreground mt-2">
+              This photo gallery is private. Please enter the password to unlock.
+            </p>
+            {errorState.message && (
+              <p className="text-xs font-semibold text-primary mt-2">
+                Hint: {errorState.message.includes('Hint:') ? errorState.message.split('Hint:')[1] : 'Check with the photographer.'}
+              </p>
+            )}
+          </div>
+
+          <form onSubmit={handleUnlockSubmit} className="space-y-4">
+            <input
+              type="password"
+              placeholder="Enter password..."
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-background border border-border rounded-none placeholder-muted-foreground/60 focus:outline-none focus:border-primary transition-colors text-foreground"
+            />
+            {unlockError && <p className="text-xs text-destructive text-left font-medium">{unlockError}</p>}
+            <button
+              type="submit"
+              disabled={unlocking}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-none hover:bg-primary/95 font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {unlocking ? 'Unlocking...' : 'Unlock Gallery'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Invitation Required Screen ────────────────────────────────────────────
+  if (errorState?.requiresInvitation) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
+        <div className="bg-card border border-border rounded-none p-8 max-w-md w-full shadow-lg text-center space-y-6">
+          <div className="w-16 h-16 bg-primary/10 flex items-center justify-center mx-auto text-primary">
+            <Mail size={32} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Invitation Required</h1>
+            <p className="text-sm text-muted-foreground mt-2">
+              This gallery is private and restricted to invited email addresses. Please use the unique link sent to your email.
+            </p>
+          </div>
+          <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-none text-left">
+            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium leading-relaxed">
+              If you received an invitation, make sure to click the &quot;View Gallery&quot; button in your email. Links are custom-generated for each guest.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Gallery Not Found Screen (404) ───────────────────────────────────────
+  if (errorState && (errorState.httpStatus === 404 || errorState.code === 'NOT_FOUND')) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
+        <div className="text-center max-w-md space-y-5">
+          <div className="w-20 h-20 bg-muted flex items-center justify-center mx-auto">
+            <SearchX className="w-10 h-10 text-muted-foreground" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Gallery Not Found</h1>
+            <p className="text-sm text-muted-foreground">
+              This gallery doesn&apos;t exist or may have been removed by the photographer.
+            </p>
+          </div>
+          <a
+            href="/"
+            className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-none font-semibold hover:bg-primary/95 transition-colors"
+          >
+            Go to Homepage
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Other Errors Screen ───────────────────────────────────────────────────
+  if (errorState) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground transition-colors duration-200">
+        <div className="text-center max-w-md space-y-5">
+          <div className="w-20 h-20 bg-destructive/10 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+            <p className="text-sm text-muted-foreground">{errorState.message}</p>
+          </div>
+          <a
+            href="/"
+            className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-none font-semibold hover:bg-primary/95 transition-colors"
+          >
+            Go to Homepage
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!gallery) return null;
+
+  const activeCoverPhoto = gallery.cover_photo || photos[0] || null;
+
+  return (
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
+      {/* Public Navbar Header */}
+      <header className={`sticky top-0 z-30 transition-all duration-300 ${
+        isHeaderTransparent
+          ? 'bg-black/10 backdrop-blur-[2px] border-b border-white/5'
+          : 'bg-card/85 backdrop-blur-md border-b border-border'
+      } ${
+        showHeader ? 'translate-y-0' : '-translate-y-full'
+      }`}>
+        <div className="w-full max-w-none px-4 md:px-8 xl:px-12 2xl:px-16 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Logo variant={isHeaderTransparent ? "light" : "default"} size="sm" href="/" />
+            <div className={`h-5 w-px shrink-0 transition-colors duration-300 ${
+              isHeaderTransparent ? 'bg-white/20' : 'bg-border'
+            }`} />
+            <h1 className={`font-bold text-lg truncate max-w-[140px] sm:max-w-sm shrink transition-colors duration-300 ${
+              isHeaderTransparent ? 'text-white' : 'text-foreground'
+            }`}>
+              {gallery.title}
+            </h1>
+          </div>
+          <div className={`flex items-center gap-2 sm:gap-4 text-xs shrink-0 transition-colors duration-300 ${
+            isHeaderTransparent ? 'text-white/80' : 'text-muted-foreground'
+          }`}>
+            {gallery.client_name && (
+              <span className="hidden sm:flex items-center gap-1.5 font-medium">
+                <User size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> {gallery.client_name}
+              </span>
+            )}
+            {gallery.event_date && (
+              <span className="hidden sm:flex items-center gap-1.5 font-medium">
+                <Calendar size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> {new Date(gallery.event_date).toLocaleDateString()}
+              </span>
+            )}
+            <div className={`h-4 w-px hidden sm:block transition-colors duration-300 ${
+              isHeaderTransparent ? 'bg-white/20' : 'bg-border'
+            }`} />
+            <ThemeToggle className={
+              isHeaderTransparent
+                ? "p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
+                : "p-2 rounded-lg hover:bg-secondary transition-colors"
+            } />
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Banner Section */}
+      {activeCoverPhoto ? (
+        <section className="relative w-full h-svh border-b border-border overflow-hidden select-none mt-[calc(-1*var(--header-height,68px))]">
+          <img
+            src={activeCoverPhoto.variants?.xl || activeCoverPhoto.cdn_url}
+            alt={gallery.title}
+            className="absolute inset-0 w-full h-full object-cover object-center"
+            fetchPriority="high"
+          />
+          <div className="absolute inset-0 bg-black/35 flex flex-col justify-between py-12 px-6">
+            <div /> {/* Spacer */}
+            <div className="max-w-3xl mx-auto space-y-3 text-center text-white drop-shadow-lg">
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight">
+                {gallery.title}
+              </h2>
+              {gallery.client_name && (
+                <p className="text-md sm:text-lg font-medium text-white/90">
+                  For {gallery.client_name}
+                </p>
+              )}
+              {gallery.event_date && (
+                <p className="text-xs sm:text-sm text-white/80">
+                  {new Date(gallery.event_date).toLocaleDateString(undefined, { dateStyle: 'long' })}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex flex-col items-center gap-4">
+              <button
+                type="button"
+                onClick={scrollToGallery}
+                className="px-6 py-3 bg-white text-black hover:bg-white/90 active:scale-95 font-semibold text-sm rounded-full shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+              >
+                View Gallery
+              </button>
+              <button
+                type="button"
+                onClick={scrollToGallery}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all animate-bounce"
+                aria-label="Scroll to photos"
+              >
+                <svg className="w-6 h-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                  <path d="M19 14l-7 7-7-7M12 21V3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="bg-gradient-to-b from-secondary/20 via-transparent to-transparent border-b border-border py-10 md:py-16 px-4 md:px-6 text-center">
+          <div className="max-w-3xl mx-auto space-y-3">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-foreground tracking-tight">
+              {gallery.title}
+            </h2>
+            <p className="text-sm md:text-md text-muted-foreground max-w-xl mx-auto mt-3">
+              Welcome to your digital photo collection. View, browse, and explore high-resolution memories.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Gallery Action Header Bar */}
+      {mounted && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 border-b border-border select-none">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+            {/* Title / Subtitle Column */}
+            <div className="space-y-1">
+              <h2 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight text-foreground">
+                {gallery.title}
+              </h2>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tracking-wider uppercase font-semibold text-muted-foreground">
+                {gallery.client_name && (
+                  <span>For {gallery.client_name}</span>
+                )}
+                {gallery.client_name && gallery.event_date && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                )}
+                {gallery.event_date && (
+                  <span>{new Date(gallery.event_date).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                )}
+                <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                <span>{displayedPhotos.length} {showFavoritesOnly ? 'favorites' : 'photos'}</span>
+              </div>
+            </div>
+
+            {/* Actions Button Group */}
+            <div className="flex items-center gap-2">
+              {/* Heart (Favorites Filter) */}
+              <button
+                type="button"
+                aria-label="Filter by favorites"
+                aria-pressed={showFavoritesOnly}
+                title={showFavoritesOnly ? "Show all photos" : "Show only favorites"}
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`flex items-center justify-center p-3 transition-colors border ${
+                  showFavoritesOnly
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
+                    : 'bg-secondary/40 border-border hover:bg-secondary text-foreground/80 hover:text-foreground'
+                }`}
+                style={{ minWidth: '44px', minHeight: '44px' }}
+              >
+                <Heart size={20} fill={showFavoritesOnly ? "currentColor" : "none"} />
+              </button>
+
+              {/* Download (Zip/Google sync) */}
+              {(gallery.allow_gallery_downloads || gallery.allow_google_photos) && (
+                <button
+                  type="button"
+                  aria-label="Download gallery"
+                  title="Download options"
+                  onClick={handleGalleryDownloadTrigger}
+                  className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Download size={20} />
+                </button>
+              )}
+
+              {/* Share Gallery */}
+              <button
+                type="button"
+                aria-label="Share gallery"
+                title="Share this gallery"
+                onClick={handleShareGallery}
+                className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                style={{ minWidth: '44px', minHeight: '44px' }}
+              >
+                <Share2 size={20} />
+              </button>
+
+              {/* Play Slideshow */}
+              {displayedPhotos.length > 0 && (
+                <button
+                  type="button"
+                  aria-label="Play slideshow"
+                  title="Start slideshow"
+                  onClick={startSlideshow}
+                  className="flex items-center justify-center p-3 bg-secondary/40 border border-border hover:bg-secondary text-foreground/80 hover:text-foreground transition-colors"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Play size={20} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Grid Section */}
+      <main ref={mainRef} className="w-full max-w-none py-12">
+        <VirtualGalleryGrid
+          photos={displayedPhotos}
+          hasMore={showFavoritesOnly ? false : hasMore}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          onSelectPhoto={setSelectedPhoto}
+          gap={6}
+          favorites={favorites}
+          downloadingUuids={downloadingUuids}
+          onToggleFavorite={handleToggleFavorite}
+          onDownload={handleDownload}
+          onShare={handleShare}
+          showFavoritesOnly={showFavoritesOnly}
+        />
+      </main>
+
+      {/* Lightbox Modal overlay portal */}
+      {selectedPhoto && currentIndex !== -1 && (
+        <Lightbox
+          photo={selectedPhoto}
+          photos={displayedPhotos}
+          currentIndex={currentIndex}
+          totalCount={totalCount}
+          onClose={() => {
+            setSelectedPhoto(null);
+            setLightboxAutoPlay(false);
+          }}
+          onPrev={handlePrevPhoto}
+          onNext={handleNextPhoto}
+          slug={slug || ''}
+          inviteToken={inviteToken}
+          galleryToken={galleryToken}
+          favorites={favorites}
+          downloadingUuids={downloadingUuids}
+          onToggleFavorite={handleToggleFavorite}
+          onDownload={handleDownload}
+          onShare={handleShare}
+          autoPlay={lightboxAutoPlay}
+        />
+      )}
+
+      {/* ─── Email Collection Modal ─────────────────────────────────────────── */}
+      {mounted && isEmailModalOpen && createPortal(
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setIsEmailModalOpen(false)}>
+          <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-foreground">Save Your Favorites</h3>
+              <button onClick={() => setIsEmailModalOpen(false)} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Please enter your email to create your selection. This lets the photographer know which photos you&apos;ve selected.
+            </p>
+            <form onSubmit={handleEmailSubmit} className="space-y-3">
+              <input
+                type="email"
+                required
+                placeholder="Enter email address..."
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setEmailError('');
+                }}
+                className="w-full px-3 py-2.5 bg-background border border-border rounded-none text-sm placeholder-muted-foreground/60 focus:outline-none focus:border-primary transition-colors text-foreground"
+              />
+              {emailError && <p className="text-[11px] text-destructive font-medium">{emailError}</p>}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEmailModalOpen(false)}
+                  className="flex-1 py-2.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-none text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-primary text-primary-foreground hover:bg-accent rounded-none text-xs font-semibold transition-colors"
+                >
+                  Save & Favorite
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Social Share Modal ─────────────────────────────────────────────── */}
+      {mounted && (sharingPhoto || sharingGallery) && (() => {
+        const shareUrl = sharingPhoto
+          ? `${window.location.origin}/g/${slug}?photo=${sharingPhoto.uuid}`
+          : `${window.location.origin}/g/${slug}`;
+        const encodedUrl = encodeURIComponent(shareUrl);
+        const shareText = encodeURIComponent(
+          sharingPhoto
+            ? `Check out this photo from the gallery: ${shareUrl}`
+            : `Check out the gallery "${gallery?.title || ''}": ${shareUrl}`
+        );
+        const titleText = sharingPhoto ? "Share Photo" : "Share Gallery";
+        
+        return createPortal(
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => { setSharingPhoto(null); setSharingGallery(false); }}>
+            <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-5 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold text-foreground">{titleText}</h3>
+                <button onClick={() => { setSharingPhoto(null); setSharingGallery(false); }} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  className="flex-1 min-w-0 px-3 py-2 bg-secondary/30 border border-border rounded-none text-xs text-muted-foreground focus:outline-none select-all"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-accent font-semibold rounded-none text-xs transition-colors shrink-0 flex items-center gap-1.5 min-w-[90px] justify-center"
+                >
+                  {isCopied ? (
+                    <>
+                      <Check size={14} />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      <span>Copy Link</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 py-2">
+                {/* WhatsApp */}
+                <a
+                  href={`https://api.whatsapp.com/send?text=${shareText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <div className="w-10 h-10 rounded-none bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01c6.612.001 11.94 5.34 11.94 11.95 0 6.611-5.328 11.95-11.94 11.95a11.94 11.94 0 01-11.94-11.95c0-2.096.547-4.14 1.588-5.946L.057 24zm6.59-4.846c1.6.95 3.197 1.451 4.887 1.453 5.485 0 9.948-4.463 9.952-9.953.002-2.66-1.025-5.161-2.894-7.03C16.626 1.8 14.127.777 11.468.777c-5.482 0-9.94 4.466-9.944 9.954-.002 1.79.49 3.54 1.428 5.09L1.92 22.18l6.727-1.761c1.586.865 3.323 1.32 5.074 1.322z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-medium">WhatsApp</span>
+                </a>
+
+                {/* Messenger */}
+                <a
+                  href={`fb-messenger://share/?link=${encodedUrl}`}
+                  onClick={(e) => {
+                    if (!navigator.userAgent.match(/(iPad|iPhone|iPod|Android)/g)) {
+                      e.preventDefault();
+                      window.open(`https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=291494419107518&redirect_uri=${encodedUrl}`, '_blank');
+                    }
+                  }}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <div className="w-10 h-10 rounded-none bg-blue-500/10 flex items-center justify-center text-blue-500">
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M12 0C5.37 0 0 4.97 0 11.11c0 3.5 1.74 6.62 4.47 8.58.23.17.37.44.37.73v2.81c0 .54.58.91 1.07.67l3.12-1.56c.21-.1.45-.13.68-.08 1.15.26 2.37.4 3.63.4 6.63 0 12-4.97 12-11.11S18.63 0 12 0zm1.22 14.86l-2.48-2.65-4.84 2.65c-.47.26-.98-.28-.7-.74l2.74-4.51L5.46 7c-.47-.26-.98.28-.7.74l2.74 4.51 2.48 2.65 4.84-2.65c.47-.26.98.28.7.74l-2.74 4.51c-.13.22-.36.36-.61.36z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-medium">Messenger</span>
+                </a>
+
+                {/* Facebook */}
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <div className="w-10 h-10 rounded-none bg-blue-600/10 flex items-center justify-center text-blue-600">
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-medium">Facebook</span>
+                </a>
+
+                {/* Email */}
+                <a
+                  href={`mailto:?subject=Check%20out%20this%20gallery&body=Here%20is%20the%20link:%20${encodedUrl}`}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded-none hover:bg-secondary/25 transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <div className="w-10 h-10 rounded-none bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                    <Mail size={18} />
+                  </div>
+                  <span className="text-[10px] font-medium">Email</span>
+                </a>
+              </div>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
+
+      {/* ─── Google Photos Sync Modal ──────────────────────────────────────── */}
+      {mounted && isGoogleModalOpen && createPortal(
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setIsGoogleModalOpen(false)}>
+          <div className="bg-card border border-border rounded-lg p-6 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary fill-current" viewBox="0 0 24 24">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
+                </svg>
+                Save to Google Photos
+              </h3>
+              <button onClick={() => setIsGoogleModalOpen(false)} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-secondary/50 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Choose which photos from this gallery you would like to import directly to a new Google Photos album:
+            </p>
+
+            <div className="space-y-2 py-2">
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-secondary/20 cursor-pointer hover:border-primary/50 transition-colors">
+                <input
+                  type="radio"
+                  name="syncTarget"
+                  checked={syncTarget === 'all'}
+                  onChange={() => setSyncTarget('all')}
+                  className="text-primary focus:ring-primary bg-background border-border"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">Entire Gallery</span>
+                  <span className="text-xs text-muted-foreground">All {gallery.stats.photo_count} ready photos.</span>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-border bg-secondary/20 cursor-pointer hover:border-primary/50 transition-colors">
+                <input
+                  type="radio"
+                  name="syncTarget"
+                  checked={syncTarget === 'favorites'}
+                  onChange={() => setSyncTarget('favorites')}
+                  className="text-primary focus:ring-primary bg-background border-border"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">My Favorites Only</span>
+                  <span className="text-xs text-muted-foreground">{favorites.length} selected photos.</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                disabled={syncingGoogle}
+                onClick={() => setIsGoogleModalOpen(false)}
+                className="flex-1 py-2 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={syncingGoogle}
+                onClick={() => {
+                  executeGooglePhotosSync(syncTarget);
+                  setIsGoogleModalOpen(false);
+                }}
+                className="flex-1 py-2 bg-primary hover:bg-accent text-primary-foreground font-semibold text-sm rounded-lg transition-colors shadow disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {syncingGoogle ? (
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span>Connect & Sync</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Download Options Modal ────────────────────────────────────────── */}
+      {mounted && isDownloadOptionsModalOpen && createPortal(
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setIsDownloadOptionsModalOpen(false)}>
+          <div className="bg-card border border-border rounded-none p-6 max-w-sm w-full shadow-xl space-y-4 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Download size={20} className="text-primary" />
+                Download Options
+              </h3>
+              <button onClick={() => setIsDownloadOptionsModalOpen(false)} aria-label="Close modal" className="text-muted-foreground hover:text-foreground p-1 rounded-none hover:bg-secondary/35 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Choose how you would like to download or save this gallery&apos;s photos:
+            </p>
+
+            <div className="space-y-2 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDownloadOptionsModalOpen(false);
+                  handleZipDownloadTrigger();
+                }}
+                className="w-full text-left flex items-center gap-3.5 p-3.5 border border-border hover:border-primary/50 bg-secondary/15 hover:bg-secondary/25 transition-all rounded-none"
+              >
+                <div className="p-2 bg-primary/10 rounded-none text-primary shrink-0">
+                  <Download size={18} />
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">Download entire gallery (ZIP)</span>
+                  <span className="text-xs text-muted-foreground">Pack photos into a downloadable zip file.</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDownloadOptionsModalOpen(false);
+                  handleGooglePhotosSyncTrigger();
+                }}
+                className="w-full text-left flex items-center gap-3.5 p-3.5 border border-border hover:border-primary/50 bg-secondary/15 hover:bg-secondary/25 transition-all rounded-none"
+              >
+                <div className="p-2 bg-primary/10 rounded-none text-primary shrink-0">
+                  <svg className="w-[18px] h-[18px] fill-current" viewBox="0 0 24 24">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground block">Sync to Google Photos</span>
+                  <span className="text-xs text-muted-foreground">Export photos directly to a Google Photos album.</span>
+                </div>
+              </button>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setIsDownloadOptionsModalOpen(false)}
+              className="w-full py-2.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-none text-xs font-semibold transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

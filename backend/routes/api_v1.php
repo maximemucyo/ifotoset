@@ -41,6 +41,9 @@ Route::get('/health', function () {
     ]);
 });
 
+// Public sitemap endpoint
+Route::middleware('throttle:30,1')->get('/public/sitemap', [PublicPhotographerController::class, 'sitemapData']);
+
 // Public Gallery Endpoints (Rate Limited)
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}', [GalleryController::class, 'showPublic']);
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/photos', [GalleryController::class, 'publicPhotos']);

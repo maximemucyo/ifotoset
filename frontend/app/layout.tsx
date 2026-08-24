@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://ifotoset.com'),
   title: 'ifotoset - Professional Photography Platform for East Africa',
   description: 'Build your photography portfolio, deliver galleries to clients, and manage your photography business with ifotoset.',
   icons: {
