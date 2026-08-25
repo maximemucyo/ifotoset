@@ -101,11 +101,13 @@ export default function proxy(request: NextRequest) {
     // / -> /p/[username]
     // /[slug] -> /p/[username]/[slug]
     // /[slug]/export -> /p/[username]/[slug]/export
+    const rewriteUrl = request.nextUrl.clone()
     if (pathname === '/') {
-      return NextResponse.rewrite(new URL(`/p/${tenant}`, request.url))
+      rewriteUrl.pathname = `/p/${tenant}`
     } else {
-      return NextResponse.rewrite(new URL(`/p/${tenant}${pathname}`, request.url))
+      rewriteUrl.pathname = `/p/${tenant}${pathname}`
     }
+    return NextResponse.rewrite(rewriteUrl)
   }
 
   return NextResponse.next()
