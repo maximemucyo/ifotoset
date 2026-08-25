@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { BarChart3, Users, ImagePlus, TrendingUp, Download, Heart, X, Sparkles, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -12,7 +12,7 @@ import { ResponsiveTable } from '@/components/ui/responsive-table'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function StudioDashboard() {
+function DashboardContent() {
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
   const { data: dashboardData, isLoading } = useDashboardStats()
@@ -654,5 +654,17 @@ export default function StudioDashboard() {
         </div>
       )}
     </main>
+  )
+}
+
+export default function StudioDashboard() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }
