@@ -75,6 +75,16 @@ export default function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl, 308)
   }
 
+  // 3.5. Prevent infinite redirect loops on internal rewrites / proxying
+  const isInternalProxy = (host === 'localhost' || host === '127.0.0.1') && rootHost !== 'localhost'
+  if (isInternalProxy) {
+    return NextResponse.next()
+  }
+
+  if (tenant && (pathname === `/p/${tenant}` || pathname.startsWith(`/p/${tenant}/`))) {
+    return NextResponse.next()
+  }
+
   // 4. Main Domain Redirects: ifotoset.com/p/username/... -> username.ifotoset.com/...
   if (!tenant && pathname.startsWith('/p/')) {
     const parts = pathname.split('/')
