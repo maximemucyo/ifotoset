@@ -102,12 +102,12 @@ export default function proxy(request: NextRequest) {
     // /[slug] -> /p/[username]/[slug]
     // /[slug]/export -> /p/[username]/[slug]/export
     //
-    // IMPORTANT: Use `request.url` (public-facing URL, e.g. https://maxime1.ifotoset.com/)
-    // as the base for the rewrite URL, NOT `request.nextUrl` which resolves to the internal
-    // Next.js server URL (e.g. https://localhost:3004/) and causes 500 errors in production
-    // when Nginx tries to proxy over HTTPS to a localhost server that only listens on HTTP.
+    // IMPORTANT: Build the rewrite URL explicitly from `protocol` (NEXT_PUBLIC_PROTOCOL env var)
+    // and `hostname` (Host request header = 'maxime1.ifotoset.com'), NOT from `request.url` or
+    // `request.nextUrl` — both resolve to the internal Next.js server URL (https://localhost:3004/)
+    // behind Nginx, causing 500 errors when Nginx tries to proxy to a localhost HTTPS endpoint.
     const newPath = pathname === '/' ? `/p/${tenant}` : `/p/${tenant}${pathname}`
-    const rewriteUrl = new URL(newPath + url.search, request.url)
+    const rewriteUrl = new URL(`${protocol}://${hostname}${newPath}${url.search}`)
     return NextResponse.rewrite(rewriteUrl)
   }
 
