@@ -102,12 +102,19 @@ export default function proxy(request: NextRequest) {
     // /[slug] -> /p/[username]/[slug]
     // /[slug]/export -> /p/[username]/[slug]/export
     //
-    // IMPORTANT: Build the rewrite URL explicitly from `protocol` (NEXT_PUBLIC_PROTOCOL env var)
-    // and `hostname` (Host request header = 'maxime1.ifotoset.com'), NOT from `request.url` or
-    // `request.nextUrl` — both resolve to the internal Next.js server URL (https://localhost:3004/)
-    // behind Nginx, causing 500 errors when Nginx tries to proxy to a localhost HTTPS endpoint.
+    // IMPORTANT: Clone request.nextUrl and only change pathname+search.
+    // request.nextUrl is the internal URL (http://localhost:3004/...) that Next.js uses
+    // for internal routing — changing only the path makes this a true server-side rewrite
+    // with no external HTTP round-trip.
+    //
+    // Do NOT use the public hostname (maxime1.ifotoset.com) — Cloudflare Error 1000 (loopback).
+    // Do NOT use request.url as base — on this Nginx setup it also resolves to localhost:3004.
     const newPath = pathname === '/' ? `/p/${tenant}` : `/p/${tenant}${pathname}`
-    const rewriteUrl = new URL(`${protocol}://${hostname}${newPath}${url.search}`)
+    const rewriteUrl = request.nextUrl.clone()
+    rewriteUrl.pathname = newPath
+    rewriteUrl.search = url.search
+    // Force http scheme so Nginx doesn't try to connect to localhost over HTTPS
+    rewriteUrl.protocol = 'http:'
     return NextResponse.rewrite(rewriteUrl)
   }
 
