@@ -60,3 +60,44 @@ export function useAnalytics(period: '7d' | '30d' | '90d' = '30d') {
     queryFn: () => getAnalytics(period),
   })
 }
+
+export interface GalleryAnalyticsOverview {
+  views: number;
+  downloads: number;
+  favorites: number;
+  visitors: number;
+}
+
+export interface GalleryVisitorActivity {
+  email: string | null;
+  downloads: number;
+  favorites: number;
+  last_active: string;
+}
+
+export interface GalleryRecentActivity {
+  event: string;
+  email: string | null;
+  photo_uuid: string | null;
+  created_at: string;
+}
+
+export interface GalleryAnalyticsData {
+  overview: GalleryAnalyticsOverview;
+  visitors: GalleryVisitorActivity[];
+  recent_activity: GalleryRecentActivity[];
+}
+
+export async function getGalleryAnalytics(uuid: string): Promise<GalleryAnalyticsData> {
+  return authFetch<GalleryAnalyticsData>(`/galleries/${uuid}/analytics`, {
+    method: 'GET',
+  })
+}
+
+export function useGalleryAnalytics(uuid: string) {
+  return useQuery<GalleryAnalyticsData>({
+    queryKey: ['gallery-analytics', uuid],
+    queryFn: () => getGalleryAnalytics(uuid),
+    enabled: !!uuid,
+  })
+}

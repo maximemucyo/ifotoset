@@ -6,9 +6,11 @@ import Link from 'next/link'
 import {
   ArrowLeft, Upload, Trash2, Edit, Share2, Lock, Globe, Image, Download,
   Heart, Eye, MoreHorizontal, X, Check, AlertTriangle, CloudUpload,
-  ChevronLeft, ChevronRight, RotateCcw, Wifi, WifiOff, Star, ZoomIn, ZoomOut
+  ChevronLeft, ChevronRight, RotateCcw, Wifi, WifiOff, Star, ZoomIn, ZoomOut,
+  BarChart3, Users, Mail
 } from 'lucide-react'
 import { useGallery, useDeleteGalleryMutation, PhotoItem, useDeletePhotoMutation, useUpdateGalleryMutation, GalleryItem } from '@/lib/queries/galleries'
+import { useGalleryAnalytics } from '@/lib/queries/analytics'
 import { uploadPhotoDirectly } from '@/lib/storage'
 import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
@@ -311,6 +313,8 @@ export default function GalleryDetail() {
   const [isCoverSelectOpen, setIsCoverSelectOpen] = useState(false)
   const [isUploadingCover, setIsUploadingCover] = useState(false)
   const [coverUploadProgress, setCoverUploadProgress] = useState(0)
+  const [activeView, setActiveView] = useState<'photos' | 'analytics'>('photos')
+  const { data: analytics, isLoading: analyticsLoading } = useGalleryAnalytics(uuid as string)
 
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map())
   const networkPausedRef = useRef<Set<string>>(new Set())
@@ -767,6 +771,163 @@ export default function GalleryDetail() {
 
 
 
+  const renderAnalyticsTab = () => {
+    if (analyticsLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 space-y-3">
+          <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-muted-foreground text-sm font-medium">Loading visitor activity...</p>
+        </div>
+      )
+    }
+
+    if (!analytics) {
+      return (
+        <div className="bg-card border border-border rounded-xl p-12 text-center">
+          <p className="text-muted-foreground text-sm font-medium">No visitor activity found yet.</p>
+        </div>
+      )
+    }
+
+    const { overview, visitors, recent_activity } = analytics
+
+    return (
+      <div className="space-y-8">
+        {/* Gallery Analytics Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Unique Visitors', value: overview.visitors, icon: Eye, description: 'Distinct browser sessions' },
+            { label: 'Total Views', value: overview.views, icon: Globe, description: 'Page loads' },
+            { label: 'Downloads', value: overview.downloads, icon: Download, description: 'Photos & ZIP downloads' },
+            { label: 'Favorites', value: overview.favorites, icon: Heart, description: 'Heart selections' },
+          ].map((stat) => {
+            const Icon = stat.icon
+            return (
+              <div key={stat.label} className="bg-card/50 border border-border rounded-xl p-5 hover:bg-card hover:border-primary/30 transition-all">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{stat.label}</span>
+                  <Icon className="w-5 h-5 text-primary opacity-80" />
+                </div>
+                <div className="text-2xl font-bold text-foreground mb-1">{stat.value}</div>
+                <p className="text-[10px] text-muted-foreground leading-snug">{stat.description}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Visitor Activity & Emails */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-border/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-lg text-foreground">Visitor Emails & Actions</h3>
+              <p className="text-xs text-muted-foreground">Emails entered by visitors when downloading or favoriting photos.</p>
+            </div>
+            <span className="shrink-0 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold self-start sm:self-auto">
+              {visitors.length} Unique Guests
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            {visitors.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm">
+                No visitor email records yet. Emails are captured when guests download photos or add them to favorites.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border/50 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/20">
+                    <th className="px-6 py-4">Visitor Email</th>
+                    <th className="px-6 py-4">Downloads</th>
+                    <th className="px-6 py-4">Favorites</th>
+                    <th className="px-6 py-4">Last Activity</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {visitors.map((v, i) => (
+                    <tr key={i} className="hover:bg-muted/10 transition-colors text-sm text-foreground">
+                      <td className="px-6 py-4 font-medium max-w-[200px] truncate">
+                        {v.email ? (
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500" />
+                            {v.email}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-neutral-400" />
+                            Anonymous Visitor
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-primary">{v.downloads}</td>
+                      <td className="px-6 py-4 font-semibold text-rose-500">{v.favorites}</td>
+                      <td className="px-6 py-4 text-xs text-muted-foreground">
+                        {new Date(v.last_active).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity Log */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-border/50">
+            <h3 className="font-bold text-lg text-foreground">Recent Event History</h3>
+            <p className="text-xs text-muted-foreground">Real-time log of events from the past 30 actions.</p>
+          </div>
+
+          <div className="divide-y divide-border/30 max-h-[400px] overflow-y-auto">
+            {recent_activity.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm">
+                No recent activity recorded.
+              </div>
+            ) : (
+              recent_activity.map((act, i) => {
+                let eventText = ''
+                let iconColor = 'text-primary'
+
+                if (act.event === 'gallery_viewed') {
+                  eventText = 'viewed the gallery'
+                  iconColor = 'text-blue-500'
+                } else if (act.event === 'photo_downloaded') {
+                  eventText = 'downloaded a photo'
+                  iconColor = 'text-emerald-500'
+                } else if (act.event === 'gallery_zip_file_downloaded') {
+                  eventText = 'downloaded the gallery ZIP archive'
+                  iconColor = 'text-emerald-500 font-semibold'
+                } else if (act.event === 'photo_favorited') {
+                  eventText = 'added a photo to favorites'
+                  iconColor = 'text-rose-500'
+                } else if (act.event === 'photo_unfavorited') {
+                  eventText = 'removed a photo from favorites'
+                  iconColor = 'text-muted-foreground'
+                } else {
+                  eventText = `performed action: ${act.event}`
+                }
+
+                return (
+                  <div key={i} className="px-6 py-3.5 flex items-center justify-between text-xs text-foreground hover:bg-muted/10 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-semibold ${iconColor}`}>
+                        {act.email || 'Anonymous guest'}
+                      </span>
+                      <span className="text-muted-foreground">{eventText}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const renderCoverPhotoCard = () => (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
       <div className="flex items-center justify-between pb-2 border-b border-border">
@@ -958,215 +1119,226 @@ export default function GalleryDetail() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 sm:p-6 max-w-none mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (Upload Zone + Active Uploads + Photo Grid) */}
-        <div className="lg:col-span-2 space-y-6 min-w-0 flex-1">
-          {/* Offline Warning Banner */}
-        {!isOnline && (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl p-4 flex items-center gap-3 backdrop-blur-sm">
-            <WifiOff size={20} className="shrink-0 animate-pulse text-amber-500" />
-            <div className="text-sm">
-              🔌 You're offline. Active uploads are paused and will automatically resume when your connection is restored.
-            </div>
-          </div>
-        )}
-
-        {/* Upload Zone */}
-        <div
-          id="upload-drop-zone"
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          className={`relative mb-6 border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-            isDragging
-              ? 'border-primary bg-primary/5 scale-[1.01]'
-              : 'border-border hover:border-primary/50 hover:bg-secondary/20'
+      {/* Tab Switcher */}
+      <div className="flex border-b border-border mt-6 px-4 sm:px-6">
+        <button
+          onClick={() => setActiveView('photos')}
+          className={`px-6 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeView === 'photos'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          <CloudUpload
-            size={40}
-            className={`mx-auto mb-3 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`}
-          />
-          <p className="text-foreground font-semibold mb-1">
-            {isDragging ? 'Drop photos here' : 'Upload Photos'}
-          </p>
-          <p className="text-muted-foreground text-sm mb-4">Drag & drop images or click to browse</p>
-          <label
-            id="upload-file-btn"
-            className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-accent transition-colors font-semibold text-sm cursor-pointer"
-          >
-            <Upload size={16} />
-            Choose Files
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileInput}
-              className="hidden"
-            />
-          </label>
-        </div>
+          <Image size={16} />
+          Photos
+        </button>
+        <button
+          onClick={() => setActiveView('analytics')}
+          className={`px-6 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeView === 'analytics'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart3 size={16} />
+          Visitor Activity & Emails
+        </button>
+      </div>
 
-        {/* Active Uploads */}
-        {activeUploads.length > 0 && (
-          <div className="mb-6 bg-card border border-border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Uploading ({activeUploads.length})</h3>
-              <div className="flex items-center gap-2">
-                {activeUploads.some((u) => u.status === 'error') && (
-                  <>
-                    <button
-                      onClick={handleRetryAllFailed}
-                      disabled={!isOnline}
-                      className="text-xs font-semibold px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
-                      title={isOnline ? 'Retry all failed uploads' : 'Reconnect to retry'}
-                    >
-                      {isOnline ? 'Retry Failed' : 'Retry when online'}
-                    </button>
-                    <button
-                      onClick={handleClearAllFailed}
-                      className="text-xs font-semibold px-2 py-1 rounded bg-secondary text-muted-foreground hover:bg-muted transition-colors"
-                    >
-                      Clear Failed
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {activeUploads.map((u) => {
-                let statusLabel = 'Waiting...';
-                let progressColor = 'bg-muted';
-                
-                if (u.status === 'uploading') {
-                  statusLabel = `Uploading ${u.progress}%`;
-                  progressColor = 'bg-primary';
-                } else if (u.status === 'paused') {
-                  statusLabel = 'Paused — waiting for connection';
-                  progressColor = 'bg-amber-500';
-                } else if (u.status === 'error') {
-                  statusLabel = 'Upload failed';
-                  progressColor = 'bg-destructive';
-                }
-
-                return (
-                  <div key={u.id} className="space-y-1.5 pb-3 border-b border-border/30 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-xs font-medium text-foreground truncate max-w-[50%]" title={u.file.name}>
-                        {u.file.name}
-                      </p>
-                      
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          u.status === 'error'
-                            ? 'bg-destructive/10 text-destructive'
-                            : u.status === 'paused'
-                            ? 'bg-amber-500/10 text-amber-500'
-                            : u.status === 'uploading'
-                            ? 'bg-primary/10 text-primary animate-pulse'
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {statusLabel}
-                        </span>
-                        
-                        <div className="flex items-center gap-1.5">
-                          {u.status === 'error' && (
-                            <button
-                              onClick={() => handleRetryUpload(u.id)}
-                              disabled={!isOnline}
-                              className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-                              title={isOnline ? 'Retry upload' : 'Reconnect to retry'}
-                            >
-                              <RotateCcw size={14} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleCancelUpload(u.id)}
-                            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-destructive transition-colors"
-                            title="Cancel upload"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${progressColor}`}
-                        style={{ width: `${u.status === 'error' || u.status === 'paused' ? 100 : u.progress}%` }}
-                      />
-                    </div>
-                    {u.status === 'error' && u.error && (
-                      <p className="text-destructive text-[11px] mt-0.5">{u.error}</p>
-                    )}
+      {/* Content */}
+      <div className="p-4 sm:p-6 max-w-none mx-auto">
+        {activeView === 'photos' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column (Upload Zone + Active Uploads + Photo Grid) */}
+            <div className="lg:col-span-2 space-y-6 min-w-0 flex-1">
+              {/* Offline Warning Banner */}
+              {!isOnline && (
+                <div className="mb-6 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl p-4 flex items-center gap-3 backdrop-blur-sm">
+                  <WifiOff size={20} className="shrink-0 animate-pulse text-amber-500" />
+                  <div className="text-sm">
+                    🔌 You're offline. Active uploads are paused and will automatically resume when your connection is restored.
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                </div>
+              )}
 
-        {/* Photo Grid */}
-        {photos.length === 0 ? (
-          <div className="bg-card border border-border rounded-xl p-16 text-center">
-            <Image className="w-16 h-16 text-muted-foreground/40 mx-auto mb-4" />
-            <p className="text-foreground font-semibold text-lg mb-1">No photos yet</p>
-            <p className="text-muted-foreground text-sm">Upload your first photos to get started.</p>
+              {/* Upload Zone */}
+              <div
+                id="upload-drop-zone"
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`relative mb-6 border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+                  isDragging
+                    ? 'border-primary bg-primary/5 scale-[1.01]'
+                    : 'border-border hover:border-primary/50 hover:bg-secondary/20'
+                }`}
+              >
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <CloudUpload className="w-12 h-12 text-muted-foreground/60" />
+                  <p className="text-foreground font-semibold text-sm">Drag and drop your photos here</p>
+                  <p className="text-muted-foreground text-xs">or click to browse from your device</p>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Active Uploads */}
+              {uploads.length > 0 && uploads.some((u) => u.status !== 'done') && (
+                <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-border">
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">Uploading Photos</h3>
+                      <p className="text-xs text-muted-foreground">Please keep this page open until completion.</p>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-primary/10 text-primary rounded-full animate-pulse">
+                      {uploads.filter((u) => u.status === 'uploading').length} Uploading
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto divide-y divide-border/30 pr-2">
+                    {uploads.map((u) => {
+                      if (u.status === 'done') return null;
+
+                      let statusLabel = 'Queued';
+                      let progressColor = 'bg-primary';
+
+                      if (u.status === 'uploading') {
+                        statusLabel = `${Math.round(u.progress)}%`;
+                      } else if (u.status === 'paused') {
+                        statusLabel = 'Offline';
+                        progressColor = 'bg-amber-500';
+                      } else if (u.status === 'error') {
+                        statusLabel = 'Upload failed';
+                        progressColor = 'bg-destructive';
+                      }
+
+                      return (
+                        <div key={u.id} className="space-y-1.5 pb-3 border-b border-border/30 last:border-0 last:pb-0">
+                          <div className="flex items-center justify-between gap-4">
+                            <p className="text-xs font-medium text-foreground truncate max-w-[50%]" title={u.file.name}>
+                              {u.file.name}
+                            </p>
+                            
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                u.status === 'error'
+                                  ? 'bg-destructive/10 text-destructive'
+                                  : u.status === 'paused'
+                                  ? 'bg-amber-500/10 text-amber-500'
+                                  : u.status === 'uploading'
+                                  ? 'bg-primary/10 text-primary animate-pulse'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}>
+                                {statusLabel}
+                              </span>
+                              
+                              <div className="flex items-center gap-1.5">
+                                {u.status === 'error' && (
+                                  <button
+                                    onClick={() => handleRetryUpload(u.id)}
+                                    disabled={!isOnline}
+                                    className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                                    title={isOnline ? 'Retry upload' : 'Reconnect to retry'}
+                                  >
+                                    <RotateCcw size={14} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleCancelUpload(u.id)}
+                                  className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Cancel upload"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${progressColor}`}
+                              style={{ width: `${u.status === 'error' || u.status === 'paused' ? 100 : u.progress}%` }}
+                            />
+                          </div>
+                          {u.status === 'error' && u.error && (
+                            <p className="text-destructive text-[11px] mt-0.5">{u.error}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Photo Grid */}
+              {photos.length === 0 ? (
+                <div className="bg-card border border-border rounded-xl p-16 text-center">
+                  <Image className="w-16 h-16 text-muted-foreground/40 mx-auto mb-4" />
+                  <p className="text-foreground font-semibold text-lg mb-1">No photos yet</p>
+                  <p className="text-muted-foreground text-sm">Upload your first photos to get started.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {photos.map((photo) => (
+                      <button
+                        key={photo.uuid}
+                        onClick={() => setSelectedPhoto(photo)}
+                        className="group relative aspect-square bg-muted rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all"
+                      >
+                        <img
+                          src={photo.variants?.sm || photo.cdn_url}
+                          alt={photo.filename}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Infinite Scroll Sentinel */}
+                  <div ref={sentinelRef} className="w-full h-10 mt-6 flex justify-center items-center">
+                    {isFetchingNextPage ? (
+                      <div className="flex items-center gap-2 py-4">
+                        <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                        <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
+                      </div>
+                    ) : hasMore ? (
+                      <button
+                        onClick={() => fetchNextPage()}
+                        className="text-xs text-muted-foreground hover:text-foreground font-medium underline py-2"
+                      >
+                        Load More
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Cover Photo (Mobile Only) */}
+            <div className="lg:hidden">
+              {renderCoverPhotoCard()}
+            </div>
+
+            {/* Right Column (Cover Photo Sidebar Card) */}
+            <div className="hidden lg:block space-y-6">
+              {renderCoverPhotoCard()}
+            </div>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {photos.map((photo) => (
-                <button
-                  key={photo.uuid}
-                  onClick={() => setSelectedPhoto(photo)}
-                  className="group relative aspect-square bg-muted rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all"
-                >
-                  <img
-                    src={photo.variants?.sm || photo.cdn_url}
-                    alt={photo.filename}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Infinite Scroll Sentinel */}
-            <div ref={sentinelRef} className="w-full h-10 mt-6 flex justify-center items-center">
-              {isFetchingNextPage ? (
-                <div className="flex items-center gap-2 py-4">
-                  <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-                  <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
-                </div>
-              ) : hasMore ? (
-                <button
-                  onClick={() => fetchNextPage()}
-                  className="text-xs text-muted-foreground hover:text-foreground font-medium underline py-2"
-                >
-                  Load More
-                </button>
-              ) : null}
-            </div>
-          </>
+          <div className="max-w-5xl mx-auto py-6">
+            {renderAnalyticsTab()}
+          </div>
         )}
-        </div>
-
-        {/* Cover Photo (Mobile Only) */}
-        <div className="lg:hidden">
-          {renderCoverPhotoCard()}
-        </div>
-
-        {/* Right Column (Cover Photo Sidebar Card) */}
-        <div className="hidden lg:block space-y-6">
-          {renderCoverPhotoCard()}
-        </div>
       </div>
 
       {/* Photo Lightbox */}

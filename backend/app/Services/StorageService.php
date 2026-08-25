@@ -35,6 +35,25 @@ class StorageService
     }
 
     /**
+     * Generates an S3 presigned GET URL for downloading a file with a custom filename.
+     */
+    public function generatePresignedDownloadUrl(string $objectKey, string $filename, \DateTimeInterface $expiresAt): string
+    {
+        $client = Storage::disk('b2')->getClient();
+        $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
+
+        $cmd = $client->getCommand('GetObject', [
+            'Bucket' => $bucket,
+            'Key' => $objectKey,
+            'ResponseContentDisposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+
+        $request = $client->createPresignedRequest($cmd, $expiresAt);
+
+        return (string) $request->getUri();
+    }
+
+    /**
      * Executes lightweight HeadObject check to verify file presence in storage.
      */
     public function exists(string $objectKey): bool

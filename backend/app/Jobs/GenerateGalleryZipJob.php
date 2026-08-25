@@ -34,7 +34,8 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
      */
     public function __construct(
         public int $galleryId,
-        public int $downloadId
+        public int $downloadId,
+        public ?string $downloadToken = null
     ) {}
 
     /**
@@ -192,7 +193,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             $finalStatus = $failedCount > 0 ? 'ready_with_errors' : 'ready';
 
             // DB Transaction for Atomic state change and Mailable trigger
-            \Illuminate\Support\Facades\DB::transaction(function () use ($download, $finalStatus, $b2ZipPath, $storageService) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($download, $finalStatus, $b2ZipPath, $storageService, $gallery) {
                 // Lock row
                 $lockedDownload = GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
                 if (!$lockedDownload) {
@@ -213,7 +214,11 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
                         'notification_sent_at' => now(),
                     ]);
 
-                    $downloadUrl = $storageService->getCdnUrl(dirname($lockedDownload->storage_path), null, basename($lockedDownload->storage_path));
+                    $queryParams = [];
+                    if ($this->downloadToken) {
+                        $queryParams['token'] = $this->downloadToken;
+                    }
+                    $downloadUrl = url("/api/v1/public/galleries/{$gallery->slug}/download-zip/{$lockedDownload->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
                     $email = $lockedDownload->email;
 
                     // Queue email after commit

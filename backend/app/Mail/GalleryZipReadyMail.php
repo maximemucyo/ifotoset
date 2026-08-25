@@ -31,9 +31,21 @@ class GalleryZipReadyMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
-        $statusText = $this->download->failed_photos > 0 ? "completed with warnings" : "ready";
+        $gallery = $this->download->gallery;
+        $photographer = $gallery->user;
+        
         return new Envelope(
-            subject: "Your ZIP download for gallery \"" . $this->download->gallery->title . "\" is " . $statusText,
+            from: new \Illuminate\Mail\Mailables\Address(
+                config('mail.from.address', 'notifications@ifotoset.com'),
+                $photographer->name
+            ),
+            replyTo: [
+                new \Illuminate\Mail\Mailables\Address(
+                    $photographer->email,
+                    $photographer->name
+                )
+            ],
+            subject: "Your Photos for " . $gallery->title . " are ready for download",
         );
     }
 

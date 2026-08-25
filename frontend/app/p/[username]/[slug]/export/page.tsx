@@ -39,7 +39,7 @@ export default function ExportPage() {
   
   // Input fields
   const [email, setEmail] = useState('')
-  const [notify, setNotify] = useState(false)
+  const [notify, setNotify] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   
   // Status state
@@ -49,6 +49,31 @@ export default function ExportPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const pollIntervalRef = useRef<any>(null)
+
+  // Check for error in query params on mount
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      if (errorParam === 'expired') {
+        setErrorMsg('This download link has expired. ZIP files are only kept for 24 hours. Please generate a new link below.')
+      } else if (errorParam === 'unauthorized') {
+        setErrorMsg('You do not have permission to download this gallery.')
+      } else if (errorParam === 'not_found') {
+        setErrorMsg('The requested download was not found or has been deleted. Please generate a new one.')
+      } else if (errorParam === 'unavailable') {
+        setErrorMsg('The requested download is not ready yet. Please try again.')
+      } else {
+        setErrorMsg('An error occurred with your download. Please try again.')
+      }
+
+      // Clean up the URL query parameter so refreshing doesn't keep showing the error
+      const newParams = new URLSearchParams(searchParams.toString())
+      newParams.delete('error')
+      const cleanSearch = newParams.toString()
+      const newUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '')
+      window.history.replaceState({}, '', newUrl)
+    }
+  }, [searchParams])
 
   // Fetch gallery title on mount
   useEffect(() => {
@@ -79,8 +104,14 @@ export default function ExportPage() {
           pollIntervalRef.current = null
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to poll status', err)
+      setErrorMsg(err.message || 'Failed to check status. The download may have expired or been deleted.')
+      setStatus('failed')
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
     }
   }
 
@@ -132,7 +163,6 @@ export default function ExportPage() {
       setSubmitting(false)
       return
     }
-
     try {
       if (type === 'zip') {
         const res = await triggerGalleryZip(
@@ -152,6 +182,15 @@ export default function ExportPage() {
           document.body.appendChild(a)
           a.click()
           document.body.removeChild(a)
+        }
+
+        if (['ready', 'ready_with_errors', 'failed', 'empty'].includes(res.status)) {
+          try {
+            const statusRes = await getGalleryZipStatus(slug, res.download_id, inviteToken, galleryToken)
+            setProgress(statusRes)
+          } catch (err) {
+            console.error('Failed to fetch initial status details', err)
+          }
         }
       } else if (type === 'google-photos') {
         const favoriteUuids = target === 'favorites' 
@@ -246,35 +285,24 @@ export default function ExportPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input 
-                        type="checkbox"
-                        id="notify_when_ready"
-                        checked={notify}
-                        onChange={(e) => setNotify(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary w-4 h-4 bg-secondary cursor-pointer"
-                      />
-                      <label htmlFor="notify_when_ready" className="text-sm font-semibold text-foreground/95 cursor-pointer selection:bg-transparent">
-                        Email me when the export is ready
+                    <div className="space-y-2">
+                      <label htmlFor="email_address" className="text-sm font-semibold text-foreground/95">
+                        Please enter your email to continue
                       </label>
+                      <input
+                        type="email"
+                        id="email_address"
+                        placeholder="e.g. user@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors placeholder-muted-foreground font-medium"
+                      />
+                      <p className="text-[10.5px] text-muted-foreground leading-relaxed flex items-start gap-1.5 mt-1.5">
+                        <Info size={13} className="text-primary shrink-0 mt-0.5" />
+                        We will email you when the export is ready. You can safely leave or close this page at any time.
+                      </p>
                     </div>
-
-                    {notify && (
-                      <div className="space-y-1 pt-1.5 animate-fadeIn">
-                        <input
-                          type="email"
-                          placeholder="e.g. user@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required={notify}
-                          className="w-full bg-secondary/50 border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors placeholder-muted-foreground"
-                        />
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                          <Info size={10} className="text-primary shrink-0" />
-                          We will only use this email to notify you when this export finishes.
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
 

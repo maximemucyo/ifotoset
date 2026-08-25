@@ -55,6 +55,7 @@ Route::middleware('throttle:60,1')->post('/public/galleries/{slug}/favorite', [G
 // Public Gallery ZIP download & Google Photos Sync
 Route::middleware('throttle:30,1')->post('/public/galleries/{slug}/download-zip', [GalleryController::class, 'triggerZipDownload']);
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/download-zip/{id}', [GalleryController::class, 'getZipDownloadStatus']);
+Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/download-zip/{id}/download', [GalleryController::class, 'downloadZipFile']);
 Route::middleware('throttle:15,1')->post('/public/galleries/{slug}/google-photos/authorize', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'authorizePhotos']);
 Route::middleware('throttle:15,1')->post('/public/google-photos/callback', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'handleCallback']);
 Route::middleware('throttle:60,1')->get('/public/galleries/{slug}/google-photos/syncs/{uuid}/status', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'syncStatus']);
@@ -151,6 +152,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/galleries', [GalleryController::class, 'index']);
     Route::get('/galleries/{uuid}', [GalleryController::class, 'show']);
     Route::get('/galleries/{uuid}/photos', [GalleryController::class, 'photos']);
+    Route::get('/galleries/{uuid}/analytics', [GalleryController::class, 'analytics']);
     Route::get('/trash', [\App\Http\Controllers\Api\V1\TrashController::class, 'index']);
     Route::get('/payments/{uuid}/status', [PaymentController::class, 'getStatus']);
     Route::get('/clients', [ClientController::class, 'index']);

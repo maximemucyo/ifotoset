@@ -7,3 +7,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 \Illuminate\Support\Facades\Schedule::command('ifotoset:purge-expired-trash')->daily();
+\Illuminate\Support\Facades\Schedule::command('gallery:cleanup-expired-zips')->hourly();

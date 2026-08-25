@@ -23,8 +23,9 @@ class GalleryDownload extends Model
         'started_at',
         'completed_at',
         'notification_sent_at',
+        'download_token_hash',
+        'expired_at',
     ];
-
     protected $casts = [
         'generated_at' => 'datetime',
         'size' => 'integer',
@@ -35,10 +36,19 @@ class GalleryDownload extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'notification_sent_at' => 'datetime',
+        'expired_at' => 'datetime',
     ];
 
     public function gallery(): BelongsTo
     {
         return $this->belongsTo(Gallery::class);
+    }
+
+    /**
+     * Get the expiration timestamp of the ZIP download (24 hours after completion).
+     */
+    public function expiresAt(): ?\Illuminate\Support\Carbon
+    {
+        return $this->completed_at ? $this->completed_at->copy()->addHours(24) : null;
     }
 }

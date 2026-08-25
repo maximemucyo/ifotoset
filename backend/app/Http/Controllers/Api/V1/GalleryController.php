@@ -10,6 +10,8 @@ use App\Models\GalleryStats;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use App\Services\GalleryZipDownloadService;
 
 use App\Traits\VerifiesGalleryAccess;
 
@@ -519,7 +521,15 @@ class GalleryController extends Controller
 
         $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
             ->where('photo_snapshot_hash', $snapshotHash)
+            ->where('status', '!=', 'expired')
             ->first();
+
+        $zipService = app(GalleryZipDownloadService::class);
+        if ($download) {
+            if ($zipService->expireIfNecessary($download)) {
+                $download = null;
+            }
+        }
 
         $storageService = app(\App\Services\StorageService::class);
 
@@ -538,17 +548,19 @@ class GalleryController extends Controller
             if (Storage::disk('b2')->exists($download->storage_path)) {
                 // If it is already ready, but the user requested notifications and we haven't sent it yet, let's update email settings
                 if ($notifyWhenReady && is_null($download->notification_sent_at)) {
+                    $rawToken = bin2hex(random_bytes(32));
                     $download->update([
                         'email' => $email,
                         'notify_when_ready' => true,
+                        'download_token_hash' => hash('sha256', $rawToken),
                     ]);
                     
                     // Since it's ready, we can trigger the notification immediately
-                    \Illuminate\Support\Facades\DB::transaction(function () use ($download, $storageService) {
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($download, $rawToken) {
                         $lockedDownload = \App\Models\GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
                         if ($lockedDownload && is_null($lockedDownload->notification_sent_at)) {
                             $lockedDownload->update(['notification_sent_at' => now()]);
-                            $downloadUrl = $storageService->getCdnUrl(dirname($lockedDownload->storage_path), null, basename($lockedDownload->storage_path));
+                            $downloadUrl = url("/api/v1/public/galleries/{$lockedDownload->gallery->slug}/download-zip/{$lockedDownload->id}/download?token={$rawToken}");
                             $emailAddr = $lockedDownload->email;
                             \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $downloadUrl, $emailAddr) {
                                 \Illuminate\Support\Facades\Mail::to($emailAddr)->queue(
@@ -559,30 +571,31 @@ class GalleryController extends Controller
                     });
                 }
 
-                // Increment downloads count when ZIP is served
-                $gallery->stats()->increment('downloads_count');
-                $gallery->stats()->update(['updated_at' => now()]);
+                $queryParams = [];
+                if ($request->query('invite')) {
+                    $queryParams['invite'] = $request->query('invite');
+                }
+                if ($request->query('token')) {
+                    $queryParams['token'] = $request->query('token');
+                } elseif ($request->header('X-Gallery-Token')) {
+                    $queryParams['token'] = $request->header('X-Gallery-Token');
+                }
 
-                // Record public activity log
-                $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
-                \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
-                    'gallery_id' => $gallery->id,
-                    'event' => 'gallery_zipped_downloaded',
-                    'visitor_session_id' => $visitorSession,
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'created_at' => now(),
-                ]);
+                $downloadUrl = url("/api/v1/public/galleries/{$slug}/download-zip/{$download->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
 
                 return response()->json([
                     'status' => 'ready',
                     'download_id' => $download->id,
-                    'download_url' => $storageService->getCdnUrl(dirname($download->storage_path), null, basename($download->storage_path)),
+                    'download_url' => $downloadUrl,
                     'size' => $download->size,
                 ]);
             } else {
                 // ZIP was deleted in B2, reset mapping
-                $download->delete();
+                $download->update([
+                    'status' => 'expired',
+                    'expired_at' => now(),
+                    'storage_path' => null,
+                ]);
                 $download = null;
             }
         }
@@ -602,23 +615,17 @@ class GalleryController extends Controller
         }
 
         // Dispatch background packaging job if missing or stale
-        if (!$download) {
-            $download = \App\Models\GalleryDownload::create([
-                'gallery_id' => $gallery->id,
-                'status' => 'pending',
-                'photo_snapshot_hash' => $snapshotHash,
-                'email' => $notifyWhenReady ? $email : null,
-                'notify_when_ready' => $notifyWhenReady,
-            ]);
-        } else {
-            $download->update([
-                'status' => 'pending',
-                'email' => $notifyWhenReady ? $email : null,
-                'notify_when_ready' => $notifyWhenReady,
-            ]);
-        }
+        $rawToken = bin2hex(random_bytes(32));
+        $download = \App\Models\GalleryDownload::create([
+            'gallery_id' => $gallery->id,
+            'status' => 'pending',
+            'photo_snapshot_hash' => $snapshotHash,
+            'email' => $notifyWhenReady ? $email : null,
+            'notify_when_ready' => $notifyWhenReady,
+            'download_token_hash' => hash('sha256', $rawToken),
+        ]);
 
-        \App\Jobs\GenerateGalleryZipJob::dispatch($gallery->id, $download->id);
+        \App\Jobs\GenerateGalleryZipJob::dispatch($gallery->id, $download->id, $rawToken);
 
         return response()->json([
             'status' => 'pending',
@@ -643,6 +650,15 @@ class GalleryController extends Controller
             ->where('id', $id)
             ->firstOrFail();
 
+        // Expire check
+        $zipService = app(GalleryZipDownloadService::class);
+        if ($zipService->expireIfNecessary($download)) {
+            return response()->json([
+                'code' => 'ZIP_EXPIRED',
+                'message' => 'This ZIP download has expired and is no longer available.',
+            ], 410);
+        }
+
         $progressService = app(\App\Services\ExportProgressService::class);
         $progress = $progressService->calculate(
             $download->started_at,
@@ -653,10 +669,19 @@ class GalleryController extends Controller
             $download->status
         );
 
-        $storageService = app(\App\Services\StorageService::class);
         $downloadUrl = null;
         if (($download->status === 'ready' || $download->status === 'ready_with_errors') && $download->storage_path) {
-            $downloadUrl = $storageService->getCdnUrl(dirname($download->storage_path), null, basename($download->storage_path));
+            $queryParams = [];
+            if ($request->query('invite')) {
+                $queryParams['invite'] = $request->query('invite');
+            }
+            if ($request->query('token')) {
+                $queryParams['token'] = $request->query('token');
+            } elseif ($request->header('X-Gallery-Token')) {
+                $queryParams['token'] = $request->header('X-Gallery-Token');
+            }
+
+            $downloadUrl = url("/api/v1/public/galleries/{$slug}/download-zip/{$download->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
         }
 
         return response()->json([
@@ -673,6 +698,180 @@ class GalleryController extends Controller
             'percentage' => $progress['percentage'],
             'remaining_seconds' => $progress['remaining_seconds'],
             'estimated_finish_time' => $progress['estimated_finish_time'],
+        ]);
+    }
+
+    /**
+     * Endpoint to handle authorization check, download logging, filename sanitization,
+     * and redirect (302) to the B2 signed url.
+     * GET /public/galleries/{slug}/download-zip/{id}/download
+     */
+    public function downloadZipFile(Request $request, string $slug, int $id)
+    {
+        $gallery = Gallery::with('user')->where('slug', $slug)->firstOrFail();
+        
+        $frontendUrl = config('app.frontend_url') ?: 'https://ifotoset.com';
+        $exportUrl = rtrim($frontendUrl, '/') . '/p/' . rawurlencode(strtolower($gallery->user->username)) . '/' . rawurlencode($gallery->slug) . '/export';
+
+        $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
+            ->where('id', $id)
+            ->first();
+
+        if (!$download) {
+            return redirect()->to($exportUrl . '?error=not_found');
+        }
+
+        // Shared expiration check
+        $zipService = app(GalleryZipDownloadService::class);
+        if ($zipService->expireIfNecessary($download)) {
+            return redirect()->to($exportUrl . '?error=expired');
+        }
+
+        if (!in_array($download->status, ['ready', 'ready_with_errors'])) {
+            return redirect()->to($exportUrl . '?error=unavailable');
+        }
+
+        // Credential isolation rules
+        $token = $request->query('token');
+        if ($token) {
+            $hashedInput = hash('sha256', $token);
+            if (!$download->download_token_hash || !hash_equals($download->download_token_hash, $hashedInput)) {
+                return redirect()->to($exportUrl . '?error=unauthorized');
+            }
+        } else {
+            $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+            if ($errorResponse) {
+                return redirect()->to($exportUrl . '?error=unauthorized');
+            }
+        }
+
+        // Verify storage file exists
+        if (!$download->storage_path || !Storage::disk('b2')->exists($download->storage_path)) {
+            $download->update([
+                'status' => 'expired',
+                'expired_at' => now(),
+                'storage_path' => null,
+            ]);
+            return redirect()->to($exportUrl . '?error=expired');
+        }
+
+        // Track download stats
+        $gallery->stats()->increment('downloads_count');
+        $gallery->stats()->update(['updated_at' => now()]);
+
+        // Record public activity log
+        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => 'gallery_zip_file_downloaded',
+            'visitor_session_id' => $visitorSession,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+            'properties' => json_encode([
+                'download_id' => $download->id,
+                'total_photos' => $download->total_photos,
+                'size' => $download->size,
+            ]),
+        ]);
+
+        // Deterministic filename sanitization
+        $safeTitle = preg_replace('/[^A-Za-z0-9 _-]/', '', $gallery->title);
+        $safeTitle = trim($safeTitle) ?: 'gallery-photos';
+        $safeTitle = preg_replace('/-+/', '-', str_replace(' ', '-', $safeTitle));
+        $safeTitle = trim($safeTitle, '-');
+        if (strlen($safeTitle) > 100) {
+            $safeTitle = substr($safeTitle, 0, 100);
+        }
+        $safeTitle = $safeTitle ?: 'gallery';
+        $filename = "{$safeTitle}.zip";
+
+        $storageService = app(\App\Services\StorageService::class);
+        $presignedUrl = $storageService->generatePresignedDownloadUrl($download->storage_path, $filename, now()->addMinutes(15));
+
+        return redirect()->away($presignedUrl, 302, [
+            'Referrer-Policy' => 'no-referrer',
+        ]);
+    }
+
+    /**
+     * Get analytics and visitor logs for a specific gallery.
+     * GET /api/v1/galleries/{uuid}/analytics
+     */
+    public function analytics(Request $request, string $uuid): JsonResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('view', $gallery);
+
+        // 1. Overview stats
+        $uniqueVisitors = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->whereNotNull('visitor_session_id')
+            ->distinct()
+            ->count('visitor_session_id');
+
+        $totalViews = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->where('event', 'gallery_viewed')
+            ->count();
+
+        $totalDownloads = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->whereIn('event', ['photo_downloaded', 'gallery_zip_file_downloaded'])
+            ->count();
+
+        $totalFavorites = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->where('event', 'photo_favorited')
+            ->count();
+
+        // 2. Visitor Activity & Emails
+        $visitors = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->select(
+                \Illuminate\Support\Facades\DB::raw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.email')) as email"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN event = 'photo_downloaded' OR event = 'gallery_zip_file_downloaded' THEN 1 ELSE 0 END) as downloads_count"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN event = 'photo_favorited' THEN 1 ELSE 0 END) as favorites_count"),
+                \Illuminate\Support\Facades\DB::raw("MAX(created_at) as last_active_at")
+            )
+            ->groupBy(\Illuminate\Support\Facades\DB::raw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.email'))"))
+            ->orderBy('last_active_at', 'desc')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'email' => ($row->email === 'null' || !$row->email) ? null : $row->email,
+                    'downloads' => (int) $row->downloads_count,
+                    'favorites' => (int) $row->favorites_count,
+                    'last_active' => $row->last_active_at,
+                ];
+            });
+
+        // 3. Recent Activity logs
+        $recentActivity = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->where('gallery_id', $gallery->id)
+            ->select('event', 'properties', 'created_at')
+            ->orderBy('created_at', 'desc')
+            ->take(30)
+            ->get()
+            ->map(function ($row) {
+                $properties = json_decode($row->properties, true) ?: [];
+                return [
+                    'event' => $row->event,
+                    'email' => $properties['email'] ?? null,
+                    'photo_uuid' => $properties['photo_uuid'] ?? null,
+                    'created_at' => $row->created_at,
+                ];
+            });
+
+        return response()->json([
+            'overview' => [
+                'views' => $totalViews,
+                'downloads' => $totalDownloads,
+                'favorites' => $totalFavorites,
+                'visitors' => $uniqueVisitors,
+            ],
+            'visitors' => $visitors,
+            'recent_activity' => $recentActivity,
         ]);
     }
 }
