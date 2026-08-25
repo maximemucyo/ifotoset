@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
+use Illuminate\Auth\Events\Registered;
 use Ramsey\Uuid\Uuid;
 
 class RegisterController extends Controller
@@ -19,8 +21,21 @@ class RegisterController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        if ($request->has('username')) {
+            $request->merge([
+                'username' => $request->username ? strtolower(trim($request->username)) : null,
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'username' => [
+                'required',
+                'string',
+                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
+                'unique:users,username',
+                Rule::notIn(config('reserved_usernames', []))
+            ],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
@@ -41,9 +56,13 @@ class RegisterController extends Controller
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $freePlan->id,
             'name' => $validated['name'],
+            'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
         ]);
+
+        // Dispatch Registered event (this will queue the QueuedVerifyEmail notification)
+        event(new Registered($user));
 
         Auth::login($user);
 
@@ -54,14 +73,39 @@ class RegisterController extends Controller
                 'user' => [
                     'uuid' => $user->uuid,
                     'name' => $user->name,
+                    'username' => $user->username,
                     'email' => $user->email,
                     'role' => $user->role,
                     'plan' => $freePlan->slug,
+                    'email_verified' => false,
                     'storage' => $storageStats,
                 ],
                 'permissions' => ['galleries.manage'],
             ]
         ], 201);
+    }
+
+    /**
+     * Check if a username is available.
+     * GET /api/v1/auth/check-username
+     */
+    public function checkUsername(Request $request): JsonResponse
+    {
+        $username = $request->query('username') ? strtolower(trim($request->query('username'))) : '';
+
+        $validator = \Illuminate\Support\Facades\Validator::make(['username' => $username], [
+            'username' => [
+                'required',
+                'string',
+                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
+                'unique:users,username',
+                Rule::notIn(config('reserved_usernames', []))
+            ]
+        ]);
+
+        return response()->json([
+            'available' => !$validator->fails()
+        ], 200);
     }
 }
 ?>

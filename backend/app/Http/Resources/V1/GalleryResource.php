@@ -14,6 +14,16 @@ class GalleryResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $this->relationLoaded('user') ? $this->user : null;
+        if (!$user && $this->user_id) {
+            $currentUser = $request->user();
+            if ($currentUser && $currentUser->id === $this->user_id) {
+                $user = $currentUser;
+            } else {
+                $user = $this->user; // Fallback to lazy load if needed
+            }
+        }
+
         return [
             'uuid' => $this->uuid,
             'title' => $this->title,
@@ -25,9 +35,21 @@ class GalleryResource extends JsonResource
             'allow_gallery_downloads' => (bool) $this->allow_gallery_downloads,
             'allow_google_photos' => (bool) $this->allow_google_photos,
             'has_password' => !empty($this->password_hash),
-            'password_hint' => $this->password_hint,
-            'version' => $this->version,
             'has_explicit_cover' => (bool) $this->has_explicit_cover,
+            'version' => $this->version,
+            'access_granted' => $this->access_granted ?? true,
+            'error_code' => $this->error_code ?? null,
+            'error_message' => $this->error_message ?? null,
+            'requires_password' => $this->requires_password ?? false,
+            'password_hint' => $this->password_hint ?? null,
+            'requires_invitation' => $this->requires_invitation ?? false,
+            'photographer' => $user ? [
+                'name' => $user->name,
+                'username' => $user->username,
+                'avatar_url' => $user->avatar_path
+                    ? 'https://' . config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com') . '/' . ltrim($user->avatar_path, '/')
+                    : null,
+            ] : null,
             'stats' => [
                 'photo_count' => $this->stats->photo_count ?? 0,
                 'video_count' => $this->stats->video_count ?? 0,

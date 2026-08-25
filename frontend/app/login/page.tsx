@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { useLoginMutation, useCurrentUser } from '@/lib/queries/auth'
@@ -10,6 +10,21 @@ import { Routes } from '@/lib/routes'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [verifiedError, setVerifiedError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (searchParams && searchParams.get('verified') === '0') {
+      const err = searchParams.get('error')
+      if (err === 'expired') {
+        setVerifiedError('Your verification link has expired. Please sign in to request a new link.')
+      } else {
+        setVerifiedError('The verification link is invalid or has expired. Please sign in to request a new link.')
+      }
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+    }
+  }, [searchParams])
   const { data: currentUser, isLoading: isUserLoading } = useCurrentUser()
   const loginMutation = useLoginMutation()
   const [showPassword, setShowPassword] = useState(false)
@@ -84,6 +99,11 @@ export default function LoginPage() {
         {/* Form Card */}
         <div className="bg-card rounded-lg border border-border p-8 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {verifiedError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-lg text-center font-medium">
+                {verifiedError}
+              </div>
+            )}
             {errorMsg && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-lg text-center">
                 {errorMsg}

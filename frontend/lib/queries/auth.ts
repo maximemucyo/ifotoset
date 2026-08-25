@@ -22,6 +22,7 @@ export interface User {
   email: string;
   role: 'admin' | 'photographer';
   plan: string;
+  email_verified: boolean;
   phone: string | null;
   location: string | null;
   website: string | null;

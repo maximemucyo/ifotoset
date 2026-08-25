@@ -31,9 +31,11 @@ class LoginController extends Controller
                     'user' => [
                         'uuid' => $user->uuid,
                         'name' => $user->name,
+                        'username' => $user->username,
                         'email' => $user->email,
                         'role' => $user->role,
                         'plan' => $user->plan->slug ?? 'free',
+                        'email_verified' => $user->email_verified_at !== null,
                         'storage' => $storageStats,
                     ],
                     'permissions' => $user->role === 'admin'

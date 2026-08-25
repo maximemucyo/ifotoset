@@ -322,7 +322,7 @@ export function PublicGalleryViewClient({
   };
 
   const handleShare = (photo: PhotoItem) => {
-    const canonicalUrl = `${window.location.origin}/g/${slug}?photo=${photo.uuid}`;
+    const canonicalUrl = `${window.location.origin}/${slug}?photo=${photo.uuid}`;
     if (navigator.share) {
       navigator.share({
         title: photo.filename,
@@ -340,7 +340,7 @@ export function PublicGalleryViewClient({
   const handleZipDownloadTrigger = () => {
     const inviteQuery = inviteToken ? `&invite=${inviteToken}` : '';
     const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
-    router.push(`/g/${slug}/export?type=zip${inviteQuery}${tokenQuery}`);
+    router.push(`/${slug}/export?type=zip${inviteQuery}${tokenQuery}`);
   };
 
   const handleGooglePhotosSyncTrigger = () => {
@@ -352,7 +352,7 @@ export function PublicGalleryViewClient({
   };
 
   const handleShareGallery = () => {
-    const canonicalUrl = `${window.location.origin}/g/${slug}`;
+    const canonicalUrl = `${window.location.origin}/${slug}`;
     if (navigator.share) {
       navigator.share({
         title: gallery?.title || 'Photo Gallery',
@@ -400,7 +400,7 @@ export function PublicGalleryViewClient({
     const tokenQuery = galleryToken ? `&token=${galleryToken}` : '';
     const targetQuery = `&target=${target}`;
 
-    router.push(`/g/${slug}/export?type=google-photos${targetQuery}${inviteQuery}${tokenQuery}`);
+    router.push(`/${slug}/export?type=google-photos${targetQuery}${inviteQuery}${tokenQuery}`);
   };
 
   // Cleanup interval on unmount
@@ -660,9 +660,9 @@ export function PublicGalleryViewClient({
           <div className={`flex items-center gap-2 sm:gap-4 text-xs shrink-0 transition-colors duration-300 ${
             isHeaderTransparent ? 'text-white/80' : 'text-muted-foreground'
           }`}>
-            {gallery.client_name && (
+            {gallery.photographer?.name && (
               <span className="hidden sm:flex items-center gap-1.5 font-medium">
-                <User size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> {gallery.client_name}
+                <User size={14} className={isHeaderTransparent ? 'text-white/80' : ''} /> By {gallery.photographer.name}
               </span>
             )}
             {gallery.event_date && (
@@ -697,11 +697,6 @@ export function PublicGalleryViewClient({
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight">
                 {gallery.title}
               </h2>
-              {gallery.client_name && (
-                <p className="text-md sm:text-lg font-medium text-white/90">
-                  For {gallery.client_name}
-                </p>
-              )}
               {gallery.event_date && (
                 <p className="text-xs sm:text-sm text-white/80">
                   {new Date(gallery.event_date).toLocaleDateString(undefined, { dateStyle: 'long' })}
@@ -753,10 +748,10 @@ export function PublicGalleryViewClient({
                 {gallery.title}
               </h2>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tracking-wider uppercase font-semibold text-muted-foreground">
-                {gallery.client_name && (
-                  <span>For {gallery.client_name}</span>
+                {gallery.photographer?.name && (
+                  <span>By {gallery.photographer.name}</span>
                 )}
-                {gallery.client_name && gallery.event_date && (
+                {gallery.photographer?.name && gallery.event_date && (
                   <span className="w-1.5 h-1.5 rounded-full bg-border" />
                 )}
                 {gallery.event_date && (
@@ -923,8 +918,8 @@ export function PublicGalleryViewClient({
       {/* ─── Social Share Modal ─────────────────────────────────────────────── */}
       {mounted && (sharingPhoto || sharingGallery) && (() => {
         const shareUrl = sharingPhoto
-          ? `${window.location.origin}/g/${slug}?photo=${sharingPhoto.uuid}`
-          : `${window.location.origin}/g/${slug}`;
+          ? `${window.location.origin}/${slug}?photo=${sharingPhoto.uuid}`
+          : `${window.location.origin}/${slug}`;
         const encodedUrl = encodeURIComponent(shareUrl);
         const shareText = encodeURIComponent(
           sharingPhoto

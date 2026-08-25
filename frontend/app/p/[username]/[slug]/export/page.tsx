@@ -205,7 +205,7 @@ export default function ExportPage() {
             {/* Header */}
             <div className="flex items-center gap-3 pb-4 border-b border-border">
               <Link 
-                href={`/g/${slug}${inviteToken ? `?invite=${inviteToken}` : ''}`}
+                href={`/${slug}${inviteToken ? `?invite=${inviteToken}` : ''}`}
                 className="p-2 hover:bg-secondary rounded-lg transition-colors border border-border/50 text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft size={16} />
@@ -425,7 +425,7 @@ export default function ExportPage() {
                   )}
 
                   <Link
-                    href={`/g/${slug}${inviteToken ? `?invite=${inviteToken}` : ''}`}
+                    href={`/${slug}${inviteToken ? `?invite=${inviteToken}` : ''}`}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-secondary hover:bg-muted text-foreground font-semibold text-sm rounded-lg transition-colors border border-border"
                   >
                     <ArrowLeft size={16} />

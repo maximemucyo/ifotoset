@@ -3,7 +3,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     public message: string,
-    public validationErrors?: Record<string, string[]>
+    public validationErrors?: Record<string, string[]>,
+    public details?: any
   ) {
     super(message);
     this.name = 'ApiError';
@@ -59,7 +60,8 @@ export async function apiClient<T>(
       response.status,
       errorData.code || 'HTTP_ERROR',
       errorData.message || response.statusText,
-      errorData.errors
+      errorData.errors,
+      errorData
     );
   }
 

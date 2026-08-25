@@ -93,7 +93,8 @@ class PublicPhotographerController extends Controller
                 'lastModified' => $u->updated_at?->toIso8601String() ?? now()->toIso8601String(),
             ]);
 
-        $galleries = Gallery::select(['slug', 'updated_at'])
+        $galleries = Gallery::with('user:id,username')
+            ->select(['id', 'user_id', 'slug', 'updated_at'])
             ->where('visibility', 'public')
             ->where(function($q) {
                 $q->whereNull('password_hash')->orWhere('password_hash', '');
@@ -104,6 +105,7 @@ class PublicPhotographerController extends Controller
             ->get()
             ->map(fn($g) => [
                 'slug' => $g->slug,
+                'username' => $g->user?->username,
                 'lastModified' => $g->updated_at?->toIso8601String() ?? now()->toIso8601String(),
             ]);
 

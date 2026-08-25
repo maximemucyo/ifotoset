@@ -32,12 +32,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (res.ok) {
       const data: SitemapApiResponse = await res.json()
 
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ifotoset.com'
+      const protocol = process.env.NEXT_PUBLIC_PROTOCOL || 'https'
+
       // Add photographers
       if (data.photographers && Array.isArray(data.photographers)) {
         data.photographers.forEach((p) => {
           if (p.username) {
             routes.push({
-              url: `${baseUrl}/p/${p.username}`,
+              url: `${protocol}://${p.username.toLowerCase()}.${rootDomain}`,
               lastModified: p.lastModified,
               changeFrequency: 'weekly',
               priority: 0.8,
@@ -49,9 +52,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // Add galleries
       if (data.galleries && Array.isArray(data.galleries)) {
         data.galleries.forEach((g) => {
-          if (g.slug) {
+          if (g.slug && g.username) {
             routes.push({
-              url: `${baseUrl}/g/${g.slug}`,
+              url: `${protocol}://${g.username.toLowerCase()}.${rootDomain}/${g.slug}`,
               lastModified: g.lastModified,
               changeFrequency: 'weekly',
               priority: 0.6,

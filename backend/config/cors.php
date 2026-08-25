@@ -23,7 +23,10 @@ return [
         explode(',', env('ALLOWED_ORIGINS', 'https://ifotoset.com,https://www.ifotoset.com,http://localhost:3000'))
     ),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://([^/]+\.)?ifotoset\.com$#',
+        '#^https?://([^/]+\.)?localhost(:[0-9]+)?$#',
+    ],
 
     'allowed_headers' => ['*'],
 

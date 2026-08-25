@@ -278,7 +278,7 @@ export function PhotographerLandingPageClient({
                   <p className="mt-1 font-serif text-2xl">{firstGallery.title}</p>
                 </div>
                 <a
-                  href={`/g/${firstGallery.slug}`}
+                  href={`/${firstGallery.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-full border border-primary-foreground/40 bg-black/25 backdrop-blur-md px-3 py-1.5 text-xs hover:bg-black/50 transition-colors"
@@ -325,7 +325,7 @@ export function PhotographerLandingPageClient({
               return (
                 <a
                   key={gallery.uuid}
-                  href={`/g/${gallery.slug}`}
+                  href={`/${gallery.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`group relative overflow-hidden rounded-2xl bg-secondary ${gridClass}`}

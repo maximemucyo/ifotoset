@@ -59,6 +59,11 @@ class Gallery extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function getPublicUrlAttribute(): string
+    {
+        return app(\App\Services\PublicUrlService::class)->galleryUrl($this->user->username, $this->slug);
+    }
+
     public function stats(): HasOne
     {
         return $this->hasOne(GalleryStats::class, 'gallery_id');

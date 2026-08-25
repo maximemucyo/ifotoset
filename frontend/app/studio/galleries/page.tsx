@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useGalleries, useDeleteGalleryMutation } from '@/lib/queries/galleries'
 import { formatBytes } from '@/lib/utils'
+import { Routes } from '@/lib/routes'
+import { useCurrentUser } from '@/lib/queries/auth'
 
 export default function Galleries() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -12,6 +14,7 @@ export default function Galleries() {
   const perPage = 5
 
   const { data, isLoading } = useGalleries(page, perPage)
+  const { data: currentUser } = useCurrentUser()
   const deleteMutation = useDeleteGalleryMutation()
 
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null)
@@ -35,7 +38,8 @@ export default function Galleries() {
   }
 
   const handleShare = (uuid: string, slug: string) => {
-    const url = `${window.location.origin}/g/${slug}`
+    const username = currentUser?.user?.username || 'photographer'
+    const url = Routes.publicGalleryUrl(username, slug)
     navigator.clipboard.writeText(url).catch(() => {})
     setCopiedUuid(uuid)
     setTimeout(() => setCopiedUuid(null), 2000)

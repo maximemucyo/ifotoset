@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
+        $middleware->alias([
+            'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class
+        ]);
         $middleware->trustProxies(
             at: ['127.0.0.1', '::1']
         );
@@ -29,5 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Illuminate\Routing\Exceptions\InvalidSignatureException $e, \Illuminate\Http\Request $request) {
+            if ($request->routeIs('verification.verify')) {
+                return redirect(config('app.frontend_url') . '/login?verified=0&error=invalid');
+            }
+        });
     })->create();

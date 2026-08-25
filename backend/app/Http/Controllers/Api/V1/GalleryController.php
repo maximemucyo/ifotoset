@@ -112,10 +112,10 @@ class GalleryController extends Controller
 
         // Dispatch queued emails after transaction commits
         if (!empty($invitationDataList) && $gallery) {
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+            $publicUrlService = app(\App\Services\PublicUrlService::class);
             foreach ($invitationDataList as $data) {
                 try {
-                    $inviteUrl = "{$frontendUrl}/g/{$gallery->slug}?invite={$data['raw_token']}";
+                    $inviteUrl = $publicUrlService->galleryUrl($user->username, $gallery->slug) . "?invite={$data['raw_token']}";
                     \Illuminate\Support\Facades\Mail::to($data['email'])->queue(
                         new \App\Mail\GalleryInvitation($gallery, $inviteUrl, $user->name)
                     );
@@ -156,35 +156,39 @@ class GalleryController extends Controller
      * Display public gallery details (slug-based).
      * GET /api/v1/public/galleries/{slug}
      */
-    public function showPublic(Request $request, string $slug): JsonResponse
+    public function showPublic(Request $request, string $slug): GalleryResource
     {
         $gallery = Gallery::where('slug', $slug)
-            ->with(['stats', 'coverPhoto'])
+            ->with(['stats', 'coverPhoto', 'user'])
             ->firstOrFail();
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        
         if ($errorResponse) {
-            return $errorResponse;
+            $errData = $errorResponse->getData(true);
+            $gallery->access_granted = false;
+            $gallery->error_code = $errData['code'] ?? 'ACCESS_DENIED';
+            $gallery->error_message = $errData['message'] ?? 'Access denied.';
+            $gallery->requires_password = $errData['requires_password'] ?? false;
+            $gallery->password_hint = $errData['password_hint'] ?? null;
+            $gallery->requires_invitation = $errData['requires_invitation'] ?? false;
+        } else {
+            $gallery->access_granted = true;
+
+            \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+                'gallery_id' => $gallery->id,
+                'event' => 'gallery_viewed',
+                'visitor_session_id' => $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId(),
+                'source' => $request->query('source') ?: $request->query('utm_source') ?: 'direct',
+                'referrer' => $request->header('referer'),
+                'campaign' => $request->query('utm_campaign'),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
         }
 
-        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
-        $source = $request->query('source') ?: $request->query('utm_source') ?: 'direct';
-        $referrer = $request->header('referer');
-        $campaign = $request->query('utm_campaign');
-
-        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
-            'gallery_id' => $gallery->id,
-            'event' => 'gallery_viewed',
-            'visitor_session_id' => $visitorSession,
-            'source' => $source,
-            'referrer' => $referrer,
-            'campaign' => $campaign,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
-
-        return (new GalleryResource($gallery))->response();
+        return new GalleryResource($gallery);
     }
 
     /**

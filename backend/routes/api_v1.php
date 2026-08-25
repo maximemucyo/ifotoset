@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\PasswordResetController;
+use App\Http\Controllers\Api\V1\Auth\VerificationController;
 use App\Http\Controllers\Api\V1\Callback\PawaPayCallbackController;
 use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -86,6 +87,11 @@ Route::post('/auth/forgot-password', [PasswordResetController::class, 'sendReset
     ->middleware('throttle:5,1');
 Route::post('/auth/reset-password', [PasswordResetController::class, 'reset'])
     ->middleware('throttle:10,1');
+Route::get('/auth/check-username', [RegisterController::class, 'checkUsername'])
+    ->middleware('throttle:30,1');
+Route::get('/auth/verify-email/{id}/{hash}', [VerificationController::class, 'verify'])
+    ->middleware(['signed', 'throttle:6,1'])
+    ->name('verification.verify');
 
 // PawaPay Callback Webhook (CSRF-exempt)
 Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCallback']);
@@ -103,6 +109,8 @@ Route::middleware('auth:sanctum')->group(function () {
             ]
         ]);
     });
+
+    Route::post('/auth/resend-verification', [VerificationController::class, 'resend']);
 
     Route::get('/plans', function () {
         return response()->json([
@@ -139,67 +147,70 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware('throttle:10,1');
     });
 
-    // Upload Sessions
-    Route::post('/uploads/request', [UploadController::class, 'requestUpload']);
-    Route::post('/uploads/confirm', [UploadController::class, 'confirmUpload']);
-    Route::post('/uploads/abort', [UploadController::class, 'abortUpload']);
-
-    // Galleries CRUD
+    // Read-only routes (accessible to unverified users)
     Route::get('/galleries', [GalleryController::class, 'index']);
-    Route::post('/galleries', [GalleryController::class, 'store']);
     Route::get('/galleries/{uuid}', [GalleryController::class, 'show']);
     Route::get('/galleries/{uuid}/photos', [GalleryController::class, 'photos']);
-    Route::patch('/galleries/{uuid}', [GalleryController::class, 'update']);
-    Route::delete('/galleries/{uuid}', [GalleryController::class, 'destroy']);
-
-    // Photos CRUD
-    Route::delete('/photos/{uuid}', [\App\Http\Controllers\Api\V1\PhotoController::class, 'destroy']);
-
-    // Trash Management
     Route::get('/trash', [\App\Http\Controllers\Api\V1\TrashController::class, 'index']);
-    Route::post('/trash/restore', [\App\Http\Controllers\Api\V1\TrashController::class, 'restore']);
-    Route::delete('/trash/purge', [\App\Http\Controllers\Api\V1\TrashController::class, 'purge']);
-    Route::post('/trash/empty', [\App\Http\Controllers\Api\V1\TrashController::class, 'empty']);
-
-    // MoMo Payments
-    Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
     Route::get('/payments/{uuid}/status', [PaymentController::class, 'getStatus']);
-
-    // Clients CRUD & Filtering
     Route::get('/clients', [ClientController::class, 'index']);
-    Route::apiResource('clients', ClientController::class)
-        ->except(['index'])
-        ->parameters(['clients' => 'uuid']);
-
-    // Packages CRUD & Filtering
     Route::get('/packages', [PackageController::class, 'index']);
-    Route::apiResource('packages', PackageController::class)
-        ->except(['index'])
-        ->parameters(['packages' => 'uuid']);
-
-    // Bookings CRUD & Filtering
     Route::get('/bookings', [BookingController::class, 'index']);
-    Route::apiResource('bookings', BookingController::class)
-        ->except(['index'])
-        ->parameters(['bookings' => 'uuid']);
-
-    // Analytics Dashboard
     Route::get('/analytics', [AnalyticsController::class, 'index']);
-
-    // Settings Profile & Preferences
-    Route::patch('/settings/profile', [SettingsController::class, 'updateProfile']);
-    Route::post('/settings/password', [SettingsController::class, 'changePassword']);
-    Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications']);
-    Route::post('/settings/avatar/request', [SettingsController::class, 'requestAvatarUpload']);
-    Route::post('/settings/avatar/confirm', [SettingsController::class, 'confirmAvatarUpload']);
-
-    // Studio Availability Settings, Exceptions, and Blocked Slots
     Route::get('/availability/settings', [StudioAvailabilityController::class, 'getSettings']);
-    Route::put('/availability/settings', [StudioAvailabilityController::class, 'updateSettings']);
     Route::get('/availability/exceptions', [StudioAvailabilityController::class, 'getExceptions']);
-    Route::post('/availability/exceptions', [StudioAvailabilityController::class, 'storeException']);
-    Route::delete('/availability/exceptions/{uuid}', [StudioAvailabilityController::class, 'deleteException']);
     Route::get('/availability/blocked', [StudioAvailabilityController::class, 'getBlocked']);
-    Route::post('/availability/blocked', [StudioAvailabilityController::class, 'storeBlocked']);
-    Route::delete('/availability/blocked/{uuid}', [StudioAvailabilityController::class, 'deleteBlocked']);
+
+    // Application Mutation Routes (Requires verified email)
+    Route::middleware('verified.api')->group(function () {
+        // Upload Sessions
+        Route::post('/uploads/request', [UploadController::class, 'requestUpload']);
+        Route::post('/uploads/confirm', [UploadController::class, 'confirmUpload']);
+        Route::post('/uploads/abort', [UploadController::class, 'abortUpload']);
+
+        // Galleries mutations
+        Route::post('/galleries', [GalleryController::class, 'store']);
+        Route::patch('/galleries/{uuid}', [GalleryController::class, 'update']);
+        Route::delete('/galleries/{uuid}', [GalleryController::class, 'destroy']);
+
+        // Photos CRUD
+        Route::delete('/photos/{uuid}', [\App\Http\Controllers\Api\V1\PhotoController::class, 'destroy']);
+
+        // Trash Management
+        Route::post('/trash/restore', [\App\Http\Controllers\Api\V1\TrashController::class, 'restore']);
+        Route::delete('/trash/purge', [\App\Http\Controllers\Api\V1\TrashController::class, 'purge']);
+        Route::post('/trash/empty', [\App\Http\Controllers\Api\V1\TrashController::class, 'empty']);
+
+        // MoMo Payments
+        Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
+
+        // Clients mutations
+        Route::apiResource('clients', ClientController::class)
+            ->except(['index'])
+            ->parameters(['clients' => 'uuid']);
+
+        // Packages mutations
+        Route::apiResource('packages', PackageController::class)
+            ->except(['index'])
+            ->parameters(['packages' => 'uuid']);
+
+        // Bookings mutations
+        Route::apiResource('bookings', BookingController::class)
+            ->except(['index'])
+            ->parameters(['bookings' => 'uuid']);
+
+        // Settings Profile & Preferences mutations
+        Route::patch('/settings/profile', [SettingsController::class, 'updateProfile']);
+        Route::post('/settings/password', [SettingsController::class, 'changePassword']);
+        Route::patch('/settings/notifications', [SettingsController::class, 'updateNotifications']);
+        Route::post('/settings/avatar/request', [SettingsController::class, 'requestAvatarUpload']);
+        Route::post('/settings/avatar/confirm', [SettingsController::class, 'confirmAvatarUpload']);
+
+        // Studio Availability Settings mutations
+        Route::put('/availability/settings', [StudioAvailabilityController::class, 'updateSettings']);
+        Route::post('/availability/exceptions', [StudioAvailabilityController::class, 'storeException']);
+        Route::delete('/availability/exceptions/{uuid}', [StudioAvailabilityController::class, 'deleteException']);
+        Route::post('/availability/blocked', [StudioAvailabilityController::class, 'storeBlocked']);
+        Route::delete('/availability/blocked/{uuid}', [StudioAvailabilityController::class, 'deleteBlocked']);
+    });
 });

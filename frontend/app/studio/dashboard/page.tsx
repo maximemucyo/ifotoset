@@ -10,10 +10,24 @@ import { formatBytes } from '@/lib/utils'
 import { usePlans, useInitiatePaymentMutation, usePaymentStatus } from '@/lib/queries/payments'
 import { ResponsiveTable } from '@/components/ui/responsive-table'
 
+import { useRouter, useSearchParams } from 'next/navigation'
+
 export default function StudioDashboard() {
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
   const { data: dashboardData, isLoading } = useDashboardStats()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [showVerifySuccess, setShowVerifySuccess] = useState(false)
+
+  useEffect(() => {
+    if (searchParams && searchParams.get('verified') === '1') {
+      setShowVerifySuccess(true)
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+    }
+  }, [searchParams, queryClient])
 
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [upgradeStep, setUpgradeStep] = useState<'plans' | 'payment' | 'polling' | 'success' | 'error'>('plans')
@@ -106,6 +120,21 @@ export default function StudioDashboard() {
 
       {/* Content */}
       <div className="p-4 md:p-6 flex-1 space-y-6 md:space-y-8">
+        {showVerifySuccess && (
+          <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-sm rounded-xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2 font-medium">
+              <CheckCircle2 size={18} className="shrink-0 text-green-500" />
+              <span>Your email address has been verified successfully! All dashboard features are now unlocked.</span>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setShowVerifySuccess(false)}
+              className="p-1 hover:bg-green-500/20 rounded text-green-600 dark:text-green-400 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         {/* Stats Grid */}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

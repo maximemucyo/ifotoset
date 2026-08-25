@@ -68,6 +68,16 @@ export interface GalleryItem {
   deleted_at?: string | null;
   trash_expires_at?: string | null;
   days_remaining?: number | null;
+  photographer?: {
+    name: string;
+    username: string;
+    avatar_url: string | null;
+  } | null;
+  access_granted?: boolean;
+  error_code?: string | null;
+  error_message?: string | null;
+  requires_password?: boolean;
+  requires_invitation?: boolean;
 }
 
 export interface GalleriesResponse {
@@ -194,7 +204,8 @@ export function useDeleteGalleryMutation() {
 export async function getPublicGallery(
   slug: string,
   inviteToken?: string | null,
-  galleryToken?: string | null
+  galleryToken?: string | null,
+  username?: string | null
 ): Promise<{ data: GalleryItem }> {
   const headers: Record<string, string> = {}
   if (galleryToken) {
@@ -202,8 +213,12 @@ export async function getPublicGallery(
   }
 
   let url = `/public/galleries/${slug}`
-  if (inviteToken) {
-    url += `?invite=${inviteToken}`
+  const params = new URLSearchParams()
+  if (inviteToken) params.append('invite', inviteToken)
+  if (username) params.append('username', username)
+  const queryStr = params.toString()
+  if (queryStr) {
+    url += `?${queryStr}`
   }
 
   return authFetch<{ data: GalleryItem }>(url, {
@@ -247,7 +262,8 @@ export async function getPublicGalleryPhotos(
   cursor?: string | null,
   perPage = 60,
   inviteToken?: string | null,
-  galleryToken?: string | null
+  galleryToken?: string | null,
+  username?: string | null
 ): Promise<PaginatedPhotosResponse> {
   const headers: Record<string, string> = {}
   if (galleryToken) {
@@ -260,6 +276,9 @@ export async function getPublicGalleryPhotos(
   }
   if (inviteToken) {
     url += `&invite=${inviteToken}`
+  }
+  if (username) {
+    url += `&username=${username}`
   }
 
   return authFetch<PaginatedPhotosResponse>(url, {

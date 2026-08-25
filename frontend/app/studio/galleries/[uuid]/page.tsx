@@ -13,6 +13,8 @@ import { uploadPhotoDirectly } from '@/lib/storage'
 import { formatBytes } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInfiniteStudioGallery } from './hooks/useInfiniteStudioGallery'
+import { Routes } from '@/lib/routes'
+import { useCurrentUser } from '@/lib/queries/auth'
 
 type UploadStatus = 'queued' | 'uploading' | 'paused' | 'error' | 'done'
 
@@ -32,6 +34,7 @@ export default function GalleryDetail() {
 
   const { data, isLoading, error } = useGallery(uuid)
   const gallery = data?.data
+  const { data: currentUser } = useCurrentUser()
   const deleteMutation = useDeleteGalleryMutation()
   const updateGalleryMutation = useUpdateGalleryMutation()
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null)
@@ -727,7 +730,8 @@ export default function GalleryDetail() {
 
   const handleShare = () => {
     if (!gallery) return
-    const url = `${window.location.origin}/g/${gallery.slug}`
+    const username = currentUser?.user?.username || gallery.photographer?.username || 'photographer'
+    const url = Routes.publicGalleryUrl(username, gallery.slug)
     navigator.clipboard.writeText(url).catch(() => {})
     setShareTooltip(true)
     setTimeout(() => setShareTooltip(false), 2000)

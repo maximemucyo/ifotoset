@@ -18,12 +18,59 @@ export default function SignUpPage() {
   const [userType, setUserType] = useState<'photographer' | 'studio'>('photographer')
   const [formData, setFormData] = useState({
     fullName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
     studioName: '',
     agreeToTerms: false
   })
+
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const username = formData.username.trim()
+    if (username.length === 0) {
+      setUsernameStatus('idle')
+      setUsernameError(null)
+      return
+    }
+    if (username.length < 3) {
+      setUsernameStatus('invalid')
+      setUsernameError('Username must be at least 3 characters')
+      return
+    }
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(username)) {
+      setUsernameStatus('invalid')
+      setUsernameError('Invalid format (hyphens must be internal)')
+      return
+    }
+
+    setUsernameStatus('checking')
+    setUsernameError(null)
+
+    const timer = setTimeout(async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+        const res = await fetch(`${baseUrl}/api/v1/auth/check-username?username=${encodeURIComponent(username)}`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        const data = await res.json()
+        if (data.available) {
+          setUsernameStatus('available')
+          setUsernameError(null)
+        } else {
+          setUsernameStatus('taken')
+          setUsernameError('Username is already taken or reserved')
+        }
+      } catch (err) {
+        setUsernameStatus('idle')
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [formData.username])
 
   useEffect(() => {
     if (!isUserLoading && currentUser?.user) {
@@ -33,6 +80,16 @@ export default function SignUpPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
+    if (name === 'username') {
+      // Normalize: force lowercase and strip spaces/non-alphanumeric (except hyphens)
+      const cleanValue = value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+      setFormData(prev => ({
+        ...prev,
+        username: cleanValue
+      }))
+      return
+    }
+
     if (type === 'checkbox') {
       const { checked } = e.target as HTMLInputElement
       setFormData(prev => ({
@@ -61,6 +118,11 @@ export default function SignUpPage() {
     e.preventDefault()
     setErrorMsg(null)
     
+    if (usernameStatus !== 'available') {
+      setErrorMsg(usernameError || 'Please choose an available username')
+      return
+    }
+
     // Validation
     if (formData.password !== formData.confirmPassword) {
       setErrorMsg('Passwords do not match')
@@ -80,6 +142,7 @@ export default function SignUpPage() {
     registerMutation.mutate(
       {
         name: formData.fullName,
+        username: formData.username,
         email: formData.email,
         password: formData.password,
         password_confirmation: formData.confirmPassword
@@ -165,6 +228,51 @@ export default function SignUpPage() {
                 required
                 className="w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
               />
+            </div>
+
+            {/* Username */}
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-foreground mb-2">
+                Username (Subdomain)
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  placeholder="yourusername"
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-border bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all pr-36"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none select-none">
+                  .{process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localtest.me:3000'}
+                </div>
+              </div>
+              
+              {usernameStatus === 'checking' && (
+                <p className="text-xs text-muted-foreground mt-1 animate-pulse">Checking availability...</p>
+              )}
+              {usernameStatus === 'available' && (
+                <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
+                  <Check size={14} /> Username is available!
+                </p>
+              )}
+              {usernameStatus === 'taken' && (
+                <p className="text-xs text-red-500 mt-1">{usernameError}</p>
+              )}
+              {usernameStatus === 'invalid' && (
+                <p className="text-xs text-red-500 mt-1">{usernameError}</p>
+              )}
+              {formData.username && usernameStatus === 'available' && (
+                <p className="text-xs text-muted-foreground mt-1.5 bg-secondary/30 p-2 rounded-md border border-border">
+                  Your portfolio will be at:{' '}
+                  <span className="font-semibold text-primary">
+                    {formData.username.toLowerCase()}.{process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localtest.me:3000'}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Studio Name (conditional) */}
