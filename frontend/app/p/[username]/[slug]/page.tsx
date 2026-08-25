@@ -95,6 +95,7 @@ export default async function PublicGalleryView({ params, searchParams }: PagePr
       return (
         <PublicGalleryViewClient
           slug={slug}
+          username={username}
           inviteToken={invite || null}
           initialGallery={gallery}
           initialPhotos={[]}
@@ -134,6 +135,7 @@ export default async function PublicGalleryView({ params, searchParams }: PagePr
         />
         <PublicGalleryViewClient
           slug={slug}
+          username={username}
           inviteToken={invite || null}
           initialGallery={gallery}
           initialPhotos={photosRes.data}
@@ -162,6 +164,7 @@ export default async function PublicGalleryView({ params, searchParams }: PagePr
     return (
       <PublicGalleryViewClient
         slug={slug}
+        username={username}
         inviteToken={invite || null}
         initialGallery={null}
         initialPhotos={[]}

@@ -14,6 +14,7 @@ import {
 import { ApiError } from '@/lib/apiClient';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/logo';
+import { Routes } from '@/lib/routes';
 
 // Modular Hooks and Components
 import { useInfiniteGallery } from './hooks/useInfiniteGallery';
@@ -22,6 +23,7 @@ import { Lightbox } from './components/Lightbox';
 
 interface PublicGalleryViewClientProps {
   slug: string;
+  username: string;
   inviteToken: string | null;
   initialGallery: GalleryItem | null;
   initialPhotos: PhotoItem[];
@@ -32,6 +34,7 @@ interface PublicGalleryViewClientProps {
 
 export function PublicGalleryViewClient({
   slug,
+  username,
   inviteToken,
   initialGallery,
   initialPhotos,
@@ -322,7 +325,8 @@ export function PublicGalleryViewClient({
   };
 
   const handleShare = (photo: PhotoItem) => {
-    const canonicalUrl = `${window.location.origin}/${slug}?photo=${photo.uuid}`;
+    const galleryOwner = gallery?.photographer?.username || username;
+    const canonicalUrl = `${Routes.publicGalleryUrl(galleryOwner, slug)}?photo=${photo.uuid}`;
     if (navigator.share) {
       navigator.share({
         title: photo.filename,
@@ -352,7 +356,8 @@ export function PublicGalleryViewClient({
   };
 
   const handleShareGallery = () => {
-    const canonicalUrl = `${window.location.origin}/${slug}`;
+    const galleryOwner = gallery?.photographer?.username || username;
+    const canonicalUrl = Routes.publicGalleryUrl(galleryOwner, slug);
     if (navigator.share) {
       navigator.share({
         title: gallery?.title || 'Photo Gallery',
@@ -917,9 +922,10 @@ export function PublicGalleryViewClient({
 
       {/* ─── Social Share Modal ─────────────────────────────────────────────── */}
       {mounted && (sharingPhoto || sharingGallery) && (() => {
+        const galleryOwner = gallery?.photographer?.username || username;
         const shareUrl = sharingPhoto
-          ? `${window.location.origin}/${slug}?photo=${sharingPhoto.uuid}`
-          : `${window.location.origin}/${slug}`;
+          ? `${Routes.publicGalleryUrl(galleryOwner, slug)}?photo=${sharingPhoto.uuid}`
+          : Routes.publicGalleryUrl(galleryOwner, slug);
         const encodedUrl = encodeURIComponent(shareUrl);
         const shareText = encodeURIComponent(
           sharingPhoto
