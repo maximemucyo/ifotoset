@@ -159,7 +159,7 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
   }
 
   return (
-    <div ref={containerRef} className="w-full relative" style={{ height: totalHeight }}>
+    <div ref={containerRef} className="w-full relative" style={{ height: totalHeight + (hasMore ? 80 : 0) }}>
       {/* Visible Masonry Items */}
       {visiblePhotos.map((item) => {
         const isFavorited = favorites.includes(item.photo.uuid);
@@ -264,9 +264,9 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
 
       {/* Intersection Observer Sentinel */}
       <div ref={sentinelRef} className="absolute w-full h-10 mt-6 flex justify-center items-center" style={{ top: totalHeight }}>
-        {isFetchingNextPage && (
+        {hasMore && (
           <div className="flex items-center gap-2 py-4">
-            <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            <div className="w-5 h-5 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
             <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
           </div>
         )}

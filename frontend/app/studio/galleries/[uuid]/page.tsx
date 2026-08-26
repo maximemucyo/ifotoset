@@ -1307,19 +1307,12 @@ export default function GalleryDetail() {
 
                   {/* Infinite Scroll Sentinel */}
                   <div ref={sentinelRef} className="w-full h-10 mt-6 flex justify-center items-center">
-                    {isFetchingNextPage ? (
+                    {hasMore && (
                       <div className="flex items-center gap-2 py-4">
                         <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                         <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
                       </div>
-                    ) : hasMore ? (
-                      <button
-                        onClick={() => fetchNextPage()}
-                        className="text-xs text-muted-foreground hover:text-foreground font-medium underline py-2"
-                      >
-                        Load More
-                      </button>
-                    ) : null}
+                    )}
                   </div>
                 </>
               )}
