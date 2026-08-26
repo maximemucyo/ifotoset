@@ -112,9 +112,11 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
     }
   }, [photos, containerWidth]);
 
+  const hasPhotos = photos.length > 0;
+
   // Infinite Scroll Sentinel
   useEffect(() => {
-    if (!sentinelRef.current) return;
+    if (!sentinelRef.current || containerWidth === 0 || !hasPhotos) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -122,12 +124,12 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
           fetchNextPage();
         }
       },
-      { rootMargin: '1000px' }
+      { rootMargin: '200px' }
     );
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMore, isFetchingNextPage, fetchNextPage]);
+  }, [hasMore, isFetchingNextPage, fetchNextPage, containerWidth, hasPhotos]);
 
   // Compute gap internally based on container width to keep layout self-contained and responsive
   const calculatedGap = containerWidth > 0 && containerWidth < 768 ? 12 : gap;

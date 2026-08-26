@@ -481,9 +481,10 @@ export default function GalleryDetail() {
 
   // Infinite Scroll Sentinel Observer
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const hasPhotos = photos.length > 0
 
   useEffect(() => {
-    if (!sentinelRef.current) return
+    if (!sentinelRef.current || !hasPhotos) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -491,12 +492,12 @@ export default function GalleryDetail() {
           fetchNextPage()
         }
       },
-      { rootMargin: '400px' }
+      { rootMargin: '200px' }
     )
 
     observer.observe(sentinelRef.current)
     return () => observer.disconnect()
-  }, [hasMore, isFetchingNextPage, fetchNextPage])
+  }, [hasMore, isFetchingNextPage, fetchNextPage, hasPhotos])
 
   // Precompute slideshow indices
   const currentIndex = selectedPhoto ? photos.findIndex((p) => p.uuid === selectedPhoto.uuid) : -1
