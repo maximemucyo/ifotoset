@@ -10,10 +10,12 @@ class PublicUrlService
     public function photographerUrl(string $username): string
     {
         $protocol = config('app.public_protocol', 'https');
-        $rootDomain = config('app.public_root_domain', 'ifotoset.com');
+        $host = config('app.public_root_host', 'ifotoset.com');
+        $port = config('app.public_root_port');
+        $portSuffix = ($port && !in_array((int) $port, [80, 443], true)) ? ":{$port}" : '';
         $encodedUsername = rawurlencode(strtolower($username));
         
-        return "{$protocol}://{$encodedUsername}.{$rootDomain}";
+        return "{$protocol}://{$encodedUsername}.{$host}{$portSuffix}";
     }
 
     /**

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { PhotoItem } from '@/lib/queries/galleries';
 import { blurHashToDataUrl } from '@/lib/blurhash';
 
@@ -20,59 +20,8 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
   targetVariant = 'md',
 }) => {
   const blurhashUrl = blurHashToDataUrl(photo.blurhash || '', 32, 32);
-  const xsUrl = photo.variants?.xs;
   const fullUrl = photo.variants?.[targetVariant] || photo.cdn_url;
-
-  const [src, setSrc] = useState<string | null>(xsUrl || fullUrl || null);
   const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadImage = async () => {
-      // Step 1: Start with BlurHash (if available) or the xsUrl
-      if (blurhashUrl) {
-        setSrc(blurhashUrl);
-      } else if (xsUrl) {
-        setSrc(xsUrl);
-      }
-
-      // Step 2: Load xs variant first as a step up
-      if (xsUrl) {
-        const xsImg = new Image();
-        xsImg.src = xsUrl;
-        xsImg.onload = () => {
-          if (active && !isLoaded) {
-            setSrc(xsUrl);
-          }
-        };
-      }
-
-      // Step 3: Load the full variant, decode, then render
-      const fullImg = new Image();
-      fullImg.src = fullUrl;
-      try {
-        await fullImg.decode();
-        if (active) {
-          setSrc(fullUrl);
-          setIsLoaded(true);
-        }
-      } catch (err) {
-        fullImg.onload = () => {
-          if (active) {
-            setSrc(fullUrl);
-            setIsLoaded(true);
-          }
-        };
-      }
-    };
-
-    loadImage();
-
-    return () => {
-      active = false;
-    };
-  }, [fullUrl, xsUrl, blurhashUrl, isLoaded]);
 
   return (
     <div
@@ -80,16 +29,33 @@ export const ProgressiveImage: React.FC<ProgressiveImageProps> = ({
       style={style}
       onClick={onClick}
     >
-      {src && (
+      {/* Blurhash Placeholder */}
+      {blurhashUrl && (
         <img
-          src={src}
-          alt={alt}
-          className={`w-full h-full object-cover transition-all duration-500 ease-in-out ${
-            isLoaded ? 'blur-0 scale-100' : 'blur-lg scale-105'
+          src={blurhashUrl}
+          alt=""
+          aria-hidden="true"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 pointer-events-none ${
+            isLoaded ? 'opacity-0' : 'opacity-100'
           }`}
-          loading="lazy"
         />
       )}
+
+      {/* Main Photo */}
+      <img
+        src={fullUrl}
+        alt={alt}
+        className={`relative z-[1] w-full h-full object-cover transition-opacity duration-500 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        loading="lazy"
+        onLoad={() => setIsLoaded(true)}
+        ref={(img) => {
+          if (img && img.complete && img.naturalWidth > 0 && !isLoaded) {
+            setIsLoaded(true);
+          }
+        }}
+      />
     </div>
   );
 };

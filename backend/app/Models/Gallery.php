@@ -69,9 +69,32 @@ class Gallery extends Model
         return $this->hasOne(GalleryStats::class, 'gallery_id');
     }
 
+    public function getPhotoCountAttribute(): int
+    {
+        if (isset($this->attributes['photos_count'])) {
+            return (int) $this->attributes['photos_count'];
+        }
+        return (int) ($this->stats?->photo_count ?? 0);
+    }
+
+    public function getPhotosCountAttribute(): int
+    {
+        return $this->photo_count;
+    }
+
     public function coverPhoto(): BelongsTo
     {
         return $this->belongsTo(Photo::class, 'cover_photo_id');
+    }
+
+    public function getCoverUrl(?string $size = 'md'): ?string
+    {
+        return $this->coverPhoto?->getUrl($size);
+    }
+
+    public function getCoverUrlAttribute(): ?string
+    {
+        return $this->getCoverUrl('md');
     }
 
     public function photos(): HasMany

@@ -39,18 +39,39 @@ class StorageService
      */
     public function generatePresignedDownloadUrl(string $objectKey, string $filename, \DateTimeInterface $expiresAt): string
     {
-        $client = Storage::disk('b2')->getClient();
-        $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
+        // Safe ASCII fallback: replace non-ASCII characters with underscores and strip double quotes/backslashes
+        $asciiFilename = preg_replace('/[^\x20-\x7E]/', '_', $filename);
+        $asciiFilename = str_replace(['"', '\\'], '', $asciiFilename);
+        if (trim($asciiFilename) === '') {
+            $asciiFilename = 'photo.jpg';
+        }
 
-        $cmd = $client->getCommand('GetObject', [
-            'Bucket' => $bucket,
-            'Key' => $objectKey,
-            'ResponseContentDisposition' => 'attachment; filename="' . $filename . '"',
-        ]);
+        $utf8Filename = rawurlencode($filename);
+        $contentDisposition = "attachment; filename=\"{$asciiFilename}\"; filename*=UTF-8''{$utf8Filename}";
 
-        $request = $client->createPresignedRequest($cmd, $expiresAt);
+        try {
+            $disk = Storage::disk('b2');
+            if (method_exists($disk, 'getClient')) {
+                $client = $disk->getClient();
+                if ($client && method_exists($client, 'getCommand')) {
+                    $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
 
-        return (string) $request->getUri();
+                    $cmd = $client->getCommand('GetObject', [
+                        'Bucket' => $bucket,
+                        'Key' => $objectKey,
+                        'ResponseContentDisposition' => $contentDisposition,
+                    ]);
+
+                    $request = $client->createPresignedRequest($cmd, $expiresAt);
+
+                    return (string) $request->getUri();
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Presigned download URL generation failed: ' . $e->getMessage());
+        }
+
+        return Storage::disk('b2')->url($objectKey);
     }
 
     /**
@@ -98,18 +119,32 @@ class StorageService
     /**
      * Computes deterministic CDN asset URL.
      */
-    public function getCdnUrl(string $path, ?string $size = null, ?string $filename = null): string
+    public function getCdnUrl(string $path, ?string $size = null, ?string $filename = null, ?string $customDomain = null): string
     {
-        $domain = rtrim($this->cdnDomain, '/');
+        $domain = rtrim($customDomain ?: $this->cdnDomain, '/');
         $cleanPath = ltrim($path, '/');
+
+        // Check if filename was embedded in path
+        if ($filename && str_ends_with($cleanPath, '/' . $filename)) {
+            $cleanPath = dirname($cleanPath);
+        } elseif (!$filename && !empty(pathinfo($cleanPath, PATHINFO_EXTENSION))) {
+            $filename = basename($cleanPath);
+            $cleanPath = dirname($cleanPath);
+        }
+
+        if ($cleanPath === '.' || $cleanPath === '/') {
+            $cleanPath = '';
+        }
+
+        $baseDir = $cleanPath ? "{$cleanPath}/" : '';
 
         if ($size) {
             $baseName = $filename ? pathinfo($filename, PATHINFO_FILENAME) : 'original';
-            return "https://{$domain}/{$cleanPath}/{$baseName}_{$size}.webp";
+            return "https://{$domain}/{$baseDir}{$baseName}_{$size}.webp";
         }
 
         $file = $filename ?? 'original.jpg';
-        return "https://{$domain}/{$cleanPath}/{$file}";
+        return "https://{$domain}/{$baseDir}{$file}";
     }
 }
 ?>

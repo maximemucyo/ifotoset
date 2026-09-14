@@ -14,7 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
         $middleware->alias([
-            'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class
+            'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class,
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
         ]);
         $middleware->trustProxies(
             at: ['127.0.0.1', '::1']

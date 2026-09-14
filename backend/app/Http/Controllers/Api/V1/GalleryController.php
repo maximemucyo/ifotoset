@@ -12,12 +12,18 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Services\GalleryZipDownloadService;
-
+use App\Queries\GalleryQuery;
+use App\Queries\GalleryPhotoQuery;
 use App\Traits\VerifiesGalleryAccess;
 
 class GalleryController extends Controller
 {
     use VerifiesGalleryAccess;
+
+    public function __construct(
+        protected GalleryQuery $galleryQuery,
+        protected GalleryPhotoQuery $photoQuery
+    ) {}
     /**
      * List authenticated photographer's galleries.
      * GET /api/v1/galleries
@@ -87,8 +93,8 @@ class GalleryController extends Controller
                 'version' => 1,
             ]);
 
-            // Create materialized stats row
-            GalleryStats::create(['gallery_id' => $gallery->id]);
+            // Create materialized stats row if not already created by observer
+            GalleryStats::firstOrCreate(['gallery_id' => $gallery->id]);
 
             // If private and access method is invite, create invitations
             if ($isPrivate && $accessMethod === 'invite' && !empty($validated['invite_emails'])) {
@@ -160,9 +166,7 @@ class GalleryController extends Controller
      */
     public function showPublic(Request $request, string $slug): GalleryResource
     {
-        $gallery = Gallery::where('slug', $slug)
-            ->with(['stats', 'coverPhoto', 'user'])
-            ->firstOrFail();
+        $gallery = $this->galleryQuery->findBySlug($slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         
@@ -207,13 +211,7 @@ class GalleryController extends Controller
         }
 
         $perPage = $request->integer('per_page', 60);
-        $perPage = max(1, min(100, $perPage));
-
-        $photos = $gallery->photos()
-            ->orderBy('sort_date', 'asc')
-            ->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc')
-            ->cursorPaginate($perPage);
+        $photos = $this->photoQuery->getPaginatedForGallery($gallery, $perPage);
 
         return response()->json([
             'data' => \App\Http\Resources\V1\PhotoResource::collection($photos->items()),
@@ -277,6 +275,13 @@ class GalleryController extends Controller
         }
 
         if (\Illuminate\Support\Facades\Hash::check($request->password, $gallery->password_hash)) {
+            if ($request->hasSession()) {
+                $request->session()->put("gallery_unlocked_{$gallery->id}", [
+                    'unlocked' => true,
+                    'hash_checksum' => md5($gallery->password_hash),
+                ]);
+            }
+
             $token = hash_hmac('sha256', $gallery->uuid, config('app.key'));
             return response()->json([
                 'token' => $token,

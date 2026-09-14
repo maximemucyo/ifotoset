@@ -564,12 +564,12 @@ export const Lightbox: React.FC<LightboxProps> = ({
       </header>
 
       {/* Main Image Viewport Area */}
-      <div className="relative flex-1 min-h-0 w-full flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
-        {/* Left Nav Chevron */}
+      <div className="relative flex-1 min-h-0 w-full flex items-center justify-center px-0" onClick={(e) => e.stopPropagation()}>
+        {/* Left Nav Chevron (Desktop only) */}
         <button
           onClick={onPrev}
           aria-label="Previous photo"
-          className="absolute left-2 md:left-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 flex items-center justify-center"
+          className="hidden sm:flex absolute left-2 md:left-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 items-center justify-center cursor-pointer"
         >
           <ChevronLeft size={24} className="md:w-10 md:h-10" />
         </button>
@@ -594,7 +594,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
             decoding="async"
             loading="eager"
             fetchPriority="high"
-            className="max-w-full max-h-full object-contain rounded-none shadow-2xl transition-opacity duration-200 select-none pointer-events-none"
+            className="w-full sm:w-auto max-w-full max-h-full object-contain rounded-none shadow-2xl transition-opacity duration-200 select-none pointer-events-none"
             style={{
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
               transition: isDragging ? 'none' : 'transform 0.15s ease-out',
@@ -602,11 +602,11 @@ export const Lightbox: React.FC<LightboxProps> = ({
           />
         </div>
 
-        {/* Right Nav Chevron */}
+        {/* Right Nav Chevron (Desktop only) */}
         <button
           onClick={onNext}
           aria-label="Next photo"
-          className="absolute right-2 md:right-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 flex items-center justify-center"
+          className="hidden sm:flex absolute right-2 md:right-6 p-2 md:p-4 text-foreground/45 hover:text-foreground hover:bg-secondary/15 rounded-none transition-all duration-200 z-10 items-center justify-center cursor-pointer"
         >
           <ChevronRight size={24} className="md:w-10 md:h-10" />
         </button>
@@ -614,7 +614,7 @@ export const Lightbox: React.FC<LightboxProps> = ({
 
       {/* Lightbox Footer Bar */}
       <footer
-        className="w-full py-3 md:py-6 text-center z-10 flex flex-col items-center gap-1 shrink-0"
+        className="w-full py-2.5 sm:py-3 px-4 z-10 shrink-0 bg-background/80 backdrop-blur-sm border-t border-border/40"
         style={{
           paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
           paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
@@ -622,8 +622,33 @@ export const Lightbox: React.FC<LightboxProps> = ({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-sm font-medium text-foreground/90 truncate max-w-[85vw]">{photo.filename}</span>
-        <span className="text-xs text-muted-foreground">{currentIndex + 1} / {totalCount}</span>
+        <div className="flex items-center justify-between sm:justify-center relative max-w-xl mx-auto">
+          {/* Mobile Prev Button (Thumb-accessible, does NOT obstruct image) */}
+          <button
+            type="button"
+            onClick={onPrev}
+            aria-label="Previous photo"
+            className="sm:hidden p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          {/* Details */}
+          <div className="flex flex-col items-center gap-0.5 px-2 min-w-0 text-center">
+            <span className="text-xs sm:text-sm font-semibold text-foreground/90 truncate max-w-[55vw] sm:max-w-[85vw]">{photo.filename}</span>
+            <span className="text-[11px] sm:text-xs font-mono text-muted-foreground">{currentIndex + 1} / {totalCount}</span>
+          </div>
+
+          {/* Mobile Next Button (Thumb-accessible, does NOT obstruct image) */}
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label="Next photo"
+            className="sm:hidden p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
       </footer>
     </div>,
     document.body

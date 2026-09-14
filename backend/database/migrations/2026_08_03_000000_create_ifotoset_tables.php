@@ -270,6 +270,8 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
+
         Schema::dropIfExists('subscription_events');
         Schema::dropIfExists('payment_webhooks');
         Schema::dropIfExists('payments');
@@ -290,6 +292,8 @@ return new class extends Migration
         Schema::dropIfExists('features');
         Schema::dropIfExists('plans');
         Schema::dropIfExists('storage_disks');
+
+        Schema::enableForeignKeyConstraints();
     }
 };
 ?>

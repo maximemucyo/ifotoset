@@ -23,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'email_verified_at',
         'storage_used_bytes',
         'is_active',
         'username',
@@ -47,6 +48,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_active' => 'boolean',
         'notification_preferences' => 'array',
     ];
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
 
     public function plan(): BelongsTo
     {
@@ -102,6 +108,20 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendEmailVerificationNotification(): void
     {
         $this->notify(new \App\Notifications\QueuedVerifyEmail());
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (!$this->avatar_path) {
+            return null;
+        }
+        $cdnDomain = config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
+        return "https://{$cdnDomain}/" . ltrim($this->avatar_path, '/');
+    }
+
+    public function getPublicUrlAttribute(): string
+    {
+        return app(\App\Services\PublicUrlService::class)->photographerUrl($this->username);
     }
 }
 ?>

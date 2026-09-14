@@ -51,6 +51,24 @@ class AppServiceProvider extends ServiceProvider
             [\App\Listeners\UpdateUserPlan::class, 'handle']
         );
 
+        // Domain Event Listeners (transaction-safe, afterCommit=true)
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\BookingCreated::class,
+            [\App\Listeners\SendBookingNotifications::class, 'handle']
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\BookingStatusChanged::class,
+            [\App\Listeners\SendBookingStatusNotification::class, 'handle']
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\BookingDepositPaid::class,
+            [\App\Listeners\SendBookingDepositReceipts::class, 'handle']
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\SubscriptionPaymentSucceeded::class,
+            [\App\Listeners\SendPlanUpgradeReceipt::class, 'handle']
+        );
+
         // Define access Gate for administrative panels
         \Illuminate\Support\Facades\Gate::define('access-admin', function (\App\Models\User $user) {
             return $user->role === 'admin';

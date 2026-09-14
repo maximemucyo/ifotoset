@@ -1,0 +1,31 @@
+{
+  "resources/css/app.css": {
+    "file": "assets/app-D1KCR_gb.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-Cvi6uJje.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/pages/gallery.js": {
+    "file": "assets/gallery-BKPsH7Re.js",
+    "name": "gallery",
+    "src": "resources/js/pages/gallery.js",
+    "isEntry": true
+  },
+  "resources/js/pages/photographer.js": {
+    "file": "assets/photographer-l0sNRNKZ.js",
+    "name": "photographer",
+    "src": "resources/js/pages/photographer.js",
+    "isEntry": true
+  },
+  "resources/js/pages/studio-gallery.js": {
+    "file": "assets/studio-gallery-C6ZFI7Ci.js",
+    "name": "studio-gallery",
+    "src": "resources/js/pages/studio-gallery.js",
+    "isEntry": true
+  }
+}

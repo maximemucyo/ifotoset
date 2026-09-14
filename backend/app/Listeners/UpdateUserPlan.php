@@ -18,8 +18,13 @@ class UpdateUserPlan
         
         if ($payment->purpose === 'booking_deposit' && $payment->booking_id) {
             $booking = \App\Models\Booking::find($payment->booking_id);
-            if ($booking && $booking->status === \App\Enums\BookingStatus::Pending) {
-                $booking->update(['status' => \App\Enums\BookingStatus::Confirmed]);
+            if ($booking) {
+                if ($booking->status === \App\Enums\BookingStatus::Pending) {
+                    $booking->update(['status' => \App\Enums\BookingStatus::Confirmed]);
+                }
+
+                event(new \App\Events\BookingDepositPaid($booking, $payment));
+
                 Log::info("Booking deposit paid successfully via PawaPay.", [
                     'booking_id' => $booking->id,
                     'payment_id' => $payment->id,
@@ -37,6 +42,8 @@ class UpdateUserPlan
 
             // Clear statistics cache for the user
             StorageStatisticsService::clearCache($user->id);
+
+            event(new \App\Events\SubscriptionPaymentSucceeded($user, $payment));
 
             Log::info("User plan upgraded successfully via PawaPay payment.", [
                 'user_id' => $user->id,

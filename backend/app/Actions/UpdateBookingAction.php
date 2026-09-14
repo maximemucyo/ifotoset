@@ -70,7 +70,12 @@ class UpdateBookingAction
             // Remove ignore_overlap from update data
             unset($data['ignore_overlap']);
 
+            $oldStatus = $booking->status;
             $booking->update($data);
+
+            if (isset($data['status']) && $data['status'] !== $oldStatus) {
+                event(new \App\Events\BookingStatusChanged($booking, $oldStatus, $data['status']));
+            }
 
             return $booking;
         });

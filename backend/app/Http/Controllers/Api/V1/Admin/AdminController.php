@@ -199,20 +199,8 @@ class AdminController extends Controller
             'test_email' => ['nullable', 'email'],
         ]);
 
-        SystemSetting::setOption('smtp_host', $validated['host']);
-        SystemSetting::setOption('smtp_port', (string) $validated['port']);
-        SystemSetting::setOption('smtp_username', $validated['username']);
-        
-        // If password is submitted (and not placeholder/empty), update it in database
-        $passwordUpdated = false;
-        if ($request->has('password') && $validated['password'] !== null && $validated['password'] !== '********' && $validated['password'] !== '') {
-            SystemSetting::setOption('smtp_password', $validated['password']);
-            $passwordUpdated = true;
-        }
-        
-        SystemSetting::setOption('smtp_encryption', $validated['encryption'] ?? 'tls');
-        SystemSetting::setOption('smtp_from_address', $validated['from_address']);
-        SystemSetting::setOption('smtp_from_name', $validated['from_name']);
+        $result = app(\App\Services\SmtpSettingsService::class)->updateSettings($validated);
+        $passwordUpdated = $result['password_updated'];
 
         // Write a secure audit log entry in the activity_logs table
         try {
@@ -234,32 +222,6 @@ class AdminController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::warning('Failed to write SMTP update audit log: ' . $e->getMessage());
-        }
-
-        // Dynamically configure Laravel Mail configs for the current process
-        config([
-            'mail.mailers.smtp.host' => $validated['host'],
-            'mail.mailers.smtp.port' => $validated['port'],
-            'mail.mailers.smtp.username' => $validated['username'],
-            'mail.mailers.smtp.encryption' => $validated['encryption'] ?? 'tls',
-            'mail.from.address' => $validated['from_address'],
-            'mail.from.name' => $validated['from_name'],
-        ]);
-        
-        if ($passwordUpdated) {
-            config(['mail.mailers.smtp.password' => $validated['password']]);
-        } else {
-            $dbPassword = SystemSetting::getOption('smtp_password');
-            if ($dbPassword !== null) {
-                config(['mail.mailers.smtp.password' => $dbPassword]);
-            }
-        }
-
-        // Restart queue workers so they reload the new configuration
-        try {
-            Artisan::call('queue:restart');
-        } catch (\Exception $e) {
-            Log::error('Failed to restart queue workers during SMTP update: ' . $e->getMessage());
         }
 
         $testSent = false;

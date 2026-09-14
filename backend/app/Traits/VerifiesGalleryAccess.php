@@ -30,6 +30,23 @@ trait VerifiesGalleryAccess
         // If private, check access method
         // 1. Password protection
         if (!empty($gallery->password_hash)) {
+            // Check session unlock with password hash checksum protection
+            if ($request->hasSession()) {
+                $sessionUnlock = $request->session()->get("gallery_unlocked_{$gallery->id}");
+                if (is_array($sessionUnlock) && !empty($sessionUnlock['hash_checksum'])) {
+                    if (hash_equals($sessionUnlock['hash_checksum'], md5($gallery->password_hash))) {
+                        return null; // Access granted via valid session
+                    }
+                } elseif ($sessionUnlock === true) {
+                    // Backward-compatible fallback: update to current checksum
+                    $request->session()->put("gallery_unlocked_{$gallery->id}", [
+                        'unlocked' => true,
+                        'hash_checksum' => md5($gallery->password_hash),
+                    ]);
+                    return null;
+                }
+            }
+
             // Check for stateless token in header or query
             $token = $request->header('X-Gallery-Token') ?: $request->query('token');
             $expectedToken = hash_hmac('sha256', $gallery->uuid, config('app.key'));

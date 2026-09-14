@@ -35,5 +35,10 @@ class GalleryStats extends Model
     {
         return $this->belongsTo(Gallery::class);
     }
+
+    public function getPhotosCountAttribute(): int
+    {
+        return (int) $this->photo_count;
+    }
 }
 ?>

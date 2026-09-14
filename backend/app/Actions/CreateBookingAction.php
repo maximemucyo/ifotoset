@@ -25,7 +25,8 @@ class CreateBookingAction
     public function execute(User $user, array $data): Booking
     {
         return DB::transaction(function () use ($user, $data) {
-            // 1. Acquire row lock on existing bookings for this photographer to prevent concurrent inserts/race conditions
+            // 1. Acquire deterministic lock on the photographer's record to prevent concurrent booking races
+            User::where('id', $user->id)->lockForUpdate()->first();
             Booking::where('user_id', $user->id)->lockForUpdate()->get();
 
             // Resolve Client ID from UUID
@@ -78,7 +79,7 @@ class CreateBookingAction
                 }
             }
 
-            return Booking::create([
+            $booking = Booking::create([
                 'user_id' => $user->id,
                 'client_id' => $clientId,
                 'package_id' => $packageId,
@@ -92,6 +93,10 @@ class CreateBookingAction
                 'currency' => $data['currency'] ?? ($package ? $package->currency : 'RWF'),
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            event(new \App\Events\BookingCreated($booking));
+
+            return $booking;
         });
     }
 }

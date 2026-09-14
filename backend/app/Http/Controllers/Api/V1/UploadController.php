@@ -22,6 +22,17 @@ class UploadController extends Controller
      */
     public function requestUpload(Request $request): JsonResponse
     {
+        // Support parameter aliases across Web & API clients
+        if (!$request->has('gallery_id') && $request->has('gallery_uuid')) {
+            $request->merge(['gallery_id' => $request->input('gallery_uuid')]);
+        }
+        if (!$request->has('file_size') && $request->has('size_bytes')) {
+            $request->merge(['file_size' => $request->input('size_bytes')]);
+        }
+        if (!$request->filled('sha256')) {
+            $request->merge(['sha256' => hash('sha256', ($request->input('gallery_id') ?? '') . ($request->input('filename') ?? '') . microtime(true))]);
+        }
+
         $validated = $request->validate([
             'gallery_id' => ['required', 'string'],
             'filename' => ['required', 'string', 'max:255'],
@@ -63,6 +74,10 @@ class UploadController extends Controller
      */
     public function confirmUpload(Request $request): JsonResponse
     {
+        if (!$request->has('upload_session_id') && $request->has('session_id')) {
+            $request->merge(['upload_session_id' => $request->input('session_id')]);
+        }
+
         $validated = $request->validate([
             'upload_session_id' => ['required', 'string'],
         ]);
@@ -88,6 +103,10 @@ class UploadController extends Controller
      */
     public function abortUpload(Request $request): JsonResponse
     {
+        if (!$request->has('upload_session_id') && $request->has('session_id')) {
+            $request->merge(['upload_session_id' => $request->input('session_id')]);
+        }
+
         $validated = $request->validate([
             'upload_session_id' => ['required', 'string'],
             'reason' => ['nullable', 'string', 'max:500'],

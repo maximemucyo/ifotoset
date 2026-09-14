@@ -68,5 +68,44 @@ class Photo extends Model
     {
         return $this->belongsTo(StorageDisk::class, 'disk_id');
     }
+
+    /**
+     * Compute deterministic CDN URL for this photo with optional size variant (xs, sm, md, lg, xl).
+     * If photo is not ready yet, it seamlessly falls back to the original uploaded file.
+     */
+    public function getUrl(?string $size = null): string
+    {
+        return app(\App\Services\StorageService::class)->getCdnUrl(
+            $this->path,
+            ($size && $this->status === \App\Enums\PhotoStatus::Ready->value) ? $size : null,
+            $this->filename ?? $this->stored_filename,
+            $this->disk?->cdn_domain
+        );
+    }
+
+    public function getThumbnailUrlAttribute(): string
+    {
+        return $this->getUrl('sm');
+    }
+
+    public function getMediumUrlAttribute(): string
+    {
+        return $this->getUrl('md');
+    }
+
+    public function getLargeUrlAttribute(): string
+    {
+        return $this->getUrl('lg');
+    }
+
+    public function getFullUrlAttribute(): string
+    {
+        return $this->getUrl('xl');
+    }
+
+    public function getOriginalUrlAttribute(): string
+    {
+        return $this->getUrl();
+    }
 }
 ?>

@@ -64,7 +64,11 @@ export default function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)
   const isProtectedRoute = pathname.startsWith('/studio') || pathname.startsWith('/admin')
   if (isProtectedRoute && !sessionCookie) {
-    return NextResponse.redirect(new URL(Routes.login, request.url))
+    const loginUrl = new URL(Routes.login, request.url)
+    if (url.search) {
+      loginUrl.search = url.search
+    }
+    return NextResponse.redirect(loginUrl)
   }
 
   // 3. Trailing slash normalization: ONLY for public page routes

@@ -7,7 +7,9 @@ frontend/.env*.local
 frontend/tsconfig.tsbuildinfo
 
 # Backend ignores
+backend/node_modules/
 backend/vendor/
+node_modules/
 backend/.env
 backend/.env.*
 backend/storage/*.key
@@ -19,6 +21,7 @@ backend/storage/logs/
 backend/storage/framework/cache/
 backend/storage/framework/sessions/
 backend/storage/framework/views/
+backend/storage/framework/testing/
 backend/storage/app/public/
 backend/storage/app/tmp/
 
@@ -36,3 +39,5 @@ backend/storage/*.zip
 .DS_Store
 .vscode/
 .idea/
+.phpunit.result.cache
+**/.phpunit.result.cache

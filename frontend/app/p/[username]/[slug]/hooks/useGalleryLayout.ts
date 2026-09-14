@@ -29,6 +29,8 @@ export function useGalleryLayout(
       cols = 3;
     } else if (containerWidth < 1024) {
       cols = 4;
+    } else if (containerWidth >= 1800) {
+      cols = 6;
     }
 
     const colWidth = (containerWidth - (cols - 1) * gap) / cols;

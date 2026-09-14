@@ -18,6 +18,10 @@ class PasswordResetTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        try {
+            \Illuminate\Support\Facades\Redis::flushall();
+        } catch (\Throwable $e) {
+        }
         // Configure frontend URL for testing
         Config::set('app.frontend_url', 'https://test-frontend.ifotoset.com');
     }
@@ -171,6 +175,11 @@ class PasswordResetTest extends TestCase
      */
     public function test_forgot_password_rate_limiting(): void
     {
+        try {
+            \Illuminate\Support\Facades\Redis::flushall();
+        } catch (\Throwable $e) {
+        }
+
         // Hit the endpoint 5 times (limit is 5 requests per minute)
         for ($i = 0; $i < 5; $i++) {
             $response = $this->postJson('/api/v1/auth/forgot-password', [

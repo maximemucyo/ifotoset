@@ -1,0 +1,102 @@
+@props([
+    'photo',
+])
+
+@php
+    $aspectRatio = ($photo->width && $photo->height) ? ($photo->width / $photo->height) : 1.5;
+    $fullUrl = $photo->getUrl('xl');
+    $largeUrl = $photo->getUrl('lg');
+    $thumbnailUrl = $photo->getUrl('md');
+    $originalUrl = $photo->getUrl();
+    $blurhash = $photo->blurhash;
+@endphp
+
+<div class="photo-card group relative overflow-hidden rounded-none bg-card border border-border/15 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:z-10 focus-within:ring-2 focus-within:ring-primary focus-within:z-10 cursor-pointer select-none"
+     data-photo-uuid="{{ $photo->uuid }}"
+     data-photo-filename="{{ $photo->original_filename }}"
+     data-photo-large="{{ $largeUrl }}"
+     data-photo-full="{{ $fullUrl }}"
+     data-photo-original="{{ $originalUrl }}"
+     data-photo-thumb="{{ $thumbnailUrl }}"
+     data-photo-blurhash="{{ $blurhash }}"
+     data-photo-width="{{ $photo->width ?? 1920 }}"
+     data-photo-height="{{ $photo->height ?? 1080 }}"
+     tabindex="0"
+     role="button"
+     aria-label="View photo {{ $photo->original_filename }}">
+
+    <!-- Blurhash Placeholder Canvas -->
+    <canvas class="photo-blurhash-canvas absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500"></canvas>
+
+    <!-- Main Image -->
+    <img src="{{ $thumbnailUrl }}"
+         alt="{{ $photo->original_filename ?? 'Photo' }}"
+         loading="lazy"
+         class="relative z-[1] w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 pointer-events-none opacity-0 transition-opacity duration-500"
+         width="{{ $photo->width }}"
+         height="{{ $photo->height }}"
+         onload="this.classList.remove('opacity-0'); if (this.previousElementSibling) this.previousElementSibling.classList.add('opacity-0');">
+
+    <!-- Persistent Favorite Heart Badge -->
+    <div class="favorite-badge absolute top-3 right-3 p-1.5 rounded-none bg-black/65 backdrop-blur-sm text-rose-500 shadow-sm transition-opacity duration-300 pointer-events-none hidden"
+         data-badge-uuid="{{ $photo->uuid }}">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+    </div>
+
+    <!-- Hover Actions Overlay -->
+    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3">
+        <!-- Top Row Action Buttons -->
+        <div class="flex justify-end gap-1.5" onclick="event.stopPropagation()">
+            <!-- Favorite Button -->
+            <button type="button"
+                    class="btn-favorite w-8 h-8 rounded-none bg-white/90 hover:bg-white text-zinc-900 hover:text-rose-500 flex items-center justify-center shadow-md transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    data-uuid="{{ $photo->uuid }}"
+                    aria-label="Favorite photo {{ $photo->original_filename }}"
+                    title="Favorite photo">
+                <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+            </button>
+
+            <!-- Share Button -->
+            <button type="button"
+                    class="btn-share-photo w-8 h-8 rounded-none bg-white/90 hover:bg-white text-zinc-900 hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary"
+                    data-uuid="{{ $photo->uuid }}"
+                    data-filename="{{ $photo->original_filename }}"
+                    aria-label="Share photo"
+                    title="Share photo">
+                <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+            </button>
+
+            <!-- Download Button -->
+            <button type="button"
+                    class="btn-download-photo w-8 h-8 rounded-none bg-white/90 hover:bg-white text-zinc-900 hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary"
+                    data-uuid="{{ $photo->uuid }}"
+                    data-filename="{{ $photo->original_filename }}"
+                    data-url="{{ $originalUrl }}"
+                    aria-label="Download photo"
+                    title="Download photo">
+                <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Bottom Row (Filename & View Eye) -->
+        <div class="flex items-center justify-between pointer-events-none">
+            <span class="bg-black/60 backdrop-blur-sm text-white text-[11px] px-2 py-1 rounded-none truncate max-w-[70%] font-medium">
+                {{ $photo->original_filename }}
+            </span>
+            <div class="w-8 h-8 rounded-none bg-white/90 backdrop-blur-sm flex items-center justify-center text-zinc-900 shadow-sm shrink-0">
+                <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </div>
+        </div>
+    </div>
+</div>

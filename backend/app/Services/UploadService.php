@@ -55,8 +55,10 @@ class UploadService
 
             return [
                 'upload_session_id' => $existingSession->uuid,
+                'session_id' => $existingSession->uuid,
                 'object_key' => $existingSession->object_key,
                 'presigned_url' => $presignedUrl,
+                'upload_url' => $presignedUrl,
                 'headers' => [
                     'x-amz-checksum-sha256' => $base64Sha256,
                 ],
@@ -102,8 +104,10 @@ class UploadService
 
         return [
             'upload_session_id' => $session->uuid,
+            'session_id' => $session->uuid,
             'object_key' => $session->object_key,
             'presigned_url' => $presignedUrl,
+            'upload_url' => $presignedUrl,
             'headers' => [
                 'x-amz-checksum-sha256' => $base64Sha256,
             ],

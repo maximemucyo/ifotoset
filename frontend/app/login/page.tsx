@@ -12,6 +12,7 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [verifiedError, setVerifiedError] = useState<string | null>(null)
+  const [verifiedSuccess, setVerifiedSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (searchParams && searchParams.get('verified') === '0') {
@@ -21,6 +22,10 @@ function LoginContent() {
       } else {
         setVerifiedError('The verification link is invalid or has expired. Please sign in to request a new link.')
       }
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+    } else if (searchParams && searchParams.get('verified') === '1') {
+      setVerifiedSuccess('Your email address has been verified successfully! Please sign in to continue.')
       const newUrl = window.location.pathname
       window.history.replaceState({}, '', newUrl)
     }
@@ -99,6 +104,11 @@ function LoginContent() {
         {/* Form Card */}
         <div className="bg-card rounded-lg border border-border p-8 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {verifiedSuccess && (
+              <div className="p-3 bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-sm rounded-lg text-center font-medium">
+                {verifiedSuccess}
+              </div>
+            )}
             {verifiedError && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-sm rounded-lg text-center font-medium">
                 {verifiedError}

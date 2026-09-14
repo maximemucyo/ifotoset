@@ -44,5 +44,13 @@ return [
     'frontend_url' => env('FRONTEND_URL'),
     'public_protocol' => env('PROTOCOL', 'https'),
     'public_root_domain' => env('ROOT_DOMAIN', 'ifotoset.com'),
+    'public_root_host' => env('PUBLIC_ROOT_HOST') ?: (function () {
+        $raw = env('ROOT_DOMAIN', 'ifotoset.com');
+        return parse_url((str_contains($raw, '://') ? '' : 'http://') . $raw, PHP_URL_HOST) ?: $raw;
+    })(),
+    'public_root_port' => env('PUBLIC_ROOT_PORT') ?: (function () {
+        $raw = env('ROOT_DOMAIN', 'ifotoset.com');
+        return parse_url((str_contains($raw, '://') ? '' : 'http://') . $raw, PHP_URL_PORT) ?: null;
+    })(),
 ];
 
