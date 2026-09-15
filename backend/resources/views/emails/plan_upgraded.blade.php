@@ -21,8 +21,14 @@
         @else
             <x-email.detail-row label="Galleries" value="Unlimited" />
         @endif
-        <x-email.detail-row label="Payment Provider" :value="$payment->provider" />
-        <x-email.detail-row label="Transaction Ref" :value="$payment->pawapay_deposit_id ?? $payment->uuid" />
+        @php
+            $cleanProvider = str_contains(strtolower($payment->provider ?? ''), 'airtel')
+                ? 'Airtel Money'
+                : (str_contains(strtolower($payment->provider ?? ''), 'mtn') ? 'MTN Mobile Money' : 'Mobile Money');
+            $ref = $payment->provider_transaction_id ?? substr($payment->uuid, 0, 13);
+        @endphp
+        <x-email.detail-row label="Payment Method" :value="$cleanProvider" />
+        <x-email.detail-row label="Transaction Ref" :value="$ref" />
         <x-email.detail-row label="Date" :value="now()->format('F j, Y \a\t g:i A')" />
     </x-email.card>
 

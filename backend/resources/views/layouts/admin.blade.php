@@ -82,6 +82,7 @@
                         ['label' => 'Users', 'route' => 'admin.users.index'],
                         ['label' => 'Galleries', 'route' => 'admin.galleries.index'],
                         ['label' => 'Payments', 'route' => 'admin.payments.index'],
+                        ['label' => 'Plans & Pricing', 'route' => 'admin.plans.index'],
                         ['label' => 'Analytics', 'route' => 'admin.analytics.index'],
                         ['label' => 'Moderation', 'route' => 'admin.moderation.index'],
                         ['label' => 'Support', 'route' => 'admin.support.index'],

@@ -54,6 +54,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->role === 'admin';
     }
 
+    public function isFree(): bool
+    {
+        return ! $this->plan_id || ! $this->plan || $this->plan->slug === 'free';
+    }
+
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);

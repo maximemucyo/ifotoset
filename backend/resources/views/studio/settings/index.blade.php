@@ -207,9 +207,17 @@
                     <div class="text-base font-bold text-foreground mt-1">Included</div>
                 </div>
                 <div class="p-3 rounded-xl border border-border bg-card">
-                    <div class="text-muted-foreground">PawaPay MoMo Deposits</div>
+                    <div class="text-muted-foreground">Mobile Money Payments</div>
                     <div class="text-base font-bold text-foreground mt-1">Active</div>
                 </div>
+            </div>
+
+            <div class="pt-2 flex justify-end">
+                <a href="{{ route('studio.billing.index') }}"
+                   class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">
+                    <span>Manage Plans &amp; Upgrade</span>
+                    <span>&rarr;</span>
+                </a>
             </div>
         </div>
     </div>

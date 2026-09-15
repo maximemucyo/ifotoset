@@ -39,18 +39,55 @@
         <x-studio.stat-card label="Pending Bookings" :value="$pendingBookings" hint="Awaiting review" />
         
         <!-- Storage Card -->
-        <div class="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+        @php
+            $storagePercentage = round($storage['percentage'] ?? $storage['percent_used'] ?? 0);
+            $planName = $storage['plan_name'] ?? ($user->plan?->name ?? 'Free');
+            $isFreePlan = (method_exists($user, 'isFree') && $user->isFree()) 
+                || ($storage['is_free'] ?? false) 
+                || ! $user->plan 
+                || $user->plan->slug === 'free'
+                || strtolower($planName) === 'free' 
+                || strtolower($planName) === 'free tier';
+            $usedGb = round(($storage['used_bytes'] ?? 0) / (1024 * 1024 * 1024), 2);
+            $limitGb = isset($storage['limit_bytes']) && $storage['limit_bytes'] 
+                ? round($storage['limit_bytes'] / (1024 * 1024 * 1024)) 
+                : 2;
+            $isUnlimited = $storage['is_unlimited'] ?? false;
+            $displayPlan = str_contains(strtolower($planName), 'plan') || str_contains(strtolower($planName), 'tier') ? $planName : $planName . ' Plan';
+        @endphp
+        <div class="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-muted-foreground">Storage Used</span>
-                <span class="text-xs font-semibold text-primary">{{ round($storage['percentage'] ?? 0) }}%</span>
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm font-medium text-muted-foreground truncate">Storage Used</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 {{ $isFreePlan ? 'bg-secondary text-secondary-foreground' : 'bg-primary/15 text-primary' }}">
+                        {{ $displayPlan }}
+                    </span>
+                </div>
+                <span class="text-xs font-semibold text-primary ml-2 shrink-0">{{ $storagePercentage }}%</span>
             </div>
             <div class="mt-3">
-                <div class="text-xl font-bold text-foreground">
-                    {{ round(($storage['used_bytes'] ?? 0) / (1024 * 1024 * 1024), 2) }} GB
-                    <span class="text-xs font-normal text-muted-foreground">/ {{ round(($storage['limit_bytes'] ?? (5 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024)) }} GB</span>
+                <div class="flex items-baseline justify-between gap-2">
+                    <div class="text-xl font-bold text-foreground">
+                        {{ $usedGb }} GB
+                        <span class="text-xs font-normal text-muted-foreground">
+                            @if($isUnlimited)
+                                / Unlimited
+                            @else
+                                / {{ $limitGb }} GB
+                            @endif
+                        </span>
+                    </div>
+
+                    @if($isFreePlan)
+                        <a href="{{ route('studio.billing.index') }}"
+                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary transition-all shadow-xs shrink-0">
+                            <span>Upgrade</span>
+                            <span class="text-xs">&nearr;</span>
+                        </a>
+                    @endif
                 </div>
                 <div class="w-full bg-secondary h-2 rounded-full overflow-hidden mt-3">
-                    <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {{ min(100, max(2, $storage['percentage'] ?? 0)) }}%"></div>
+                    <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {{ min(100, max(2, $storagePercentage)) }}%"></div>
                 </div>
             </div>
         </div>

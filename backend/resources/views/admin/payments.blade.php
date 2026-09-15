@@ -52,7 +52,8 @@
                         <th class="px-6 py-4">Amount</th>
                         <th class="px-6 py-4">Provider</th>
                         <th class="px-6 py-4">Status</th>
-                        <th class="px-6 py-4 text-right">Date</th>
+                        <th class="px-6 py-4">Date</th>
+                        <th class="px-6 py-4 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-border">
@@ -72,7 +73,8 @@
                             </td>
                             <td class="px-6 py-4 text-xs">
                                 @if($tx->purpose === 'plan_subscription')
-                                    <span class="font-medium text-foreground">Plan: {{ $tx->plan->name ?? 'Pro Subscription' }}</span>
+                                    <div class="font-medium text-foreground">Plan: {{ $tx->plan->name ?? 'Pro Subscription' }}</div>
+                                    <div class="text-[10px] uppercase font-bold text-muted-foreground">{{ $tx->billing_cycle ?? 'monthly' }}</div>
                                 @elseif($tx->purpose === 'booking_deposit')
                                     <span class="font-medium text-foreground">Booking Deposit</span>
                                 @else
@@ -87,11 +89,28 @@
                             </td>
                             <td class="px-6 py-4">
                                 <x-ui.badge :variant="$tx->status === 'completed' ? 'success' : ($tx->status === 'pending' ? 'warning' : 'destructive')">
-                                    {{ ucfirst($tx->status) }}
+                                    {{ ucfirst(str_replace('_', ' ', $tx->status)) }}
                                 </x-ui.badge>
+                                @if($tx->failure_reason)
+                                    <div class="text-[10px] text-destructive max-w-[160px] truncate" title="{{ $tx->failure_reason }}">
+                                        {{ $tx->failure_reason }}
+                                    </div>
+                                @endif
                             </td>
-                            <td class="px-6 py-4 text-xs text-muted-foreground text-right">
+                            <td class="px-6 py-4 text-xs text-muted-foreground">
                                 {{ $tx->created_at->format('M j, Y g:i A') }}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                @if($tx->status === 'pending' && $tx->pawapay_deposit_id)
+                                    <form method="POST" action="{{ route('admin.payments.sync', $tx->id) }}" class="inline-block">
+                                        @csrf
+                                        <button type="submit" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-secondary hover:bg-secondary/80 text-foreground transition-colors border border-border shadow-sm">
+                                            Sync Status
+                                        </button>
+                                    </form>
+                                @else
+                                    <span class="text-xs text-muted-foreground">&ndash;</span>
+                                @endif
                             </td>
                         </tr>
                     @empty

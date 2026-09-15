@@ -48,6 +48,8 @@ class StorageStatisticsService
 
             return [
                 'plan_name' => $plan->name ?? 'Free Tier',
+                'plan_slug' => $plan->slug ?? 'free',
+                'is_free' => ! $plan || $plan->slug === 'free',
                 'limit_bytes' => $isUnlimited ? null : (int) $limitBytes,
                 'active_bytes' => $activeBytes,
                 'trash_bytes' => $trashBytes,
@@ -56,6 +58,7 @@ class StorageStatisticsService
                 'active_percent' => $activePercent,
                 'trash_percent' => $trashPercent,
                 'percent_used' => $percentUsed,
+                'percentage' => $percentUsed,
                 'is_unlimited' => $isUnlimited,
             ];
         });

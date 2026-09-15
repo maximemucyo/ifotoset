@@ -2,77 +2,115 @@
 
 namespace App\Http\Controllers\Api\V1\Callback;
 
+use App\Actions\Billing\FinalizePawaPayPayment;
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
 use App\Models\PaymentWebhook;
-use App\Events\PaymentCompleted;
+use App\Services\Payments\PawaPayWebhookNormalizer;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PawaPayCallbackController extends Controller
 {
+    public function __construct(
+        protected PawaPayWebhookNormalizer $normalizer,
+        protected FinalizePawaPayPayment $finalizer
+    ) {}
+
     /**
-     * Handles PawaPay Mobile Money deposit callbacks.
+     * Handles PawaPay Mobile Money deposit callbacks (direct or relayed).
      * POST /api/v1/callbacks/pawapay
      */
     public function handleCallback(Request $request): JsonResponse
     {
-        $payload = $request->json()->all();
-        $eventId = $request->header('X-Event-ID') ?? ($payload['eventId'] ?? null);
+        $rawPayload = $request->getContent();
+        $relaySecret = $request->header('X-Relay-Secret');
+        $expectedRelaySecret = config('services.pawapay.relay_secret');
 
-        if (!$eventId) {
-            return response()->json(['error' => 'Missing event identifier.'], 400);
+        // 1. If arriving via relay bridge, authenticate the relay source first
+        $isRelayed = !empty($relaySecret);
+        if ($isRelayed) {
+            if (!$expectedRelaySecret || !hash_equals((string) $expectedRelaySecret, (string) $relaySecret)) {
+                Log::warning("PawaPay webhook relay authentication failed from IP: {$request->ip()}");
+                return response()->json(['error' => 'Unauthorized relay secret.'], 401);
+            }
         }
 
-        // 1. Replay protection: Check if this webhook event ID was already processed
-        if (PaymentWebhook::where('event_id', $eventId)->exists()) {
-            return response()->json(['message' => 'Event already processed.'], 200);
+        // 2. Normalize payload & extract events, signatures, and derived event ID
+        $normalizedData = $this->normalizer->normalize($request);
+        $events = $normalizedData['events'];
+        $eventId = $normalizedData['event_id'];
+        $depositId = $normalizedData['deposit_id'];
+        $signature = $normalizedData['signature'];
+        $payloadHash = $normalizedData['payload_hash'];
+
+        // 3. Cryptographic PawaPay signature verification if configured
+        $pawapayWebhookSecret = config('services.pawapay.webhook_secret');
+        if (!empty($pawapayWebhookSecret)) {
+            if (empty($signature)) {
+                Log::warning("PawaPay webhook missing signature header from IP: {$request->ip()}");
+                return response()->json(['error' => 'Missing cryptographic signature.'], 401);
+            }
+
+            $computedSignature = hash_hmac('sha256', $rawPayload, $pawapayWebhookSecret);
+            if (!hash_equals($computedSignature, $signature)) {
+                Log::warning("PawaPay cryptographic signature mismatch.", [
+                    'signature_received' => $signature,
+                    'ip' => $request->ip(),
+                ]);
+                return response()->json(['error' => 'Invalid cryptographic signature.'], 403);
+            }
         }
 
-        // 2. Persist the raw webhook payload for debugging and audit
-        $webhook = PaymentWebhook::create([
+        // 4. Replay protection based on unique Event ID
+        $existingWebhook = PaymentWebhook::where('event_id', $eventId)->first();
+        if ($existingWebhook && $existingWebhook->processing_status === 'completed') {
+            return response()->json(['status' => 'success', 'message' => 'Event already processed.'], 200);
+        }
+
+        // 5. Persist the webhook record
+        $webhookRecord = $existingWebhook ?: PaymentWebhook::create([
             'provider' => 'pawapay',
             'event_id' => $eventId,
-            'headers' => json_encode($request->headers->all()),
-            'payload' => json_encode($payload),
+            'deposit_id' => $depositId,
+            'signature' => $signature,
+            'payload_hash' => $payloadHash,
+            'headers' => $request->headers->all(),
+            'payload' => $request->json()->all() ?: json_decode($rawPayload, true) ?: [],
+            'processing_status' => 'processing',
+            'received_at' => now(),
         ]);
 
-        // Validate payload parameters
-        $depositId = $payload['depositId'] ?? null;
-        $status = $payload['status'] ?? null;
-
-        if (!$depositId || !$status) {
-            return response()->json(['error' => 'Invalid callback payload structure.'], 422);
+        if (empty($events)) {
+            $webhookRecord->update(['processing_status' => 'empty_payload', 'processed_at' => now()]);
+            return response()->json(['status' => 'ignored', 'message' => 'No deposit events in payload.'], 200);
         }
 
-        // 3. Locate corresponding transaction
-        $payment = Payment::where('pawapay_deposit_id', $depositId)->first();
-        if (!$payment) {
-            Log::warning("PawaPay payment record not found for deposit: {$depositId}");
-            return response()->json(['message' => 'Payment record not found.'], 200);
-        }
+        // 6. Process each event through the single authoritative FinalizePawaPayPayment action
+        try {
+            foreach ($events as $event) {
+                $this->finalizer->execute($event->depositId, $event);
+            }
 
-        // 4. Update transaction status inside database transaction
-        DB::transaction(function () use ($payment, $status, $payload) {
-            // Map PawaPay status to internal payment states
-            // PawaPay statuses: COMPLETED, FAILED, EXPIRED, CANCELLED
-            $internalStatus = strtolower($status);
-
-            $payment->update([
-                'status' => $internalStatus,
-                'error_message' => $payload['failureReason'] ?? null,
+            $webhookRecord->update([
+                'processing_status' => 'completed',
+                'processed_at' => now(),
             ]);
 
-            // 5. Fire PaymentCompleted event if status is completed
-            if ($internalStatus === 'completed') {
-                event(new PaymentCompleted($payment));
-            }
-        });
+            return response()->json(['status' => 'success', 'message' => 'Callback processed successfully.'], 200);
+        } catch (Exception $e) {
+            Log::error("Error processing PawaPay callback event: " . $e->getMessage(), [
+                'event_id' => $eventId,
+                'deposit_id' => $depositId,
+            ]);
 
-        return response()->json(['message' => 'Callback processed successfully.'], 200);
+            $webhookRecord->update([
+                'processing_status' => 'error',
+                'processed_at' => now(),
+            ]);
+
+            return response()->json(['error' => 'Internal processing error.'], 500);
+        }
     }
 }
-?>

@@ -36,13 +36,8 @@ class UpdateUserPlan
         $user = User::find($payment->user_id);
         
         if ($user && $payment->plan_id) {
-            $user->update([
-                'plan_id' => $payment->plan_id,
-            ]);
-
-            // Clear statistics cache for the user
-            StorageStatisticsService::clearCache($user->id);
-
+            // Entitlement and user plan_id were applied in ApplySubscriptionEntitlement.
+            // Dispatch event for email receipts and notifications.
             event(new \App\Events\SubscriptionPaymentSucceeded($user, $payment));
 
             Log::info("User plan upgraded successfully via PawaPay payment.", [

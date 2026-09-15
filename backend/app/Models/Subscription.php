@@ -18,9 +18,14 @@ class Subscription extends Model
         'provider',
         'provider_subscription_id',
         'status',
+        'billing_cycle',
+        'payment_id',
+        'assigned_by',
+        'revoked_by',
         'starts_at',
         'ends_at',
         'cancels_at',
+        'revoked_at',
     ];
 
     protected $casts = [
@@ -28,6 +33,7 @@ class Subscription extends Model
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'cancels_at' => 'datetime',
+        'revoked_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -38,6 +44,21 @@ class Subscription extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class);
+    }
+
+    public function assignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
+    }
+
+    public function revokedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'revoked_by');
     }
 
     public function events(): HasMany

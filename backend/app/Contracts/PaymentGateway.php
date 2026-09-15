@@ -2,6 +2,8 @@
 
 namespace App\Contracts;
 
+use App\DTO\PaymentStatusData;
+
 interface PaymentGateway
 {
     /**
@@ -12,6 +14,6 @@ interface PaymentGateway
     /**
      * Queries deposit status from the provider API.
      */
-    public function verifyDepositStatus(string $depositId): array;
+    public function verifyDepositStatus(string $depositId): PaymentStatusData;
 }
 ?>

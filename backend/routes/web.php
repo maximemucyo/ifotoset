@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardControll
 use App\Http\Controllers\Web\Admin\GalleryController as AdminGalleryController;
 use App\Http\Controllers\Web\Admin\ModerationController as AdminModerationController;
 use App\Http\Controllers\Web\Admin\PaymentController as AdminPaymentController;
+use App\Http\Controllers\Web\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Web\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Web\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Web\Admin\UserController as AdminUserController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Web\PublicGalleryController;
 use App\Http\Controllers\Web\PublicPhotographerController;
 use App\Http\Controllers\Web\Studio\AnalyticsController as StudioAnalyticsController;
 use App\Http\Controllers\Web\Studio\AvailabilityController as StudioAvailabilityController;
+use App\Http\Controllers\Web\Studio\BillingController as StudioBillingController;
 use App\Http\Controllers\Web\Studio\BookingController as StudioBookingController;
 use App\Http\Controllers\Web\Studio\ClientController as StudioClientController;
 use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardController;
@@ -172,6 +174,13 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     // Studio Analytics
     Route::get('/analytics', [StudioAnalyticsController::class, 'index'])->name('analytics.index');
 
+    // Subscription Billing & Checkout Suite
+    Route::get('/billing', [StudioBillingController::class, 'index'])->name('billing.index');
+    Route::get('/billing/checkout/{plan:slug}', [StudioBillingController::class, 'checkout'])->name('billing.checkout');
+    Route::post('/billing/initiate', [StudioBillingController::class, 'initiate'])->name('billing.initiate');
+    Route::get('/billing/check/{uuid}', [StudioBillingController::class, 'check'])->name('billing.check');
+    Route::get('/billing/receipt/{uuid}', [StudioBillingController::class, 'receipt'])->name('billing.receipt');
+
     // Settings
     Route::get('/settings', [StudioSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/profile', [StudioSettingsController::class, 'updateProfile'])->name('settings.profile');
@@ -194,6 +203,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(funct
     Route::get('/users-legacy', [AdminUserController::class, 'index'])->name('users');
     Route::post('/users/{id}/status', [AdminUserController::class, 'toggleStatus'])->name('users.status');
     Route::post('/users/{id}/role', [AdminUserController::class, 'changeRole'])->name('users.role');
+    Route::post('/users/{id}/plan', [AdminUserController::class, 'assignPlan'])->name('users.plan');
+    Route::post('/users/{id}/plan/revoke', [AdminUserController::class, 'revokePlan'])->name('users.plan.revoke');
 
     // Galleries Overview & Moderation Controls
     Route::get('/galleries', [AdminGalleryController::class, 'index'])->name('galleries.index');
@@ -203,6 +214,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(funct
 
     // Financial Transactions & Revenue Tracking
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
+    Route::post('/payments/{id}/sync', [AdminPaymentController::class, 'syncStatus'])->name('payments.sync');
+
+    // Subscription Plans & Quota Configuration
+    Route::get('/plans', [AdminPlanController::class, 'index'])->name('plans.index');
+    Route::put('/plans/{plan:slug}', [AdminPlanController::class, 'update'])->name('plans.update');
 
     // Platform Analytics & Metrics
     Route::get('/analytics', [AdminAnalyticsController::class, 'index'])->name('analytics.index');

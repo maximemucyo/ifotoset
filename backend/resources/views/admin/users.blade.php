@@ -96,7 +96,23 @@
                                 {{ $user->created_at->format('M j, Y') }}
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <div class="flex items-center justify-end gap-2">
+                                <div class="flex items-center justify-end gap-2" x-data="{ planModalOpen: false, revokeModalOpen: false }">
+                                    <!-- Plan Badge / Quick Trigger -->
+                                    <button type="button"
+                                            @click="planModalOpen = true"
+                                            class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                                        Change Plan
+                                    </button>
+
+                                    <!-- Revoke trigger if on paid plan -->
+                                    @if($user->plan && $user->plan->slug !== 'free')
+                                        <button type="button"
+                                                @click="revokeModalOpen = true"
+                                                class="px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors border border-amber-500/20">
+                                            Revoke
+                                        </button>
+                                    @endif
+
                                     <!-- Toggle Active / Suspended -->
                                     @if(auth()->id() !== $user->id)
                                         <form method="POST" action="{{ route('admin.users.status', $user->id) }}" onsubmit="return confirm('{{ $user->is_active ? 'Suspend this account?' : 'Activate this account?' }}');">
@@ -116,9 +132,90 @@
                                                 {{ $user->role === 'admin' ? 'Demote' : 'Make Admin' }}
                                             </button>
                                         </form>
-                                    @else
-                                        <span class="text-[11px] text-muted-foreground italic">Your Account</span>
                                     @endif
+
+                                    <!-- Change Plan Modal -->
+                                    <div x-show="planModalOpen"
+                                         style="display: none;"
+                                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm">
+                                        <div @click.away="planModalOpen = false" class="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
+                                            <div>
+                                                <h3 class="text-base font-bold text-foreground">Change Plan for {{ $user->name }}</h3>
+                                                <p class="text-xs text-muted-foreground mt-0.5">Current: <strong class="text-foreground">{{ $user->plan->name ?? 'Free' }}</strong> ({{ round($user->storage_used_bytes / (1024 * 1024), 1) }} MB used)</p>
+                                            </div>
+
+                                            <form method="POST" action="{{ route('admin.users.plan', $user->id) }}" class="space-y-4">
+                                                @csrf
+                                                <div>
+                                                    <label class="block text-xs font-semibold text-foreground mb-1">Select New Plan Tier</label>
+                                                    <select name="plan_slug" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs font-medium text-foreground">
+                                                        @foreach($plans as $p)
+                                                            <option value="{{ $p->slug }}" {{ $user->plan_id === $p->id ? 'selected' : '' }}>
+                                                                {{ $p->name }} ({{ round($p->storage_limit / (1024 * 1024 * 1024), 0) }} GB, Unlimited Galleries)
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-semibold text-foreground mb-1">Billing Cycle</label>
+                                                    <select name="billing_cycle" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs font-medium text-foreground">
+                                                        <option value="monthly">Monthly</option>
+                                                        <option value="annual">Annual (12 Months)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-semibold text-foreground mb-1">Reason / Note (Audit Log)</label>
+                                                    <input type="text" name="reason" placeholder="e.g. VIP promotion / manual override" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground">
+                                                </div>
+
+                                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                                                    <button type="button" @click="planModalOpen = false" class="px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">
+                                                        Apply Plan Change
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+
+                                    <!-- Revoke Plan Confirmation Modal -->
+                                    <div x-show="revokeModalOpen"
+                                         style="display: none;"
+                                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm">
+                                        <div @click.away="revokeModalOpen = false" class="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
+                                            <div>
+                                                <h3 class="text-base font-bold text-destructive">Revoke {{ $user->plan->name ?? 'Paid' }} Plan?</h3>
+                                                <p class="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                                    User <strong class="text-foreground">{{ $user->name }}</strong> will immediately return to <strong>Free Tier (2 GB)</strong>.
+                                                </p>
+                                            </div>
+
+                                            <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
+                                                <strong>Notice:</strong> Existing files above 2 GB will <u>NOT</u> be deleted. However, new uploads will be blocked until storage usage falls below quota or the plan is upgraded.
+                                            </div>
+
+                                            <form method="POST" action="{{ route('admin.users.plan.revoke', $user->id) }}" class="space-y-4">
+                                                @csrf
+                                                <div>
+                                                    <label class="block text-xs font-semibold text-foreground mb-1">Reason for Revocation</label>
+                                                    <input type="text" name="reason" required placeholder="e.g. Subscription ended / chargeback" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground">
+                                                </div>
+
+                                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                                                    <button type="button" @click="revokeModalOpen = false" class="px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shadow-sm">
+                                                        Confirm Revoke
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>

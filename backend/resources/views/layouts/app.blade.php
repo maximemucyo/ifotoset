@@ -89,6 +89,7 @@
                         ['label' => 'Clients', 'route' => 'studio.clients.index', 'icon' => 'users'],
                         ['label' => 'Packages', 'route' => 'studio.packages.index', 'icon' => 'tag'],
                         ['label' => 'Analytics', 'route' => 'studio.analytics.index', 'icon' => 'bar-chart'],
+                        ['label' => 'Billing & Plans', 'route' => 'studio.billing.index', 'icon' => 'credit-card'],
                         ['label' => 'Settings', 'route' => 'studio.settings.index', 'icon' => 'settings'],
                         ['label' => 'Trash', 'route' => 'studio.trash.index', 'icon' => 'trash'],
                     ];
