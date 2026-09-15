@@ -286,9 +286,9 @@ class GalleryCountAndSubdomainTest extends TestCase
         $response = $this->get("{$protocol}://api.{$host}{$portSuffix}/some-gallery-slug");
         $response->assertStatus(404);
 
-        // www.localhost:8000/ should not match subdomain photographer route
+        // www.localhost:8000/ redirects canonically to apex domain
         $wwwResponse = $this->get("{$protocol}://www.{$host}{$portSuffix}");
-        // Should 404 or fall through because www is in reserved list
-        $this->assertNotSame(200, $wwwResponse->getStatusCode());
+        $wwwResponse->assertStatus(301);
+        $wwwResponse->assertRedirect("{$protocol}://{$host}{$portSuffix}/");
     }
 }

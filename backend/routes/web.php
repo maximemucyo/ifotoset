@@ -43,8 +43,21 @@ $escapedReserved = !empty($reservedWords)
     ? implode('|', array_map(fn ($u) => preg_quote($u, '#'), $reservedWords))
     : 'www|api|admin|studio|root';
 
+// 1. Canonical Redirect for www.{rootHost} -> {rootHost}
+Route::domain('www.' . $rootHost)->group(function () {
+    Route::any('{any?}', function (Request $request) {
+        $rootHost = config('app.public_root_host', 'ifotoset.com');
+        $protocol = config('app.public_protocol', $request->getScheme());
+        $port = config('app.public_root_port');
+        $portSuffix = ($port && !in_array((int) $port, [80, 443], true)) ? ":{$port}" : '';
+        $uri = $request->getRequestUri();
+        return redirect("{$protocol}://{$rootHost}{$portSuffix}{$uri}", 301);
+    })->where('any', '.*');
+});
+
+// 2. Subdomain Photographer & Gallery Routes ({username}.{rootDomain}/{slug})
 Route::domain('{username}.' . $rootHost)
-    ->where(['username' => '^(?!(' . $escapedReserved . ')$)[a-zA-Z0-9_\-]+'])
+    ->where(['username' => '(?!(?:' . $escapedReserved . ')(?:\.|$))[a-zA-Z0-9_\-]+'])
     ->group(function () {
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('subdomain.gallery.photos');
