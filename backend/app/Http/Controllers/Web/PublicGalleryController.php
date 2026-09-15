@@ -82,6 +82,7 @@ class PublicGalleryController extends Controller
                 } else {
                     $dbPhoto = Photo::where('gallery_id', $gallery->id)
                         ->where('uuid', $photoUuid)
+                        ->where('is_hidden', false)
                         ->whereNull('deleted_at')
                         ->first();
                     if ($dbPhoto) {
@@ -159,6 +160,7 @@ class PublicGalleryController extends Controller
         if ($singleUuid = $request->query('uuid')) {
             $photo = Photo::where('gallery_id', $gallery->id)
                 ->where('uuid', $singleUuid)
+                ->where('is_hidden', false)
                 ->whereNull('deleted_at')
                 ->first();
 
@@ -308,6 +310,7 @@ class PublicGalleryController extends Controller
         // 3. Strictly scope photo lookup to this gallery
         $photo = Photo::where('gallery_id', $gallery->id)
             ->where('uuid', $uuid)
+            ->where('is_hidden', false)
             ->whereNull('deleted_at')
             ->first();
 

@@ -39,6 +39,7 @@ class GooglePhotosController extends Controller
         }
 
         $photoCount = Photo::where('gallery_id', $gallery->id)
+            ->where('is_hidden', false)
             ->where('status', \App\Enums\PhotoStatus::Ready->value)
             ->count();
 
@@ -53,6 +54,7 @@ class GooglePhotosController extends Controller
         $photoUuids = $request->input('photo_uuids');
         if ($photoUuids) {
             $validPhotos = Photo::where('gallery_id', $gallery->id)
+                ->where('is_hidden', false)
                 ->whereIn('uuid', $photoUuids)
                 ->where('status', \App\Enums\PhotoStatus::Ready->value)
                 ->get();

@@ -64,6 +64,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         }
 
         $totalPhotos = Photo::where('gallery_id', $gallery->id)
+            ->where('is_hidden', false)
             ->where('status', PhotoStatus::Ready->value)
             ->count();
 
@@ -86,6 +87,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         ]);
 
         $photos = Photo::where('gallery_id', $gallery->id)
+            ->where('is_hidden', false)
             ->where('status', PhotoStatus::Ready->value)
             ->orderBy('id')
             ->lazy();

@@ -77,6 +77,15 @@ class Gallery extends Model
         return (int) ($this->stats?->photo_count ?? 0);
     }
 
+    public function getPublicPhotoCountAttribute(): int
+    {
+        $hiddenCount = $this->photos()->where('is_hidden', true)->count();
+        if ($hiddenCount > 0) {
+            return max(0, $this->photo_count - $hiddenCount);
+        }
+        return $this->photo_count;
+    }
+
     public function getPhotosCountAttribute(): int
     {
         return $this->photo_count;
@@ -89,7 +98,10 @@ class Gallery extends Model
 
     public function getCoverUrl(?string $size = 'md'): ?string
     {
-        return $this->coverPhoto?->getUrl($size);
+        if ($this->coverPhoto && !$this->coverPhoto->is_hidden) {
+            return $this->coverPhoto->getUrl($size);
+        }
+        return null;
     }
 
     public function getCoverUrlAttribute(): ?string

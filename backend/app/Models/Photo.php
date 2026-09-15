@@ -48,6 +48,7 @@ class Photo extends Model
         'taken_at',
         'sort_order',
         'status',
+        'is_hidden',
     ];
 
     protected $casts = [
@@ -57,6 +58,7 @@ class Photo extends Model
         'height' => 'integer',
         'taken_at' => 'datetime',
         'sort_order' => 'integer',
+        'is_hidden' => 'boolean',
     ];
 
     public function gallery(): BelongsTo

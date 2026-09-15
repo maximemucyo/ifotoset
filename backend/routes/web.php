@@ -140,6 +140,9 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
     Route::delete('/galleries/{uuid}', [StudioGalleryController::class, 'destroy'])->name('galleries.destroy');
     Route::post('/galleries/{uuid}/cover', [StudioGalleryController::class, 'setCover'])->name('galleries.cover');
+    Route::get('/galleries/{uuid}/photos', [StudioGalleryController::class, 'photos'])->name('galleries.photos');
+    Route::patch('/galleries/{uuid}/photos/{photoUuid}/hide', [StudioGalleryController::class, 'toggleHidePhoto'])->name('galleries.photos.hide');
+    Route::delete('/galleries/{uuid}/photos/{photoUuid}', [StudioGalleryController::class, 'destroyPhoto'])->name('galleries.photos.destroy');
 
     // Direct Browser Photo Uploads
     Route::post('/uploads/request', [UploadController::class, 'requestUpload'])->name('uploads.request');

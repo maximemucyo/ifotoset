@@ -24,10 +24,11 @@ class GalleryCoverService
                 return;
             }
 
-            // Check if current cover is already set and valid
+            // Check if current cover is already set and valid (not deleted and not hidden)
             if ($gallery->cover_photo_id) {
                 $currentCoverValid = Photo::where('id', $gallery->cover_photo_id)
                     ->where('gallery_id', $gallery->id)
+                    ->where('is_hidden', false)
                     ->whereNull('deleted_at')
                     ->exists();
 
@@ -36,8 +37,9 @@ class GalleryCoverService
                 }
             }
 
-            // Select the first non-deleted photo in the gallery ordered by sort_order and id
+            // Select the first non-deleted, visible photo in the gallery
             $firstPhoto = Photo::where('gallery_id', $gallery->id)
+                ->where('is_hidden', false)
                 ->whereNull('deleted_at')
                 ->orderBy('sort_order', 'asc')
                 ->orderBy('id', 'asc')
@@ -54,6 +56,10 @@ class GalleryCoverService
      */
     public function setExplicitCover(Gallery $gallery, Photo $photo): void
     {
+        if ($photo->is_hidden) {
+            throw new \InvalidArgumentException('A hidden photo cannot be set as the gallery cover.');
+        }
+
         DB::transaction(function () use ($gallery, $photo) {
             $gallery = Gallery::where('id', $gallery->id)->lockForUpdate()->first();
             if (!$gallery) {
@@ -100,10 +106,39 @@ class GalleryCoverService
             }
 
             if ((int) $gallery->cover_photo_id === (int) $deletedPhoto->id) {
-                // Find the next available non-deleted photo
+                // Find the next available non-deleted, visible photo
                 $nextPhoto = Photo::where('gallery_id', $gallery->id)
+                    ->where('is_hidden', false)
                     ->whereNull('deleted_at')
                     ->where('id', '!=', $deletedPhoto->id)
+                    ->orderBy('sort_order', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->first();
+
+                $gallery->update([
+                    'cover_photo_id' => $nextPhoto ? $nextPhoto->id : null,
+                    'has_explicit_cover' => false,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Handles photo hiding: if the hidden photo was the cover, selects another visible photo.
+     */
+    public function handlePhotoHidden(Gallery $gallery, Photo $hiddenPhoto): void
+    {
+        DB::transaction(function () use ($gallery, $hiddenPhoto) {
+            $gallery = Gallery::where('id', $gallery->id)->lockForUpdate()->first();
+            if (!$gallery) {
+                return;
+            }
+
+            if ((int) $gallery->cover_photo_id === (int) $hiddenPhoto->id) {
+                $nextPhoto = Photo::where('gallery_id', $gallery->id)
+                    ->where('is_hidden', false)
+                    ->whereNull('deleted_at')
+                    ->where('id', '!=', $hiddenPhoto->id)
                     ->orderBy('sort_order', 'asc')
                     ->orderBy('id', 'asc')
                     ->first();

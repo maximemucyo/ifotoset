@@ -34,4 +34,8 @@ Alpine.data('toastNotification', (initialMessage = '', initialType = 'info') => 
     },
 }));
 
+// Dispatch alpine:init so inline scripts and custom page components can register before start
+document.dispatchEvent(new CustomEvent('alpine:init'));
+
 Alpine.start();
+

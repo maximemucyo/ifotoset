@@ -209,7 +209,7 @@
                     <span>{{ \Carbon\Carbon::parse($gallery->event_date)->format('M d, Y') }}</span>
                 @endif
                 <span>&bull;</span>
-                <span>{{ $gallery->photo_count }} Photos</span>
+                <span>{{ $gallery->public_photo_count }} {{ Str::plural('Photo', $gallery->public_photo_count) }}</span>
             </div>
         </div>
 
@@ -279,7 +279,7 @@
      data-gallery-url="{{ $gallery->public_url }}"
      data-photos-url="{{ route('subdomain.gallery.photos', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
      data-export-url="{{ route('subdomain.gallery.export', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
-     data-total-photos="{{ $gallery->photo_count }}"
+     data-total-photos="{{ $gallery->public_photo_count }}"
      data-next-cursor="{{ $nextCursor }}"
      data-has-more="{{ $hasMore ? 'true' : 'false' }}"
      data-allow-photo-downloads="{{ $gallery->allow_photo_downloads ? 'true' : 'false' }}"

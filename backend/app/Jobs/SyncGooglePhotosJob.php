@@ -69,6 +69,7 @@ class SyncGooglePhotosJob implements ShouldQueue
 
             // Retrieve target photo collection
             $query = Photo::where('gallery_id', $sync->gallery_id)
+                ->where('is_hidden', false)
                 ->where('status', \App\Enums\PhotoStatus::Ready->value);
 
             if (!empty($this->photoUuids)) {

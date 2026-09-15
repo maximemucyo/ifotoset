@@ -95,14 +95,137 @@ class GalleryController extends Controller
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('view', $gallery);
 
-        $photos = $gallery->photos()
-            ->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'desc')
-            ->paginate(50);
+        $paginated = app(\App\Queries\GalleryPhotoQuery::class)->studio($gallery, 50);
+        $coverId = $gallery->cover_photo_id;
+
+        $initialPhotosData = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
+            return [
+                'id' => $photo->id,
+                'uuid' => $photo->uuid,
+                'original_filename' => $photo->original_filename,
+                'filename' => $photo->filename,
+                'thumbnail_url' => $photo->getUrl('sm'),
+                'medium_url' => $photo->getUrl('md'),
+                'large_url' => $photo->getUrl('lg'),
+                'full_url' => $photo->getUrl('xl'),
+                'original_url' => $photo->getUrl(),
+                'size' => $photo->size,
+                'width' => $photo->width,
+                'height' => $photo->height,
+                'blurhash' => $photo->blurhash,
+                'is_hidden' => (bool) $photo->is_hidden,
+                'is_cover' => $coverId === $photo->id,
+                'created_at' => $photo->created_at?->toIso8601String(),
+            ];
+        })->values();
 
         return view('studio.galleries.show', [
             'gallery' => $gallery,
-            'photos' => $photos,
+            'photos' => $paginated,
+            'totalPhotosCount' => $gallery->photos()->count(),
+            'initialPhotosJson' => $initialPhotosData->toJson(),
+            'initialNextCursor' => $paginated->nextCursor()?->encode(),
+            'initialHasMore' => $paginated->hasMorePages(),
+        ]);
+    }
+
+    /**
+     * Cursor-paginated photo endpoint for Studio gallery infinite scroll.
+     */
+    public function photos(Request $request, string $uuid): \Illuminate\Http\JsonResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('view', $gallery);
+
+        $perPage = $request->integer('per_page', 50);
+        $paginated = app(\App\Queries\GalleryPhotoQuery::class)->studio($gallery, $perPage);
+        $coverId = $gallery->cover_photo_id;
+
+        $data = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
+            return [
+                'id' => $photo->id,
+                'uuid' => $photo->uuid,
+                'original_filename' => $photo->original_filename,
+                'filename' => $photo->filename,
+                'thumbnail_url' => $photo->getUrl('sm'),
+                'medium_url' => $photo->getUrl('md'),
+                'large_url' => $photo->getUrl('lg'),
+                'full_url' => $photo->getUrl('xl'),
+                'original_url' => $photo->getUrl(),
+                'size' => $photo->size,
+                'width' => $photo->width,
+                'height' => $photo->height,
+                'blurhash' => $photo->blurhash,
+                'is_hidden' => (bool) $photo->is_hidden,
+                'is_cover' => $coverId === $photo->id,
+                'created_at' => $photo->created_at?->toIso8601String(),
+            ];
+        });
+
+        return response()->json([
+            'data' => $data,
+            'next_cursor' => $paginated->nextCursor()?->encode(),
+            'has_more' => $paginated->hasMorePages(),
+        ]);
+    }
+
+    /**
+     * Toggle or set the hidden status of a photo.
+     */
+    public function toggleHidePhoto(
+        Request $request,
+        string $uuid,
+        string $photoUuid,
+        \App\Actions\Studio\ToggleGalleryPhotoVisibilityAction $action
+    ): \Illuminate\Http\JsonResponse {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        $photo = Photo::where('uuid', $photoUuid)->where('gallery_id', $gallery->id)->firstOrFail();
+        $this->authorize('update', $photo);
+
+        $hide = $request->has('hide') ? $request->boolean('hide') : null;
+        $updatedPhoto = $action->execute($gallery, $photo, $hide);
+
+        $gallery->refresh();
+
+        return response()->json([
+            'success' => true,
+            'photo' => [
+                'uuid' => $updatedPhoto->uuid,
+                'is_hidden' => (bool) $updatedPhoto->is_hidden,
+                'is_cover' => $gallery->cover_photo_id === $updatedPhoto->id,
+            ],
+            'gallery_cover_photo_id' => $gallery->cover_photo_id,
+            'message' => $updatedPhoto->is_hidden ? 'Photo hidden from public gallery.' : 'Photo visible in public gallery.',
+        ]);
+    }
+
+    /**
+     * Soft-delete a photo from the gallery with optimistic UI support.
+     */
+    public function destroyPhoto(
+        Request $request,
+        string $uuid,
+        string $photoUuid,
+        \App\Actions\Studio\DeleteGalleryPhotoAction $action
+    ): \Illuminate\Http\JsonResponse {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        $photo = Photo::where('uuid', $photoUuid)->where('gallery_id', $gallery->id)->firstOrFail();
+        $this->authorize('delete', $photo);
+
+        $action->execute($gallery, $photo);
+
+        $gallery->refresh();
+
+        return response()->json([
+            'success' => true,
+            'deleted_uuid' => $photoUuid,
+            'gallery_cover_photo_id' => $gallery->cover_photo_id,
+            'total_photos' => $gallery->photos()->count(),
+            'message' => 'Photo deleted.',
         ]);
     }
 
@@ -161,20 +284,41 @@ class GalleryController extends Controller
     /**
      * Set a photo as the gallery cover.
      */
-    public function setCover(Request $request, string $uuid): RedirectResponse
-    {
+    public function setCover(
+        Request $request,
+        string $uuid,
+        \App\Actions\Studio\SetGalleryCoverAction $action
+    ) {
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('update', $gallery);
 
         $validated = $request->validate([
-            'photo_id' => ['required', 'integer'],
+            'photo_id' => ['nullable', 'integer'],
+            'photo_uuid' => ['nullable', 'string'],
         ]);
 
-        $photo = Photo::where('id', $validated['photo_id'])
-            ->where('gallery_id', $gallery->id)
-            ->firstOrFail();
+        $query = Photo::where('gallery_id', $gallery->id);
+        if (!empty($validated['photo_uuid'])) {
+            $query->where('uuid', $validated['photo_uuid']);
+        } elseif (!empty($validated['photo_id'])) {
+            $query->where('id', $validated['photo_id']);
+        } else {
+            abort(422, 'Photo identifier required.');
+        }
 
-        $gallery->update(['cover_photo_id' => $photo->id]);
+        $photo = $query->firstOrFail();
+        $this->authorize('setCover', $photo);
+
+        $gallery = $action->execute($gallery, $photo);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'cover_photo_id' => $gallery->cover_photo_id,
+                'cover_photo_uuid' => $photo->uuid,
+                'message' => 'Cover photo updated.',
+            ]);
+        }
 
         return back()->with('success', 'Cover photo updated.');
     }
