@@ -43,7 +43,7 @@ class SmtpSettingsService
             'mail.mailers.smtp.username'   => $username,
             'mail.mailers.smtp.password'   => $password,
             'mail.mailers.smtp.encryption' => $encryption,
-            'mail.from.address'            => $fromAddress ?: $username,
+            'mail.from.address'            => $fromAddress ?: config('mail.from.address', 'noreply@ifotoset.com'),
             'mail.from.name'               => $fromName ?: config('app.name', 'ifotoset'),
         ]);
 
