@@ -896,7 +896,7 @@ document.addEventListener('alpine:init', () => {
                 </a>
                 <span class="text-xs text-muted-foreground">&bull;</span>
                 <x-ui.badge :variant="$gallery->visibility === 'public' ? 'default' : ($gallery->visibility === 'password' ? 'warning' : 'muted')">
-                    {{ ucfirst($gallery->visibility) }}
+                    {{ $gallery->visibility === 'private' ? 'Unlisted' : ($gallery->visibility === 'password' ? 'PIN Protected' : 'Public') }}
                 </x-ui.badge>
             </div>
             <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{{ $gallery->title }}</h1>

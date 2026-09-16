@@ -39,12 +39,12 @@
             <label class="block text-sm font-medium text-foreground">Privacy & Visibility</label>
             <div class="grid sm:grid-cols-3 gap-3">
                 <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
-                       :class="visibility === 'public' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
+                       :class="visibility === 'private' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
                     <div class="flex items-center justify-between">
-                        <span class="font-semibold text-xs text-foreground">Public</span>
-                        <input type="radio" name="visibility" value="public" x-model="visibility" class="text-primary focus:ring-primary">
+                        <span class="font-semibold text-xs text-foreground">Unlisted / Private</span>
+                        <input type="radio" name="visibility" value="private" x-model="visibility" class="text-primary focus:ring-primary">
                     </div>
-                    <span class="text-[11px] text-muted-foreground">Visible on public portfolio</span>
+                    <span class="text-[11px] text-muted-foreground">Direct link only</span>
                 </label>
 
                 <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
@@ -57,21 +57,21 @@
                 </label>
 
                 <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
-                       :class="visibility === 'private' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
+                       :class="visibility === 'public' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
                     <div class="flex items-center justify-between">
-                        <span class="font-semibold text-xs text-foreground">Unlisted / Private</span>
-                        <input type="radio" name="visibility" value="private" x-model="visibility" class="text-primary focus:ring-primary">
+                        <span class="font-semibold text-xs text-foreground">Public</span>
+                        <input type="radio" name="visibility" value="public" x-model="visibility" class="text-primary focus:ring-primary">
                     </div>
-                    <span class="text-[11px] text-muted-foreground">Direct link only</span>
+                    <span class="text-[11px] text-muted-foreground">Visible on public portfolio</span>
                 </label>
             </div>
         </div>
 
-        <div x-show="visibility === 'password'" class="pt-2" style="{{ $gallery->visibility === 'password' ? '' : 'display: none;' }}">
-            <x-ui.input label="Set New PIN / Password"
+        <div x-show="visibility === 'password'" class="pt-2" style="{{ old('visibility', $gallery->visibility) === 'password' ? '' : 'display: none;' }}">
+            <x-ui.input :label="$gallery->password_hash ? 'Set New PIN / Password' : 'Set PIN / Password'"
                         type="password"
                         name="password"
-                        placeholder="Leave blank to keep existing password"
+                        :placeholder="$gallery->password_hash ? 'Leave blank to keep existing password' : 'Choose a 4-8 character PIN'"
                         :error="$errors->first('password')" />
         </div>
 

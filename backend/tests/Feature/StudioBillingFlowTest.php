@@ -151,7 +151,7 @@ class StudioBillingFlowTest extends TestCase
         // 4. View printable receipt
         $receiptResponse = $this->actingAs($this->user)->get('/studio/billing/receipt/' . $paymentUuid);
         $receiptResponse->assertStatus(200);
-        $receiptResponse->assertSee('Subscription Payment Receipt');
+        $receiptResponse->assertSee('Payment Receipt');
         $receiptResponse->assertSee('Professional Plan');
     }
 

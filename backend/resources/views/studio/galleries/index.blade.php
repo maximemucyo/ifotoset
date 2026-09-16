@@ -21,17 +21,17 @@
            class="px-3 py-1.5 rounded-lg {{ !request('visibility') ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
             All Galleries
         </a>
-        <a href="{{ route('studio.galleries.index', ['visibility' => 'public']) }}"
-           class="px-3 py-1.5 rounded-lg {{ request('visibility') === 'public' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
-            Public
+        <a href="{{ route('studio.galleries.index', ['visibility' => 'private']) }}"
+           class="px-3 py-1.5 rounded-lg {{ request('visibility') === 'private' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
+            Unlisted
         </a>
         <a href="{{ route('studio.galleries.index', ['visibility' => 'password']) }}"
            class="px-3 py-1.5 rounded-lg {{ request('visibility') === 'password' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
             PIN Protected
         </a>
-        <a href="{{ route('studio.galleries.index', ['visibility' => 'private']) }}"
-           class="px-3 py-1.5 rounded-lg {{ request('visibility') === 'private' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
-            Private
+        <a href="{{ route('studio.galleries.index', ['visibility' => 'public']) }}"
+           class="px-3 py-1.5 rounded-lg {{ request('visibility') === 'public' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground' }}">
+            Public
         </a>
     </div>
 
@@ -52,7 +52,7 @@
                     @endif
                     <div class="absolute top-3 right-3">
                         <x-ui.badge :variant="$gallery->visibility === 'public' ? 'default' : ($gallery->visibility === 'password' ? 'warning' : 'muted')">
-                            {{ ucfirst($gallery->visibility) }}
+                            {{ $gallery->visibility === 'private' ? 'Unlisted' : ($gallery->visibility === 'password' ? 'PIN Protected' : 'Public') }}
                         </x-ui.badge>
                     </div>
                 </a>

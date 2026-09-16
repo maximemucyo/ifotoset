@@ -88,19 +88,44 @@
 
         <!-- Bottom CTA -->
         <div class="relative z-10 flex flex-col items-center gap-3 pb-12">
-            <button type="button"
-                    id="btn-scroll-to-gallery"
-                    class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
-                View Gallery
-            </button>
-            <button type="button"
-                    onclick="document.getElementById('gallery-action-bar')?.scrollIntoView({ behavior: 'smooth' })"
-                    class="p-2 rounded-full text-white hover:bg-white/10 transition-all animate-bounce"
-                    aria-label="Scroll to photos">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
-                </svg>
-            </button>
+            @if($requiresPassword)
+                <button type="button"
+                        onclick="document.getElementById('password-unlock-section')?.scrollIntoView({ behavior: 'smooth' })"
+                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span>Enter PIN / Unlock</span>
+                </button>
+                <button type="button"
+                        onclick="document.getElementById('password-unlock-section')?.scrollIntoView({ behavior: 'smooth' })"
+                        class="p-2 rounded-full text-white hover:bg-white/10 transition-all animate-bounce"
+                        aria-label="Scroll to unlock">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
+                    </svg>
+                </button>
+            @elseif($requiresInvitation)
+                <button type="button"
+                        onclick="document.getElementById('invitation-required-section')?.scrollIntoView({ behavior: 'smooth' })"
+                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+                    View Details
+                </button>
+            @else
+                <button type="button"
+                        id="btn-scroll-to-gallery"
+                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
+                    View Gallery
+                </button>
+                <button type="button"
+                        onclick="document.getElementById('gallery-action-bar')?.scrollIntoView({ behavior: 'smooth' })"
+                        class="p-2 rounded-full text-white hover:bg-white/10 transition-all animate-bounce"
+                        aria-label="Scroll to photos">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
+                    </svg>
+                </button>
+            @endif
         </div>
     </section>
 @else
@@ -118,20 +143,20 @@
 
 <!-- Password Protection Screen -->
 @if($requiresPassword)
-<div class="max-w-md mx-auto my-16 px-4" x-data="{ password: '', error: '', unlocking: false }">
-    <div class="bg-card border border-border rounded-none p-8 text-center shadow-xl">
-        <div class="w-14 h-14 rounded-none bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl mb-4">
+<div id="password-unlock-section" class="max-w-md mx-auto my-16 px-4" x-data="{ password: '', error: '', unlocking: false }">
+    <div class="bg-card border border-border rounded-2xl p-8 text-center shadow-xl">
+        <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl mb-4">
             <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
         </div>
-        <h2 class="text-2xl font-bold text-foreground">Password Protected Gallery</h2>
+        <h2 class="text-2xl font-bold text-foreground">PIN / Password Protected Gallery</h2>
         <p class="text-xs text-muted-foreground mt-2 mb-4 leading-relaxed">
-            This collection is private. Please enter the password provided by the photographer to unlock.
+            This collection is protected. Please enter the PIN or password provided by the photographer to unlock.
         </p>
 
         @if($passwordHint)
-            <div class="p-3 mb-5 rounded-none bg-secondary/50 border border-border text-xs text-primary font-medium">
+            <div class="p-3 mb-5 rounded-xl bg-secondary/50 border border-border text-xs text-primary font-medium">
                 Hint: {{ $passwordHint }}
             </div>
         @endif
@@ -139,7 +164,7 @@
         <form @submit.prevent="
             unlocking = true;
             error = '';
-            fetch('{{ $gallery->public_url }}/unlock', {
+            fetch(window.location.pathname.replace(/\/+$/, '') + '/unlock', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -154,7 +179,7 @@
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    error = data.message || 'Incorrect password.';
+                    error = data.message || 'Incorrect PIN or password.';
                 }
             })
             .catch(() => {
@@ -166,14 +191,15 @@
                 <input type="password"
                        x-model="password"
                        required
-                       placeholder="Enter password..."
-                       class="block w-full rounded-none border border-border bg-input px-4 py-3 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary text-center">
+                       autofocus
+                       placeholder="Enter PIN / password..."
+                       class="block w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary text-center">
                 <p x-show="error" x-text="error" class="text-xs text-destructive mt-2" style="display: none;"></p>
             </div>
 
             <button type="submit"
                     :disabled="unlocking"
-                    class="w-full py-3 px-4 rounded-none bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+                    class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
                 <span x-show="unlocking" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></span>
                 <span x-text="unlocking ? 'Verifying...' : 'Unlock Collection'">Unlock Collection</span>
             </button>
@@ -181,7 +207,7 @@
     </div>
 </div>
 @elseif($requiresInvitation)
-<div class="max-w-md mx-auto my-16 px-4 text-center space-y-4">
+<div id="invitation-required-section" class="max-w-md mx-auto my-16 px-4 text-center space-y-4">
     <div class="w-14 h-14 rounded-none bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center font-bold text-2xl">
         <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />

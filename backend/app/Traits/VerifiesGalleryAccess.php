@@ -23,25 +23,30 @@ trait VerifiesGalleryAccess
 
         $visibility = $gallery->visibility;
 
+        // 1. Public galleries: accessible to everyone
         if ($visibility === 'public') {
             return null; // Access granted
         }
 
-        // If private, check access method
-        // 1. Password protection
-        if (!empty($gallery->password_hash)) {
+        // 2. Unlisted / Private galleries (no PIN set): accessible via direct link
+        if ($visibility === 'private' && empty($gallery->password_hash)) {
+            return null; // Access granted via direct link
+        }
+
+        // 3. PIN / Password protected galleries
+        if ($visibility === 'password' || !empty($gallery->password_hash)) {
             // Check session unlock with password hash checksum protection
             if ($request->hasSession()) {
                 $sessionUnlock = $request->session()->get("gallery_unlocked_{$gallery->id}");
                 if (is_array($sessionUnlock) && !empty($sessionUnlock['hash_checksum'])) {
-                    if (hash_equals($sessionUnlock['hash_checksum'], md5($gallery->password_hash))) {
+                    if (hash_equals($sessionUnlock['hash_checksum'], md5($gallery->password_hash ?? ''))) {
                         return null; // Access granted via valid session
                     }
                 } elseif ($sessionUnlock === true) {
                     // Backward-compatible fallback: update to current checksum
                     $request->session()->put("gallery_unlocked_{$gallery->id}", [
                         'unlocked' => true,
-                        'hash_checksum' => md5($gallery->password_hash),
+                        'hash_checksum' => md5($gallery->password_hash ?? ''),
                     ]);
                     return null;
                 }

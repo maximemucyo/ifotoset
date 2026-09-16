@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Ramsey\Uuid\Uuid;
 
@@ -46,7 +47,7 @@ class GalleryController extends Controller
     }
 
     /**
-     * Store new gallery.
+     * Store a newly created gallery.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -60,6 +61,8 @@ class GalleryController extends Controller
             'password' => ['nullable', 'string', 'required_if:visibility,password'],
             'allow_photo_downloads' => ['nullable', 'boolean'],
             'allow_gallery_downloads' => ['nullable', 'boolean'],
+        ], [
+            'password.required_if' => 'A PIN or password is required when setting privacy to PIN Protected.',
         ]);
 
         $baseSlug = Str::slug($validated['title']);
@@ -255,9 +258,15 @@ class GalleryController extends Controller
             'client_name' => ['nullable', 'string', 'max:255'],
             'event_date' => ['nullable', 'date'],
             'visibility' => ['required', 'string', 'in:public,private,password'],
-            'password' => ['nullable', 'string'],
+            'password' => [
+                'nullable',
+                'string',
+                Rule::requiredIf(fn() => $request->input('visibility') === 'password' && empty($gallery->password_hash)),
+            ],
             'allow_photo_downloads' => ['nullable', 'boolean'],
             'allow_gallery_downloads' => ['nullable', 'boolean'],
+        ], [
+            'password.required' => 'A PIN or password is required when setting privacy to PIN Protected.',
         ]);
 
         $updateData = [
