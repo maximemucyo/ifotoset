@@ -22,7 +22,10 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $fromAddress = config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com'));
+
         return new Envelope(
+            from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset'),
             subject: "Deposit Received: {$this->booking->title} from {$this->booking->client->name}",
         );
     }

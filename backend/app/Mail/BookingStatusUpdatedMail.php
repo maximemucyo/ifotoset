@@ -28,7 +28,7 @@ class BookingStatusUpdatedMail extends Mailable implements ShouldQueue
 
         return new Envelope(
             from: new Address(
-                config('mail.from.address', 'notifications@ifotoset.com'),
+                config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com')),
                 $photographer->name . ' via ifotoset'
             ),
             replyTo: [

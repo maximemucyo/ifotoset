@@ -60,6 +60,64 @@ class ExportProgressService
             'elapsed_seconds' => $elapsedSeconds,
             'remaining_seconds' => $remainingSeconds,
             'estimated_finish_time' => $estimatedFinishTime ? $estimatedFinishTime->toIso8601String() : null,
+            'indeterminate' => false,
         ];
+    }
+
+    /**
+     * Calculate progress specifically for a GalleryDownload (ZIP packaging) record.
+     */
+    public function forZip(object $download): array
+    {
+        $startedAt = $download->started_at ? Carbon::parse($download->started_at) : null;
+        $completedAt = $download->completed_at ? Carbon::parse($download->completed_at) : null;
+        $total = (int) ($download->total_photos ?? 0);
+        $processed = (int) ($download->processed_photos ?? 0);
+        $failed = (int) ($download->failed_photos ?? 0);
+        $status = (string) ($download->status ?? 'pending');
+
+        $metrics = $this->calculate($startedAt, $completedAt, $total, $processed, $failed, $status);
+        $metrics['total'] = $total;
+        $metrics['processed'] = $processed;
+        $metrics['failed'] = $failed;
+        $metrics['status'] = $status;
+        return $metrics;
+    }
+
+    /**
+     * Calculate progress specifically for a GooglePhotoSync record.
+     * Guarantees truthful progress: if total photos is 0 during processing,
+     * it marks indeterminate=true rather than inventing a fake percentage.
+     */
+    public function forSync(object $sync): array
+    {
+        $startedAt = $sync->started_at ? Carbon::parse($sync->started_at) : null;
+        $completedAt = $sync->completed_at ? Carbon::parse($sync->completed_at) : null;
+        $total = (int) ($sync->total_photos ?? 0);
+        $processed = (int) ($sync->processed_photos ?? 0);
+        $failed = (int) ($sync->failed_photos ?? 0);
+        $status = (string) ($sync->status ?? 'pending');
+
+        if ($total === 0 && in_array($status, ['pending', 'processing'])) {
+            return [
+                'percentage' => 0,
+                'elapsed_seconds' => $startedAt ? max(1, abs(Carbon::now()->diffInSeconds($startedAt))) : null,
+                'remaining_seconds' => null,
+                'estimated_finish_time' => null,
+                'indeterminate' => true,
+                'total' => 0,
+                'processed' => $processed,
+                'failed' => $failed,
+                'status' => $status,
+            ];
+        }
+
+        $metrics = $this->calculate($startedAt, $completedAt, $total, $processed, $failed, $status);
+        $metrics['total'] = $total;
+        $metrics['processed'] = $processed;
+        $metrics['failed'] = $failed;
+        $metrics['status'] = $status;
+        $metrics['indeterminate'] = false;
+        return $metrics;
     }
 }

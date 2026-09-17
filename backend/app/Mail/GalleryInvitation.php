@@ -33,7 +33,13 @@ class GalleryInvitation extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
+        $fromAddress = config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com'));
+
         return new Envelope(
+            from: new \Illuminate\Mail\Mailables\Address($fromAddress, $this->photographerName . ' via ifotoset'),
+            replyTo: [
+                new \Illuminate\Mail\Mailables\Address($this->gallery->user->email, $this->photographerName)
+            ],
             subject: "Invitation to view gallery: " . $this->gallery->title,
         );
     }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\Admin\AnalyticsController as AdminAnalyticsController;
 use App\Http\Controllers\Web\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Web\Admin\GalleryController as AdminGalleryController;
+use App\Http\Controllers\Web\Admin\JobMonitorController;
 use App\Http\Controllers\Web\Admin\ModerationController as AdminModerationController;
 use App\Http\Controllers\Web\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Web\Admin\PlanController as AdminPlanController;
@@ -238,6 +239,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(funct
 
     // Platform Analytics & Metrics
     Route::get('/analytics', [AdminAnalyticsController::class, 'index'])->name('analytics.index');
+
+    // Operational Processing Queue & Exports Monitor
+    Route::get('/queue', [JobMonitorController::class, 'index'])->name('jobs.index');
+    Route::get('/queue/status', [JobMonitorController::class, 'status'])->name('jobs.status');
 
     // Content Moderation Queue
     Route::get('/moderation', [AdminModerationController::class, 'index'])->name('moderation.index');

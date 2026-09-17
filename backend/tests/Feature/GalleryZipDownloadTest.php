@@ -6,11 +6,13 @@ use App\Models\Gallery;
 use App\Models\GalleryDownload;
 use App\Models\GalleryStats;
 use App\Models\Photo;
+use App\Models\StorageDisk;
 use App\Models\User;
-use App\Services\GalleryZipDownloadService;
+use App\Jobs\GenerateGalleryZipJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -20,6 +22,7 @@ class GalleryZipDownloadTest extends TestCase
 
     protected User $user;
     protected Gallery $gallery;
+    protected StorageDisk $disk;
 
     protected function setUp(): void
     {
@@ -49,6 +52,15 @@ class GalleryZipDownloadTest extends TestCase
             'password' => Hash::make('password123'),
         ]);
 
+        $this->disk = StorageDisk::firstOrCreate([
+            'driver' => 'b2',
+        ], [
+            'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
+            'bucket' => 'ifotoset-media',
+            'region' => 'us-east-005',
+            'cdn_domain' => 'cdn.ifotoset.com',
+        ]);
+
         $this->gallery = Gallery::create([
             'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
             'user_id' => $this->user->id,
@@ -64,6 +76,24 @@ class GalleryZipDownloadTest extends TestCase
                 return 'https://backblazeb2.com/' . $objectKey . '?ResponseContentDisposition=attachment%3B%20filename%3D%22' . rawurlencode($filename) . '%22';
             }));
         $this->app->instance(\App\Services\StorageService::class, $mockStorageService);
+    }
+
+    protected function createPhoto(array $attributes = []): Photo
+    {
+        return Photo::create(array_merge([
+            'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
+            'gallery_id' => $this->gallery->id,
+            'disk_id' => $this->disk->id,
+            'path' => 'photos/test',
+            'filename' => 'photo_' . uniqid() . '.jpg',
+            'original_filename' => 'photo1.jpg',
+            'mime_type' => 'image/jpeg',
+            'size' => 1024 * 500,
+            'checksum' => hash('sha256', uniqid()),
+            'status' => \App\Enums\PhotoStatus::Ready->value,
+            'is_hidden' => false,
+            'sort_order' => 0,
+        ], $attributes));
     }
 
     public function test_valid_token_downloads_successfully(): void
@@ -294,4 +324,205 @@ class GalleryZipDownloadTest extends TestCase
         $this->assertEquals(1, $visitorItem['downloads']);
         $this->assertEquals(1, $visitorItem['favorites']);
     }
+
+    public function test_missing_email_is_rejected_with_422_even_if_zip_is_ready(): void
+    {
+        Storage::fake('b2');
+
+        $this->createPhoto();
+
+        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", []);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['code' => 'EMAIL_REQUIRED']);
+        $this->assertArrayNotHasKey('download_url', $response->json());
+    }
+
+    public function test_invalid_email_format_is_rejected_with_422(): void
+    {
+        Storage::fake('b2');
+
+        $this->createPhoto();
+
+        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+            'email' => 'not-an-email',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['code' => 'EMAIL_REQUIRED']);
+    }
+
+    public function test_valid_email_is_normalized_and_persisted(): void
+    {
+        Storage::fake('b2');
+        Queue::fake([GenerateGalleryZipJob::class]);
+
+        $this->createPhoto();
+
+        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+            'email' => '  VISITOR@Example.COM  ',
+            'notify_when_ready' => true,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['status' => 'pending']);
+
+        $this->assertDatabaseHas('gallery_downloads', [
+            'gallery_id' => $this->gallery->id,
+            'email' => 'visitor@example.com',
+            'notify_when_ready' => true,
+        ]);
+
+        Queue::assertPushed(GenerateGalleryZipJob::class);
+    }
+
+    public function test_existing_ready_zip_with_email_returns_download_url_idempotently(): void
+    {
+        Storage::fake('b2');
+
+        $photo = $this->createPhoto();
+
+        $snapshotHash = md5($photo->id . '-' . $photo->updated_at->timestamp);
+        $storagePath = "galleries/{$this->gallery->uuid}/downloads/photos-{$snapshotHash}.zip";
+
+        // Place ready zip in storage
+        Storage::disk('b2')->put($storagePath, 'dummy-zip-content');
+
+        $download = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'ready',
+            'photo_snapshot_hash' => $snapshotHash,
+            'storage_path' => $storagePath,
+            'size' => 2048,
+            'completed_at' => now(),
+            'email' => null, // created before visitor entered email
+        ]);
+
+        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+            'email' => 'visitor@example.com',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['status' => 'ready']);
+        $this->assertNotEmpty($response->json('download_url'));
+
+        // Idempotent: record count remains 1, email updated
+        $this->assertEquals(1, GalleryDownload::where('gallery_id', $this->gallery->id)->count());
+        $download->refresh();
+        $this->assertEquals('visitor@example.com', $download->email);
+        $this->assertNotNull($download->download_token_hash);
+    }
+
+    public function test_notify_and_notify_when_ready_precedence_and_canonical_persistence(): void
+    {
+        Storage::fake('b2');
+        Queue::fake([GenerateGalleryZipJob::class]);
+
+        $this->createPhoto();
+
+        // Case A: notify=true fallback when notify_when_ready is absent
+        $responseA = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+            'email' => 'case_a@example.com',
+            'notify' => true,
+        ]);
+        $responseA->assertStatus(200);
+        $this->assertDatabaseHas('gallery_downloads', [
+            'email' => 'case_a@example.com',
+            'notify_when_ready' => true,
+        ]);
+
+        // Case B: notify_when_ready=false explicitly supplied while notify=true; explicit false wins
+        GalleryDownload::where('gallery_id', $this->gallery->id)->delete();
+
+        $responseB = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+            'email' => 'case_b@example.com',
+            'notify_when_ready' => false,
+            'notify' => true,
+        ]);
+        $responseB->assertStatus(200);
+        $this->assertDatabaseHas('gallery_downloads', [
+            'email' => 'case_b@example.com',
+            'notify_when_ready' => false,
+        ]);
+    }
+
+    public function test_download_url_cannot_be_obtained_from_client_storage_alone(): void
+    {
+        Storage::fake('b2');
+
+        $photo = $this->createPhoto();
+
+        $snapshotHash = md5($photo->id . '-' . $photo->updated_at->timestamp);
+        $storagePath = "galleries/{$this->gallery->uuid}/downloads/photos-{$snapshotHash}.zip";
+        Storage::disk('b2')->put($storagePath, 'dummy-zip-content');
+
+        GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'ready',
+            'photo_snapshot_hash' => $snapshotHash,
+            'storage_path' => $storagePath,
+            'size' => 2048,
+            'completed_at' => now(),
+            'email' => null,
+        ]);
+
+        // Client has stored email in localStorage, but sends request with no email parameter
+        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", []);
+
+        // Server must not trust client-side state alone; requires email to be submitted and validated
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['code' => 'EMAIL_REQUIRED']);
+        $this->assertArrayNotHasKey('download_url', $response->json());
+    }
+
+    public function test_gallery_zip_ready_mail_uses_notifications_address_and_renders_cleanly(): void
+    {
+        $download = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'ready',
+            'photo_snapshot_hash' => 'dummy-hash',
+            'storage_path' => "galleries/{$this->gallery->uuid}/downloads/test.zip",
+            'size' => 15 * 1024 * 1024,
+            'total_photos' => 12,
+            'processed_photos' => 12,
+            'failed_photos' => 0,
+            'completed_at' => now(),
+            'email' => 'client@example.com',
+        ]);
+
+        $downloadUrl = "https://cdn.ifotoset.com/galleries/{$this->gallery->uuid}/downloads/test.zip?filename=Test-Gallery.zip";
+        $mailable = new \App\Mail\GalleryZipReadyMail($download, $downloadUrl);
+
+        $envelope = $mailable->envelope();
+        $this->assertEquals('notifications@ifotoset.com', $envelope->from->address);
+        $this->assertStringContainsString('via ifotoset', $envelope->from->name);
+        $this->assertEquals($this->user->email, $envelope->replyTo[0]->address);
+
+        $rendered = $mailable->render();
+        $this->assertStringContainsString('Your Photos Are Ready', $rendered);
+        $this->assertStringContainsString('Test Gallery', $rendered);
+        $this->assertStringContainsString('12 photos', $rendered);
+        $this->assertStringContainsString('15 MB', $rendered);
+        $this->assertStringContainsString($downloadUrl, $rendered);
+        // Ensure no old raw #121212 dark styling is present
+        $this->assertStringNotContainsString('background-color: #121212', $rendered);
+    }
+
+    public function test_storage_service_generates_cdn_download_url_when_configured(): void
+    {
+        Config::set('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
+        Config::set('filesystems.disks.b2.use_cdn_downloads', true);
+
+        $storageService = new \App\Services\StorageService();
+        $url = $storageService->generatePresignedDownloadUrl(
+            "galleries/{$this->gallery->uuid}/downloads/photos-123.zip",
+            'Wedding-Photos.zip',
+            now()->addHours(24)
+        );
+
+        $this->assertStringStartsWith('https://cdn.ifotoset.com/galleries/', $url);
+        $this->assertStringContainsString('filename=Wedding-Photos.zip', $url);
+        $this->assertStringNotContainsString('s3.eu-central-003.backblazeb2.com', $url);
+    }
 }
+

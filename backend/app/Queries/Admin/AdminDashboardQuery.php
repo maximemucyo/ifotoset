@@ -28,6 +28,14 @@ class AdminDashboardQuery
             ->take(6)
             ->get();
 
+        $queueSummary = [
+            'processing'   => \App\Models\MediaJob::where('status', 'processing')->count(),
+            'queued'       => \App\Models\MediaJob::where('status', 'queued')->count(),
+            'failed_today' => \App\Models\MediaJob::where('status', 'failed')
+                ->where('failed_at', '>=', now()->startOfDay())
+                ->count(),
+        ];
+
         return [
             'totalUsers'        => $totalUsers,
             'totalGalleries'    => $totalGalleries,
@@ -35,6 +43,7 @@ class AdminDashboardQuery
             'totalRevenue'      => $totalRevenue,
             'recentUsers'       => $recentUsers,
             'recentGalleries'   => $recentGalleries,
+            'queueSummary'      => $queueSummary,
         ];
     }
 }

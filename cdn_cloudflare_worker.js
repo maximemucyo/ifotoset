@@ -92,11 +92,15 @@ async function proxyAndCache(request, event) {
     const cacheKeyUrl = new URL(request.url);
     cacheKeyUrl.search = '';
     const cacheKey = new Request(cacheKeyUrl.toString(), request);
+    const cache = (typeof caches !== 'undefined' && caches.default) ? caches.default : null;
 
-    const cache = caches.default;
+    const isDownload = url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download');
 
-    // 1. Check Cloudflare Edge Cache
-    let cachedRes = await cache.match(cacheKey);
+    // 1. Check Cloudflare Edge Cache (bypass for private downloads)
+    let cachedRes = null;
+    if (!isDownload && cache) {
+        cachedRes = await cache.match(cacheKey);
+    }
     if (cachedRes) {
         // Always attach dynamic CORS headers matching current origin
         const headers = new Headers(cachedRes.headers);
@@ -127,8 +131,8 @@ async function proxyAndCache(request, event) {
         method,
         headers: upstreamHeaders,
         cf: {
-            cacheEverything: true,
-            cacheTtl: 31536000 // Instruct Cloudflare to cache for 1 year
+            cacheEverything: !isDownload,
+            cacheTtl: isDownload ? 0 : 31536000 // Cache static media for 1 year, never cache dynamic downloads
         }
     });
 
@@ -146,8 +150,22 @@ async function proxyAndCache(request, event) {
         outHeaders.set(k, v);
     }
 
+    // Attachment Content-Disposition handling for clean downloads
+    if (url.searchParams.has('filename')) {
+        const rawFn = url.searchParams.get('filename');
+        const safeAscii = rawFn.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '');
+        outHeaders.set('Content-Disposition', `attachment; filename="${safeAscii}"; filename*=UTF-8''${encodeURIComponent(rawFn)}`);
+    } else if (url.pathname.endsWith('.zip')) {
+        const defaultFn = url.pathname.split('/').pop() || 'download.zip';
+        outHeaders.set('Content-Disposition', `attachment; filename="${defaultFn}"`);
+    }
+
     // Optimize headers for CDN delivery
-    outHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+    if (isDownload) {
+        outHeaders.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    } else {
+        outHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
     outHeaders.set('Accept-Ranges', 'bytes');
     outHeaders.set('Vary', 'Origin, Accept');
 
@@ -165,8 +183,8 @@ async function proxyAndCache(request, event) {
         headers: outHeaders
     });
 
-    // 4. Save to Cloudflare Edge Cache in background
-    if (event && event.waitUntil && request.method === 'GET') {
+    // 4. Save to Cloudflare Edge Cache in background (static media only)
+    if (!isDownload && cache && event && event.waitUntil && request.method === 'GET' && upstreamRes.status === 200) {
         event.waitUntil(cache.put(cacheKey, response.clone()));
     }
 
@@ -236,6 +254,11 @@ function isAllowedReferer(req) {
 }
 
 function isAllowedRequest(request, url) {
+    // Explicit downloads, ZIP archives, and custom filename deliveries are allowed directly
+    if (url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download')) {
+        return true;
+    }
+
     // Only enforce referer check on gallery media
     // Avatars and public brand assets remain accessible for emails and profiles
     if (!url.pathname.startsWith('/galleries/')) {

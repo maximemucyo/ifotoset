@@ -538,52 +538,94 @@ class GalleryController extends Controller
 
         $storageService = app(\App\Services\StorageService::class);
 
-        // Read email and opt-in settings from POST body
-        $email = $request->input('email');
-        $notifyWhenReady = (bool) $request->input('notify_when_ready', false);
+        // 1. Strictly require a valid RFC email address before issuing any download URL or scheduling packaging
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'email' => ['required', 'string', 'email:rfc'],
+        ]);
 
-        if ($notifyWhenReady && (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+        if ($validator->fails()) {
             return response()->json([
-                'code' => 'INVALID_EMAIL',
-                'message' => 'A valid email address is required for notifications.',
+                'code' => 'EMAIL_REQUIRED',
+                'message' => 'A valid email address is required to prepare and download this gallery archive.',
+                'errors' => $validator->errors(),
             ], 422);
         }
 
+        $email = strtolower(trim((string) $request->input('email')));
+
+        // 2. Canonical notification preference resolution with explicit precedence
+        $notifyWhenReady = $request->has('notify_when_ready')
+            ? $request->boolean('notify_when_ready')
+            : $request->boolean('notify');
+
         if ($download && ($download->status === 'ready' || $download->status === 'ready_with_errors') && $download->storage_path) {
             if (Storage::disk('b2')->exists($download->storage_path)) {
-                // If it is already ready, but the user requested notifications and we haven't sent it yet, let's update email settings
-                if ($notifyWhenReady && is_null($download->notification_sent_at)) {
+                // Ensure email and notification preference are persisted on the record
+                $updatePayload = [];
+                if (empty($download->email)) {
+                    $updatePayload['email'] = $email;
+                }
+                if ($notifyWhenReady && !$download->notify_when_ready) {
+                    $updatePayload['notify_when_ready'] = true;
+                }
+
+                // Preserve existing token if already tokenized, otherwise create one
+                $rawToken = null;
+                if (!$download->download_token_hash) {
                     $rawToken = bin2hex(random_bytes(32));
-                    $download->update([
-                        'email' => $email,
-                        'notify_when_ready' => true,
-                        'download_token_hash' => hash('sha256', $rawToken),
-                    ]);
-                    
-                    // Since it's ready, we can trigger the notification immediately
-                    \Illuminate\Support\Facades\DB::transaction(function () use ($download, $rawToken) {
+                    $updatePayload['download_token_hash'] = hash('sha256', $rawToken);
+                }
+
+                if (!empty($updatePayload)) {
+                    $download->update($updatePayload);
+                }
+
+                // If user opted into notifications and notification has not yet been sent, queue it
+                if ($notifyWhenReady && is_null($download->notification_sent_at)) {
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($download, $email, $rawToken) {
                         $lockedDownload = \App\Models\GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
                         if ($lockedDownload && is_null($lockedDownload->notification_sent_at)) {
                             $lockedDownload->update(['notification_sent_at' => now()]);
-                            $downloadUrl = url("/api/v1/public/galleries/{$lockedDownload->gallery->slug}/download-zip/{$lockedDownload->id}/download?token={$rawToken}");
-                            $emailAddr = $lockedDownload->email;
-                            \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $downloadUrl, $emailAddr) {
-                                \Illuminate\Support\Facades\Mail::to($emailAddr)->queue(
-                                    new \App\Mail\GalleryZipReadyMail($lockedDownload, $downloadUrl)
+                            $queryParams = [];
+                            if ($rawToken) {
+                                $queryParams['token'] = $rawToken;
+                            }
+                            $mailUrl = url("/api/v1/public/galleries/{$lockedDownload->gallery->slug}/download-zip/{$lockedDownload->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
+                            \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $mailUrl, $email) {
+                                \Illuminate\Support\Facades\Mail::to($email)->queue(
+                                    new \App\Mail\GalleryZipReadyMail($lockedDownload, $mailUrl)
                                 );
                             });
                         }
                     });
                 }
 
+                // Record download email captured telemetry
+                $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: (session()->isStarted() ? session()->getId() : null);
+                \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+                    'gallery_id' => $gallery->id,
+                    'event' => 'gallery_download_email_captured',
+                    'visitor_session_id' => $visitorSession,
+                    'properties' => json_encode([
+                        'download_id' => $download->id,
+                        'email' => $email,
+                        'status' => 'ready',
+                    ]),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'created_at' => now(),
+                ]);
+
                 $queryParams = [];
-                if ($request->query('invite')) {
-                    $queryParams['invite'] = $request->query('invite');
-                }
-                if ($request->query('token')) {
+                if ($rawToken) {
+                    $queryParams['token'] = $rawToken;
+                } elseif ($request->query('token')) {
                     $queryParams['token'] = $request->query('token');
                 } elseif ($request->header('X-Gallery-Token')) {
                     $queryParams['token'] = $request->header('X-Gallery-Token');
+                }
+                if ($request->query('invite')) {
+                    $queryParams['invite'] = $request->query('invite');
                 }
 
                 $downloadUrl = url("/api/v1/public/galleries/{$slug}/download-zip/{$download->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
@@ -606,13 +648,12 @@ class GalleryController extends Controller
         }
 
         if ($download && ($download->status === 'processing' || $download->status === 'pending')) {
-            // Update email settings if the user is providing them now
-            if ($notifyWhenReady) {
-                $download->update([
-                    'email' => $email,
-                    'notify_when_ready' => true,
-                ]);
-            }
+            // Update email settings if provided
+            $download->update([
+                'email' => $download->email ?: $email,
+                'notify_when_ready' => $notifyWhenReady ? true : $download->notify_when_ready,
+            ]);
+
             return response()->json([
                 'status' => $download->status,
                 'download_id' => $download->id,
@@ -625,7 +666,7 @@ class GalleryController extends Controller
             'gallery_id' => $gallery->id,
             'status' => 'pending',
             'photo_snapshot_hash' => $snapshotHash,
-            'email' => $notifyWhenReady ? $email : null,
+            'email' => $email,
             'notify_when_ready' => $notifyWhenReady,
             'download_token_hash' => hash('sha256', $rawToken),
         ]);

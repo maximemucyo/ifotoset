@@ -7,6 +7,7 @@
 <div class="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
      x-data="galleryExportManager({
          slug: '{{ $gallery->slug }}',
+         galleryUuid: '{{ $gallery->uuid }}',
          username: '{{ $photographer->username }}',
          initialType: '{{ $type }}',
          initialTarget: '{{ $target }}',
@@ -32,8 +33,8 @@
                 </div>
             </div>
 
-            <!-- Pre-Export Form Step -->
-            <div x-show="!exportId" class="space-y-6">
+            <!-- Pre-Export / Email Authorization Step -->
+            <div x-show="!exportId && !downloadUrl" class="space-y-6">
                 <!-- Export Type Summary Banner -->
                 <div class="p-4 rounded-xl border border-border/80 bg-secondary/20 flex items-start gap-3.5">
                     <div class="p-2.5 bg-primary/10 text-primary rounded-xl shrink-0 mt-0.5">
@@ -51,22 +52,22 @@
                     <div class="space-y-1 text-sm">
                         <h2 class="font-bold text-foreground" x-text="type === 'zip' ? 'Download Gallery Archive (ZIP)' : 'Export to Google Photos'"></h2>
                         <p class="text-xs text-muted-foreground leading-relaxed" x-text="type === 'zip'
-                            ? 'All ready high-resolution photos will be bundled into a downloadable ZIP archive. Larger collections are queued in the background.'
+                            ? 'All ready high-resolution photos will be bundled into a downloadable ZIP archive.'
                             : 'Sync photos directly into a private album inside your Google Photos account.'"></p>
                     </div>
                 </div>
 
-                <!-- Email Notification Input Panel -->
+                <!-- Email Input Panel (Authoritative Gate) -->
                 <form @submit.prevent="startExport" class="space-y-4">
                     <div class="p-5 border border-border rounded-xl bg-card space-y-3">
                         <label for="export_email" class="block text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                             <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
-                            Delivery Notification
+                            <span>Email Notification</span>
                         </label>
                         <p class="text-xs text-foreground font-medium">
-                            Enter your email to receive a secure download link when preparation is complete:
+                            Provide your email so we can notify you when your files are ready:
                         </p>
                         <input type="email"
                                id="export_email"
@@ -74,11 +75,11 @@
                                required
                                placeholder="your.email@example.com"
                                class="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all">
-                        <p class="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <p class="text-[11px] text-muted-foreground flex items-start gap-1.5 leading-normal">
+                            <svg class="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            You may safely close or navigate away from this page at any time.
+                            <span>You can wait here until your download is ready, or leave the page and we will notify you.</span>
                         </p>
                     </div>
 
@@ -88,13 +89,13 @@
                             :disabled="submitting"
                             class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
                         <span x-show="submitting" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></span>
-                        <span x-text="submitting ? 'Starting Request...' : (type === 'zip' ? 'Start Archive Packaging' : 'Connect & Authorize Google Photos')"></span>
+                        <span x-text="submitting ? 'Starting...' : (type === 'zip' ? 'Prepare Download' : 'Connect Google Photos')"></span>
                     </button>
                 </form>
             </div>
 
-            <!-- Active Polling & Progress Step -->
-            <div x-show="exportId" class="space-y-6" aria-live="polite">
+            <!-- Active Polling, Progress & Download Step -->
+            <div x-show="exportId || downloadUrl" class="space-y-6" aria-live="polite">
                 <!-- Status Header -->
                 <div class="text-center space-y-3 py-4">
                     <!-- Pending / Processing Spinner -->
@@ -131,8 +132,8 @@
                     </div>
                 </div>
 
-                <!-- Action Button for Ready/Completed Archive -->
-                <div x-show="status === 'completed' || status === 'ready'" class="pt-2">
+                <!-- Action Button for Ready/Completed Archive (Only unlocked with valid downloadUrl) -->
+                <div x-show="(status === 'completed' || status === 'ready') && downloadUrl" class="pt-2">
                     <a :href="downloadUrl"
                        class="w-full py-3.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,183 +157,225 @@
 
 <script>
 document.addEventListener('alpine:init', () => {
-    Alpine.data('galleryExportManager', (config) => ({
-        slug: config.slug,
-        username: config.username,
-        type: config.initialType || 'zip',
-        target: config.initialTarget || 'all',
-        csrfToken: config.csrfToken,
-        email: localStorage.getItem('visitor_identity_' + config.slug) ? JSON.parse(localStorage.getItem('visitor_identity_' + config.slug)).email || '' : '',
-        submitting: false,
-        exportId: null,
-        status: 'pending', // canonical: pending, authenticating, processing, uploading, completed, failed, expired, cancelled
-        percentage: 0,
-        processedPhotos: 0,
-        totalPhotos: 0,
-        downloadUrl: '',
-        errorMessage: '',
-        pollTimer: null,
-
-        get statusDisplayTitle() {
-            switch (this.status) {
-                case 'pending': return 'Queueing Archive Request';
-                case 'processing': return 'Packaging Photos into ZIP';
-                case 'uploading': return 'Uploading to Google Photos';
-                case 'completed':
-                case 'ready': return 'Archive Ready to Download';
-                case 'expired': return 'Download Link Expired';
-                case 'failed': return 'Packaging Failed';
-                default: return 'Processing...';
-            }
-        },
-
-        get statusDisplaySubtitle() {
-            switch (this.status) {
-                case 'pending': return 'Waiting for a background worker to claim this task...';
-                case 'processing': return 'Compiling high-resolution photos into a compressed archive.';
-                case 'completed':
-                case 'ready': return 'Your download is ready. Click the button below to save it.';
-                case 'expired': return 'Archive files are kept for 24 hours. Please generate a new one.';
-                case 'failed': return this.errorMessage || 'An error occurred during packaging. Please try again.';
-                default: return 'Please wait while we process your request.';
-            }
-        },
-
-        async startExport() {
-            this.submitting = true;
-            this.errorMessage = '';
-
+    Alpine.data('galleryExportManager', (config) => {
+        const scopedKey = 'visitor_identity_gallery_' + config.galleryUuid;
+        const legacyKey = 'visitor_identity_' + config.slug;
+        let storedEmail = localStorage.getItem(scopedKey) || '';
+        if (!storedEmail) {
             try {
-                if (this.type === 'zip') {
-                    const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken
-                        },
-                        body: JSON.stringify({
-                            email: this.email,
-                            notify: true
-                        })
-                    });
+                const legacy = localStorage.getItem(legacyKey);
+                if (legacy) storedEmail = JSON.parse(legacy).email || '';
+            } catch(e) {}
+        }
 
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.message || 'Failed to start archive packaging.');
-                    }
+        return {
+            slug: config.slug,
+            galleryUuid: config.galleryUuid,
+            username: config.username,
+            type: config.initialType || 'zip',
+            target: config.initialTarget || 'all',
+            csrfToken: config.csrfToken,
+            email: storedEmail,
+            submitting: false,
+            exportId: null,
+            status: 'pending', // canonical: pending, authenticating, processing, uploading, completed, ready, failed, expired, cancelled
+            percentage: 0,
+            processedPhotos: 0,
+            totalPhotos: 0,
+            downloadUrl: '',
+            errorMessage: '',
+            pollTimer: null,
 
-                    this.exportId = data.download_id;
-                    this.status = data.status === 'ready' ? 'completed' : data.status;
-                    this.downloadUrl = `/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}/download`;
-
-                    if (this.status === 'completed') {
-                        this.percentage = 100;
-                    } else {
-                        this.startPolling();
-                    }
-                } else if (this.type === 'google-photos') {
-                    const favoritesKey = 'photos_export_favorites_' + this.slug;
-                    const favoriteUuids = this.target === 'favorites' ? JSON.parse(sessionStorage.getItem(favoritesKey) || '[]') : null;
-
-                    const response = await fetch(`/api/v1/public/galleries/${this.slug}/google-photos/authorize`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this.csrfToken
-                        },
-                        body: JSON.stringify({
-                            email: this.email,
-                            notify: true,
-                            favorite_uuids: favoriteUuids
-                        })
-                    });
-
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.message || 'Failed to initialize Google Photos.');
-                    }
-
-                    if (data.url) {
-                        window.location.href = data.url;
-                    } else {
-                        throw new Error('No authorization URL returned.');
-                    }
+            get statusDisplayTitle() {
+                switch (this.status) {
+                    case 'pending': return 'Preparing Your Download';
+                    case 'processing': return 'Packaging Photos into ZIP';
+                    case 'uploading': return 'Exporting to Google Photos';
+                    case 'completed':
+                    case 'ready': return 'Your ZIP Archive is Ready';
+                    case 'expired': return 'Download Link Expired';
+                    case 'failed': return 'Packaging Failed';
+                    default: return 'Processing...';
                 }
-            } catch (err) {
-                this.errorMessage = err.message || 'An unexpected error occurred.';
-            } finally {
-                this.submitting = false;
-            }
-        },
+            },
 
-        startPolling() {
-            this.stopPolling();
-            this.checkStatus();
-            this.pollTimer = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    this.checkStatus();
+            get statusDisplaySubtitle() {
+                switch (this.status) {
+                    case 'pending': return 'You can wait here, or leave the page and we will notify you by email.';
+                    case 'processing': return 'You can wait here until your download is ready, or leave the page and we will notify you.';
+                    case 'completed':
+                    case 'ready': return 'Click below to download your files.';
+                    case 'expired': return 'Download links expire after 24 hours. Please request a new one.';
+                    case 'failed': return this.errorMessage || 'Something went wrong while preparing your files. Please try again.';
+                    default: return 'Please wait while your files are being prepared.';
                 }
-            }, 2000);
-        },
+            },
 
-        stopPolling() {
-            if (this.pollTimer) {
-                clearInterval(this.pollTimer);
-                this.pollTimer = null;
-            }
-        },
-
-        async checkStatus() {
-            if (!this.exportId) return;
-
-            try {
-                const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                if (!response.ok) {
-                    if (response.status === 404) {
-                        this.status = 'expired';
-                    } else {
-                        this.status = 'failed';
-                    }
-                    this.stopPolling();
+            async startExport() {
+                if (!this.email || !this.email.includes('@')) {
+                    this.errorMessage = 'Please provide a valid email address.';
                     return;
                 }
 
-                const data = await response.json();
-                const rawStatus = data.status;
+                this.submitting = true;
+                this.errorMessage = '';
 
-                // Map canonical status
-                if (rawStatus === 'ready' || rawStatus === 'ready_with_errors') {
-                    this.status = 'completed';
-                    this.percentage = 100;
-                    this.stopPolling();
-                } else if (rawStatus === 'failed' || rawStatus === 'empty') {
-                    this.status = 'failed';
-                    this.stopPolling();
-                } else {
-                    this.status = rawStatus;
+                try {
+                    if (this.type === 'zip') {
+                        const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken
+                            },
+                            body: JSON.stringify({
+                                email: this.email,
+                                notify_when_ready: true,
+                                notify: true
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.message || 'Failed to prepare download.');
+                        }
+
+                        // Save to localStorage ONLY after server validation succeeds
+                        try {
+                            localStorage.setItem('visitor_identity_gallery_' + this.galleryUuid, this.email);
+                            localStorage.setItem('visitor_identity_' + this.slug, JSON.stringify({
+                                email: this.email,
+                                created_at: new Date().toISOString()
+                            }));
+                        } catch(e) {
+                            console.warn('Could not save identity to localStorage:', e);
+                        }
+
+                        this.exportId = data.download_id;
+
+                        if (data.status === 'ready') {
+                            this.status = 'ready';
+                            this.percentage = 100;
+                            this.downloadUrl = data.download_url;
+                        } else {
+                            this.status = data.status;
+                            this.startPolling();
+                        }
+                    } else if (this.type === 'google-photos') {
+                        const favoritesKey = 'photos_export_favorites_' + this.slug;
+                        const favoriteUuids = this.target === 'favorites' ? JSON.parse(sessionStorage.getItem(favoritesKey) || '[]') : null;
+
+                        const response = await fetch(`/api/v1/public/galleries/${this.slug}/google-photos/authorize`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken
+                            },
+                            body: JSON.stringify({
+                                email: this.email,
+                                notify_when_ready: true,
+                                notify: true,
+                                favorite_uuids: favoriteUuids
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.message || 'Failed to initialize Google Photos.');
+                        }
+
+                        // Save to localStorage ONLY after server validation succeeds
+                        try {
+                            localStorage.setItem('visitor_identity_gallery_' + this.galleryUuid, this.email);
+                        } catch(e) {}
+
+                        if (data.url) {
+                            window.location.href = data.url;
+                        } else {
+                            throw new Error('No authorization URL returned.');
+                        }
+                    }
+                } catch (err) {
+                    this.errorMessage = err.message || 'An unexpected error occurred.';
+                } finally {
+                    this.submitting = false;
                 }
+            },
 
-                this.percentage = data.percentage ?? this.percentage;
-                this.processedPhotos = (data.processed_photos || 0) + (data.failed_photos || 0);
-                this.totalPhotos = data.total_photos || this.totalPhotos;
-            } catch (e) {
-                console.error('Polling error:', e);
+            startPolling() {
+                this.stopPolling();
+                this.checkStatus();
+                this.pollTimer = setInterval(() => {
+                    if (document.visibilityState === 'visible') {
+                        this.checkStatus();
+                    }
+                }, 2000);
+            },
+
+            stopPolling() {
+                if (this.pollTimer) {
+                    clearInterval(this.pollTimer);
+                    this.pollTimer = null;
+                }
+            },
+
+            async checkStatus() {
+                if (!this.exportId) return;
+
+                try {
+                    const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            this.status = 'expired';
+                        } else {
+                            this.status = 'failed';
+                        }
+                        this.stopPolling();
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const rawStatus = data.status;
+
+                    if (rawStatus === 'ready' || rawStatus === 'ready_with_errors') {
+                        this.status = 'ready';
+                        this.percentage = 100;
+                        this.downloadUrl = data.download_url || `/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}/download`;
+                        this.stopPolling();
+                    } else if (rawStatus === 'failed' || rawStatus === 'empty') {
+                        this.status = 'failed';
+                        this.stopPolling();
+                    } else {
+                        this.status = rawStatus;
+                    }
+
+                    this.percentage = data.percentage ?? this.percentage;
+                    this.processedPhotos = (data.processed_photos || 0) + (data.failed_photos || 0);
+                    this.totalPhotos = data.total_photos || this.totalPhotos;
+                } catch (e) {
+                    console.error('Polling error:', e);
+                }
+            },
+
+            resetExport() {
+                this.stopPolling();
+                this.exportId = null;
+                this.downloadUrl = '';
+                this.status = 'pending';
+                this.percentage = 0;
+                this.errorMessage = '';
+            },
+
+            destroy() {
+                this.stopPolling();
             }
-        },
-
-        resetExport() {
-            this.stopPolling();
-            this.exportId = null;
-            this.status = 'pending';
-            this.percentage = 0;
-            this.errorMessage = '';
-        }
-    }));
+        };
+    });
 });
 </script>
 @endsection

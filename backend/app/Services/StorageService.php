@@ -49,6 +49,12 @@ class StorageService
         $utf8Filename = rawurlencode($filename);
         $contentDisposition = "attachment; filename=\"{$asciiFilename}\"; filename*=UTF-8''{$utf8Filename}";
 
+        // If CDN domain is available, return a clean, branded CDN download URL with attachment filename
+        if (!empty($this->cdnDomain) && config('filesystems.disks.b2.use_cdn_downloads', true)) {
+            $cleanKey = ltrim($objectKey, '/');
+            return "https://{$this->cdnDomain}/{$cleanKey}?filename={$utf8Filename}";
+        }
+
         try {
             $disk = Storage::disk('b2');
             if (method_exists($disk, 'getClient')) {

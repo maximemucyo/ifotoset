@@ -84,6 +84,7 @@
                         ['label' => 'Payments', 'route' => 'admin.payments.index'],
                         ['label' => 'Plans & Pricing', 'route' => 'admin.plans.index'],
                         ['label' => 'Analytics', 'route' => 'admin.analytics.index'],
+                        ['label' => 'Processing Queue', 'route' => 'admin.jobs.index'],
                         ['label' => 'Moderation', 'route' => 'admin.moderation.index'],
                         ['label' => 'Support', 'route' => 'admin.support.index'],
                         ['label' => 'Settings', 'route' => 'admin.settings.index'],

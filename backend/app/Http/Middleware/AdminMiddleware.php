@@ -20,6 +20,10 @@ class AdminMiddleware
         }
 
         if (! method_exists($request->user(), 'isAdmin') || ! $request->user()->isAdmin()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Access denied: Admin privileges required.'], 403);
+            }
+
             return redirect()
                 ->route('studio.dashboard')
                 ->with('error', 'Access denied: Admin privileges required.')
