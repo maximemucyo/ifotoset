@@ -34,6 +34,8 @@ class AdminJobMonitorQuery
             ->where('completed_at', '>=', $todayStart)
             ->count();
 
+        $failedTotal = MediaJob::where('status', 'failed')->count();
+
         $activeZipExports = GalleryDownload::whereIn('status', ['pending', 'processing'])->count();
         $activeGoogleSyncs = GooglePhotoSync::whereIn('status', ['pending', 'processing'])->count();
         $activeExports = $activeZipExports + $activeGoogleSyncs;
@@ -44,10 +46,82 @@ class AdminJobMonitorQuery
             'queued' => $queued,
             'processing' => $processing,
             'failed_today' => $failedToday,
+            'failed_total' => $failedTotal,
             'completed_today' => $completedToday,
             'active_exports' => $activeExports,
             'has_active_jobs' => $hasActiveJobs,
+            'queue_backlog' => $this->queueBacklog(),
         ];
+    }
+
+    /**
+     * Get queue backlog sizes across critical queues.
+     */
+    public function queueBacklog(): array
+    {
+        try {
+            return [
+                'photos' => (int) \Illuminate\Support\Facades\Queue::connection('redis')->size('photos'),
+                'default' => (int) \Illuminate\Support\Facades\Queue::connection('redis')->size('default'),
+            ];
+        } catch (\Throwable) {
+            return [
+                'photos' => 0,
+                'default' => 0,
+            ];
+        }
+    }
+
+    /**
+     * Get batch processing summaries grouped by gallery.
+     */
+    public function galleryBatches(): array
+    {
+        try {
+            $galleries = DB::table('galleries')
+                ->join('users', 'galleries.user_id', '=', 'users.id')
+                ->join('photos', 'galleries.id', '=', 'photos.gallery_id')
+                ->leftJoin('media_jobs', 'photos.id', '=', 'media_jobs.photo_id')
+                ->select([
+                    'galleries.id as gallery_id',
+                    'galleries.title as gallery_title',
+                    'galleries.uuid as gallery_uuid',
+                    'users.name as studio_name',
+                    DB::raw('COUNT(DISTINCT photos.id) as total_photos'),
+                    DB::raw("COUNT(DISTINCT CASE WHEN photos.status = 'ready' OR media_jobs.status = 'completed' THEN photos.id END) as completed_photos"),
+                    DB::raw("COUNT(DISTINCT CASE WHEN media_jobs.status = 'queued' THEN photos.id END) as queued_photos"),
+                    DB::raw("COUNT(DISTINCT CASE WHEN media_jobs.status = 'processing' THEN photos.id END) as processing_photos"),
+                    DB::raw("COUNT(DISTINCT CASE WHEN media_jobs.status = 'failed' THEN photos.id END) as failed_photos"),
+                    DB::raw('MAX(media_jobs.created_at) as latest_job_at'),
+                ])
+                ->groupBy('galleries.id', 'galleries.title', 'galleries.uuid', 'users.name')
+                ->havingRaw("queued_photos > 0 OR processing_photos > 0 OR failed_photos > 0")
+                ->orderByDesc('latest_job_at')
+                ->limit(25)
+                ->get();
+
+            return $galleries->map(function ($g) {
+                $total = (int) $g->total_photos;
+                $completed = (int) $g->completed_photos;
+                $percentage = $total > 0 ? min(100, (int) round(($completed / $total) * 100)) : 0;
+
+                return [
+                    'gallery_id' => (int) $g->gallery_id,
+                    'gallery_title' => $g->gallery_title,
+                    'gallery_uuid' => $g->gallery_uuid,
+                    'studio_name' => $g->studio_name,
+                    'total_photos' => $total,
+                    'completed_photos' => $completed,
+                    'queued_photos' => (int) $g->queued_photos,
+                    'processing_photos' => (int) $g->processing_photos,
+                    'failed_photos' => (int) $g->failed_photos,
+                    'progress_percentage' => $percentage,
+                    'latest_job_at' => $g->latest_job_at ? Carbon::parse($g->latest_job_at)->toIso8601String() : null,
+                ];
+            })->values()->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     /**
@@ -230,6 +304,7 @@ class AdminJobMonitorQuery
             'has_active_jobs' => $metrics['has_active_jobs'],
             'media_jobs' => $mediaJobs,
             'exports' => $exports,
+            'gallery_batches' => $this->galleryBatches(),
         ];
     }
 
@@ -243,6 +318,7 @@ class AdminJobMonitorQuery
 
         $mediaJobs = $this->mediaJobs($status, $search);
         $exportJobs = $this->exportJobs();
+        $galleryBatches = $this->galleryBatches();
 
         $initialMediaJobs = collect($mediaJobs->items())->map(fn($job) => $this->transformMediaJob($job))->values()->all();
         $initialExportJobs = collect($exportJobs->items())->values()->all();
@@ -251,8 +327,10 @@ class AdminJobMonitorQuery
             'metrics' => $this->metrics(),
             'mediaJobs' => $mediaJobs,
             'exportJobs' => $exportJobs,
+            'galleryBatches' => $galleryBatches,
             'initialMediaJobs' => $initialMediaJobs,
             'initialExportJobs' => $initialExportJobs,
+            'initialGalleryBatches' => $galleryBatches,
             'statusFilter' => $status,
             'searchFilter' => $search,
         ];

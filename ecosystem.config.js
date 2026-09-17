@@ -17,10 +17,10 @@ module.exports = {
       name: 'ifotoset-queue',
       cwd: './backend',
       script: '/www/server/php/84/bin/php',
-      args: 'artisan queue:work --sleep=3 --tries=3 --timeout=300 --max-time=3600',
+      args: 'artisan queue:work --queue=photos,default --sleep=3 --tries=3 --timeout=300 --max-time=3600',
       exec_mode: 'fork',
-      instances: 2,
-      max_memory_restart: '350M',
+      instances: 3,
+      max_memory_restart: '450M',
       autorestart: true,
       watch: false
     }

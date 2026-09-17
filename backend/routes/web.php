@@ -243,6 +243,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(funct
     // Operational Processing Queue & Exports Monitor
     Route::get('/queue', [JobMonitorController::class, 'index'])->name('jobs.index');
     Route::get('/queue/status', [JobMonitorController::class, 'status'])->name('jobs.status');
+    Route::post('/queue/retry/{id}', [JobMonitorController::class, 'retry'])->name('jobs.retry');
+    Route::post('/queue/retry-failed', [JobMonitorController::class, 'retryFailed'])->name('jobs.retry.failed');
+    Route::post('/queue/retry-all-queued', [JobMonitorController::class, 'retryAllQueued'])->name('jobs.retry.queued');
+    Route::post('/queue/retry-gallery/{galleryId}', [JobMonitorController::class, 'retryGallery'])->name('jobs.retry.gallery');
+    Route::post('/queue/restart-workers', [JobMonitorController::class, 'restartWorkers'])->name('jobs.restart.workers');
 
     // Content Moderation Queue
     Route::get('/moderation', [AdminModerationController::class, 'index'])->name('moderation.index');
