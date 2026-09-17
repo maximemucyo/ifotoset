@@ -262,13 +262,27 @@ export const VirtualGalleryGrid: React.FC<VirtualGalleryGridProps> = ({
         );
       })}
 
-      {/* Intersection Observer Sentinel */}
-      <div ref={sentinelRef} className="absolute w-full h-10 mt-6 flex justify-center items-center" style={{ top: totalHeight }}>
-        {hasMore && (
+      {/* Intersection Observer Sentinel & Back to top button */}
+      <div ref={sentinelRef} className="absolute w-full mt-8 pb-12 flex justify-center items-center" style={{ top: totalHeight }}>
+        {hasMore ? (
           <div className="flex items-center gap-2 py-4">
             <div className="w-5 h-5 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
             <p className="text-muted-foreground text-xs font-medium">Loading more photos...</p>
           </div>
+        ) : (
+          photos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (document.getElementById('gallery-action-bar') || document.getElementById('gallery-container') || document.querySelector('main'))?.scrollIntoView({ behavior: 'smooth' })}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer hover:-translate-y-0.5 shadow-sm active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary"
+              aria-label="Back to top"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+              <span>Back to top</span>
+            </button>
+          )
         )}
       </div>
     </div>

@@ -38,10 +38,9 @@
                 <tbody class="divide-y divide-border">
                     @foreach($plans as $plan)
                         @php
-                            $storageGb = round($plan->storage_limit / 1000000000, 1);
-                            if ($plan->slug === 'free') {
-                                $storageGb = 2; // standard 2 GB
-                            }
+                            $storageGb = ($plan->storage_limit % 1000000000 === 0 && ($plan->storage_limit % (1024 * 1024) !== 0))
+                                ? round($plan->storage_limit / 1000000000, 1)
+                                : round($plan->storage_limit / (1024 * 1024 * 1024), 1);
                         @endphp
                         <tr class="hover:bg-muted/30 transition-colors"
                             x-data="{

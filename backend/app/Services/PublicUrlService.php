@@ -35,4 +35,22 @@ class PublicUrlService
         $encodedSlug = rawurlencode($slug);
         return $this->photographerUrl($username) . '/' . $encodedSlug . '/export';
     }
+
+    /**
+     * Get the public platform homepage URL with optional UTM parameters.
+     */
+    public function homeUrl(array $utm = []): string
+    {
+        $protocol = config('app.public_protocol', 'https');
+        $host = config('app.public_root_host', 'ifotoset.com');
+        $port = config('app.public_root_port');
+        $portSuffix = ($port && !in_array((int) $port, [80, 443], true)) ? ":{$port}" : '';
+        $url = "{$protocol}://{$host}{$portSuffix}/";
+
+        if (!empty($utm)) {
+            $url .= '?' . http_build_query($utm);
+        }
+
+        return $url;
+    }
 }

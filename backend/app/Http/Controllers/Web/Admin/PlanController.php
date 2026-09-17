@@ -45,13 +45,9 @@ class PlanController extends Controller
 
         $admin = $request->user();
 
-        // Convert storage in GB to commercial bytes (or binary for Free 2GB standard)
+        // Convert storage in GB to binary bytes (1 GB = 1024 * 1024 * 1024 bytes)
         $storageGb = (float) $validated['storage_gb'];
-        if ($plan->slug === 'free' && $storageGb == 2) {
-            $storageBytes = 2147483648; // Standard 2 GiB
-        } else {
-            $storageBytes = (int) ($storageGb * 1000000000); // Commercial decimal bytes
-        }
+        $storageBytes = (int) round($storageGb * 1024 * 1024 * 1024);
 
         // Evaluate gallery limits (null = unlimited)
         $isUnlimitedGalleries = $request->boolean('unlimited_galleries', true);

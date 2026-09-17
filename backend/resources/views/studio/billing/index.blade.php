@@ -76,7 +76,13 @@
 
         <div class="flex items-center justify-between text-xs text-muted-foreground">
             <span>{{ round(($storage['used_bytes'] ?? 0) / (1024 * 1024), 1) }} MB Used</span>
-            <span>{{ round(($storage['limit_bytes'] ?? 2147483648) / (1024 * 1024 * 1024), 1) }} GB Quota</span>
+            @php
+                $bLimitBytes = $storage['limit_bytes'] ?? 2147483648;
+                $quotaGb = ($bLimitBytes % 1000000000 === 0 && ($bLimitBytes % (1024 * 1024) !== 0))
+                    ? round($bLimitBytes / 1000000000, 1)
+                    : round($bLimitBytes / (1024 * 1024 * 1024), 1);
+            @endphp
+            <span>{{ $quotaGb >= 1000 ? round($quotaGb / 1000, 1) . ' TB' : $quotaGb . ' GB' }} Quota</span>
         </div>
     </div>
 

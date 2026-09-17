@@ -49,6 +49,7 @@ class GalleryResource extends JsonResource
                 'avatar_url' => $user->avatar_path
                     ? 'https://' . config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com') . '/' . ltrim($user->avatar_path, '/')
                     : null,
+                'is_free' => $user->isFree(),
             ] : null,
             'stats' => [
                 'photo_count' => $this->stats->photo_count ?? 0,

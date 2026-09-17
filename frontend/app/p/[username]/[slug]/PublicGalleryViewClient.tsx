@@ -113,6 +113,11 @@ export function PublicGalleryViewClient({
       }
     };
 
+    // Ensure gallery defaults to light mode unless user explicitly clicked dark mode
+    if (typeof window !== 'undefined' && localStorage.getItem('theme') !== 'dark') {
+      document.documentElement.classList.remove('dark');
+    }
+
     updateHeaderHeight();
     window.addEventListener('resize', updateHeaderHeight);
     return () => window.removeEventListener('resize', updateHeaderHeight);
@@ -652,7 +657,7 @@ export function PublicGalleryViewClient({
       }`}>
         <div className="w-full max-w-none px-4 md:px-8 xl:px-12 2xl:px-16 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <Logo variant={isHeaderTransparent ? "light" : "default"} size="sm" href="/" />
+            <Logo variant={isHeaderTransparent ? "light" : "default"} size="sm" href={`${process.env.NEXT_PUBLIC_PROTOCOL || 'https'}://${process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ifotoset.com'}/?utm_source=gallery&utm_medium=header_logo&utm_campaign=powered_by`} />
             <div className={`h-5 w-px shrink-0 transition-colors duration-300 ${
               isHeaderTransparent ? 'bg-white/20' : 'bg-border'
             }`} />
@@ -847,6 +852,20 @@ export function PublicGalleryViewClient({
           showFavoritesOnly={showFavoritesOnly}
         />
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border bg-card/60 backdrop-blur-sm py-8 sm:py-10 mt-auto select-none">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center text-xs text-muted-foreground">
+          {((gallery?.photographer as any)?.is_free ?? true) ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Powered by</span>
+              <Logo size="sm" href={`${process.env.NEXT_PUBLIC_PROTOCOL || 'https'}://${process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'ifotoset.com'}/?utm_source=gallery&utm_medium=footer_logo&utm_campaign=powered_by`} />
+            </div>
+          ) : (
+            <p>&copy; {new Date().getFullYear()} {gallery?.photographer?.name || username}. All rights reserved.</p>
+          )}
+        </div>
+      </footer>
 
       {/* Lightbox Modal overlay portal */}
       {selectedPhoto && currentIndex !== -1 && (

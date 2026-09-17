@@ -150,8 +150,14 @@
                                                     <label class="block text-xs font-semibold text-foreground mb-1">Select New Plan Tier</label>
                                                     <select name="plan_slug" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs font-medium text-foreground">
                                                         @foreach($plans as $p)
+                                                            @php
+                                                                $pLimit = $p->storage_limit;
+                                                                $pGb = ($pLimit % 1000000000 === 0 && ($pLimit % (1024 * 1024) !== 0))
+                                                                    ? round($pLimit / 1000000000, 0)
+                                                                    : round($pLimit / (1024 * 1024 * 1024), 0);
+                                                            @endphp
                                                             <option value="{{ $p->slug }}" {{ $user->plan_id === $p->id ? 'selected' : '' }}>
-                                                                {{ $p->name }} ({{ round($p->storage_limit / (1024 * 1024 * 1024), 0) }} GB, Unlimited Galleries)
+                                                                {{ $p->name }} ({{ $pGb >= 1000 ? round($pGb / 1000, 1) . ' TB' : $pGb . ' GB' }}, Unlimited Galleries)
                                                             </option>
                                                         @endforeach
                                                     </select>

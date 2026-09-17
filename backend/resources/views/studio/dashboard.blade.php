@@ -49,9 +49,14 @@
                 || strtolower($planName) === 'free' 
                 || strtolower($planName) === 'free tier';
             $usedGb = round(($storage['used_bytes'] ?? 0) / (1024 * 1024 * 1024), 2);
-            $limitGb = isset($storage['limit_bytes']) && $storage['limit_bytes'] 
-                ? round($storage['limit_bytes'] / (1024 * 1024 * 1024)) 
-                : 2;
+            $limitBytes = $storage['limit_bytes'] ?? null;
+            if ($limitBytes) {
+                $limitGb = ($limitBytes % 1000000000 === 0 && ($limitBytes % (1024 * 1024) !== 0))
+                    ? (int) round($limitBytes / 1000000000)
+                    : (int) round($limitBytes / (1024 * 1024 * 1024));
+            } else {
+                $limitGb = 2;
+            }
             $isUnlimited = $storage['is_unlimited'] ?? false;
             $displayPlan = str_contains(strtolower($planName), 'plan') || str_contains(strtolower($planName), 'tier') ? $planName : $planName . ' Plan';
         @endphp
@@ -72,6 +77,8 @@
                         <span class="text-xs font-normal text-muted-foreground">
                             @if($isUnlimited)
                                 / Unlimited
+                            @elseif($limitGb >= 1000)
+                                / {{ round($limitGb / 1000, 1) }} TB
                             @else
                                 / {{ $limitGb }} GB
                             @endif

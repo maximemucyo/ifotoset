@@ -14,8 +14,13 @@
 
     <x-email.card title="Receipt & Plan Details">
         <x-email.detail-row label="Plan Tier" :value="$plan->name" />
-        <x-email.detail-row label="Amount Paid" :value="number_format((float)$payment->amount) . ' ' . $payment->currency" />
-        <x-email.detail-row label="Storage Limit" :value="round($plan->storage_limit / (1024 * 1024 * 1024), 1) . ' GB'" />
+        @php
+            $eLimit = $plan->storage_limit;
+            $eGb = ($eLimit % 1000000000 === 0 && ($eLimit % (1024 * 1024) !== 0))
+                ? round($eLimit / 1000000000, 1)
+                : round($eLimit / (1024 * 1024 * 1024), 1);
+        @endphp
+        <x-email.detail-row label="Storage Limit" :value="($eGb >= 1000 ? round($eGb / 1000, 1) . ' TB' : $eGb . ' GB')" />
         @if($plan->gallery_limit)
             <x-email.detail-row label="Galleries" :value="$plan->gallery_limit . ' Galleries'" />
         @else

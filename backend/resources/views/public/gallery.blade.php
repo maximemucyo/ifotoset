@@ -4,6 +4,7 @@
     'ogImage' => $coverUrl,
     'hideNav' => true,
     'hideFooter' => false,
+    'defaultTheme' => 'light',
 ])
 
 @section('content')
@@ -15,7 +16,7 @@
     <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         <!-- Logo & Title -->
         <div class="flex items-center gap-3 min-w-0">
-            <a href="{{ url('/') }}" class="flex items-center gap-2 shrink-0">
+            <a href="{{ app(\App\Services\PublicUrlService::class)->homeUrl(['utm_source' => 'gallery', 'utm_medium' => 'header_logo', 'utm_campaign' => 'powered_by']) }}" class="flex items-center gap-2 shrink-0">
                 <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-7 h-7 object-contain">
                 <span class="text-lg font-bold tracking-tight text-primary">ifoto<span class="text-foreground">set</span></span>
             </a>
@@ -390,9 +391,16 @@
             <span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
             <span>Loading more photos...</span>
         </div>
-        <p id="gallery-end" class="text-xs text-muted-foreground {{ $hasMore ? 'hidden' : '' }}">
-            All photos loaded
-        </p>
+        <button type="button"
+                id="gallery-end"
+                onclick="(document.getElementById('gallery-action-bar') || document.getElementById('gallery-container'))?.scrollIntoView({ behavior: 'smooth' })"
+                class="inline-flex items-center gap-2 px-6 py-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer hover:-translate-y-0.5 shadow-sm active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
+                aria-label="Back to top">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+            <span>Back to top</span>
+        </button>
     </div>
 </div>
 
@@ -799,6 +807,24 @@ function toggleTheme() {
 }
 </script>
 
+@endsection
+
+@section('footer')
+<footer class="border-t border-border bg-card/60 backdrop-blur-sm py-8 sm:py-10 mt-auto select-none">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center text-xs text-muted-foreground">
+        @if($photographer->isFree())
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-muted-foreground font-medium">Powered by</span>
+                <a href="{{ app(\App\Services\PublicUrlService::class)->homeUrl(['utm_source' => 'gallery', 'utm_medium' => 'footer_logo', 'utm_campaign' => 'powered_by']) }}" class="flex items-center gap-2 shrink-0 hover:opacity-80 transition-opacity">
+                    <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-7 h-7 object-contain">
+                    <span class="text-lg font-bold tracking-tight text-primary">ifoto<span class="text-foreground">set</span></span>
+                </a>
+            </div>
+        @else
+            <p>&copy; {{ date('Y') }} {{ $photographer->name }}. All rights reserved.</p>
+        @endif
+    </div>
+</footer>
 @endsection
 
 @push('scripts')

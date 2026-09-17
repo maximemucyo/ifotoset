@@ -193,7 +193,13 @@
                 </div>
                 <div class="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>{{ round(($storage['used_bytes'] ?? 0) / (1024 * 1024 * 1024), 2) }} GB used</span>
-                    <span>{{ round(($storage['limit_bytes'] ?? (5 * 1024 * 1024 * 1024)) / (1024 * 1024 * 1024)) }} GB available</span>
+                    @php
+                        $sLimitBytes = $storage['limit_bytes'] ?? (5 * 1024 * 1024 * 1024);
+                        $sLimitGb = ($sLimitBytes % 1000000000 === 0 && ($sLimitBytes % (1024 * 1024) !== 0))
+                            ? round($sLimitBytes / 1000000000)
+                            : round($sLimitBytes / (1024 * 1024 * 1024));
+                    @endphp
+                    <span>{{ $sLimitGb >= 1000 ? round($sLimitGb / 1000, 1) . ' TB' : $sLimitGb . ' GB' }} available</span>
                 </div>
             </div>
 

@@ -18,7 +18,7 @@ class PlanSeeder extends Seeder
             'monthly_price' => 0.00,
             'annual_price' => 0.00,
             'currency' => 'RWF',
-            'storage_limit' => 2147483648, // 2 GB
+            'storage_limit' => 2 * 1024 * 1024 * 1024, // 2 GB
             'video_limit' => 0,
             'gallery_limit' => null,
             'team_limit' => 0,
@@ -32,7 +32,7 @@ class PlanSeeder extends Seeder
             'monthly_price' => 10999.00,
             'annual_price' => 107988.00, // 8,999 * 12
             'currency' => 'RWF',
-            'storage_limit' => 50000000000, // 50 GB
+            'storage_limit' => 50 * 1024 * 1024 * 1024, // 50 GB
             'video_limit' => 30 * 60,
             'gallery_limit' => null,
             'team_limit' => 0,
@@ -46,7 +46,7 @@ class PlanSeeder extends Seeder
             'monthly_price' => 29999.00,
             'annual_price' => 299988.00, // 24,999 * 12
             'currency' => 'RWF',
-            'storage_limit' => 1000000000000, // 1 TB
+            'storage_limit' => 1000 * 1024 * 1024 * 1024, // 1 TB (1,000 GB)
             'video_limit' => 5 * 3600,
             'gallery_limit' => null,
             'team_limit' => 1,
@@ -60,7 +60,7 @@ class PlanSeeder extends Seeder
             'monthly_price' => 59999.00,
             'annual_price' => 599988.00, // 49,999 * 12
             'currency' => 'RWF',
-            'storage_limit' => 3000000000000, // 3 TB
+            'storage_limit' => 3000 * 1024 * 1024 * 1024, // 3 TB (3,000 GB)
             'video_limit' => 15 * 3600,
             'gallery_limit' => null,
             'team_limit' => 5,

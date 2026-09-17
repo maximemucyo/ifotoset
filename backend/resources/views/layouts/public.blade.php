@@ -24,6 +24,15 @@
 
     <!-- Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @if(($defaultTheme ?? '') === 'light')
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    @else
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -31,6 +40,7 @@
             document.documentElement.classList.remove('dark');
         }
     </script>
+    @endif
     @stack('styles')
 </head>
 <body class="h-full flex flex-col font-sans bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
@@ -83,7 +93,9 @@
         @yield('content')
     </main>
 
-    @if(!($hideFooter ?? false))
+    @hasSection('footer')
+        @yield('footer')
+    @elseif(!($hideFooter ?? false))
     <!-- Public Footer -->
     <footer class="border-t border-border bg-card py-10 mt-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">

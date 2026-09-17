@@ -76,6 +76,15 @@ export class GalleryPagination {
                 this.emptyFavorites.classList.add('hidden');
             }
         }
+
+        // Toggle back to top button visibility based on whether any cards are visible
+        if (this.endText) {
+            if (visibleCount > 0 && !this.hasMore) {
+                this.endText.classList.remove('hidden');
+            } else {
+                this.endText.classList.add('hidden');
+            }
+        }
     }
 
     async loadNextBatch() {
@@ -127,7 +136,12 @@ export class GalleryPagination {
 
             if (!this.hasMore) {
                 if (this.spinner) this.spinner.classList.add('hidden');
-                if (this.endText && !this.filterFavorites) this.endText.classList.remove('hidden');
+                if (this.endText && !this.filterFavorites) {
+                    const hasCards = (this.grid?.querySelectorAll('.photo-card:not(.hidden)')?.length || 0) > 0;
+                    if (hasCards) {
+                        this.endText.classList.remove('hidden');
+                    }
+                }
                 if (this.observer && this.sentinel) this.observer.unobserve(this.sentinel);
             }
         } catch (err) {

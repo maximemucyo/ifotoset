@@ -35,7 +35,7 @@ class PublicGalleryController extends Controller
             abort(404);
         }
 
-        $gallery->loadMissing(['coverPhoto', 'stats']);
+        $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
         // Check gallery access with unified session/token verification
         $accessError = $this->verifyGalleryAccess($gallery, $request);

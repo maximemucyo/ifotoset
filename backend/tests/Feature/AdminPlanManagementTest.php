@@ -96,7 +96,7 @@ class AdminPlanManagementTest extends TestCase
         $this->assertEquals('Basic Starter', $this->basicPlan->name);
         $this->assertEquals(4500, (float) $this->basicPlan->monthly_price);
         $this->assertEquals(45000, (float) $this->basicPlan->annual_price);
-        $this->assertEquals(75 * 1000000000, $this->basicPlan->storage_limit);
+        $this->assertEquals(75 * 1024 * 1024 * 1024, $this->basicPlan->storage_limit);
         $this->assertNull($this->basicPlan->gallery_limit);
 
         // Verify audit log entry was created
