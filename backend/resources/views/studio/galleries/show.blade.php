@@ -56,29 +56,134 @@ function cleanErrorMessage(msg) {
 }
 
 /**
- * Utility: Compute SHA-256 integrity checksum
+ * Utility: Reusable SHA-256 Web Worker with single-task queue (1 hash at a time off main thread)
  */
-async function calculateFileSha256(file) {
-    if (window.crypto && crypto.subtle) {
+const sha256WorkerManager = (function() {
+    let worker = null;
+    const queue = [];
+    let isProcessing = false;
+
+    function initWorker() {
+        if (worker) return worker;
         try {
+            const workerCode = `
+                self.onmessage = async function(e) {
+                    const { id, file } = e.data;
+                    try {
+                        const buffer = await file.arrayBuffer();
+                        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                        const hashArray = Array.from(new Uint8Array(hashBuffer));
+                        const hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                        self.postMessage({ id, hash: hex });
+                    } catch (err) {
+                        self.postMessage({ id, error: err.message || 'Checksum calculation failed' });
+                    }
+                };
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            worker = new Worker(workerUrl);
+            URL.revokeObjectURL(workerUrl);
+
+            worker.onmessage = function(e) {
+                const current = queue.shift();
+                isProcessing = false;
+                if (current) {
+                    if (e.data.hash) {
+                        current.resolve(e.data.hash);
+                    } else {
+                        current.reject(new Error(e.data.error || 'Checksum calculation failed'));
+                    }
+                }
+                processNext();
+            };
+
+            worker.onerror = function(err) {
+                const current = queue.shift();
+                isProcessing = false;
+                if (current) {
+                    current.reject(err);
+                }
+                processNext();
+            };
+        } catch (e) {
+            console.warn('Web Worker initialization unavailable, will use main thread fallback:', e);
+        }
+        return worker;
+    }
+
+    function processNext() {
+        if (isProcessing || queue.length === 0) return;
+        const nextTask = queue[0];
+        isProcessing = true;
+        const w = initWorker();
+        if (w) {
+            w.postMessage({ id: nextTask.id, file: nextTask.file });
+        } else {
+            fallbackHash(nextTask.file)
+                .then(hash => {
+                    queue.shift();
+                    isProcessing = false;
+                    nextTask.resolve(hash);
+                    processNext();
+                })
+                .catch(err => {
+                    queue.shift();
+                    isProcessing = false;
+                    nextTask.reject(err);
+                    processNext();
+                });
+        }
+    }
+
+    async function fallbackHash(file) {
+        if (window.crypto && crypto.subtle) {
             const buffer = await file.arrayBuffer();
             const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        } catch (e) {
-            console.warn('Subtle digest unavailable, using fallback', e);
         }
+        return '';
     }
-    return '';
+
+    return {
+        calculate(file) {
+            return new Promise((resolve, reject) => {
+                queue.push({
+                    id: Math.random().toString(36).substring(2) + Date.now(),
+                    file,
+                    resolve,
+                    reject
+                });
+                processNext();
+            });
+        }
+    };
+})();
+
+async function calculateFileSha256(file) {
+    try {
+        return await sha256WorkerManager.calculate(file);
+    } catch (e) {
+        console.warn('SHA-256 computation warning:', e);
+        return '';
+    }
 }
+
+/**
+ * Upload configuration presets
+ */
+const UPLOAD_CONFIG = {
+    concurrency: 5,
+    progressThrottleMs: 100,
+    progressMinDeltaPercent: 2,
+    maxRetries: 3
+};
 
 /**
  * Alpine Master Component: Studio Gallery View Manager
  */
 window.studioGalleryManager = function(inlineConfig) {
-    const CONCURRENCY_LIMIT = 4;
-    const MAX_RETRIES = 3;
-
     let config = inlineConfig || {};
     if (!config.galleryUuid) {
         try {
@@ -100,6 +205,12 @@ window.studioGalleryManager = function(inlineConfig) {
     } catch (e) {
         console.error('Failed to parse gallery-initial-photos:', e);
     }
+
+    // Internal non-reactive data structures:
+    // photoUuids Set for O(1) deduplication without Alpine proxy overhead
+    const photoUuids = new Set(initialPhotosList.map(p => p.uuid));
+    // uploadTasks Map for heavy objects (XHR, sessions, bytes loaded) to prevent Alpine reactive bloat
+    const uploadTasks = new Map();
 
     return {
         galleryUuid: config.galleryUuid || '',
@@ -133,6 +244,10 @@ window.studioGalleryManager = function(inlineConfig) {
 
         // Uploads State
         uploads: [],
+        uploadStats: {
+            totalBytes: 0,
+            uploadedBytes: 0
+        },
         isDragging: false,
         statusSummary: null,
 
@@ -156,14 +271,10 @@ window.studioGalleryManager = function(inlineConfig) {
             return this.uploads.length;
         },
 
+        // O(1) Aggregate Progress Calculation
         get overallProgress() {
-            if (!this.uploads.length) return 0;
-            const total = this.uploads.reduce((acc, u) => {
-                if (u.status === 'done') return acc + 100;
-                if (u.status === 'error' || u.status === 'cancelled') return acc + 0;
-                return acc + (u.progress || 0);
-            }, 0);
-            return Math.round(total / this.uploads.length);
+            if (!this.uploadStats.totalBytes) return 0;
+            return Math.min(100, Math.floor((this.uploadStats.uploadedBytes / this.uploadStats.totalBytes) * 100));
         },
 
         init() {
@@ -213,21 +324,21 @@ window.studioGalleryManager = function(inlineConfig) {
                 const data = await res.json();
                 const incomingPhotos = data.data || [];
 
-                // Deduplicate by UUID
-                const existingUuids = new Set(this.photos.map(p => p.uuid));
-                const uniqueNewPhotos = incomingPhotos.filter(p => !existingUuids.has(p.uuid));
+                // Deduplicate by UUID via internal Set
+                const uniqueNewPhotos = incomingPhotos.filter(p => !photoUuids.has(p.uuid));
 
                 // Append each new photo card to the grid
                 const grid = document.getElementById('studio-photos-grid');
                 if (grid) {
                     uniqueNewPhotos.forEach((photo) => {
-                        const newIndex = this.photos.length;
                         this.photos.push(photo);
-                        const cardEl = this.createPhotoCardElement(photo, newIndex);
+                        photoUuids.add(photo.uuid);
+                        const cardEl = this.createPhotoCardElement(photo);
                         grid.appendChild(cardEl);
                     });
                 } else {
                     this.photos.push(...uniqueNewPhotos);
+                    uniqueNewPhotos.forEach(p => photoUuids.add(p.uuid));
                 }
 
                 this.nextCursor = data.next_cursor || null;
@@ -243,20 +354,19 @@ window.studioGalleryManager = function(inlineConfig) {
             }
         },
 
-        createPhotoCardElement(photo, index) {
+        createPhotoCardElement(photo) {
             const card = document.createElement('div');
             card.id = `photo-card-${photo.uuid}`;
             card.dataset.uuid = photo.uuid;
             card.dataset.id = photo.id;
-            card.dataset.index = index;
             card.className = `photo-card group relative rounded-xl overflow-hidden bg-card border ${photo.is_cover ? 'border-primary ring-2 ring-primary/40 is-cover' : 'border-border'} ${photo.is_hidden ? 'opacity-65 grayscale-[30%] is-hidden' : ''} shadow-sm flex flex-col justify-between transition-all duration-300`;
 
-            const thumb = photo.thumbnail_url || photo.medium_url || photo.large_url || photo.original_url;
+            const thumb = photo.thumbnail_url || photo.medium_url || photo.large_url || photo.original_url || photo.cdn_url;
             const filename = photo.original_filename || photo.filename || 'Photo';
             const sizeMb = photo.size ? `${(photo.size / 1048576).toFixed(1)}MB` : '';
 
             card.innerHTML = `
-                <div class="aspect-square bg-muted relative overflow-hidden cursor-pointer" onclick="window._openLightboxByIndex(${index})">
+                <div class="aspect-square bg-muted relative overflow-hidden cursor-pointer" onclick="window._openLightboxByUuid('${photo.uuid}')">
                     <img src="${thumb}" alt="${filename}" loading="lazy" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                     <div class="cover-badge absolute top-2 left-2 z-10 ${photo.is_cover ? '' : 'hidden'}">
                         <span class="px-2 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider shadow">Cover</span>
@@ -269,7 +379,7 @@ window.studioGalleryManager = function(inlineConfig) {
                     </div>
                     <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-20" onclick="event.stopPropagation()">
                         <div class="flex items-center justify-between">
-                            <button type="button" onclick="window._openLightboxByIndex(${index})" class="p-1.5 rounded-lg bg-black/50 hover:bg-black/80 text-white transition-colors" title="Preview photo">
+                            <button type="button" onclick="window._openLightboxByUuid('${photo.uuid}')" class="p-1.5 rounded-lg bg-black/50 hover:bg-black/80 text-white transition-colors" title="Preview photo">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                             </button>
                             <div class="flex items-center gap-1.5">
@@ -303,6 +413,15 @@ window.studioGalleryManager = function(inlineConfig) {
         },
 
         // --- Lightbox Methods ---
+        openLightboxByUuid(photoUuid) {
+            const idx = this.photos.findIndex(p => p.uuid === photoUuid);
+            if (idx !== -1) {
+                this.lightboxIndex = idx;
+                this.lightboxOpen = true;
+                document.body.style.overflow = 'hidden';
+            }
+        },
+
         openLightboxByIndex(index) {
             if (index >= 0 && index < this.photos.length) {
                 this.lightboxIndex = index;
@@ -502,6 +621,7 @@ window.studioGalleryManager = function(inlineConfig) {
                 if (deletedIdx !== -1) {
                     this.photos.splice(deletedIdx, 1);
                 }
+                photoUuids.delete(photoUuid);
 
                 if (data.gallery_cover_photo_id) {
                     this.updateCoverSelection(data.gallery_cover_photo_id);
@@ -533,6 +653,11 @@ window.studioGalleryManager = function(inlineConfig) {
                 let resumed = 0;
                 this.uploads.forEach(u => {
                     if (u.status === 'error' || u.status === 'retrying') {
+                        const task = uploadTasks.get(u.id);
+                        if (task) {
+                            task.loadedBytes = 0;
+                            task.userCancelled = false;
+                        }
                         u.status = 'queued';
                         u.retryCount = 0;
                         u.errorMessage = '';
@@ -570,24 +695,31 @@ window.studioGalleryManager = function(inlineConfig) {
             if (filesArray.length === 0) return;
 
             const newItems = filesArray.map(file => {
-                let previewUrl = null;
-                try {
-                    previewUrl = URL.createObjectURL(file);
-                } catch (_) {}
+                const id = 'up-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
 
+                // Non-reactive upload task storage
+                uploadTasks.set(id, {
+                    xhr: null,
+                    sessionId: null,
+                    loadedBytes: 0,
+                    userCancelled: false,
+                    lastProgressUpdate: 0
+                });
+
+                this.uploadStats.totalBytes += file.size;
+
+                // Lightweight item in Alpine queue - ZERO previewUrl for queued items!
                 return {
-                    id: 'up-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now(),
+                    id: id,
                     file: file,
                     name: file.name,
                     formattedSize: formatBytes(file.size),
-                    previewUrl: previewUrl,
+                    size: file.size,
+                    previewUrl: null,
                     status: 'queued',
                     progress: 0,
                     retryCount: 0,
-                    errorMessage: '',
-                    xhr: null,
-                    sessionId: null,
-                    userCancelled: false
+                    errorMessage: ''
                 };
             });
 
@@ -598,7 +730,7 @@ window.studioGalleryManager = function(inlineConfig) {
 
         runQueue() {
             const active = this.uploads.filter(u => u.status === 'preparing' || u.status === 'uploading' || u.status === 'processing');
-            const availableSlots = CONCURRENCY_LIMIT - active.length;
+            const availableSlots = UPLOAD_CONFIG.concurrency - active.length;
 
             if (availableSlots <= 0) return;
 
@@ -608,17 +740,37 @@ window.studioGalleryManager = function(inlineConfig) {
             }
         },
 
+        cleanupItemPreview(item) {
+            if (item && item.previewUrl) {
+                try {
+                    URL.revokeObjectURL(item.previewUrl);
+                } catch (_) {}
+                item.previewUrl = null;
+            }
+        },
+
         async startUpload(item) {
+            const task = uploadTasks.get(item.id);
+            if (!task || task.userCancelled) return;
+
             item.status = 'preparing';
             item.progress = 0;
             item.errorMessage = '';
 
+            // Generate active preview only for the active upload slot (max 5 active)
+            try {
+                item.previewUrl = URL.createObjectURL(item.file);
+            } catch (_) {}
+
             let sessionId = null;
 
             try {
-                // 1. Calculate integrity hash
+                // 1. Calculate integrity hash via dedicated Web Worker (1 at a time, off main thread)
                 const sha256 = await calculateFileSha256(item.file);
-                if (item.status === 'cancelled' || item.userCancelled) return;
+                if (item.status === 'cancelled' || task.userCancelled) {
+                    this.cleanupItemPreview(item);
+                    return;
+                }
 
                 // 2. Request upload slot
                 const reqRes = await fetch(this.uploadRequestUrl, {
@@ -648,15 +800,16 @@ window.studioGalleryManager = function(inlineConfig) {
                 const reqData = await reqRes.json();
                 const presignedUrl = reqData.presigned_url || reqData.upload_url;
                 sessionId = reqData.upload_session_id || reqData.session_id;
-                item.sessionId = sessionId;
+                task.sessionId = sessionId;
                 const extraHeaders = reqData.headers || {};
 
                 if (!presignedUrl || !sessionId) {
                     throw new Error('Invalid upload session');
                 }
 
-                if (item.status === 'cancelled' || item.userCancelled) {
+                if (item.status === 'cancelled' || task.userCancelled) {
                     this.abortSession(sessionId);
+                    this.cleanupItemPreview(item);
                     return;
                 }
 
@@ -665,7 +818,7 @@ window.studioGalleryManager = function(inlineConfig) {
 
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
-                    item.xhr = xhr;
+                    task.xhr = xhr;
                     xhr.open('PUT', presignedUrl, true);
                     xhr.setRequestHeader('Content-Type', item.file.type || 'image/jpeg');
 
@@ -678,8 +831,23 @@ window.studioGalleryManager = function(inlineConfig) {
                     }
 
                     xhr.upload.onprogress = (e) => {
-                        if (e.lengthComputable) {
-                            item.progress = Math.round((e.loaded / e.total) * 100);
+                        if (!e.lengthComputable) return;
+
+                        // Byte delta accounting for accurate O(1) overall progress
+                        const currentLoaded = Math.min(e.loaded, item.size);
+                        const delta = currentLoaded - task.loadedBytes;
+                        if (delta > 0) {
+                            task.loadedBytes = currentLoaded;
+                            this.uploadStats.uploadedBytes += delta;
+                        }
+
+                        // Throttled Alpine reactive state updates (~100ms / 2% delta)
+                        const now = performance.now();
+                        const progress = Math.floor((e.loaded / e.total) * 100);
+
+                        if (progress === 100 || progress - item.progress >= UPLOAD_CONFIG.progressMinDeltaPercent || (now - task.lastProgressUpdate) >= UPLOAD_CONFIG.progressThrottleMs) {
+                            task.lastProgressUpdate = now;
+                            item.progress = progress;
                         }
                     };
 
@@ -697,8 +865,9 @@ window.studioGalleryManager = function(inlineConfig) {
                     xhr.send(item.file);
                 });
 
-                if (item.status === 'cancelled' || item.userCancelled) {
+                if (item.status === 'cancelled' || task.userCancelled) {
                     this.abortSession(sessionId);
+                    this.cleanupItemPreview(item);
                     return;
                 }
 
@@ -724,18 +893,44 @@ window.studioGalleryManager = function(inlineConfig) {
                     throw new Error(errData.message || 'Photo confirmation could not be completed');
                 }
 
+                const confirmData = await confirmRes.json();
+
+                // Accurate byte accounting: ensure full size credited
+                const remainingDelta = item.size - task.loadedBytes;
+                if (remainingDelta > 0) {
+                    this.uploadStats.uploadedBytes += remainingDelta;
+                    task.loadedBytes = item.size;
+                }
+
+                // Revoke preview immediately upon completion to free RAM
+                this.cleanupItemPreview(item);
+
                 // Photo confirmed and saved to DB
                 item.status = 'done';
                 item.progress = 100;
                 item.errorMessage = '';
+
+                // Live Background Gallery Insertion!
+                const photoData = (confirmData && confirmData.data) ? confirmData.data : confirmData;
+                this.handlePhotoUploaded(photoData);
+
             } catch (err) {
-                if (item.status === 'cancelled' || item.userCancelled) return;
+                if (item.status === 'cancelled' || task.userCancelled) {
+                    this.cleanupItemPreview(item);
+                    return;
+                }
+
+                // Roll back byte counter for failed attempt to prevent double-counting on retry
+                if (task.loadedBytes > 0) {
+                    this.uploadStats.uploadedBytes = Math.max(0, this.uploadStats.uploadedBytes - task.loadedBytes);
+                    task.loadedBytes = 0;
+                }
 
                 // Auto-retry with backoff on network issues
-                if (item.retryCount < MAX_RETRIES) {
+                if (item.retryCount < UPLOAD_CONFIG.maxRetries) {
                     item.retryCount++;
                     item.status = 'retrying';
-                    item.errorMessage = `Network interrupted. Retrying... (attempt ${item.retryCount}/${MAX_RETRIES})`;
+                    item.errorMessage = `Network interrupted. Retrying... (attempt ${item.retryCount}/${UPLOAD_CONFIG.maxRetries})`;
                     const delay = Math.min(1000 * Math.pow(2, item.retryCount), 8000);
                     setTimeout(() => {
                         if (item.status === 'retrying') {
@@ -746,12 +941,46 @@ window.studioGalleryManager = function(inlineConfig) {
                     return;
                 }
 
+                this.cleanupItemPreview(item);
                 item.status = 'error';
                 item.errorMessage = cleanErrorMessage(err.message);
             } finally {
                 this.runQueue();
                 this.checkAllCompleted();
             }
+        },
+
+        handlePhotoUploaded(photo) {
+            if (!photo || !photo.uuid) return;
+
+            // O(1) deduplication check using internal Set
+            if (photoUuids.has(photo.uuid)) {
+                return;
+            }
+            photoUuids.add(photo.uuid);
+
+            // 1. Update canonical photo data source
+            this.photos.unshift(photo);
+            this.totalPhotos++;
+
+            // 2. Insert card into DOM (rendering optimization)
+            this.insertPhotoCard(photo);
+        },
+
+        insertPhotoCard(photo) {
+            const grid = document.getElementById('studio-photos-grid');
+            if (!grid) return;
+
+            const cardEl = this.createPhotoCardElement(photo);
+            cardEl.classList.add('transition-all', 'duration-500', 'opacity-0', 'scale-95');
+            grid.prepend(cardEl);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    cardEl.classList.remove('opacity-0', 'scale-95');
+                    cardEl.classList.add('opacity-100', 'scale-100');
+                });
+            });
         },
 
         abortSession(sessionId) {
@@ -772,15 +1001,23 @@ window.studioGalleryManager = function(inlineConfig) {
             const item = this.uploads.find(u => u.id === id);
             if (!item) return;
 
-            item.userCancelled = true;
-            item.status = 'cancelled';
-            if (item.xhr) {
-                try { item.xhr.abort(); } catch (_) {}
-            }
-            if (item.sessionId) {
-                this.abortSession(item.sessionId);
+            const task = uploadTasks.get(id);
+            if (task) {
+                task.userCancelled = true;
+                if (task.loadedBytes > 0) {
+                    this.uploadStats.uploadedBytes = Math.max(0, this.uploadStats.uploadedBytes - task.loadedBytes);
+                    task.loadedBytes = 0;
+                }
+                if (task.xhr) {
+                    try { task.xhr.abort(); } catch (_) {}
+                }
+                if (task.sessionId) {
+                    this.abortSession(task.sessionId);
+                }
             }
 
+            this.cleanupItemPreview(item);
+            item.status = 'cancelled';
             this.runQueue();
             this.checkAllCompleted();
         },
@@ -789,11 +1026,17 @@ window.studioGalleryManager = function(inlineConfig) {
             const item = this.uploads.find(u => u.id === id);
             if (!item) return;
 
+            const task = uploadTasks.get(id);
+            if (task) {
+                task.loadedBytes = 0;
+                task.userCancelled = false;
+                task.lastProgressUpdate = 0;
+            }
+
             item.status = 'queued';
             item.progress = 0;
             item.retryCount = 0;
             item.errorMessage = '';
-            item.userCancelled = false;
             this.statusSummary = null;
             this.runQueue();
         },
@@ -801,11 +1044,16 @@ window.studioGalleryManager = function(inlineConfig) {
         retryAllFailed() {
             this.uploads.forEach(item => {
                 if (item.status === 'error' || item.status === 'cancelled') {
+                    const task = uploadTasks.get(item.id);
+                    if (task) {
+                        task.loadedBytes = 0;
+                        task.userCancelled = false;
+                        task.lastProgressUpdate = 0;
+                    }
                     item.status = 'queued';
                     item.progress = 0;
                     item.retryCount = 0;
                     item.errorMessage = '';
-                    item.userCancelled = false;
                 }
             });
             this.statusSummary = null;
@@ -822,15 +1070,12 @@ window.studioGalleryManager = function(inlineConfig) {
             if (completed > 0 && failed === 0) {
                 this.statusSummary = {
                     type: 'success',
-                    message: `All ${completed} photos uploaded and saved to your gallery! Updating gallery...`
+                    message: `All ${completed} photos uploaded and saved to your gallery!`
                 };
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1200);
             } else if (completed > 0 && failed > 0) {
                 this.statusSummary = {
                     type: 'warning',
-                    message: `${completed} photo${completed > 1 ? 's' : ''} saved to database. ${failed} interrupted. You can click retry or refresh now.`
+                    message: `${completed} photo${completed > 1 ? 's' : ''} saved to gallery. ${failed} interrupted. You can click retry.`
                 };
             } else if (failed > 0) {
                 this.statusSummary = {
@@ -847,6 +1092,13 @@ window.studioGalleryManager = function(inlineConfig) {
 };
 
 // Global bridge helpers so dynamically inserted cards can trigger Alpine methods
+window._openLightboxByUuid = function(uuid) {
+    const el = document.querySelector('[x-data]');
+    if (el && el._x_dataStack && el._x_dataStack[0]) {
+        el._x_dataStack[0].openLightboxByUuid(uuid);
+    }
+};
+
 window._openLightboxByIndex = function(idx) {
     const el = document.querySelector('[x-data]');
     if (el && el._x_dataStack && el._x_dataStack[0]) {
@@ -921,138 +1173,142 @@ document.addEventListener('alpine:init', () => {
     </div>
 
     <!-- Upload Dropzone Hero (when gallery is empty) -->
-    @if($photos->isEmpty())
-        <div class="rounded-2xl border-2 border-dashed border-border p-12 text-center bg-card flex flex-col items-center justify-center transition-all hover:border-primary/50 cursor-pointer"
-             @dragover.prevent="isDragging = true"
-             @dragleave.prevent="isDragging = false"
-             @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addFiles($event.dataTransfer.files)"
-             @click="$dispatch('open-modal', 'upload-photos-modal')"
-             :class="isDragging ? 'border-primary bg-primary/5 ring-4 ring-primary/10' : ''">
-            <div class="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold mb-4">
-                📸
-            </div>
-            <h2 class="text-lg font-bold text-foreground">This collection is currently empty</h2>
-            <p class="text-xs text-muted-foreground max-w-sm mt-1 mb-6">
-                Drag and drop your photos to upload and share with your clients in full quality.
-            </p>
-            <x-ui.button type="button" variant="primary">
-                Select Photos to Upload
-            </x-ui.button>
+    <!-- Upload Dropzone Hero (when gallery is empty) -->
+    <div x-show="totalPhotos === 0"
+         x-cloak
+         class="rounded-2xl border-2 border-dashed border-border p-12 text-center bg-card flex flex-col items-center justify-center transition-all hover:border-primary/50 cursor-pointer"
+         @dragover.prevent="isDragging = true"
+         @dragleave.prevent="isDragging = false"
+         @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addFiles($event.dataTransfer.files)"
+         @click="$dispatch('open-modal', 'upload-photos-modal')"
+         :class="isDragging ? 'border-primary bg-primary/5 ring-4 ring-primary/10' : ''"
+         style="{{ $photos->isEmpty() ? '' : 'display: none;' }}">
+        <div class="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-2xl font-bold mb-4">
+            📸
         </div>
-    @else
-        <!-- Photos Grid (Server Rendered for instant visibility) -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="studio-photos-grid">
-            @foreach($photos as $index => $photo)
-                @php
-                    $thumbUrl = $photo->getUrl('sm');
-                    $isCover = $gallery->cover_photo_id === $photo->id;
-                    $isHidden = (bool) $photo->is_hidden;
-                @endphp
-                <div id="photo-card-{{ $photo->uuid }}"
-                     data-uuid="{{ $photo->uuid }}"
-                     data-id="{{ $photo->id }}"
-                     data-index="{{ $index }}"
-                     class="photo-card group relative rounded-xl overflow-hidden bg-card border {{ $isCover ? 'border-primary ring-2 ring-primary/40 is-cover' : 'border-border' }} {{ $isHidden ? 'opacity-65 grayscale-[30%] is-hidden' : '' }} shadow-sm flex flex-col justify-between transition-all duration-300">
+        <h2 class="text-lg font-bold text-foreground">This collection is currently empty</h2>
+        <p class="text-xs text-muted-foreground max-w-sm mt-1 mb-6">
+            Drag and drop your photos to upload and share with your clients in full quality.
+        </p>
+        <x-ui.button type="button" variant="primary">
+            Select Photos to Upload
+        </x-ui.button>
+    </div>
 
-                    <div class="aspect-square bg-muted relative overflow-hidden cursor-pointer"
-                         @click="openLightboxByIndex({{ $index }})">
-                        <img src="{{ $thumbUrl }}"
-                             alt="{{ $photo->original_filename }}"
-                             loading="lazy"
-                             class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+    <!-- Photos Grid (Stable DOM container) -->
+    <div x-show="totalPhotos > 0"
+         class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+         id="studio-photos-grid"
+         style="{{ $photos->isEmpty() ? 'display: none;' : '' }}">
+        @foreach($photos as $photo)
+            @php
+                $thumbUrl = $photo->getUrl('sm');
+                $isCover = $gallery->cover_photo_id === $photo->id;
+                $isHidden = (bool) $photo->is_hidden;
+            @endphp
+            <div id="photo-card-{{ $photo->uuid }}"
+                 data-uuid="{{ $photo->uuid }}"
+                 data-id="{{ $photo->id }}"
+                 class="photo-card group relative rounded-xl overflow-hidden bg-card border {{ $isCover ? 'border-primary ring-2 ring-primary/40 is-cover' : 'border-border' }} {{ $isHidden ? 'opacity-65 grayscale-[30%] is-hidden' : '' }} shadow-sm flex flex-col justify-between transition-all duration-300">
 
-                        <!-- Cover Badge -->
-                        <div class="cover-badge absolute top-2 left-2 z-10 {{ $isCover ? '' : 'hidden' }}">
-                            <span class="px-2 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider shadow">Cover</span>
-                        </div>
+                <div class="aspect-square bg-muted relative overflow-hidden cursor-pointer"
+                     @click="openLightboxByUuid('{{ $photo->uuid }}')">
+                    <img src="{{ $thumbUrl }}"
+                         alt="{{ $photo->original_filename }}"
+                         loading="lazy"
+                         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
 
-                        <!-- Hidden Badge -->
-                        <div class="hidden-badge absolute top-2 right-2 z-10 {{ $isHidden ? '' : 'hidden' }}">
-                            <span class="px-2 py-0.5 rounded bg-amber-500/90 text-white text-[10px] font-bold tracking-wider shadow flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
-                                Hidden
-                            </span>
-                        </div>
-
-                        <!-- Hover Overlay Actions -->
-                        <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-20"
-                             @click.stop>
-                            <!-- Top Row: Preview, Hide/Show, Delete -->
-                            <div class="flex items-center justify-between">
-                                <button type="button"
-                                        @click="openLightboxByIndex({{ $index }})"
-                                        class="p-1.5 rounded-lg bg-black/50 hover:bg-black/80 text-white transition-colors"
-                                        title="Preview photo">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                </button>
-
-                                <div class="flex items-center gap-1.5">
-                                    <!-- Toggle Hide/Show Button -->
-                                    <button type="button"
-                                            @click="toggleHide('{{ $photo->uuid }}')"
-                                            class="btn-toggle-hide p-1.5 rounded-lg transition-colors text-white {{ $isHidden ? 'bg-amber-500 hover:bg-amber-600' : 'bg-black/50 hover:bg-black/80' }}"
-                                            title="{{ $isHidden ? 'Show in client gallery' : 'Hide from client gallery' }}">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            @if(!$isHidden)
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                                            @else
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                            @endif
-                                        </svg>
-                                    </button>
-
-                                    <!-- Delete Button -->
-                                    <button type="button"
-                                            @click="deletePhoto('{{ $photo->uuid }}')"
-                                            class="p-1.5 rounded-lg bg-destructive/80 hover:bg-destructive text-white transition-colors"
-                                            title="Delete photo">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Bottom Row: Set as Cover Button -->
-                            <div class="cover-action-container">
-                                <button type="button"
-                                        @click="setCover('{{ $photo->uuid }}')"
-                                        class="btn-set-cover w-full py-1.5 px-2 text-[11px] font-semibold bg-white/90 hover:bg-white text-black rounded-lg transition-colors text-center shadow-xs flex items-center justify-center gap-1.5 {{ ($isCover || $isHidden) ? 'hidden' : '' }}">
-                                    <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                                    Set as Cover
-                                </button>
-                                <div class="hidden-label text-[10px] text-white/80 text-center py-1 bg-black/40 rounded {{ $isHidden ? '' : 'hidden' }}">
-                                    Hidden from client gallery
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Cover Badge -->
+                    <div class="cover-badge absolute top-2 left-2 z-10 {{ $isCover ? '' : 'hidden' }}">
+                        <span class="px-2 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider shadow">Cover</span>
                     </div>
 
-                    <div class="p-2 text-[11px] text-muted-foreground truncate border-t border-border flex items-center justify-between">
-                        <span class="truncate">{{ $photo->original_filename }}</span>
-                        @if($photo->size)
-                            <span class="text-[10px] opacity-60 shrink-0 font-mono">{{ round($photo->size / 1048576, 1) }}MB</span>
-                        @endif
+                    <!-- Hidden Badge -->
+                    <div class="hidden-badge absolute top-2 right-2 z-10 {{ $isHidden ? '' : 'hidden' }}">
+                        <span class="px-2 py-0.5 rounded bg-amber-500/90 text-white text-[10px] font-bold tracking-wider shadow flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+                            Hidden
+                        </span>
+                    </div>
+
+                    <!-- Hover Overlay Actions -->
+                    <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-20"
+                         @click.stop>
+                        <!-- Top Row: Preview, Hide/Show, Delete -->
+                        <div class="flex items-center justify-between">
+                            <button type="button"
+                                    @click="openLightboxByUuid('{{ $photo->uuid }}')"
+                                    class="p-1.5 rounded-lg bg-black/50 hover:bg-black/80 text-white transition-colors"
+                                    title="Preview photo">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            </button>
+
+                            <div class="flex items-center gap-1.5">
+                                <!-- Toggle Hide/Show Button -->
+                                <button type="button"
+                                        @click="toggleHide('{{ $photo->uuid }}')"
+                                        class="btn-toggle-hide p-1.5 rounded-lg transition-colors text-white {{ $isHidden ? 'bg-amber-500 hover:bg-amber-600' : 'bg-black/50 hover:bg-black/80' }}"
+                                        title="{{ $isHidden ? 'Show in client gallery' : 'Hide from client gallery' }}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        @if(!$isHidden)
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                        @else
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        @endif
+                                    </svg>
+                                </button>
+
+                                <!-- Delete Button -->
+                                <button type="button"
+                                        @click="deletePhoto('{{ $photo->uuid }}')"
+                                        class="p-1.5 rounded-lg bg-destructive/80 hover:bg-destructive text-white transition-colors"
+                                        title="Delete photo">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Row: Set as Cover Button -->
+                        <div class="cover-action-container">
+                            <button type="button"
+                                    @click="setCover('{{ $photo->uuid }}')"
+                                    class="btn-set-cover w-full py-1.5 px-2 text-[11px] font-semibold bg-white/90 hover:bg-white text-black rounded-lg transition-colors text-center shadow-xs flex items-center justify-center gap-1.5 {{ ($isCover || $isHidden) ? 'hidden' : '' }}">
+                                <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                Set as Cover
+                            </button>
+                            <div class="hidden-label text-[10px] text-white/80 text-center py-1 bg-black/40 rounded {{ $isHidden ? '' : 'hidden' }}">
+                                Hidden from client gallery
+                            </div>
+                        </div>
                     </div>
                 </div>
-            @endforeach
-        </div>
 
-        <!-- Infinite Scroll Sentinel -->
-        <div id="infinite-scroll-sentinel"
-             x-ref="sentinel"
-             class="py-8 text-center transition-all"
-             x-show="hasMore">
-            <div x-show="loadingPhotos" class="flex items-center justify-center gap-2.5 text-xs text-muted-foreground">
-                <svg class="w-4 h-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                </svg>
-                <span>Loading more photos...</span>
+                <div class="p-2 text-[11px] text-muted-foreground truncate border-t border-border flex items-center justify-between">
+                    <span class="truncate">{{ $photo->original_filename }}</span>
+                    @if($photo->size)
+                        <span class="text-[10px] opacity-60 shrink-0 font-mono">{{ round($photo->size / 1048576, 1) }}MB</span>
+                    @endif
+                </div>
             </div>
-            <div x-show="!loadingPhotos && hasMore" class="text-xs text-muted-foreground opacity-60">
-                Scroll to load more photos
-            </div>
+        @endforeach
+    </div>
+
+    <!-- Infinite Scroll Sentinel -->
+    <div id="infinite-scroll-sentinel"
+         x-ref="sentinel"
+         class="py-8 text-center transition-all"
+         x-show="hasMore">
+        <div x-show="loadingPhotos" class="flex items-center justify-center gap-2.5 text-xs text-muted-foreground">
+            <svg class="w-4 h-4 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <span>Loading more photos...</span>
         </div>
-    @endif
+        <div x-show="!loadingPhotos && hasMore" class="text-xs text-muted-foreground opacity-60">
+            Scroll to load more photos
+        </div>
+    </div>
 
     <!-- Studio Lightbox Modal -->
     <div x-show="lightboxOpen"
@@ -1263,8 +1519,13 @@ document.addEventListener('alpine:init', () => {
                                 <template x-if="item.previewUrl">
                                     <img :src="item.previewUrl" class="w-full h-full object-cover">
                                 </template>
-                                <template x-if="!item.previewUrl">
-                                    <span class="text-[10px] text-muted-foreground font-mono">IMG</span>
+                                <template x-if="!item.previewUrl && item.status !== 'done'">
+                                    <svg class="w-4 h-4 text-muted-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                </template>
+                                <template x-if="item.status === 'done'">
+                                    <div class="w-full h-full bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    </div>
                                 </template>
                             </div>
 

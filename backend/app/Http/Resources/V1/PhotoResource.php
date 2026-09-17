@@ -20,9 +20,20 @@ class PhotoResource extends JsonResource
 
         $isReady = $this->status === \App\Enums\PhotoStatus::Ready->value;
 
+        $isCover = $this->gallery ? ($this->gallery->cover_photo_id === $this->id) : false;
+
         return [
+            'id' => $this->id,
             'uuid' => $this->uuid,
+            'original_filename' => $this->original_filename ?? $this->filename,
             'filename' => $this->filename,
+            'thumbnail_url' => $this->getUrl('sm'),
+            'medium_url' => $this->getUrl('md'),
+            'large_url' => $this->getUrl('lg'),
+            'full_url' => $this->getUrl('xl'),
+            'original_url' => $this->getUrl(),
+            'is_hidden' => (bool) $this->is_hidden,
+            'is_cover' => $isCover,
             'mime_type' => $this->mime_type,
             'size' => $this->size,
             'width' => $this->width,
