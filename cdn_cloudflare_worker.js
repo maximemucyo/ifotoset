@@ -17,14 +17,26 @@ async function handle(request, event) {
 
     if (method === 'OPTIONS') {
         // CORS preflight
-        return new Response(null, { 
-            status: 204, 
-            headers: corsHeaders(headers.get('Origin')) 
+        return new Response(null, {
+            status: 204,
+            headers: corsHeaders(headers.get('Origin'))
         });
     }
 
     if (method !== 'GET' && method !== 'HEAD') {
         return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    // Referer & Origin check: block direct URL navigation and hotlinking for gallery assets
+    const url = new URL(request.url);
+    if (!isAllowedRequest(request, url)) {
+        return new Response('Forbidden: direct access is not allowed', {
+            status: 403,
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-store'
+            }
+        });
     }
 
     try {
@@ -68,7 +80,7 @@ async function proxyAndCache(request, event) {
 
     // Normalize path (remove double slashes, etc.)
     let filePath = decodeURIComponent(url.pathname).replace(/\/{2,}/g, '/');
-    
+
     // Fallback: If requesting a gallery photo folder without a file extension, default to original.jpg
     const pathParts = filePath.split('/');
     const lastPart = pathParts[pathParts.length - 1];
@@ -103,7 +115,7 @@ async function proxyAndCache(request, event) {
     // 2. Cache Miss: Fetch from object storage
     const targetUrl = `${downloadUrl}/file/${BUCKET}${filePath}`;
     const upstreamHeaders = new Headers({ 'Authorization': authToken });
-    
+
     // Forward Range header if present (important for media streaming/partial content)
     const range = request.headers.get('Range');
     if (range) {
@@ -148,9 +160,9 @@ async function proxyAndCache(request, event) {
         }
     }
 
-    const response = new Response(upstreamRes.body, { 
-        status: upstreamRes.status, 
-        headers: outHeaders 
+    const response = new Response(upstreamRes.body, {
+        status: upstreamRes.status,
+        headers: outHeaders
     });
 
     // 4. Save to Cloudflare Edge Cache in background
@@ -162,14 +174,13 @@ async function proxyAndCache(request, event) {
 }
 
 function corsHeaders(origin) {
-    const allowedOrigins = [
-        'http://localhost:3000',
-        'http://192.168.1.77:3000',
-        'https://ifotoset.com',
-        'https://www.ifotoset.com'
-    ];
-
-    const allowOrigin = allowedOrigins.includes(origin) ? origin : 'https://ifotoset.com';
+    let allowOrigin = 'https://ifotoset.com';
+    if (origin) {
+        const o = origin.toLowerCase();
+        if (o.includes('ifotoset.com') || o.includes('localhost') || o.includes('127.0.0.1') || o.includes('192.168.')) {
+            allowOrigin = origin;
+        }
+    }
 
     return new Headers({
         'Access-Control-Allow-Origin': allowOrigin,
@@ -179,3 +190,59 @@ function corsHeaders(origin) {
         'Vary': 'Origin'
     });
 }
+
+// Function to check if the referer is allowed (matching agasoba-media-proxy pattern)
+function getRefererHost(req) {
+    const r = req.headers.get('Referer');
+    if (!r) return null;
+    try {
+        return new URL(r.includes('://') ? r : `http://${r}`).hostname.toLowerCase();
+    } catch {
+        return null;
+    }
+}
+
+function isAllowedReferer(req) {
+    const r = (req.headers.get('Referer') || '').toLowerCase();
+    const o = (req.headers.get('Origin') || '').toLowerCase();
+
+    // 1. String inclusion for ifotoset domains & local environments
+    if (r.includes('ifotoset.com') || o.includes('ifotoset.com')) return true;
+    if (r.includes('localhost') || o.includes('localhost')) return true;
+    if (r.includes('127.0.0.1') || o.includes('127.0.0.1')) return true;
+    if (r.includes('192.168.') || o.includes('192.168.')) return true;
+
+    // 2. Structured hostname check fallback
+    const host = getRefererHost(req);
+    if (host) {
+        if (host === 'ifotoset.com' || host.endsWith('.ifotoset.com')) return true;
+        if (host === 'localhost' || host.endsWith('.localhost')) return true;
+        if (host === '127.0.0.1' || host.startsWith('192.168.')) return true;
+    }
+
+    // 3. Block direct browser navigation (when URL is pasted directly into address bar)
+    const secDest = req.headers.get('Sec-Fetch-Dest');
+    const secMode = req.headers.get('Sec-Fetch-Mode');
+    if (secMode === 'navigate' || secDest === 'document') {
+        return false;
+    }
+
+    // 4. Allow embedded image elements (<img> tag)
+    if (secDest === 'image') {
+        return true;
+    }
+
+    return false;
+}
+
+function isAllowedRequest(request, url) {
+    // Only enforce referer check on gallery media
+    // Avatars and public brand assets remain accessible for emails and profiles
+    if (!url.pathname.startsWith('/galleries/')) {
+        return true;
+    }
+
+    return isAllowedReferer(request);
+}
+
+

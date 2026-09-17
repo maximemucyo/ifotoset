@@ -141,7 +141,7 @@ export class GalleryDownloads {
                     return;
                 }
 
-                const targetUrl = photo.original || photo.full;
+                const targetUrl = this.getDownloadUrl(photo.uuid);
                 // Synchronous window.open in direct click context to avoid Safari popup blocking
                 window.open(targetUrl, '_blank', 'noopener');
                 closeIos();
@@ -150,6 +150,11 @@ export class GalleryDownloads {
                 this.recordDownloadTelemetry(photo.uuid);
             });
         }
+    }
+
+    getDownloadUrl(photoUuid) {
+        const baseUrl = this.galleryUrl || (window.location.origin + `/p/${this.username}/${this.slug}`);
+        return `${baseUrl.replace(/\/+$/, '')}/photos/${photoUuid}/download`;
     }
 
     openDownloadOptionsModal() {
@@ -164,35 +169,23 @@ export class GalleryDownloads {
 
     /**
      * Download single photo directly and log telemetry.
+     * Unified for all devices (iOS, Android, Desktop) using the secure web download endpoint.
      */
     async downloadPhoto(photo, triggerButton = null) {
         if (!photo || !photo.uuid) return;
         if (this.downloadingUuids.has(photo.uuid)) return;
 
-        // iOS Flow: Display instruction note and open original in new tab for long-press save
-        if (this.isIos()) {
-            this.pendingIosPhoto = photo;
-            const iosModal = document.getElementById('modal-ios-download-notice');
-            if (iosModal) {
-                iosModal.classList.remove('hidden');
-                return;
-            }
-
-            // Fallback if modal is missing in DOM
-            window.open(photo.original || photo.full, '_blank', 'noopener');
-            this.recordDownloadTelemetry(photo.uuid);
-            return;
-        }
-
-        // Canonical Desktop & Android Flow: Backend endpoint with presigned original attachment
         this.downloadingUuids.add(photo.uuid);
 
         if (triggerButton) {
             triggerButton.classList.add('opacity-70', 'cursor-wait');
         }
 
-        const baseUrl = this.galleryUrl || (window.location.origin + `/p/${this.username}/${this.slug}`);
-        const downloadUrl = `${baseUrl.replace(/\/+$/, '')}/photos/${photo.uuid}/download`;
+        const downloadUrl = this.getDownloadUrl(photo.uuid);
+
+        // On all platforms (including iOS), triggering the web download URL serves
+        // the file with Content-Disposition: attachment, activating the browser's
+        // native download prompt without exposing or depending on direct CDN URLs.
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.setAttribute('download', photo.filename || 'photo.jpg');
