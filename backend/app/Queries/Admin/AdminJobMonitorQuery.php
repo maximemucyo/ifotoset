@@ -105,10 +105,23 @@ class AdminJobMonitorQuery
                 $completed = (int) $g->completed_photos;
                 $percentage = $total > 0 ? min(100, (int) round(($completed / $total) * 100)) : 0;
 
+                $uuidStr = '';
+                if (!empty($g->gallery_uuid)) {
+                    if (strlen($g->gallery_uuid) === 16) {
+                        try {
+                            $uuidStr = \Ramsey\Uuid\Uuid::fromBytes($g->gallery_uuid)->toString();
+                        } catch (\Throwable) {
+                            $uuidStr = bin2hex($g->gallery_uuid);
+                        }
+                    } else {
+                        $uuidStr = (string) $g->gallery_uuid;
+                    }
+                }
+
                 return [
                     'gallery_id' => (int) $g->gallery_id,
                     'gallery_title' => $g->gallery_title,
-                    'gallery_uuid' => $g->gallery_uuid,
+                    'gallery_uuid' => $uuidStr,
                     'studio_name' => $g->studio_name,
                     'total_photos' => $total,
                     'completed_photos' => $completed,
