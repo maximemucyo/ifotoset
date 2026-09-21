@@ -8,7 +8,9 @@ use App\Models\Photo;
 use App\Queries\GalleryPhotoQuery;
 use App\Queries\GalleryQuery;
 use App\Traits\VerifiesGalleryAccess;
+use App\ValueObjects\GalleryAccessDecision;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -27,7 +29,7 @@ class PublicGalleryController extends Controller
     /**
      * Display public gallery view with server-rendered initial batch.
      */
-    public function show(Request $request, string $username, string $slug): View
+    public function show(Request $request, string $username, string $slug): View|RedirectResponse
     {
         $gallery = $this->galleryQuery->findBySlug($slug);
 
@@ -37,25 +39,27 @@ class PublicGalleryController extends Controller
 
         $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
-        // Check gallery access with unified session/token verification
-        $accessError = $this->verifyGalleryAccess($gallery, $request);
-        $requiresPassword = false;
-        $requiresInvitation = false;
-        $accessErrorMessage = null;
-
-        if ($accessError) {
-            $errData = $accessError->getData(true);
-            $requiresPassword = !empty($errData['requires_password']);
-            $requiresInvitation = !empty($errData['requires_invitation']);
-            $accessErrorMessage = $errData['message'] ?? 'Access denied.';
+        // Check for invitation link and execute canonical redirect if valid
+        $rawInvite = (string) $request->query('invite');
+        if (!empty($rawInvite)) {
+            $accepted = $this->acceptInvitation($gallery, $rawInvite, $request);
+            if ($accepted) {
+                // Canonical redirect: 302 to URL without secret token in query string
+                return redirect()->to($request->url(), 302);
+            }
         }
+
+        // Pure evaluation of access decision
+        $decision = $this->evaluateGalleryAccess($gallery, $request);
 
         $initialPhotos = collect();
         $nextCursor = null;
         $hasMore = false;
         $deepLinkedPhoto = null;
+        $coverUrl = null;
 
-        if (!$accessError) {
+        // Zero-leak security invariant: only query and hydrate photo data when access is granted
+        if ($decision->isGranted()) {
             $paginated = $this->photoQuery->getPaginatedForGallery($gallery, 24);
             $initialPhotos = collect($paginated->items());
             $nextCursor = $paginated->nextCursor()?->encode();
@@ -64,7 +68,6 @@ class PublicGalleryController extends Controller
             // Pre-resolve deep-linked photo if requested (?photo=UUID)
             $photoUuid = $request->query('photo');
             if ($photoUuid) {
-                // Check if already in initial 24 batch
                 $foundInBatch = $initialPhotos->firstWhere('uuid', $photoUuid);
                 if ($foundInBatch) {
                     $deepLinkedPhoto = [
@@ -117,12 +120,12 @@ class PublicGalleryController extends Controller
             } catch (\Throwable $e) {
                 // Telemetry failure should never break gallery rendering
             }
-        }
 
-        // Properly sized responsive hero cover variant (never master uncompressed)
-        $coverUrl = $gallery->getCoverUrl('xl');
-        if (!$coverUrl && $initialPhotos->isNotEmpty()) {
-            $coverUrl = $initialPhotos->first()->getUrl('xl');
+            // Hero cover image
+            $coverUrl = $gallery->getCoverUrl('xl');
+            if (!$coverUrl && $initialPhotos->isNotEmpty()) {
+                $coverUrl = $initialPhotos->first()->getUrl('xl');
+            }
         }
 
         return view('public.gallery', [
@@ -132,10 +135,12 @@ class PublicGalleryController extends Controller
             'coverUrl' => $coverUrl,
             'nextCursor' => $nextCursor,
             'hasMore' => $hasMore,
-            'requiresPassword' => $requiresPassword,
-            'requiresInvitation' => $requiresInvitation,
-            'accessErrorMessage' => $accessErrorMessage,
-            'passwordHint' => $gallery->password_hint,
+            'accessDecision' => $decision,
+            'requiresPassword' => $decision->requiresPassword(),
+            'requiresInvitation' => $decision->requiresInvitation(),
+            'isInvitationInvalid' => $decision->isInvitationInvalid(),
+            'accessErrorMessage' => $decision->message,
+            'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
         ]);
     }
@@ -277,7 +282,7 @@ class PublicGalleryController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => 'The password you entered is incorrect.',
+            'message' => 'The PIN you entered is incorrect.',
         ], 401);
     }
 

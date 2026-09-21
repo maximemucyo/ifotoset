@@ -184,6 +184,7 @@ class GalleryCountAndSubdomainTest extends TestCase
             'title' => 'Binance at Kiyovu',
             'status' => 'published',
             'visibility' => 'public',
+            'show_on_profile' => true,
         ]);
 
         GalleryStats::updateOrCreate(
@@ -228,10 +229,10 @@ class GalleryCountAndSubdomainTest extends TestCase
 
         $galleryUrl = $this->urlService->galleryUrl('maximemucyo', 'private-event');
 
-        // Initial view shows password prompt
+        // Initial view shows PIN prompt
         $response = $this->get($galleryUrl);
         $response->assertStatus(200);
-        $response->assertSee('Password Protected Gallery');
+        $response->assertSee('PIN Protected Gallery');
 
         // Unlock on subdomain
         $unlockResponse = $this->postJson("{$galleryUrl}/unlock", [

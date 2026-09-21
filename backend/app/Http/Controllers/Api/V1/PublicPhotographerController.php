@@ -26,11 +26,12 @@ class PublicPhotographerController extends Controller
             ->orderBy('sort_order', 'asc')
             ->get();
 
-        // Photographer-curated featured galleries (featured_order IS NOT NULL)
+        // Photographer-curated galleries shown on public profile
         $featuredGalleries = Gallery::where('user_id', $photographer->id)
-            ->featured()
+            ->shownOnProfile()
             ->with(['coverPhoto', 'stats'])
             ->whereNull('deleted_at')
+            ->orderBy('created_at', 'desc')
             ->limit(12)
             ->get();
 

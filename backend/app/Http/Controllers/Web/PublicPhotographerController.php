@@ -23,7 +23,7 @@ class PublicPhotographerController extends Controller
             ->firstOrFail();
 
         $galleries = $photographer->galleries()
-            ->where('visibility', 'public')
+            ->shownOnProfile()
             ->with(['coverPhoto', 'stats'])
             ->orderBy('created_at', 'desc')
             ->get();

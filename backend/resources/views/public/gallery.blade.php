@@ -1,7 +1,18 @@
+@php
+    $isGranted = $accessDecision->isGranted();
+    $pageTitle = $isGranted
+        ? $gallery->title . ' - ' . $photographer->name . ' | ifotoset'
+        : ($accessDecision->requiresPassword() ? 'PIN Protected Gallery | ifotoset' : 'Private Gallery | ifotoset');
+    $pageDesc = $isGranted
+        ? "View photo collection '{$gallery->title}' by {$photographer->name}."
+        : ($accessDecision->requiresPassword() ? 'This photo gallery is PIN protected.' : 'This photo gallery is private and accessible by invitation only.');
+    $ogImg = $isGranted ? $coverUrl : ($photographer->avatar_path ? 'https://' . config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com') . '/' . ltrim($photographer->avatar_path, '/') : null);
+@endphp
+
 @extends('layouts.public', [
-    'title' => $gallery->title . ' - ' . $photographer->name . ' | ifotoset',
-    'description' => "View photo collection '{$gallery->title}' by {$photographer->name}.",
-    'ogImage' => $coverUrl,
+    'title' => $pageTitle,
+    'description' => $pageDesc,
+    'ogImage' => $ogImg,
     'hideNav' => true,
     'hideFooter' => false,
     'defaultTheme' => 'light',
@@ -36,7 +47,7 @@
                 <span>By {{ $photographer->name }}</span>
             </a>
 
-            @if($gallery->event_date)
+            @if($gallery->event_date && $isGranted)
                 <span class="hidden md:flex items-center gap-1.5 font-medium opacity-80">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -63,56 +74,125 @@
     </div>
 </header>
 
-<!-- Hero Section -->
-@if($coverUrl)
-    <section id="gallery-hero" class="relative w-full h-svh min-h-[90vh] overflow-hidden select-none flex flex-col justify-between">
-        <img src="{{ $coverUrl }}"
-             alt="{{ $gallery->title }}"
-             fetchpriority="high"
-             class="absolute inset-0 w-full h-full object-cover object-center">
-        <div class="absolute inset-0 bg-black/40"></div>
-
-        <!-- Spacer -->
-        <div></div>
-
-        <!-- Center Details -->
-        <div class="relative z-10 max-w-4xl mx-auto px-6 text-center text-white space-y-3 drop-shadow-lg">
-            <h2 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight">
-                {{ $gallery->title }}
-            </h2>
-            @if($gallery->event_date)
-                <p class="text-sm sm:text-base text-white/90 font-medium">
-                    {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }}
+@if($accessDecision->requiresPassword())
+    <!-- PIN Protection Screen (Zero Hero or Photo Exposure) -->
+    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
+        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-5" x-data="{ password: '', error: '', unlocking: false }">
+            <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-foreground">PIN Protected Gallery</h2>
+                <p class="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    This collection is protected. Please enter the gallery PIN provided by the photographer to access photos.
                 </p>
-            @endif
-        </div>
+            </div>
 
-        <!-- Bottom CTA -->
-        <div class="relative z-10 flex flex-col items-center gap-3 pb-12">
-            @if($requiresPassword)
-                <button type="button"
-                        onclick="document.getElementById('password-unlock-section')?.scrollIntoView({ behavior: 'smooth' })"
-                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <span>Enter PIN / Unlock</span>
+            @if($passwordHint)
+                <div class="p-3 rounded-xl bg-secondary/50 border border-border text-xs text-primary font-medium">
+                    Hint: {{ $passwordHint }}
+                </div>
+            @endif
+
+            <form @submit.prevent="
+                unlocking = true;
+                error = '';
+                fetch(window.location.pathname.replace(/\/+$/, '') + '/unlock', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ password: password })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    unlocking = false;
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        error = data.message || 'The PIN you entered is incorrect.';
+                    }
+                })
+                .catch(() => {
+                    unlocking = false;
+                    error = 'An unexpected error occurred. Please try again.';
+                })
+            " class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-semibold text-muted-foreground mb-1.5 text-center">Gallery PIN</label>
+                    <input type="password"
+                           x-model="password"
+                           required
+                           autofocus
+                           placeholder="Enter 4-8 digit PIN"
+                           class="block w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary text-center tracking-widest text-lg font-mono">
+                    <p x-show="error" x-text="error" class="text-xs text-destructive mt-2 text-center" style="display: none;"></p>
+                </div>
+
+                <button type="submit"
+                        :disabled="unlocking"
+                        class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+                    <span x-show="unlocking" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" style="display: none;"></span>
+                    <span x-text="unlocking ? 'Verifying PIN...' : 'Unlock Gallery'">Unlock Gallery</span>
                 </button>
-                <button type="button"
-                        onclick="document.getElementById('password-unlock-section')?.scrollIntoView({ behavior: 'smooth' })"
-                        class="p-2 rounded-full text-white hover:bg-white/10 transition-all animate-bounce"
-                        aria-label="Scroll to unlock">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
-                    </svg>
-                </button>
-            @elseif($requiresInvitation)
-                <button type="button"
-                        onclick="document.getElementById('invitation-required-section')?.scrollIntoView({ behavior: 'smooth' })"
-                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
-                    View Details
-                </button>
-            @else
+            </form>
+        </div>
+    </div>
+@elseif($accessDecision->requiresInvitation())
+    <!-- Invitation Required Screen (Zero Hero or Photo Exposure) -->
+    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
+        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
+            <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center font-bold text-2xl">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-foreground">Invitation Required</h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+                This gallery is private and available to invited guests only. Please use the personalized invitation link sent to your email.
+            </p>
+        </div>
+    </div>
+@elseif($accessDecision->isInvitationInvalid())
+    <!-- Invitation Unavailable Screen -->
+    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
+        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
+            <div class="w-14 h-14 rounded-2xl bg-destructive/10 text-destructive mx-auto flex items-center justify-center font-bold text-2xl">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-foreground">Invitation Unavailable</h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+                This invitation link is no longer valid or has been revoked. Please contact the photographer for a new invitation.
+            </p>
+        </div>
+    </div>
+@else
+    <!-- Unlocked: Hero Section -->
+    @if($coverUrl)
+        <section id="gallery-hero" class="relative w-full h-svh min-h-[90vh] overflow-hidden select-none flex flex-col justify-between">
+            <img src="{{ $coverUrl }}"
+                 alt="{{ $gallery->title }}"
+                 fetchpriority="high"
+                 class="absolute inset-0 w-full h-full object-cover object-center">
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div></div>
+            <div class="relative z-10 max-w-4xl mx-auto px-6 text-center text-white space-y-3 drop-shadow-lg">
+                <h2 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight">
+                    {{ $gallery->title }}
+                </h2>
+                @if($gallery->event_date)
+                    <p class="text-sm sm:text-base text-white/90 font-medium">
+                        {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }}
+                    </p>
+                @endif
+            </div>
+            <div class="relative z-10 flex flex-col items-center gap-3 pb-12">
                 <button type="button"
                         id="btn-scroll-to-gallery"
                         class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
@@ -126,100 +206,20 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
                     </svg>
                 </button>
-            @endif
-        </div>
-    </section>
-@else
-    <section id="gallery-hero" class="bg-card border-b border-border py-16 px-4 text-center">
-        <div class="max-w-3xl mx-auto space-y-3">
-            <h2 class="text-3xl sm:text-5xl font-extrabold text-foreground tracking-tight">
-                {{ $gallery->title }}
-            </h2>
-            <p class="text-sm text-muted-foreground">
-                By {{ $photographer->name }} @if($gallery->event_date) &bull; {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }} @endif
-            </p>
-        </div>
-    </section>
-@endif
-
-<!-- Password Protection Screen -->
-@if($requiresPassword)
-<div id="password-unlock-section" class="max-w-md mx-auto my-16 px-4" x-data="{ password: '', error: '', unlocking: false }">
-    <div class="bg-card border border-border rounded-2xl p-8 text-center shadow-xl">
-        <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl mb-4">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-        </div>
-        <h2 class="text-2xl font-bold text-foreground">PIN / Password Protected Gallery</h2>
-        <p class="text-xs text-muted-foreground mt-2 mb-4 leading-relaxed">
-            This collection is protected. Please enter the PIN or password provided by the photographer to unlock.
-        </p>
-
-        @if($passwordHint)
-            <div class="p-3 mb-5 rounded-xl bg-secondary/50 border border-border text-xs text-primary font-medium">
-                Hint: {{ $passwordHint }}
             </div>
-        @endif
-
-        <form @submit.prevent="
-            unlocking = true;
-            error = '';
-            fetch(window.location.pathname.replace(/\/+$/, '') + '/unlock', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({ password: password })
-            })
-            .then(res => res.json())
-            .then(data => {
-                unlocking = false;
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    error = data.message || 'Incorrect PIN or password.';
-                }
-            })
-            .catch(() => {
-                unlocking = false;
-                error = 'An unexpected error occurred. Please try again.';
-            })
-        " class="space-y-4">
-            <div>
-                <input type="password"
-                       x-model="password"
-                       required
-                       autofocus
-                       placeholder="Enter PIN / password..."
-                       class="block w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary text-center">
-                <p x-show="error" x-text="error" class="text-xs text-destructive mt-2" style="display: none;"></p>
+        </section>
+    @else
+        <section id="gallery-hero" class="bg-card border-b border-border py-16 px-4 text-center">
+            <div class="max-w-3xl mx-auto space-y-3">
+                <h2 class="text-3xl sm:text-5xl font-extrabold text-foreground tracking-tight">
+                    {{ $gallery->title }}
+                </h2>
+                <p class="text-sm text-muted-foreground">
+                    By {{ $photographer->name }} @if($gallery->event_date) &bull; {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }} @endif
+                </p>
             </div>
-
-            <button type="submit"
-                    :disabled="unlocking"
-                    class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-                <span x-show="unlocking" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></span>
-                <span x-text="unlocking ? 'Verifying...' : 'Unlock Collection'">Unlock Collection</span>
-            </button>
-        </form>
-    </div>
-</div>
-@elseif($requiresInvitation)
-<div id="invitation-required-section" class="max-w-md mx-auto my-16 px-4 text-center space-y-4">
-    <div class="w-14 h-14 rounded-none bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center font-bold text-2xl">
-        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-    </div>
-    <h2 class="text-2xl font-bold text-foreground">Invitation Required</h2>
-    <p class="text-xs text-muted-foreground leading-relaxed">
-        This gallery is private and restricted to invited guests. Please use the unique link sent to your email.
-    </p>
-</div>
-@else
+        </section>
+    @endif
 
 <!-- Gallery Action Bar (Fixed below banner/big image, non-floating) -->
 <div id="gallery-action-bar" class="border-b border-border bg-card select-none">

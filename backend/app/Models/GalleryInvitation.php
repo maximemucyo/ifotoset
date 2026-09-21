@@ -32,4 +32,19 @@ class GalleryInvitation extends Model
     {
         return $this->belongsTo(User::class, 'invited_by');
     }
+
+    public function isValid(): bool
+    {
+        return $this->revoked_at === null && ($this->expires_at === null || $this->expires_at->isFuture());
+    }
+
+    public function isRevoked(): bool
+    {
+        return $this->revoked_at !== null;
+    }
+
+    public function isExpired(): bool
+    {
+        return $this->expires_at !== null && $this->expires_at->isPast();
+    }
 }

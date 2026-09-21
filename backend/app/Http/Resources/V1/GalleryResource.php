@@ -14,9 +14,9 @@ class GalleryResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $currentUser = $request->user();
         $user = $this->relationLoaded('user') ? $this->user : null;
         if (!$user && $this->user_id) {
-            $currentUser = $request->user();
             if ($currentUser && $currentUser->id === $this->user_id) {
                 $user = $currentUser;
             } else {
@@ -31,6 +31,7 @@ class GalleryResource extends JsonResource
             'client_name' => $this->client_name,
             'event_date' => $this->event_date?->toDateString(),
             'visibility' => $this->visibility,
+            'show_on_profile' => $this->when($currentUser && $currentUser->id === $this->user_id, (bool) $this->show_on_profile),
             'allow_photo_downloads' => (bool) $this->allow_photo_downloads,
             'allow_gallery_downloads' => (bool) $this->allow_gallery_downloads,
             'allow_google_photos' => (bool) $this->allow_google_photos,
@@ -43,6 +44,7 @@ class GalleryResource extends JsonResource
             'requires_password' => $this->requires_password ?? false,
             'password_hint' => $this->password_hint ?? null,
             'requires_invitation' => $this->requires_invitation ?? false,
+            'invitation_invalid' => $this->invitation_invalid ?? false,
             'photographer' => $user ? [
                 'name' => $user->name,
                 'username' => $user->username,
@@ -58,8 +60,8 @@ class GalleryResource extends JsonResource
                 'favorites_count' => $this->stats->favorites_count ?? 0,
                 'total_bytes' => $this->stats->total_bytes ?? 0,
             ],
-            'cover_photo' => new PhotoResource($this->whenLoaded('coverPhoto')),
-            'photos' => PhotoResource::collection($this->whenLoaded('photos')),
+            'cover_photo' => ($this->access_granted ?? true) ? new PhotoResource($this->whenLoaded('coverPhoto')) : null,
+            'photos' => ($this->access_granted ?? true) ? PhotoResource::collection($this->whenLoaded('photos')) : [],
             'expires_at' => $this->expires_at?->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),
             'deleted_at' => $this->deleted_at?->toIso8601String(),

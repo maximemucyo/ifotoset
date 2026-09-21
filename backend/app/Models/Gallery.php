@@ -24,6 +24,7 @@ class Gallery extends Model
         'client_name',
         'event_date',
         'visibility',
+        'show_on_profile',
         'allow_photo_downloads',
         'allow_gallery_downloads',
         'allow_google_photos',
@@ -41,10 +42,24 @@ class Gallery extends Model
         'expires_at' => 'datetime',
         'version' => 'integer',
         'featured_order' => 'integer',
+        'show_on_profile' => 'boolean',
         'allow_photo_downloads' => 'boolean',
         'allow_gallery_downloads' => 'boolean',
         'allow_google_photos' => 'boolean',
     ];
+
+    /**
+     * Scope to galleries shown on the photographer's public profile.
+     * Only unexpired public galleries with show_on_profile = true qualify.
+     */
+    public function scopeShownOnProfile(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('visibility', 'public')
+            ->where('show_on_profile', true)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
+    }
 
     /**
      * Scope to galleries explicitly featured on the photographer's public profile.

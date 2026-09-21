@@ -63,7 +63,7 @@ Route::domain('{username}.' . $rootHost)
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->name('subdomain.gallery.export');
-        Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->name('subdomain.gallery.unlock');
+        Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
 
         Route::post('/book', [PublicPhotographerController::class, 'book'])->name('subdomain.photographer.book');
@@ -125,7 +125,7 @@ Route::get('/p/{username}/{slug}', function (Request $request, string $username,
 Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('public.gallery.photos');
 Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->name('public.gallery.photo.download');
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->name('public.gallery.export');
-Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->name('public.gallery.unlock');
+Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
 
 // Shortlink Redirect (/g/{slug} -> canonical subdomain URL)
 Route::get('/g/{slug}', function (Request $request, string $slug) {
@@ -149,6 +149,7 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::get('/galleries', [StudioGalleryController::class, 'index'])->name('galleries.index');
     Route::get('/galleries/create', [StudioGalleryController::class, 'create'])->name('galleries.create');
     Route::post('/galleries', [StudioGalleryController::class, 'store'])->name('galleries.store');
+    Route::get('/galleries/invitations/template', [StudioGalleryController::class, 'downloadInvitationTemplate'])->name('galleries.invitations.template');
     Route::get('/galleries/{uuid}', [StudioGalleryController::class, 'show'])->name('galleries.show');
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
@@ -157,6 +158,9 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::get('/galleries/{uuid}/photos', [StudioGalleryController::class, 'photos'])->name('galleries.photos');
     Route::patch('/galleries/{uuid}/photos/{photoUuid}/hide', [StudioGalleryController::class, 'toggleHidePhoto'])->name('galleries.photos.hide');
     Route::delete('/galleries/{uuid}/photos/{photoUuid}', [StudioGalleryController::class, 'destroyPhoto'])->name('galleries.photos.destroy');
+    Route::post('/galleries/{uuid}/invitations', [StudioGalleryController::class, 'addInvitations'])->name('galleries.invitations.store');
+    Route::post('/galleries/{uuid}/invitations/{id}/resend', [StudioGalleryController::class, 'resendInvitation'])->name('galleries.invitations.resend');
+    Route::post('/galleries/{uuid}/invitations/{id}/revoke', [StudioGalleryController::class, 'revokeInvitation'])->name('galleries.invitations.revoke');
 
     // Direct Browser Photo Uploads
     Route::post('/uploads/request', [UploadController::class, 'requestUpload'])->name('uploads.request');
