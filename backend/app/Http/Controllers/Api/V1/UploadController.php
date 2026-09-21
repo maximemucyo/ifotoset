@@ -60,6 +60,18 @@ class UploadController extends Controller
             );
 
             return response()->json($session, 201);
+        } catch (\App\Exceptions\StorageQuotaExceededException $e) {
+            return response()->json([
+                'code' => 'STORAGE_QUOTA_EXCEEDED',
+                'is_quota_error' => true,
+                'message' => 'Storage limit exceeded for your current plan.',
+                'required_bytes' => $e->requiredBytes,
+                'available_bytes' => $e->availableBytes,
+                'limit_bytes' => $e->limitBytes,
+                'used_bytes' => $e->usedBytes,
+                'reserved_bytes' => $e->reservedBytes,
+                'upgrade_url' => route('studio.billing.index'),
+            ], 409);
         } catch (Exception $e) {
             return response()->json([
                 'code' => 'UPLOAD_REQUEST_FAILED',

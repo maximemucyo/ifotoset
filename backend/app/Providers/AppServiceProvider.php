@@ -68,6 +68,10 @@ class AppServiceProvider extends ServiceProvider
             \App\Events\SubscriptionPaymentSucceeded::class,
             [\App\Listeners\SendPlanUpgradeReceipt::class, 'handle']
         );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\StorageRecalculatedEvent::class,
+            [\App\Listeners\CheckStorageQuotaThresholdsListener::class, 'handle']
+        );
 
         // Define access Gate for administrative panels
         \Illuminate\Support\Facades\Gate::define('access-admin', function (\App\Models\User $user) {

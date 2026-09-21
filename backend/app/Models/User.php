@@ -25,6 +25,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'email_verified_at',
         'storage_used_bytes',
+        'storage_reserved_bytes',
+        'storage_warning_75_active',
+        'storage_warning_100_active',
+        'storage_warning_generation',
+        'role',
         'is_active',
         'username',
         'phone',
@@ -47,6 +52,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
         'notification_preferences' => 'array',
+        'storage_used_bytes' => 'integer',
+        'storage_reserved_bytes' => 'integer',
+        'storage_warning_75_active' => 'boolean',
+        'storage_warning_100_active' => 'boolean',
+        'storage_warning_generation' => 'integer',
     ];
 
     public function isAdmin(): bool

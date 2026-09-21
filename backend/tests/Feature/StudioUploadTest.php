@@ -322,9 +322,21 @@ class StudioUploadTest extends TestCase
                 'sha256' => $sha256,
             ]);
 
-        $response->assertStatus(400)
+        $response->assertStatus(409)
             ->assertJson([
-                'code' => 'UPLOAD_REQUEST_FAILED',
+                'code' => 'STORAGE_QUOTA_EXCEEDED',
+                'is_quota_error' => true,
+            ])
+            ->assertJsonStructure([
+                'code',
+                'is_quota_error',
+                'message',
+                'required_bytes',
+                'available_bytes',
+                'limit_bytes',
+                'used_bytes',
+                'reserved_bytes',
+                'upgrade_url',
             ]);
     }
 }

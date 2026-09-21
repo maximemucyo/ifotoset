@@ -89,6 +89,9 @@ class BillingController extends Controller
             $price = $monthlyPrice * $months;
         }
 
+        $rawReturnTo = $request->query('return_to');
+        $returnTo = $rawReturnTo ? \App\Support\SafeReturnUrl::sanitize($rawReturnTo, route('studio.dashboard')) : null;
+
         return view('studio.billing.checkout', [
             'user' => $user,
             'plan' => $plan,
@@ -97,6 +100,7 @@ class BillingController extends Controller
             'monthlyPrice' => $monthlyPrice,
             'annualPrice' => $annualPrice,
             'price' => $price,
+            'returnTo' => $returnTo,
         ]);
     }
 

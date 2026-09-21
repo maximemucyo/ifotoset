@@ -46,6 +46,8 @@ class GalleryStatisticsService
                 'storage_used_bytes' => (int) $totalBytes,
                 'updated_at' => now(),
             ]);
+
+        \App\Events\StorageRecalculatedEvent::dispatch($userId);
     }
 }
 ?>

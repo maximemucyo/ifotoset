@@ -16,6 +16,11 @@
     'uploadRequestUrl' => route('studio.uploads.request'),
     'uploadConfirmUrl' => route('studio.uploads.confirm'),
     'uploadAbortUrl' => route('studio.uploads.abort'),
+    'storageStatsUrl' => route('studio.storage.stats'),
+    'billingCheckoutUrl' => route('studio.billing.checkout', ['plan' => 'basic']) . '?return_to=' . urlencode(request()->getRequestUri()),
+    'userStorage' => $userStorage ?? [],
+    'upgradePlans' => $upgradePlans ?? [],
+    'billingReturnSuccess' => $billingReturnSuccess ?? false,
 ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
 </script>
 
@@ -222,6 +227,16 @@ window.studioGalleryManager = function(inlineConfig) {
         uploadRequestUrl: config.uploadRequestUrl || '',
         uploadConfirmUrl: config.uploadConfirmUrl || '',
         uploadAbortUrl: config.uploadAbortUrl || '',
+        storageStatsUrl: config.storageStatsUrl || '',
+        billingCheckoutUrl: config.billingCheckoutUrl || '',
+        userStorage: config.userStorage || null,
+        upgradePlans: config.upgradePlans || [],
+        billingReturnSuccess: Boolean(config.billingReturnSuccess),
+
+        // Quota & Upgrade UI State
+        quotaErrorState: null,
+        batchQuotaWarning: null,
+        upgradedCelebration: null,
 
         // Gallery Photos State
         photos: initialPhotosList,
@@ -281,6 +296,10 @@ window.studioGalleryManager = function(inlineConfig) {
             this.setupInfiniteScroll();
             this.setupNetworkResilience();
             this.setupUnloadGuard();
+            this.setupCrossTabBillingListener();
+            if (this.billingReturnSuccess) {
+                this.checkAndApplyUpgradedStorage(true);
+            }
         },
 
         setupInfiniteScroll() {
@@ -681,6 +700,79 @@ window.studioGalleryManager = function(inlineConfig) {
             });
         },
 
+        setupCrossTabBillingListener() {
+            // 1. BroadcastChannel API for multi-tab/window synchronization
+            if (typeof window.BroadcastChannel !== 'undefined') {
+                try {
+                    const bc = new BroadcastChannel('ifotoset_billing');
+                    bc.onmessage = (ev) => {
+                        if (ev.data && ev.data.type === 'BILLING_COMPLETED') {
+                            this.checkAndApplyUpgradedStorage(true);
+                        }
+                    };
+                } catch (_) {}
+            }
+
+            // 2. Storage event fallback (cross-window storage listener)
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'ifotoset_billing_completed') {
+                    this.checkAndApplyUpgradedStorage(true);
+                }
+            });
+
+            // 3. Window focus fallback (when photographer returns to gallery tab)
+            window.addEventListener('focus', () => {
+                if (this.quotaErrorState || this.batchQuotaWarning) {
+                    this.checkAndApplyUpgradedStorage(false);
+                }
+            });
+        },
+
+        async checkAndApplyUpgradedStorage(isDirectReturn = false) {
+            if (!this.storageStatsUrl) return;
+
+            try {
+                const res = await fetch(this.storageStatsUrl, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!res.ok) return;
+                const stats = await res.json();
+                const prevLimit = this.userStorage ? (this.userStorage.limit_bytes || 0) : 0;
+                const newLimit = stats.limit_bytes || 0;
+                const prevPlan = this.userStorage ? this.userStorage.plan_id : null;
+                const planUpgraded = (stats.plan_id !== prevPlan) || (newLimit > prevLimit);
+
+                this.userStorage = stats;
+
+                if (planUpgraded || isDirectReturn) {
+                    this.quotaErrorState = null;
+                    this.batchQuotaWarning = null;
+                    this.upgradedCelebration = {
+                        planName: stats.plan_name || 'Upgraded Plan',
+                        storageLimitFormatted: stats.limit_formatted || formatBytes(stats.limit_bytes)
+                    };
+
+                    // Auto-resume uploads paused by quota error
+                    const hasQuotaFailures = this.uploads.some(u => u.status === 'error' && u.isQuotaError);
+                    if (hasQuotaFailures) {
+                        this.retryAllFailed();
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to query updated storage stats:', err);
+            }
+        },
+
+        openUpgradeWindow() {
+            if (this.billingCheckoutUrl) {
+                window.open(this.billingCheckoutUrl, '_blank');
+            }
+        },
+
         handleFileInput(e) {
             if (e.target && e.target.files) {
                 this.addFiles(e.target.files);
@@ -693,6 +785,24 @@ window.studioGalleryManager = function(inlineConfig) {
 
             const filesArray = Array.from(fileList).filter(f => f.type.startsWith('image/'));
             if (filesArray.length === 0) return;
+
+            // Preflight batch size check against remaining quota
+            const totalBatchBytes = filesArray.reduce((acc, f) => acc + f.size, 0);
+            if (this.userStorage && typeof this.userStorage.available_bytes === 'number') {
+                const available = Number(this.userStorage.available_bytes);
+                if (totalBatchBytes > available) {
+                    this.batchQuotaWarning = {
+                        batchBytes: totalBatchBytes,
+                        formattedBatchSize: formatBytes(totalBatchBytes),
+                        availableBytes: available,
+                        formattedAvailable: formatBytes(available),
+                        deficitBytes: totalBatchBytes - available,
+                        formattedDeficit: formatBytes(totalBatchBytes - available)
+                    };
+                } else {
+                    this.batchQuotaWarning = null;
+                }
+            }
 
             const newItems = filesArray.map(file => {
                 const id = 'up-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
@@ -719,7 +829,8 @@ window.studioGalleryManager = function(inlineConfig) {
                     status: 'queued',
                     progress: 0,
                     retryCount: 0,
-                    errorMessage: ''
+                    errorMessage: '',
+                    isQuotaError: false
                 };
             });
 
@@ -794,6 +905,31 @@ window.studioGalleryManager = function(inlineConfig) {
 
                 if (!reqRes.ok) {
                     const errData = await reqRes.json().catch(() => ({}));
+                    if (reqRes.status === 409 || errData.code === 'STORAGE_QUOTA_EXCEEDED' || errData.is_quota_error) {
+                        const required = errData.required_bytes || item.file.size;
+                        const available = errData.available_bytes !== undefined ? errData.available_bytes : (this.userStorage ? this.userStorage.available_bytes : 0);
+                        const limit = errData.limit_bytes || (this.userStorage ? this.userStorage.limit_bytes : 0);
+                        const used = errData.used_bytes || (this.userStorage ? this.userStorage.used_bytes : 0);
+                        const reserved = errData.reserved_bytes || 0;
+
+                        this.quotaErrorState = {
+                            requiredBytes: required,
+                            formattedRequired: formatBytes(required),
+                            availableBytes: available,
+                            formattedAvailable: formatBytes(available),
+                            limitBytes: limit,
+                            formattedLimit: formatBytes(limit),
+                            usedBytes: used,
+                            reservedBytes: reserved,
+                            upgradeUrl: errData.upgrade_url || this.billingCheckoutUrl
+                        };
+
+                        item.isQuotaError = true;
+                        item.status = 'error';
+                        item.errorMessage = 'Storage quota reached. Upgrade your plan to continue.';
+                        this.cleanupItemPreview(item);
+                        return;
+                    }
                     throw new Error(errData.message || 'Unable to prepare photo upload');
                 }
 
@@ -1018,6 +1154,7 @@ window.studioGalleryManager = function(inlineConfig) {
 
             this.cleanupItemPreview(item);
             item.status = 'cancelled';
+            item.isQuotaError = false;
             this.runQueue();
             this.checkAllCompleted();
         },
@@ -1034,6 +1171,7 @@ window.studioGalleryManager = function(inlineConfig) {
             }
 
             item.status = 'queued';
+            item.isQuotaError = false;
             item.progress = 0;
             item.retryCount = 0;
             item.errorMessage = '';
@@ -1051,11 +1189,14 @@ window.studioGalleryManager = function(inlineConfig) {
                         task.lastProgressUpdate = 0;
                     }
                     item.status = 'queued';
+                    item.isQuotaError = false;
                     item.progress = 0;
                     item.retryCount = 0;
                     item.errorMessage = '';
                 }
             });
+            this.quotaErrorState = null;
+            this.batchQuotaWarning = null;
             this.statusSummary = null;
             this.runQueue();
         },
@@ -1066,12 +1207,16 @@ window.studioGalleryManager = function(inlineConfig) {
 
             const completed = this.uploads.filter(u => u.status === 'done').length;
             const failed = this.uploads.filter(u => u.status === 'error').length;
+            const quotaFailed = this.uploads.filter(u => u.status === 'error' && u.isQuotaError).length;
 
             if (completed > 0 && failed === 0) {
                 this.statusSummary = {
                     type: 'success',
                     message: `All ${completed} photos uploaded and saved to your gallery!`
                 };
+            } else if (quotaFailed > 0) {
+                // Quota banner displays detailed recovery instructions; suppress duplicate generic red error
+                this.statusSummary = null;
             } else if (completed > 0 && failed > 0) {
                 this.statusSummary = {
                     type: 'warning',
@@ -1453,6 +1598,98 @@ document.addEventListener('alpine:init', () => {
             <p class="text-xs text-muted-foreground">
                 Select photos to add to your collection. Upload high-resolution images in full quality.
             </p>
+
+            <!-- Upgraded Plan Celebration Banner -->
+            <template x-if="upgradedCelebration">
+                <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 flex items-start justify-between gap-3 shadow-xs">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 flex items-center justify-center shrink-0 text-base">
+                            ✨
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-xs uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Plan Upgraded Successfully!</h4>
+                            <p class="text-xs mt-0.5">
+                                Your account is now on the <strong x-text="upgradedCelebration.planName"></strong> with <strong x-text="upgradedCelebration.storageLimitFormatted"></strong> of cloud storage. Unfinished uploads have been resumed.
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" @click="upgradedCelebration = null" class="text-emerald-600 hover:text-emerald-800 dark:hover:text-emerald-200 text-sm font-bold">&times;</button>
+                </div>
+            </template>
+
+            <!-- Pre-flight Batch Quota Warning -->
+            <template x-if="batchQuotaWarning && !quotaErrorState">
+                <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 text-base">
+                            ⚠️
+                        </div>
+                        <div>
+                            <p class="font-bold">Selected files exceed remaining storage</p>
+                            <p class="text-muted-foreground dark:text-amber-300/80 mt-0.5">
+                                This batch is <strong x-text="batchQuotaWarning.formattedBatchSize"></strong>, but only <strong x-text="batchQuotaWarning.formattedAvailable"></strong> is left in your plan.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button type="button" @click="openUpgradeWindow()" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs transition-colors shadow-xs">
+                            Upgrade Plan &nearr;
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Active Quota Exhaustion Card -->
+            <template x-if="quotaErrorState">
+                <div class="p-4 sm:p-5 rounded-2xl bg-destructive/10 border-2 border-destructive/30 text-foreground flex flex-col gap-3.5 shadow-sm">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-destructive/20 text-destructive flex items-center justify-center shrink-0 text-lg">
+                                ⚡
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-destructive">Storage Quota Reached</h4>
+                                <p class="text-xs text-muted-foreground mt-0.5">
+                                    You have reached the <span class="font-semibold text-foreground" x-text="quotaErrorState.formattedLimit"></span> storage limit for your current plan. Your upload has been safely paused without losing your place.
+                                </p>
+                            </div>
+                        </div>
+                        <button type="button" @click="quotaErrorState = null" class="text-muted-foreground hover:text-foreground text-sm font-bold">&times;</button>
+                    </div>
+
+                    <!-- Storage Mini Bar Breakdown -->
+                    <div class="p-3 bg-card rounded-xl border border-border/60 text-xs space-y-1.5">
+                        <div class="flex justify-between items-center text-muted-foreground">
+                            <span>Remaining capacity</span>
+                            <span class="font-mono font-semibold text-destructive" x-text="quotaErrorState.formattedAvailable + ' available'"></span>
+                        </div>
+                        <div class="h-2 bg-secondary rounded-full overflow-hidden">
+                            <div class="h-full bg-destructive rounded-full" style="width: 100%"></div>
+                        </div>
+                        <p class="text-[11px] text-muted-foreground">
+                            Photo requires <span class="font-mono font-medium text-foreground" x-text="quotaErrorState.formattedRequired"></span> to upload.
+                        </p>
+                    </div>
+
+                    <!-- Action Buttons: Upgrade Plan & Free Up Storage -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <a href="{{ route('studio.trash.index') }}" target="_blank" class="text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            Free up storage (empty trash) &nearr;
+                        </a>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="checkAndApplyUpgradedStorage()" class="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-secondary text-xs font-semibold transition-colors">
+                                Check Status
+                            </button>
+                            <button type="button" @click="openUpgradeWindow()" class="px-4 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow transition-all flex items-center gap-1.5">
+                                <span>Upgrade Plan & Continue</span>
+                                <span>&nearr;</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
 
             <!-- Dropzone Area -->
             <div class="border-2 border-dashed rounded-2xl p-6 sm:p-8 transition-all relative flex flex-col items-center justify-center text-center bg-secondary/10 hover:bg-secondary/20 hover:border-primary/50 cursor-pointer"

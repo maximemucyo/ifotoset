@@ -161,4 +161,173 @@ class SettingsController extends Controller
             'message' => 'Platform general configuration updated successfully.',
         ]);
     }
+
+    /**
+     * Update administrator password.
+     */
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password'         => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::defaults()],
+        ]);
+
+        $admin = $request->user();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($admin, $validated, $request) {
+            $admin->update([
+                'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
+            ]);
+
+            AdminAuditLog::record(
+                $admin,
+                'admin.password_updated',
+                'User',
+                (string) $admin->id,
+                [
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]
+            );
+        });
+
+        // Invalidate all other active sessions across other devices
+        \Illuminate\Support\Facades\Auth::logoutOtherDevices($validated['password']);
+        $request->session()->regenerate();
+
+        return back()->with('toast', [
+            'type'    => 'success',
+            'message' => 'Admin password changed successfully. Other active sessions have been invalidated.',
+        ]);
+    }
+
+    /**
+     * Request a 6-digit verification code to change administrator login email.
+     */
+    public function requestEmailVerificationCode(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'new_email'        => ['required', 'email:filter', 'max:255', 'unique:users,email'],
+        ]);
+
+        $admin = $request->user();
+        $newEmail = strtolower(trim($validated['new_email']));
+
+        // Rate limiting: 60-second cooldown per admin
+        $cooldownKey = "admin-email-otp-cooldown:{$admin->id}";
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($cooldownKey, 1)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($cooldownKey);
+            return back()->withErrors([
+                'new_email' => "Please wait {$seconds} seconds before requesting another verification code.",
+            ]);
+        }
+
+        // Global throttle: max 5 requests per 15 minutes
+        $maxAttemptsKey = "admin-email-otp-max:{$admin->id}";
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($maxAttemptsKey, 5)) {
+            return back()->withErrors([
+                'new_email' => 'Too many verification code requests. Please try again in 15 minutes.',
+            ]);
+        }
+
+        \Illuminate\Support\Facades\RateLimiter::hit($cooldownKey, 60);
+        \Illuminate\Support\Facades\RateLimiter::hit($maxAttemptsKey, 900);
+
+        // Generate 6-digit numeric OTP and store with keyed HMAC
+        $code = sprintf('%06d', random_int(100000, 999999));
+        $otpHmac = hash_hmac('sha256', $code, config('app.key'));
+
+        \Illuminate\Support\Facades\Cache::put("admin_email_change:{$admin->id}", [
+            'new_email' => $newEmail,
+            'otp_hash'  => $otpHmac,
+            'attempts'  => 0,
+        ], now()->addMinutes(15));
+
+        \Illuminate\Support\Facades\Mail::to($newEmail)->send(
+            new \App\Mail\AdminEmailVerificationCodeMail($admin, $code, $newEmail)
+        );
+
+        return back()->with([
+            'email_otp_sent' => true,
+            'target_new_email' => $newEmail,
+            'toast' => [
+                'type'    => 'success',
+                'message' => "Verification code sent to {$newEmail}. Code expires in 15 minutes.",
+            ],
+        ]);
+    }
+
+    /**
+     * Verify OTP code and update administrator email address.
+     */
+    public function verifyAndChangeEmail(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'regex:/^[0-9]{6}$/'],
+        ]);
+
+        $admin = $request->user();
+        $cacheKey = "admin_email_change:{$admin->id}";
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+
+        if (!$cached) {
+            return back()->withErrors([
+                'code' => 'Verification code expired or not requested. Please request a new code.',
+            ]);
+        }
+
+        if (($cached['attempts'] ?? 0) >= 5) {
+            \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            return back()->withErrors([
+                'code' => 'Too many incorrect attempts. Verification code invalidated for security. Please request a new code.',
+            ]);
+        }
+
+        $inputHmac = hash_hmac('sha256', $validated['code'], config('app.key'));
+        if (!hash_equals($cached['otp_hash'], $inputHmac)) {
+            $cached['attempts'] = ($cached['attempts'] ?? 0) + 1;
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $cached, now()->addMinutes(15));
+
+            $remaining = 5 - $cached['attempts'];
+            return back()->with([
+                'email_otp_sent' => true,
+                'target_new_email' => $cached['new_email'],
+            ])->withErrors([
+                'code' => "Invalid verification code. {$remaining} attempt(s) remaining.",
+            ]);
+        }
+
+        // Code verified! Execute atomic email transition & audit logging
+        $newEmail = $cached['new_email'];
+        $oldEmail = $admin->email;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($admin, $newEmail, $oldEmail, $request) {
+            $admin->update([
+                'email'             => $newEmail,
+                'email_verified_at' => now(),
+            ]);
+
+            AdminAuditLog::record(
+                $admin,
+                'admin.email_updated',
+                'User',
+                (string) $admin->id,
+                [
+                    'old_email'  => $oldEmail,
+                    'new_email'  => $newEmail,
+                    'ip'         => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]
+            );
+        });
+
+        \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        $request->session()->regenerate();
+
+        return back()->with('toast', [
+            'type'    => 'success',
+            'message' => "Administrator login email successfully updated to {$newEmail}.",
+        ]);
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\PhotoStatus;
 use App\Enums\UploadStatus;
+use App\Exceptions\StorageQuotaExceededException;
 use App\Models\Gallery;
 use App\Models\Photo;
 use App\Models\StorageDisk;
@@ -11,8 +12,6 @@ use App\Models\UploadSession;
 use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 
 class UploadService
@@ -33,12 +32,7 @@ class UploadService
         string $sha256,
         string $idempotencyKey
     ): array {
-        // Validate user storage quota limit
-        if ($user->storage_used_bytes + $fileSize > $user->plan->storage_limit) {
-            throw new Exception("Storage limit exceeded for current plan tier.");
-        }
-
-        // Idempotency check: Return existing session if already requested
+        // Idempotency check: Return existing active session without allocating a second reservation
         $existingSession = UploadSession::where('user_id', $user->id)
             ->where('idempotency_key', $idempotencyKey)
             ->where('status', UploadStatus::Requested->value)
@@ -66,10 +60,51 @@ class UploadService
             ];
         }
 
-        // Delete any existing inactive/expired session with the same idempotency key to prevent unique constraint violation
-        UploadSession::where('user_id', $user->id)
+        // Clean up any stale/expired session with the same idempotency key
+        $staleSession = UploadSession::where('user_id', $user->id)
             ->where('idempotency_key', $idempotencyKey)
-            ->delete();
+            ->first();
+
+        if ($staleSession) {
+            if ($staleSession->status === UploadStatus::Requested->value) {
+                // Release old reservation if it was still in requested status
+                DB::table('users')
+                    ->where('id', $user->id)
+                    ->update([
+                        'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$staleSession->expected_size} THEN storage_reserved_bytes - {$staleSession->expected_size} ELSE 0 END"),
+                    ]);
+            }
+            $staleSession->delete();
+        }
+
+        // Atomic storage quota reservation
+        $limit = $user->plan?->storage_limit;
+        if ($limit !== null && $limit > 0) {
+            $affected = DB::table('users')
+                ->where('id', $user->id)
+                ->whereRaw('(storage_used_bytes + storage_reserved_bytes + ?) <= ?', [$fileSize, $limit])
+                ->increment('storage_reserved_bytes', $fileSize);
+
+            if ($affected === 0) {
+                $fresh = DB::table('users')->where('id', $user->id)->first(['storage_used_bytes', 'storage_reserved_bytes']);
+                $used = (int) ($fresh->storage_used_bytes ?? 0);
+                $reserved = (int) ($fresh->storage_reserved_bytes ?? 0);
+                $available = max(0, $limit - ($used + $reserved));
+
+                throw new StorageQuotaExceededException(
+                    requiredBytes: $fileSize,
+                    availableBytes: $available,
+                    limitBytes: $limit,
+                    usedBytes: $used,
+                    reservedBytes: $reserved
+                );
+            }
+        } else {
+            // Unlimited plan: record reservation tracking without quota ceiling
+            DB::table('users')
+                ->where('id', $user->id)
+                ->increment('storage_reserved_bytes', $fileSize);
+        }
 
         // Generate unique UUID and object path
         $photoUuid = Uuid::uuid7()->toString();
@@ -179,6 +214,13 @@ class UploadService
                 'status' => UploadStatus::Completed->value,
             ]);
 
+            // Release reservation (storage_used_bytes is updated via PhotoObserver)
+            DB::table('users')
+                ->where('id', $user->id)
+                ->update([
+                    'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$session->expected_size} THEN storage_reserved_bytes - {$session->expected_size} ELSE 0 END"),
+                ]);
+
             // Seed initial media job tracking record in queued status
             \App\Models\MediaJob::create([
                 'photo_id' => $photo->id,
@@ -207,9 +249,19 @@ class UploadService
             ->first();
 
         if ($session && $session->status !== UploadStatus::Completed->value) {
+            $wasRequested = ($session->status === UploadStatus::Requested->value);
+
             $session->update([
                 'status' => UploadStatus::Expired->value,
             ]);
+
+            if ($wasRequested) {
+                DB::table('users')
+                    ->where('id', $user->id)
+                    ->update([
+                        'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$session->expected_size} THEN storage_reserved_bytes - {$session->expected_size} ELSE 0 END"),
+                    ]);
+            }
 
             // Clean up any partial objects in storage asynchronously
             $this->storageService->delete($session->object_key);

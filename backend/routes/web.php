@@ -162,6 +162,9 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::post('/uploads/request', [UploadController::class, 'requestUpload'])->name('uploads.request');
     Route::post('/uploads/confirm', [UploadController::class, 'confirmUpload'])->name('uploads.confirm');
     Route::post('/uploads/abort', [UploadController::class, 'abortUpload'])->name('uploads.abort');
+    Route::get('/storage/stats', function (\Illuminate\Http\Request $request, \App\Services\StorageStatisticsService $service) {
+        return response()->json($service->getStorageStats($request->user()));
+    })->name('storage.stats');
 
     // Bookings
     Route::get('/bookings', [StudioBookingController::class, 'index'])->name('bookings.index');
@@ -261,4 +264,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(funct
     Route::put('/settings/smtp', [AdminSettingsController::class, 'updateSmtp'])->name('settings.smtp');
     Route::post('/settings/smtp/test', [AdminSettingsController::class, 'testSmtp'])->name('settings.smtp.test');
     Route::put('/settings/general', [AdminSettingsController::class, 'updateGeneral'])->name('settings.general');
+    Route::put('/settings/password', [AdminSettingsController::class, 'updatePassword'])->name('settings.password');
+    Route::post('/settings/email/request-code', [AdminSettingsController::class, 'requestEmailVerificationCode'])->name('settings.email.request');
+    Route::put('/settings/email/verify', [AdminSettingsController::class, 'verifyAndChangeEmail'])->name('settings.email.verify');
 });

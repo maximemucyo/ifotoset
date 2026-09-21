@@ -12,13 +12,14 @@
          currency: '{{ $plan->currency }}',
          defaultPhone: '{{ $user->phone ?? '' }}',
          initiateUrl: '{{ route('studio.billing.initiate') }}',
-         billingUrl: '{{ route('studio.billing.index') }}'
+         billingUrl: '{{ route('studio.billing.index') }}',
+         returnTo: '{{ $returnTo ?? '' }}'
      })">
 
     <!-- Back Navigation -->
     <div>
-        <a href="{{ route('studio.billing.index') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
-            &larr; Back to Plans
+        <a :href="returnTo || '{{ route('studio.billing.index') }}'" class="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
+            &larr; <span x-text="returnTo ? 'Back to Gallery' : 'Back to Plans'">Back to Plans</span>
         </a>
     </div>
 
@@ -294,9 +295,17 @@
             <a :href="'/studio/billing/receipt/' + paymentUuid" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-secondary text-foreground hover:bg-secondary/80 transition-colors">
                 View Receipt
             </a>
-            <a href="{{ route('studio.dashboard') }}" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                Go to Studio Dashboard &rarr;
-            </a>
+            <template x-if="returnTo">
+                <a :href="returnToWithStatus" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-1.5">
+                    <span>Return to Gallery &amp; Resume Upload</span>
+                    <span>&rarr;</span>
+                </a>
+            </template>
+            <template x-if="!returnTo">
+                <a href="{{ route('studio.dashboard') }}" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                    Go to Studio Dashboard &rarr;
+                </a>
+            </template>
         </div>
     </div>
 </div>
@@ -312,6 +321,12 @@ function checkoutFlow(config) {
         annualPrice: Number(config.annualPrice) || 0,
         months: Number(config.months) || 1,
         currency: config.currency,
+        returnTo: config.returnTo || '',
+        get returnToWithStatus() {
+            if (!this.returnTo) return '';
+            const sep = this.returnTo.includes('?') ? '&' : '?';
+            return this.returnTo + sep + 'billing_return=success';
+        },
         phone: '',
         detectedProvider: null,
         isInitiating: false,
@@ -511,6 +526,19 @@ function checkoutFlow(config) {
                     if (result.is_completed) {
                         clearInterval(this.timerInterval);
                         this.step = 'success';
+
+                        // Broadcast upgrade completion to other open windows/tabs (e.g. Gallery upload modal)
+                        try {
+                            const bc = new BroadcastChannel('ifotoset_billing');
+                            bc.postMessage({ status: 'completed', plan: this.planSlug, timestamp: Date.now() });
+                        } catch (_) {}
+                        try {
+                            localStorage.setItem('ifotoset_billing_completed', JSON.stringify({
+                                status: 'completed',
+                                plan: this.planSlug,
+                                timestamp: Date.now()
+                            }));
+                        } catch (_) {}
                         return;
                     } else if (result.is_failed) {
                         clearInterval(this.timerInterval);

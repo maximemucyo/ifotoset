@@ -122,6 +122,14 @@ class GalleryController extends Controller
             ];
         })->values();
 
+        $storageService = app(\App\Services\StorageStatisticsService::class);
+        $userStorage = $storageService->getStorageStats($request->user());
+        $upgradePlans = \App\Models\Plan::where('slug', '!=', 'free')
+            ->orderBy('monthly_price')
+            ->get(['id', 'slug', 'name', 'monthly_price', 'storage_limit']);
+
+        $billingReturnSuccess = ($request->query('billing_return') === 'success') && !$userStorage['is_free'];
+
         return view('studio.galleries.show', [
             'gallery' => $gallery,
             'photos' => $paginated,
@@ -129,6 +137,9 @@ class GalleryController extends Controller
             'initialPhotosJson' => $initialPhotosData->toJson(),
             'initialNextCursor' => $paginated->nextCursor()?->encode(),
             'initialHasMore' => $paginated->hasMorePages(),
+            'userStorage' => $userStorage,
+            'upgradePlans' => $upgradePlans,
+            'billingReturnSuccess' => $billingReturnSuccess,
         ]);
     }
 
