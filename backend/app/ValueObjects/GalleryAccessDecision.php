@@ -61,9 +61,24 @@ class GalleryAccessDecision
         );
     }
 
+    public static function denied(?string $message = null, string $errorCode = 'ACCESS_DENIED'): self
+    {
+        return new self(
+            granted: false,
+            reason: 'denied',
+            message: $message ?? 'Access to this gallery is denied.',
+            errorCode: $errorCode
+        );
+    }
+
     public function isGranted(): bool
     {
         return $this->granted;
+    }
+
+    public function isDenied(): bool
+    {
+        return $this->reason === 'denied';
     }
 
     public function requiresPassword(): bool

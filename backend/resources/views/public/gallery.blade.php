@@ -172,6 +172,21 @@
             </p>
         </div>
     </div>
+@elseif($accessDecision->isDenied())
+    <!-- Gallery Taken Down / Unavailable Screen -->
+    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
+        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
+            <div class="w-14 h-14 rounded-2xl bg-destructive/10 text-destructive mx-auto flex items-center justify-center font-bold text-2xl">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-foreground">Gallery Unavailable</h2>
+            <p class="text-xs text-muted-foreground leading-relaxed">
+                {{ $accessDecision->message ?? 'This gallery is currently unavailable due to content moderation.' }}
+            </p>
+        </div>
+    </div>
 @else
     <!-- Unlocked: Hero Section -->
     @if($coverUrl)

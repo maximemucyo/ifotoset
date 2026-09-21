@@ -13,9 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
+        $middleware->web(append: [
+            \App\Http\Middleware\HandleImpersonationState::class,
+        ]);
         $middleware->alias([
             'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'impersonation.prevent_admin' => \App\Http\Middleware\PreventAdminDuringImpersonation::class,
         ]);
         $middleware->trustProxies(at: '*');
 

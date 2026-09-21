@@ -58,6 +58,7 @@
                         <th class="px-6 py-4">Gallery</th>
                         <th class="px-6 py-4">Photographer</th>
                         <th class="px-6 py-4">Visibility</th>
+                        <th class="px-6 py-4">Moderation</th>
                         <th class="px-6 py-4">Photos</th>
                         <th class="px-6 py-4">Created</th>
                         <th class="px-6 py-4 text-right">Actions</th>
@@ -81,6 +82,17 @@
                                     {{ ucfirst($gallery->visibility) }}
                                 </x-ui.badge>
                             </td>
+                            <td class="px-6 py-4">
+                                @if($gallery->isTakenDown())
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-destructive/10 text-destructive uppercase">
+                                        Taken Down
+                                    </span>
+                                @else
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-600 uppercase">
+                                        Normal
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 text-xs text-foreground font-semibold">
                                 {{ $gallery->photo_count }}
                             </td>
@@ -89,29 +101,38 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-3 text-xs">
+                                    <!-- Explicit Admin Preview (Bypasses Passwords/Invites) -->
+                                    <a href="{{ route('admin.galleries.preview', $gallery->uuid) }}"
+                                       class="font-bold text-primary hover:underline flex items-center gap-1">
+                                        <span>🛡 Preview</span>
+                                        <span>&nearr;</span>
+                                    </a>
+
                                     <!-- Toggle Visibility -->
                                     <form method="POST" action="{{ route('admin.galleries.visibility', $gallery->uuid) }}">
                                         @csrf
                                         @method('PATCH')
-                                        <button type="submit" class="font-medium text-muted-foreground hover:text-foreground">
+                                        <button type="submit" class="font-medium text-muted-foreground hover:text-foreground cursor-pointer">
                                             {{ $gallery->visibility === 'public' ? 'Make Private' : 'Make Public' }}
                                         </button>
                                     </form>
 
-                                    @if($gallery->visibility === 'public')
-                                        <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}" onsubmit="return confirm('Take down gallery {{ addslashes($gallery->title) }}?');">
+                                    <!-- Takedown or Restore -->
+                                    @if($gallery->isTakenDown())
+                                        <form method="POST" action="{{ route('admin.galleries.restore', $gallery->uuid) }}" onsubmit="return confirm('Restore gallery {{ addslashes($gallery->title) }}?');">
                                             @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="font-medium text-destructive hover:underline">
+                                            <button type="submit" class="font-bold text-green-600 hover:underline cursor-pointer">
+                                                Restore
+                                            </button>
+                                        </form>
+                                    @else
+                                        <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}" onsubmit="const reason = prompt('Please specify a reason for taking down {{ addslashes($gallery->title) }}:'); if (!reason || !reason.trim()) return false; this.querySelector('input[name=reason]').value = reason; return true;">
+                                            @csrf
+                                            <input type="hidden" name="reason" value="">
+                                            <button type="submit" class="font-medium text-destructive hover:underline cursor-pointer">
                                                 Take Down
                                             </button>
                                         </form>
-                                    @endif
-
-                                    @if($gallery->user && $gallery->user->username)
-                                        <a href="{{ $gallery->public_url }}" target="_blank" class="font-semibold text-primary hover:underline">
-                                            View &nearr;
-                                        </a>
                                     @endif
                                 </div>
                             </td>

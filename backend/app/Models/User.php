@@ -94,6 +94,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Booking::class);
     }
 
+    public function adminNotes(): HasMany
+    {
+        return $this->hasMany(AdminNote::class, 'user_id');
+    }
+
     public function clearAvailabilityCache(): void
     {
         $key = "availability-version:photographer_id:{$this->id}";

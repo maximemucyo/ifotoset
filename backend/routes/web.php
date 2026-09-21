@@ -91,6 +91,7 @@ Route::middleware('guest')->group(function () {
 // Authenticated Logout & Email Verification
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+    Route::post('/auth/impersonation/leave', [\App\Http\Controllers\Web\Auth\ImpersonationController::class, 'leave'])->name('impersonation.leave');
 
     Route::get('/email/verify', function () {
         return auth()->user()->hasVerifiedEmail()
@@ -218,23 +219,34 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::match(['POST', 'DELETE'], '/trash/empty', [StudioTrashController::class, 'empty'])->name('trash.empty');
 });
 
-// Admin Panel Routes (Superadmin Only - Guarded by AdminMiddleware)
-Route::middleware(['auth', 'admin'])->prefix('admin')->as('admin.')->group(function () {
+// Admin Panel Routes (Superadmin Only - Guarded by AdminMiddleware & Impersonation Prevention)
+Route::middleware(['auth', 'admin', 'impersonation.prevent_admin'])->prefix('admin')->as('admin.')->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-    // User Directory & Role/Status Management
+    // User Directory & Role/Status/Lifecycle Management
     Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
     Route::get('/users-legacy', [AdminUserController::class, 'index'])->name('users');
+    Route::get('/users/{id}/details', [AdminUserController::class, 'details'])->name('users.details');
     Route::post('/users/{id}/status', [AdminUserController::class, 'toggleStatus'])->name('users.status');
     Route::post('/users/{id}/role', [AdminUserController::class, 'changeRole'])->name('users.role');
     Route::post('/users/{id}/plan', [AdminUserController::class, 'assignPlan'])->name('users.plan');
     Route::post('/users/{id}/plan/revoke', [AdminUserController::class, 'revokePlan'])->name('users.plan.revoke');
+    Route::post('/users/{id}/email/verify', [AdminUserController::class, 'verifyEmail'])->name('users.email.verify');
+    Route::post('/users/{id}/email/unverify', [AdminUserController::class, 'unverifyEmail'])->name('users.email.unverify');
+    Route::post('/users/{id}/email/resend', [AdminUserController::class, 'resendVerification'])->name('users.email.resend');
+    Route::post('/users/{id}/password-reset', [AdminUserController::class, 'passwordReset'])->name('users.password_reset');
+    Route::post('/users/{id}/impersonate', [AdminUserController::class, 'impersonate'])->name('users.impersonate');
+    Route::delete('/users/{id}', [AdminUserController::class, 'destroy'])->name('users.destroy');
+    Route::post('/users/{id}/notes', [AdminUserController::class, 'addNote'])->name('users.notes');
+    Route::post('/audit-logs/{id}/reveal-ip', [AdminUserController::class, 'revealIp'])->name('audit.reveal_ip');
 
     // Galleries Overview & Moderation Controls
     Route::get('/galleries', [AdminGalleryController::class, 'index'])->name('galleries.index');
     Route::get('/galleries-legacy', [AdminGalleryController::class, 'index'])->name('galleries');
+    Route::get('/galleries/{uuid}/preview', [AdminGalleryController::class, 'preview'])->name('galleries.preview');
     Route::post('/galleries/{uuid}/visibility', [AdminGalleryController::class, 'toggleVisibility'])->name('galleries.visibility');
     Route::post('/galleries/{uuid}/takedown', [AdminGalleryController::class, 'takeDown'])->name('galleries.takedown');
+    Route::post('/galleries/{uuid}/restore', [AdminGalleryController::class, 'restore'])->name('galleries.restore');
 
     // Financial Transactions & Revenue Tracking
     Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');

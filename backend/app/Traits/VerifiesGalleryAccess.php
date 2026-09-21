@@ -16,7 +16,23 @@ trait VerifiesGalleryAccess
      */
     protected function evaluateGalleryAccess(Gallery $gallery, Request $request): GalleryAccessDecision
     {
-        // 1. Check if gallery is expired
+        // 1. Explicit Admin Moderation Context bypass: only granted if request is an explicit admin moderation route
+        $isAdminModeration = $request->attributes->get('admin_moderation') === true && $request->user()?->isAdmin();
+
+        // 2. Check if gallery is taken down by content moderation
+        if ($gallery->isTakenDown()) {
+            if ($isAdminModeration) {
+                return GalleryAccessDecision::granted();
+            }
+            return GalleryAccessDecision::denied('This gallery is currently unavailable due to content moderation.', 'GALLERY_TAKEN_DOWN');
+        }
+
+        // If explicit admin moderation context, grant full inspection access even if expired, password-protected, or private
+        if ($isAdminModeration) {
+            return GalleryAccessDecision::granted();
+        }
+
+        // 3. Check if gallery is expired
         if ($gallery->expires_at && $gallery->expires_at->isPast()) {
             return GalleryAccessDecision::expired();
         }
@@ -131,6 +147,13 @@ trait VerifiesGalleryAccess
 
         if ($decision->isGranted()) {
             return null;
+        }
+
+        if ($decision->isDenied()) {
+            return response()->json([
+                'code' => $decision->errorCode ?? 'ACCESS_DENIED',
+                'message' => $decision->message,
+            ], 403);
         }
 
         if ($decision->isExpired()) {

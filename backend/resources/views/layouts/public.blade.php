@@ -45,6 +45,7 @@
     @stack('styles')
 </head>
 <body class="h-full flex flex-col font-sans bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+    <x-admin.impersonation-banner />
     <!-- Flash Toast Notification -->
     <div x-data="toastNotification('{{ session('success') ?? session('message') }}', '{{ session('success') ? 'success' : (session('error') ? 'error' : 'info') }}')"
          x-show="show"

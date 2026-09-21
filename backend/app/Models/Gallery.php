@@ -24,6 +24,12 @@ class Gallery extends Model
         'client_name',
         'event_date',
         'visibility',
+        'moderation_status',
+        'taken_down_at',
+        'taken_down_by',
+        'takedown_reason',
+        'restored_at',
+        'restored_by',
         'show_on_profile',
         'allow_photo_downloads',
         'allow_gallery_downloads',
@@ -40,6 +46,8 @@ class Gallery extends Model
         'uuid' => UuidBinaryCast::class,
         'event_date' => 'date',
         'expires_at' => 'datetime',
+        'taken_down_at' => 'datetime',
+        'restored_at' => 'datetime',
         'version' => 'integer',
         'featured_order' => 'integer',
         'show_on_profile' => 'boolean',
@@ -48,13 +56,29 @@ class Gallery extends Model
         'allow_google_photos' => 'boolean',
     ];
 
+    public function isTakenDown(): bool
+    {
+        return $this->moderation_status === 'taken_down';
+    }
+
+    public function takenDownBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'taken_down_by');
+    }
+
+    public function restoredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'restored_by');
+    }
+
     /**
      * Scope to galleries shown on the photographer's public profile.
-     * Only unexpired public galleries with show_on_profile = true qualify.
+     * Only unexpired public galleries with show_on_profile = true and not taken down qualify.
      */
     public function scopeShownOnProfile(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('visibility', 'public')
+            ->where('moderation_status', '!=', 'taken_down')
             ->where('show_on_profile', true)
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());

@@ -22,31 +22,36 @@
                        placeholder="Search by name, email, or username..."
                        class="w-full rounded-xl border border-border bg-card px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none">
                 @if($search)
-                    <a href="{{ route('admin.users.index', array_filter(['role' => $role])) }}" class="absolute right-3 top-2.5 text-xs text-muted-foreground hover:text-foreground">
+                    <a href="{{ route('admin.users.index', array_filter(['role' => $role, 'verified' => $verified])) }}" class="absolute right-3 top-2.5 text-xs text-muted-foreground hover:text-foreground">
                         &times;
                     </a>
                 @endif
             </div>
         </form>
 
-        <div class="flex items-center gap-2 text-xs font-medium">
+        <div class="flex flex-wrap items-center gap-2 text-xs font-medium">
             <a href="{{ route('admin.users.index', array_filter(['search' => $search])) }}"
-               class="px-3 py-1.5 rounded-lg {{ empty($role) ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground' }}">
+               class="px-3 py-1.5 rounded-lg {{ empty($role) && empty($verified) ? 'bg-secondary text-foreground font-semibold shadow-xs' : 'text-muted-foreground hover:text-foreground' }}">
                 All Accounts
             </a>
             <a href="{{ route('admin.users.index', array_filter(['search' => $search, 'role' => 'user'])) }}"
-               class="px-3 py-1.5 rounded-lg {{ $role === 'user' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground' }}">
+               class="px-3 py-1.5 rounded-lg {{ $role === 'user' ? 'bg-secondary text-foreground font-semibold shadow-xs' : 'text-muted-foreground hover:text-foreground' }}">
                 Photographers
             </a>
             <a href="{{ route('admin.users.index', array_filter(['search' => $search, 'role' => 'admin'])) }}"
-               class="px-3 py-1.5 rounded-lg {{ $role === 'admin' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground' }}">
+               class="px-3 py-1.5 rounded-lg {{ $role === 'admin' ? 'bg-secondary text-foreground font-semibold shadow-xs' : 'text-muted-foreground hover:text-foreground' }}">
                 Admins
+            </a>
+            <a href="{{ route('admin.users.index', array_filter(['search' => $search, 'verified' => 'unverified'])) }}"
+               class="px-3 py-1.5 rounded-lg flex items-center gap-1.5 {{ $verified === 'unverified' ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold shadow-xs' : 'text-muted-foreground hover:text-foreground' }}">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                Unverified
             </a>
         </div>
     </div>
 
     <!-- Users Table -->
-    <div class="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+    <div class="rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="bg-secondary/40 text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
@@ -65,8 +70,19 @@
                     @forelse($users as $user)
                         <tr class="hover:bg-muted/30 transition-colors">
                             <td class="px-6 py-4">
-                                <div class="font-semibold text-foreground">{{ $user->name }}</div>
-                                <div class="text-xs text-muted-foreground">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-foreground">{{ $user->name }}</span>
+                                    @if($user->hasVerifiedEmail())
+                                        <span class="inline-flex items-center text-green-600 dark:text-green-400" title="Email Verified on {{ $user->email_verified_at->format('M j, Y') }}">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center text-amber-500 text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10" title="Email Unverified">
+                                            Unverified
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="text-xs text-muted-foreground mt-0.5">
                                     {{ $user->email }}
                                     @if($user->username)
                                         &bull; <a href="{{ $user->public_url }}" target="_blank" class="text-primary hover:underline font-mono">&#64;{{ $user->username }}</a>
@@ -97,39 +113,39 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2" x-data="{ planModalOpen: false, revokeModalOpen: false }">
+                                    <!-- Detailed Drawer Trigger Button -->
+                                    <button type="button"
+                                            @click="$dispatch('open-user-drawer', { id: {{ $user->id }} })"
+                                            class="px-2.5 py-1 text-xs font-bold rounded-lg border border-border bg-card hover:bg-secondary text-foreground transition-colors cursor-pointer flex items-center gap-1 shadow-xs">
+                                        <svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        Inspect
+                                    </button>
+
+                                    <!-- Quick Impersonate if photographer and active -->
+                                    @if(auth()->id() !== $user->id && $user->role !== 'admin' && $user->is_active)
+                                        <form method="POST" action="{{ route('admin.users.impersonate', $user->id) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                    title="Switch into user view"
+                                                    class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer">
+                                                Impersonate
+                                            </button>
+                                        </form>
+                                    @endif
+
                                     <!-- Plan Badge / Quick Trigger -->
                                     <button type="button"
                                             @click="planModalOpen = true"
-                                            class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-                                        Change Plan
+                                            class="px-2.5 py-1 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer">
+                                        Plan
                                     </button>
-
-                                    <!-- Revoke trigger if on paid plan -->
-                                    @if($user->plan && $user->plan->slug !== 'free')
-                                        <button type="button"
-                                                @click="revokeModalOpen = true"
-                                                class="px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors border border-amber-500/20">
-                                            Revoke
-                                        </button>
-                                    @endif
 
                                     <!-- Toggle Active / Suspended -->
                                     @if(auth()->id() !== $user->id)
                                         <form method="POST" action="{{ route('admin.users.status', $user->id) }}" onsubmit="return confirm('{{ $user->is_active ? 'Suspend this account?' : 'Activate this account?' }}');">
                                             @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="px-2.5 py-1 text-xs font-semibold rounded-lg {{ $user->is_active ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' : 'bg-green-500/10 text-green-600 hover:bg-green-500/20' }} transition-colors">
+                                            <button type="submit" class="px-2 py-1 text-xs font-semibold rounded-lg {{ $user->is_active ? 'text-destructive hover:bg-destructive/10' : 'text-green-600 hover:bg-green-500/10' }} transition-colors cursor-pointer">
                                                 {{ $user->is_active ? 'Suspend' : 'Activate' }}
-                                            </button>
-                                        </form>
-
-                                        <!-- Toggle Role -->
-                                        <form method="POST" action="{{ route('admin.users.role', $user->id) }}" onsubmit="return confirm('Change role for {{ addslashes($user->name) }} to {{ $user->role === 'admin' ? 'user' : 'admin' }}?');">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="role" value="{{ $user->role === 'admin' ? 'user' : 'admin' }}">
-                                            <button type="submit" class="px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg">
-                                                {{ $user->role === 'admin' ? 'Demote' : 'Make Admin' }}
                                             </button>
                                         </form>
                                     @endif
@@ -137,7 +153,7 @@
                                     <!-- Change Plan Modal -->
                                     <div x-show="planModalOpen"
                                          style="display: none;"
-                                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm">
+                                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-xs">
                                         <div @click.away="planModalOpen = false" class="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
                                             <div>
                                                 <h3 class="text-base font-bold text-foreground">Change Plan for {{ $user->name }}</h3>
@@ -180,43 +196,8 @@
                                                     <button type="button" @click="planModalOpen = false" class="px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground">
                                                         Cancel
                                                     </button>
-                                                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">
+                                                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs">
                                                         Apply Plan Change
-                                                    </button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-
-                                    <!-- Revoke Plan Confirmation Modal -->
-                                    <div x-show="revokeModalOpen"
-                                         style="display: none;"
-                                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm">
-                                        <div @click.away="revokeModalOpen = false" class="bg-card border border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
-                                            <div>
-                                                <h3 class="text-base font-bold text-destructive">Revoke {{ $user->plan->name ?? 'Paid' }} Plan?</h3>
-                                                <p class="text-xs text-muted-foreground mt-1 leading-relaxed">
-                                                    User <strong class="text-foreground">{{ $user->name }}</strong> will immediately return to <strong>Free Tier (2 GB)</strong>.
-                                                </p>
-                                            </div>
-
-                                            <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
-                                                <strong>Notice:</strong> Existing files above 2 GB will <u>NOT</u> be deleted. However, new uploads will be blocked until storage usage falls below quota or the plan is upgraded.
-                                            </div>
-
-                                            <form method="POST" action="{{ route('admin.users.plan.revoke', $user->id) }}" class="space-y-4">
-                                                @csrf
-                                                <div>
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Reason for Revocation</label>
-                                                    <input type="text" name="reason" required placeholder="e.g. Subscription ended / chargeback" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground">
-                                                </div>
-
-                                                <div class="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                                                    <button type="button" @click="revokeModalOpen = false" class="px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground">
-                                                        Cancel
-                                                    </button>
-                                                    <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors shadow-sm">
-                                                        Confirm Revoke
                                                     </button>
                                                 </div>
                                             </form>
@@ -241,4 +222,8 @@
         {{ $users->links() }}
     </div>
 </div>
+
+<!-- Slide-over User Detail Drawer Component -->
+@include('admin.users.partials.user-detail-drawer')
+
 @endsection

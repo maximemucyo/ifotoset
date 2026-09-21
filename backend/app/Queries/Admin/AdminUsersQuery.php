@@ -8,9 +8,9 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class AdminUsersQuery
 {
     /**
-     * Fetch paginated user accounts with optional search and role filtering.
+     * Fetch paginated user accounts with optional search, role, and verification filtering.
      */
-    public function paginate(?string $search = null, ?string $role = null, int $perPage = 20): LengthAwarePaginator
+    public function paginate(?string $search = null, ?string $role = null, ?string $verified = null, int $perPage = 20): LengthAwarePaginator
     {
         $query = User::with(['plan'])
             ->withCount(['galleries', 'bookings'])
@@ -26,6 +26,12 @@ class AdminUsersQuery
 
         if (! empty($role) && in_array($role, ['admin', 'user'], true)) {
             $query->where('role', $role);
+        }
+
+        if ($verified === 'verified') {
+            $query->whereNotNull('email_verified_at');
+        } elseif ($verified === 'unverified') {
+            $query->whereNull('email_verified_at');
         }
 
         return $query->paginate($perPage)->withQueryString();

@@ -17,6 +17,7 @@
     @stack('styles')
 </head>
 <body class="h-full bg-background text-foreground font-sans antialiased" x-data="{ sidebarOpen: false }">
+    <x-admin.impersonation-banner />
     @php
         $flashMessage = session('success') ?? session('error') ?? session('warning') ?? session('info') ?? session('message');
         $flashType = session('success') ? 'success' : (session('error') ? 'error' : (session('warning') ? 'warning' : 'info'));
