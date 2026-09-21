@@ -14,7 +14,8 @@ class TrashService
 {
     public function __construct(
         protected StorageService $storageService,
-        protected GalleryStatisticsService $statisticsService
+        protected GalleryStatisticsService $statisticsService,
+        protected StorageKeyResolver $storageKeyResolver
     ) {}
 
     /**
@@ -51,29 +52,45 @@ class TrashService
     }
 
     /**
-     * Permanently delete a gallery (triggered by job).
+     * Permanently delete a gallery and all associated photos, variants, and archives.
      */
-    public function purgeGallery(int $galleryId): void
+    public function purgeGallery(int $galleryId, bool $recalculateStats = true): void
     {
-        $gallery = Gallery::onlyTrashed()->find($galleryId);
+        $gallery = Gallery::onlyTrashed()
+            ->with(['photos' => fn($q) => $q->withTrashed()])
+            ->find($galleryId);
+
         if (!$gallery) {
             return; // Already deleted/purged
         }
 
         $userId = $gallery->user_id;
-        $galleryUuid = $gallery->uuid;
+        $galleryUuid = (string) $gallery->uuid;
 
-        // Delete from storage first. If this fails, it throws and aborts the DB transaction.
-        $this->storageService->deleteDirectory("galleries/{$galleryUuid}");
+        // 1. Resolve all exact B2 object keys, variants, and folder prefixes
+        $resolved = $this->storageKeyResolver->resolveGalleryKeys($gallery);
 
-        DB::transaction(function () use ($gallery, $userId, $galleryUuid) {
-            // forceDelete() cascades in DB to delete stats, photos, and invitations.
+        // 2. Storage cleanup first. If this fails, it throws and aborts DB deletion.
+        if (!empty($resolved['objects'])) {
+            $this->storageService->deleteObjects($resolved['objects']);
+        }
+
+        foreach ($resolved['prefixes'] as $prefix) {
+            $this->storageService->deleteDirectory($prefix);
+        }
+
+        // 3. Database deletion (only after storage deletion succeeds)
+        DB::transaction(function () use ($gallery, $userId, $galleryUuid, $recalculateStats) {
+            // Force delete photos explicitly to ensure no orphan records remain
+            $gallery->photos()->withTrashed()->forceDelete();
+
+            // Force delete gallery (cascades to invitations, stats, etc.)
             $gallery->forceDelete();
 
-            // Recalculate user storage stats
-            $this->statisticsService->recalculateUserStorage($userId);
+            if ($recalculateStats) {
+                $this->statisticsService->recalculateUserStorage($userId);
+            }
 
-            // Log audit
             Log::info('[Trash Audit] Gallery permanently deleted.', [
                 'user_id' => $userId,
                 'gallery_id' => $gallery->id,
@@ -86,9 +103,9 @@ class TrashService
     }
 
     /**
-     * Permanently delete a photo (triggered by job).
+     * Permanently delete an individual photo and its variants.
      */
-    public function purgePhoto(int $photoId): void
+    public function purgePhoto(int $photoId, bool $recalculateStats = true): void
     {
         $photo = Photo::onlyTrashed()->find($photoId);
         if (!$photo) {
@@ -96,27 +113,37 @@ class TrashService
         }
 
         $galleryId = $photo->gallery_id;
-        $photoPath = $photo->path;
-        $photoUuid = $photo->uuid;
+        $photoPath = (string) $photo->path;
+        $photoUuid = (string) $photo->uuid;
 
-        // Delete from storage first
-        $this->storageService->deleteDirectory($photoPath);
+        // 1. Resolve exact original key and all responsive variant keys
+        $resolved = $this->storageKeyResolver->resolvePhotoKeys($photo);
 
-        DB::transaction(function () use ($photo, $galleryId, $photoPath, $photoUuid) {
+        // 2. Storage cleanup first
+        if (!empty($resolved['objects'])) {
+            $this->storageService->deleteObjects($resolved['objects']);
+        }
+
+        if (!empty($resolved['prefix'])) {
+            $this->storageService->deleteDirectory($resolved['prefix']);
+        }
+
+        // 3. Database deletion
+        DB::transaction(function () use ($photo, $galleryId, $photoPath, $photoUuid, $recalculateStats) {
             $gallery = Gallery::withTrashed()->find($galleryId);
             $userId = $gallery?->user_id;
 
             $photo->forceDelete();
 
-            // Recalculate statistics
-            if ($galleryId) {
-                $this->statisticsService->recalculateGallery($galleryId);
-            }
-            if ($userId) {
-                $this->statisticsService->recalculateUserStorage($userId);
+            if ($recalculateStats) {
+                if ($galleryId) {
+                    $this->statisticsService->recalculateGallery($galleryId);
+                }
+                if ($userId) {
+                    $this->statisticsService->recalculateUserStorage($userId);
+                }
             }
 
-            // Log audit
             Log::info('[Trash Audit] Photo permanently deleted.', [
                 'user_id' => $userId,
                 'photo_id' => $photo->id,
@@ -129,20 +156,20 @@ class TrashService
     }
 
     /**
-     * Dispatch background jobs to empty all trash for a user.
+     * Bounded processing to empty all trash for a user with single-pass quota recalculation.
      */
     public function emptyTrash(User $user): void
     {
-        // 1. Dispatch jobs for soft-deleted galleries in chunks
+        // 1. Permanently purge soft-deleted galleries in chunks of 50
         Gallery::onlyTrashed()
             ->where('user_id', $user->id)
             ->chunkById(50, function ($galleries) {
                 foreach ($galleries as $gallery) {
-                    PurgeGalleryJob::dispatch($gallery->id);
+                    $this->purgeGallery($gallery->id, recalculateStats: false);
                 }
             });
 
-        // 2. Dispatch jobs for individually soft-deleted photos in chunks
+        // 2. Permanently purge remaining individually soft-deleted photos whose parent gallery is active
         Photo::onlyTrashed()
             ->whereHas('gallery', function ($query) use ($user) {
                 $query->where('user_id', $user->id)
@@ -150,8 +177,11 @@ class TrashService
             })
             ->chunkById(100, function ($photos) {
                 foreach ($photos as $photo) {
-                    PurgePhotoJob::dispatch($photo->id);
+                    $this->purgePhoto($photo->id, recalculateStats: false);
                 }
             });
+
+        // 3. Recalculate user storage statistics once
+        $this->statisticsService->recalculateUserStorage($user->id);
     }
 }

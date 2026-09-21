@@ -105,6 +105,28 @@ class StorageService
     }
 
     /**
+     * Deletes multiple exact object keys from storage.
+     *
+     * @param array<string> $objectKeys
+     */
+    public function deleteObjects(array $objectKeys): bool
+    {
+        if (empty($objectKeys)) {
+            return true;
+        }
+
+        try {
+            return Storage::disk('b2')->delete($objectKeys);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Storage deleteObjects failed.', [
+                'count' => count($objectKeys),
+                'exception' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Deletes folder/prefix recursively from storage.
      * Returns true if the directory is successfully deleted or already absent.
      * Throws an exception on structural connection or API failure.

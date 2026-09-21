@@ -209,9 +209,9 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
 
     // Trash & Lifecycle
     Route::get('/trash', [StudioTrashController::class, 'index'])->name('trash.index');
-    Route::post('/trash/restore', [StudioTrashController::class, 'restore'])->name('trash.restore');
-    Route::post('/trash/purge', [StudioTrashController::class, 'purge'])->name('trash.purge');
-    Route::post('/trash/empty', [StudioTrashController::class, 'empty'])->name('trash.empty');
+    Route::match(['POST', 'DELETE'], '/trash/restore', [StudioTrashController::class, 'restore'])->name('trash.restore');
+    Route::match(['POST', 'DELETE'], '/trash/purge', [StudioTrashController::class, 'purge'])->name('trash.purge');
+    Route::match(['POST', 'DELETE'], '/trash/empty', [StudioTrashController::class, 'empty'])->name('trash.empty');
 });
 
 // Admin Panel Routes (Superadmin Only - Guarded by AdminMiddleware)
