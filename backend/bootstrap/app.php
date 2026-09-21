@@ -17,9 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
         ]);
-        $middleware->trustProxies(
-            at: ['127.0.0.1', '::1']
-        );
+        $middleware->trustProxies(at: '*');
 
         // Exempt public endpoints from CSRF verification
         $middleware->validateCsrfTokens(except: [

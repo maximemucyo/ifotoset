@@ -68,7 +68,7 @@ class SettingsController extends Controller
             ]
         );
 
-        return back()->with('toast', [
+        return redirect()->route('admin.settings.index')->with('toast', [
             'type'    => 'success',
             'message' => 'SMTP mail server configuration updated and loaded successfully.',
         ]);
@@ -103,7 +103,7 @@ class SettingsController extends Controller
                 ['recipient' => $recipient]
             );
 
-            return back()->with('toast', [
+            return redirect()->route('admin.settings.index')->with('toast', [
                 'type'    => 'success',
                 'message' => "Test email successfully sent to {$recipient}.",
             ]);
@@ -121,7 +121,7 @@ class SettingsController extends Controller
                 $errorMsg = 'Failed to deliver test email: ' . $e->getMessage();
             }
 
-            return back()->with('toast', [
+            return redirect()->route('admin.settings.index')->with('toast', [
                 'type'    => 'error',
                 'message' => $errorMsg,
             ]);
@@ -156,7 +156,7 @@ class SettingsController extends Controller
             $validated
         );
 
-        return back()->with('toast', [
+        return redirect()->route('admin.settings.index')->with('toast', [
             'type'    => 'success',
             'message' => 'Platform general configuration updated successfully.',
         ]);
@@ -195,7 +195,7 @@ class SettingsController extends Controller
         \Illuminate\Support\Facades\Auth::logoutOtherDevices($validated['password']);
         $request->session()->regenerate();
 
-        return back()->with('toast', [
+        return redirect()->route('admin.settings.index')->with('toast', [
             'type'    => 'success',
             'message' => 'Admin password changed successfully. Other active sessions have been invalidated.',
         ]);
@@ -218,17 +218,17 @@ class SettingsController extends Controller
         $cooldownKey = "admin-email-otp-cooldown:{$admin->id}";
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($cooldownKey, 1)) {
             $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($cooldownKey);
-            return back()->withErrors([
+            return redirect()->route('admin.settings.index')->withErrors([
                 'new_email' => "Please wait {$seconds} seconds before requesting another verification code.",
-            ]);
+            ])->withInput();
         }
 
         // Global throttle: max 5 requests per 15 minutes
         $maxAttemptsKey = "admin-email-otp-max:{$admin->id}";
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($maxAttemptsKey, 5)) {
-            return back()->withErrors([
+            return redirect()->route('admin.settings.index')->withErrors([
                 'new_email' => 'Too many verification code requests. Please try again in 15 minutes.',
-            ]);
+            ])->withInput();
         }
 
         \Illuminate\Support\Facades\RateLimiter::hit($cooldownKey, 60);
@@ -248,7 +248,7 @@ class SettingsController extends Controller
             new \App\Mail\AdminEmailVerificationCodeMail($admin, $code, $newEmail)
         );
 
-        return back()->with([
+        return redirect()->route('admin.settings.index')->with([
             'email_otp_sent' => true,
             'target_new_email' => $newEmail,
             'toast' => [
@@ -272,14 +272,14 @@ class SettingsController extends Controller
         $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
         if (!$cached) {
-            return back()->withErrors([
+            return redirect()->route('admin.settings.index')->withErrors([
                 'code' => 'Verification code expired or not requested. Please request a new code.',
             ]);
         }
 
         if (($cached['attempts'] ?? 0) >= 5) {
             \Illuminate\Support\Facades\Cache::forget($cacheKey);
-            return back()->withErrors([
+            return redirect()->route('admin.settings.index')->withErrors([
                 'code' => 'Too many incorrect attempts. Verification code invalidated for security. Please request a new code.',
             ]);
         }
@@ -290,7 +290,7 @@ class SettingsController extends Controller
             \Illuminate\Support\Facades\Cache::put($cacheKey, $cached, now()->addMinutes(15));
 
             $remaining = 5 - $cached['attempts'];
-            return back()->with([
+            return redirect()->route('admin.settings.index')->with([
                 'email_otp_sent' => true,
                 'target_new_email' => $cached['new_email'],
             ])->withErrors([
@@ -325,7 +325,7 @@ class SettingsController extends Controller
         \Illuminate\Support\Facades\Cache::forget($cacheKey);
         $request->session()->regenerate();
 
-        return back()->with('toast', [
+        return redirect()->route('admin.settings.index')->with('toast', [
             'type'    => 'success',
             'message' => "Administrator login email successfully updated to {$newEmail}.",
         ]);
