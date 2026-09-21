@@ -18,8 +18,18 @@
     'uploadAbortUrl' => route('studio.uploads.abort'),
     'storageStatsUrl' => route('studio.storage.stats'),
     'billingCheckoutUrl' => route('studio.billing.checkout', ['plan' => 'basic']) . '?return_to=' . urlencode(request()->getRequestUri()),
+    'billingPlansUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
     'userStorage' => $userStorage ?? [],
-    'upgradePlans' => $upgradePlans ?? [],
+    'upgradePlans' => collect($upgradePlans ?? [])->map(fn ($p) => [
+        'id' => $p->id,
+        'slug' => $p->slug,
+        'name' => $p->name,
+        'price' => number_format($p->monthly_price, 0) . ' RWF',
+        'storage' => $p->storage_limit >= 1099511627776
+            ? round($p->storage_limit / 1099511627776, 1) . ' TB'
+            : round($p->storage_limit / 1073741824, 0) . ' GB',
+        'checkoutUrl' => route('studio.billing.checkout', $p->slug) . '?return_to=' . urlencode(request()->getRequestUri()),
+    ])->values(),
     'billingReturnSuccess' => $billingReturnSuccess ?? false,
 ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
 </script>
@@ -229,6 +239,7 @@ window.studioGalleryManager = function(inlineConfig) {
         uploadAbortUrl: config.uploadAbortUrl || '',
         storageStatsUrl: config.storageStatsUrl || '',
         billingCheckoutUrl: config.billingCheckoutUrl || '',
+        billingPlansUrl: config.billingPlansUrl || '',
         userStorage: config.userStorage || null,
         upgradePlans: config.upgradePlans || [],
         billingReturnSuccess: Boolean(config.billingReturnSuccess),
@@ -237,6 +248,8 @@ window.studioGalleryManager = function(inlineConfig) {
         quotaErrorState: null,
         batchQuotaWarning: null,
         upgradedCelebration: null,
+        isCheckingStatus: false,
+        checkStatusFeedback: null,
 
         // Gallery Photos State
         photos: initialPhotosList,
@@ -728,8 +741,13 @@ window.studioGalleryManager = function(inlineConfig) {
             });
         },
 
-        async checkAndApplyUpgradedStorage(isDirectReturn = false) {
+        async checkAndApplyUpgradedStorage(isDirectReturn = false, isUserInitiated = false) {
             if (!this.storageStatsUrl) return;
+
+            if (isUserInitiated) {
+                this.isCheckingStatus = true;
+                this.checkStatusFeedback = null;
+            }
 
             try {
                 const res = await fetch(this.storageStatsUrl, {
@@ -739,37 +757,91 @@ window.studioGalleryManager = function(inlineConfig) {
                     }
                 });
 
-                if (!res.ok) return;
+                if (!res.ok) {
+                    if (isUserInitiated) {
+                        this.checkStatusFeedback = {
+                            type: 'error',
+                            message: 'Could not connect to verify storage. Please try again.'
+                        };
+                    }
+                    return;
+                }
+
                 const stats = await res.json();
                 const prevLimit = this.userStorage ? (this.userStorage.limit_bytes || 0) : 0;
                 const newLimit = stats.limit_bytes || 0;
                 const prevPlan = this.userStorage ? this.userStorage.plan_id : null;
                 const planUpgraded = (stats.plan_id !== prevPlan) || (newLimit > prevLimit);
 
+                // Check if space was freed (e.g. from trash) or is sufficient for failed items
+                const requiredBytes = this.quotaErrorState ? (this.quotaErrorState.requiredBytes || 1) : 1;
+                const hasEnoughSpace = (stats.available_bytes >= requiredBytes) || (stats.available_bytes > 0 && this.uploads.some(u => u.status === 'error' && u.size <= stats.available_bytes));
+
                 this.userStorage = stats;
 
-                if (planUpgraded || isDirectReturn) {
+                if (planUpgraded || hasEnoughSpace || isDirectReturn) {
                     this.quotaErrorState = null;
                     this.batchQuotaWarning = null;
-                    this.upgradedCelebration = {
-                        planName: stats.plan_name || 'Upgraded Plan',
-                        storageLimitFormatted: stats.limit_formatted || formatBytes(stats.limit_bytes)
-                    };
+
+                    if (planUpgraded || isDirectReturn) {
+                        this.upgradedCelebration = {
+                            planName: stats.plan_name || 'Upgraded Plan',
+                            storageLimitFormatted: stats.limit_formatted || formatBytes(stats.limit_bytes)
+                        };
+                    }
+
+                    if (isUserInitiated) {
+                        this.checkStatusFeedback = {
+                            type: 'success',
+                            message: planUpgraded
+                                ? `Success! Upgraded to ${stats.plan_name || 'new plan'}. Resuming uploads...`
+                                : `Storage capacity available (${stats.available_formatted || formatBytes(stats.available_bytes)} free). Resuming uploads...`
+                        };
+                    }
 
                     // Auto-resume uploads paused by quota error
-                    const hasQuotaFailures = this.uploads.some(u => u.status === 'error' && u.isQuotaError);
-                    if (hasQuotaFailures) {
-                        this.retryAllFailed();
+                    this.retryAllFailed();
+
+                    if (isUserInitiated) {
+                        setTimeout(() => { this.checkStatusFeedback = null; }, 5000);
+                    }
+                } else {
+                    // Still insufficient storage
+                    if (this.quotaErrorState) {
+                        this.quotaErrorState.availableBytes = stats.available_bytes;
+                        this.quotaErrorState.formattedAvailable = stats.available_formatted || formatBytes(stats.available_bytes);
+                        this.quotaErrorState.usedBytes = stats.used_bytes;
+                        this.quotaErrorState.limitBytes = stats.limit_bytes;
+                        this.quotaErrorState.formattedLimit = stats.limit_formatted || formatBytes(stats.limit_bytes);
+                    }
+
+                    if (isUserInitiated) {
+                        const avail = stats.available_formatted || formatBytes(stats.available_bytes);
+                        this.checkStatusFeedback = {
+                            type: 'warning',
+                            message: `Storage still full (${avail} available). Complete your upgrade or empty trash.`
+                        };
                     }
                 }
             } catch (err) {
                 console.error('Failed to query updated storage stats:', err);
+                if (isUserInitiated) {
+                    this.checkStatusFeedback = {
+                        type: 'error',
+                        message: 'Network error while checking storage status.'
+                    };
+                }
+            } finally {
+                if (isUserInitiated) {
+                    this.isCheckingStatus = false;
+                }
             }
         },
 
-        openUpgradeWindow() {
-            if (this.billingCheckoutUrl) {
-                window.open(this.billingCheckoutUrl, '_blank');
+        openUpgradeWindow(targetUrl = null) {
+            const url = targetUrl || this.billingPlansUrl || this.billingCheckoutUrl;
+            if (url) {
+                window.open(url, '_blank');
             }
         },
 
@@ -1671,19 +1743,72 @@ document.addEventListener('alpine:init', () => {
                         </p>
                     </div>
 
+                    <!-- Choose Plan Section -->
+                    <template x-if="upgradePlans && upgradePlans.length > 0">
+                        <div class="space-y-2 pt-2 border-t border-border/60">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-foreground">Choose a plan that fits your studio:</span>
+                                <a :href="billingPlansUrl" target="_blank" class="text-primary hover:underline font-semibold flex items-center gap-1">
+                                    <span>Compare all</span>
+                                    <span>&nearr;</span>
+                                </a>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <template x-for="plan in upgradePlans" :key="plan.slug">
+                                    <button type="button"
+                                            @click="openUpgradeWindow(plan.checkoutUrl)"
+                                            class="p-2.5 rounded-xl border border-border/80 bg-card hover:border-primary hover:bg-primary/5 transition-all text-left flex items-center justify-between group shadow-xs">
+                                        <div>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="font-bold text-xs text-foreground group-hover:text-primary transition-colors" x-text="plan.name"></span>
+                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary font-mono" x-text="plan.storage"></span>
+                                            </div>
+                                            <p class="text-[10px] text-muted-foreground mt-0.5" x-text="plan.price + ' / mo'"></p>
+                                        </div>
+                                        <span class="text-xs font-bold text-primary group-hover:translate-x-0.5 transition-transform">&nearr;</span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Check Status Feedback Notification (if any) -->
+                    <template x-if="checkStatusFeedback">
+                        <div class="p-2.5 rounded-xl text-xs font-medium flex items-center justify-between gap-2 transition-all"
+                             :class="{
+                                 'bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300': checkStatusFeedback.type === 'warning',
+                                 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300': checkStatusFeedback.type === 'success',
+                                 'bg-destructive/10 border border-destructive/30 text-destructive': checkStatusFeedback.type === 'error'
+                             }">
+                            <div class="flex items-center gap-1.5">
+                                <span x-text="checkStatusFeedback.type === 'success' ? '✓' : '⚠️'"></span>
+                                <span x-text="checkStatusFeedback.message"></span>
+                            </div>
+                            <button type="button" @click="checkStatusFeedback = null" class="opacity-60 hover:opacity-100 text-sm">&times;</button>
+                        </div>
+                    </template>
+
                     <!-- Action Buttons: Upgrade Plan & Free Up Storage -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/40">
                         <a href="{{ route('studio.trash.index') }}" target="_blank" class="text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline flex items-center gap-1">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             Free up storage (empty trash) &nearr;
                         </a>
 
                         <div class="flex items-center gap-2">
-                            <button type="button" @click="checkAndApplyUpgradedStorage()" class="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-secondary text-xs font-semibold transition-colors">
-                                Check Status
+                            <button type="button"
+                                    @click="checkAndApplyUpgradedStorage(false, true)"
+                                    :disabled="isCheckingStatus"
+                                    class="px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-secondary text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50">
+                                <template x-if="isCheckingStatus">
+                                    <svg class="w-3.5 h-3.5 animate-spin text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                </template>
+                                <span x-text="isCheckingStatus ? 'Checking...' : 'Check Status'"></span>
                             </button>
-                            <button type="button" @click="openUpgradeWindow()" class="px-4 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow transition-all flex items-center gap-1.5">
-                                <span>Upgrade Plan & Continue</span>
+                            <button type="button"
+                                    @click="openUpgradeWindow(billingPlansUrl)"
+                                    class="px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow transition-all flex items-center gap-1.5">
+                                <span>Compare Plans</span>
                                 <span>&nearr;</span>
                             </button>
                         </div>

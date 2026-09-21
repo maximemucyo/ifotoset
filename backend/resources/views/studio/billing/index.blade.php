@@ -26,6 +26,19 @@
         </div>
     </div>
 
+    <!-- Return to Gallery Banner (if came from upload roadblock) -->
+    @if(!empty($returnTo))
+        <div class="p-3.5 rounded-2xl bg-card border border-border flex items-center justify-between gap-3 text-xs shadow-xs">
+            <div class="flex items-center gap-2 text-foreground font-medium">
+                <span class="text-primary font-bold text-sm">📸</span>
+                <span>Select any plan below to expand your storage and automatically resume your upload session.</span>
+            </div>
+            <a href="{{ $returnTo }}" class="px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold shrink-0 transition-colors">
+                &larr; Back to Gallery
+            </a>
+        </div>
+    @endif
+
     <!-- Active Pending Payment Banner (if any) -->
     @if($pendingPayment)
         <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-4 text-xs"
@@ -186,7 +199,7 @@
                             Included by Default
                         </button>
                     @else
-                        <a :href="'{{ route('studio.billing.checkout', $plan->slug) }}?cycle=' + cycle"
+                        <a :href="'{{ route('studio.billing.checkout', $plan->slug) }}?cycle=' + cycle + '{{ !empty($returnTo) ? '&return_to=' . urlencode($returnTo) : '' }}'"
                            class="block text-center w-full py-2.5 px-4 rounded-xl text-xs font-bold {{ $isPro ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-secondary text-foreground hover:bg-secondary/80' }} transition-colors shadow-sm">
                             Upgrade to {{ $plan->name }}
                         </a>

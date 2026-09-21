@@ -48,12 +48,16 @@ class BillingController extends Controller
         $storageService = app(StorageStatisticsService::class);
         $storageStats = $storageService->getStorageStats($user);
 
+        $rawReturnTo = $request->query('return_to');
+        $returnTo = $rawReturnTo ? \App\Support\SafeReturnUrl::sanitize($rawReturnTo, route('studio.dashboard')) : null;
+
         return view('studio.billing.index', [
             'user' => $user,
             'currentPlan' => $currentPlan,
             'plans' => $plans,
             'activeSubscription' => $activeSubscription,
             'pendingPayment' => $pendingPayment,
+            'returnTo' => $returnTo,
             'storage' => [
                 'used_bytes' => $storageStats['used_bytes'],
                 'limit_bytes' => $storageStats['limit_bytes'] ?? 2147483648,
