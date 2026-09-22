@@ -139,9 +139,30 @@ class User extends Authenticatable implements MustVerifyEmail
         return "https://{$cdnDomain}/" . ltrim($this->avatar_path, '/');
     }
 
+    public function isPubliclyIndexable(): bool
+    {
+        $reserved = config('reserved_usernames', []);
+        return !$this->trashed()
+            && $this->is_active
+            && !empty($this->username)
+            && !in_array(strtolower($this->username), $reserved, true)
+            && $this->role !== 'admin'
+            && $this->role !== 'superadmin';
+    }
+
+    public function scopePubliclyIndexable(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $reserved = config('reserved_usernames', []);
+        return $query->where('is_active', true)
+            ->whereNotNull('username')
+            ->where('username', '!=', '')
+            ->whereNotIn('username', $reserved)
+            ->whereNotIn('role', ['admin', 'superadmin']);
+    }
+
     public function getPublicUrlAttribute(): string
     {
-        return app(\App\Services\PublicUrlService::class)->photographerUrl($this->username);
+        return app(\App\Services\PublicUrlService::class)->photographer($this);
     }
 }
 ?>

@@ -98,7 +98,7 @@
                         <div class="flex items-center gap-2">
                             <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">SJ</div>
                             <div>
-                                <h4 class="font-bold text-xs">Sarah Jenkins</h4>
+                                <div class="font-bold text-xs">Sarah Jenkins</div>
                                 <p class="text-[10px] text-muted-foreground">Kigali, Rwanda</p>
                             </div>
                         </div>
@@ -117,21 +117,27 @@
                         <div class="relative rounded overflow-hidden border border-border/50">
                             <img
                                 src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80"
-                                alt="Gallery Photo 1"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
                                 class="w-full h-full object-cover"
                             >
                         </div>
                         <div class="relative rounded overflow-hidden border border-border/50">
                             <img
                                 src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=400&q=80"
-                                alt="Gallery Photo 2"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
                                 class="w-full h-full object-cover"
                             >
                         </div>
                         <div class="relative rounded overflow-hidden border border-border/50">
                             <img
                                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
-                                alt="Gallery Photo 3"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
                                 class="w-full h-full object-cover"
                             >
                         </div>
@@ -174,7 +180,9 @@
                         <div class="col-span-8 relative rounded overflow-hidden border border-border/50">
                             <img
                                 src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=400&q=80"
-                                alt="Landscape cover"
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
                                 class="w-full h-full object-cover"
                             >
                             <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-[8px] text-white">East African Landscapes</div>
@@ -183,14 +191,18 @@
                             <div class="flex-1 relative rounded overflow-hidden border border-border/50">
                                 <img
                                     src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
-                                    alt="Portrait collection"
+                                    alt=""
+                                    loading="lazy"
+                                    decoding="async"
                                     class="w-full h-full object-cover"
                                 >
                             </div>
                             <div class="flex-1 relative rounded overflow-hidden border border-border/50">
                                 <img
                                     src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80"
-                                    alt="Weddings"
+                                    alt=""
+                                    loading="lazy"
+                                    decoding="async"
                                     class="w-full h-full object-cover"
                                 >
                             </div>

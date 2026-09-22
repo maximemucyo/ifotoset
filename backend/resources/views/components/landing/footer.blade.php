@@ -13,7 +13,7 @@
                 </p>
             </div>
             <div>
-                <h4 class="font-semibold text-foreground mb-4">Product</h4>
+                <p class="font-semibold text-foreground mb-4">Product</p>
                 <ul class="space-y-2 text-muted-foreground text-sm">
                     <li><a href="#features" class="hover:text-primary transition-colors">Features</a></li>
                     <li><a href="#pricing" class="hover:text-primary transition-colors">Pricing</a></li>
@@ -21,7 +21,7 @@
                 </ul>
             </div>
             <div>
-                <h4 class="font-semibold text-foreground mb-4">Company</h4>
+                <p class="font-semibold text-foreground mb-4">Company</p>
                 <ul class="space-y-2 text-muted-foreground text-sm">
                     <li><a href="#" class="hover:text-primary transition-colors">About</a></li>
                     <li><a href="#" class="hover:text-primary transition-colors">Blog</a></li>
@@ -29,7 +29,7 @@
                 </ul>
             </div>
             <div>
-                <h4 class="font-semibold text-foreground mb-4">Legal</h4>
+                <p class="font-semibold text-foreground mb-4">Legal</p>
                 <ul class="space-y-2 text-muted-foreground text-sm">
                     <li><a href="#" class="hover:text-primary transition-colors">Privacy</a></li>
                     <li><a href="#" class="hover:text-primary transition-colors">Terms</a></li>

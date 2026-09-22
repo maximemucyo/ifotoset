@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+# Private administrative and studio panels
+Disallow: /admin/
+Disallow: /studio/
+
+# Internal API endpoints
+Disallow: /api/
+
+# Heavy media exports and raw photo download streams
+Disallow: /*/export
+Disallow: /*/photos/*/download
+
+# XML Sitemap Index
+Sitemap: https://ifotoset.com/sitemap.xml

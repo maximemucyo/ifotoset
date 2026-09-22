@@ -1,6 +1,5 @@
 @extends('layouts.public', [
-    'title' => $photographer->name . ' - Photography Portfolio | ifotoset',
-    'description' => $photographer->bio ?? "View public photo collections and book sessions with {$photographer->name}."
+    'seo' => $seo ?? null,
 ])
 
 @section('content')

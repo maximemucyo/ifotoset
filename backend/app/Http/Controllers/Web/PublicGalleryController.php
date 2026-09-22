@@ -142,6 +142,7 @@ class PublicGalleryController extends Controller
             'accessErrorMessage' => $decision->message,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
+            'seo' => \App\Support\Seo\SeoMetadata::forGallery($gallery, $coverUrl),
         ]);
     }
 

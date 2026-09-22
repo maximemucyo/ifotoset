@@ -76,12 +76,17 @@
                 <div class="relative h-60 w-full overflow-hidden group">
                     <img
                         src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80"
-                        alt="Sarah & James Wedding"
+                        alt="Wedding collection preview"
+                        width="800"
+                        height="240"
+                        fetchpriority="high"
+                        loading="eager"
+                        decoding="async"
                         class="w-full h-full object-cover"
                     >
                     <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
                     <div class="absolute bottom-6 left-6 text-white">
-                        <h3 class="text-2xl font-bold tracking-tight">Sarah & James</h3>
+                        <div class="text-2xl font-bold tracking-tight">Sarah & James</div>
                         <p class="text-white/80 text-sm mt-1">Wedding Collection</p>
                     </div>
                 </div>

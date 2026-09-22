@@ -37,6 +37,7 @@ class PublicPhotographerController extends Controller
             'photographer' => $photographer,
             'galleries' => $galleries,
             'packages' => $packages,
+            'seo' => \App\Support\Seo\SeoMetadata::forPhotographer($photographer, $packages->all()),
         ]);
     }
 

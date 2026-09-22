@@ -30,7 +30,7 @@
 
     <!-- Main Image -->
     <img src="{{ $thumbnailUrl }}"
-         alt="{{ $photo->original_filename ?? 'Photo' }}"
+         alt="{{ $photo->title ?? $photo->caption ?? '' }}"
          loading="lazy"
          class="relative z-[1] w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 pointer-events-none opacity-0 transition-opacity duration-500"
          width="{{ $photo->width }}"

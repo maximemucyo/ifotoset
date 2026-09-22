@@ -1,18 +1,9 @@
 @php
     $isGranted = $accessDecision->isGranted();
-    $pageTitle = $isGranted
-        ? $gallery->title . ' - ' . $photographer->name . ' | ifotoset'
-        : ($accessDecision->requiresPassword() ? 'PIN Protected Gallery | ifotoset' : 'Private Gallery | ifotoset');
-    $pageDesc = $isGranted
-        ? "View photo collection '{$gallery->title}' by {$photographer->name}."
-        : ($accessDecision->requiresPassword() ? 'This photo gallery is PIN protected.' : 'This photo gallery is private and accessible by invitation only.');
-    $ogImg = $isGranted ? $coverUrl : ($photographer->avatar_path ? 'https://' . config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com') . '/' . ltrim($photographer->avatar_path, '/') : null);
 @endphp
 
 @extends('layouts.public', [
-    'title' => $pageTitle,
-    'description' => $pageDesc,
-    'ogImage' => $ogImg,
+    'seo' => $seo ?? null,
     'hideNav' => true,
     'hideFooter' => false,
     'defaultTheme' => 'light',

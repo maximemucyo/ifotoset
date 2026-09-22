@@ -5,6 +5,41 @@ namespace App\Services;
 class PublicUrlService
 {
     /**
+     * Get the canonical public portfolio URL for a photographer model or username.
+     */
+    public function photographer(mixed $photographer): string
+    {
+        $username = $photographer instanceof \App\Models\User 
+            ? $photographer->username 
+            : (is_object($photographer) ? ($photographer->username ?? '') : (string) $photographer);
+
+        return $this->photographerUrl($username);
+    }
+
+    /**
+     * Get the canonical public gallery URL for a gallery model or username + slug.
+     */
+    public function gallery(mixed $gallery, ?string $slug = null): string
+    {
+        if ($gallery instanceof \App\Models\Gallery) {
+            $username = $gallery->user?->username ?? '';
+            $slug = $gallery->slug;
+        } else {
+            $username = (string) $gallery;
+        }
+
+        return $this->galleryUrl($username, (string) $slug);
+    }
+
+    /**
+     * Get the canonical public homepage URL with optional UTM parameters.
+     */
+    public function home(array $utm = []): string
+    {
+        return $this->homeUrl($utm);
+    }
+
+    /**
      * Get the public portfolio URL for a photographer.
      */
     public function photographerUrl(string $username): string

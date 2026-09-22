@@ -1,6 +1,5 @@
 @extends('layouts.public', [
-    'title' => 'ifotoset - Professional Photography Portfolios & Client Galleries',
-    'description' => 'Create stunning photography portfolios, deliver private client galleries, and manage your photography business. Built for modern photographers in East Africa.',
+    'seo' => $seo ?? null,
     'hideNav' => true,
     'hideFooter' => true,
 ])

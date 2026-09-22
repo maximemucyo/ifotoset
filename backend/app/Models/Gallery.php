@@ -93,6 +93,55 @@ class Gallery extends Model
         return $query->whereNotNull('featured_order')->orderBy('featured_order', 'asc');
     }
 
+    /**
+     * Determine whether this gallery is eligible for public search indexing.
+     * Decoupled from user session authorization.
+     */
+    public function isPubliclyIndexable(): bool
+    {
+        if ($this->trashed() || $this->visibility !== 'public') {
+            return false;
+        }
+
+        if (!empty($this->password_hash)) {
+            return false;
+        }
+
+        if ($this->expires_at !== null && $this->expires_at->isPast()) {
+            return false;
+        }
+
+        if ($this->moderation_status === 'taken_down') {
+            return false;
+        }
+
+        if (!$this->user || !$this->user->is_active || empty($this->user->username)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Scope query to publicly indexable galleries.
+     */
+    public function scopePubliclyIndexable(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('visibility', 'public')
+            ->where('moderation_status', '!=', 'taken_down')
+            ->where(function ($q) {
+                $q->whereNull('password_hash')->orWhere('password_hash', '');
+            })
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->whereHas('user', function ($q) {
+                $q->where('is_active', true)
+                  ->whereNotNull('username')
+                  ->where('username', '!=', '');
+            });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

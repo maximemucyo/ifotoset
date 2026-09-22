@@ -65,6 +65,14 @@ class StorageStatisticsService
     }
 
     /**
+     * Alias for retrieving photographer storage statistics.
+     */
+    public function getPhotographerStorageBreakdown(User $user): array
+    {
+        return $this->getStorageStats($user);
+    }
+
+    /**
      * Clear the storage statistics cache for a user.
      */
     public static function clearCache(int $userId): void

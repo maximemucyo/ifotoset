@@ -7,16 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="referrer" content="no-referrer-when-downgrade">
 
-    <title>{{ $title ?? config('app.name', 'ifotoset') }}</title>
-    <meta name="description" content="{{ $description ?? 'Professional photography proofing, client galleries, and booking platform.' }}">
-
-    <!-- OpenGraph / Social Meta Tags -->
-    <meta property="og:title" content="{{ $title ?? config('app.name', 'ifotoset') }}">
-    <meta property="og:description" content="{{ $description ?? 'Professional photography proofing and delivery platform.' }}">
-    <meta property="og:type" content="website">
-    @if(isset($ogImage))
-        <meta property="og:image" content="{{ $ogImage }}">
-    @endif
+    @include('layouts.partials.seo')
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

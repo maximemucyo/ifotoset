@@ -70,8 +70,10 @@ Route::domain('{username}.' . $rootHost)
         Route::get('/', [PublicPhotographerController::class, 'show'])->name('subdomain.photographer');
     });
 
-// Public Landing Page
+// Public Landing Page & Scalable XML Sitemaps
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 'index'])->name('sitemap');
+Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapController::class, 'section'])->name('sitemap.section');
 
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {
@@ -108,19 +110,19 @@ Route::middleware('auth')->group(function () {
     })->middleware(['throttle:6,1'])->name('verification.send');
 });
 
-// Public Photographer & Gallery Routes (Apex Domain Fallbacks / 302 to Canonical Subdomain)
+// Public Photographer & Gallery Routes (Apex Domain Fallbacks / 301 to Canonical Subdomain)
 Route::get('/p/{username}', function (Request $request, string $username) {
-    $target = app(\App\Services\PublicUrlService::class)->photographerUrl($username);
+    $target = app(\App\Services\PublicUrlService::class)->photographer($username);
     $query = $request->getQueryString();
-    return redirect($query ? "{$target}?{$query}" : $target, 302);
+    return redirect($query ? "{$target}?{$query}" : $target, 301);
 })->name('public.photographer');
 
 Route::post('/p/{username}/book', [PublicPhotographerController::class, 'book'])->name('public.photographer.book');
 
 Route::get('/p/{username}/{slug}', function (Request $request, string $username, string $slug) {
-    $target = app(\App\Services\PublicUrlService::class)->galleryUrl($username, $slug);
+    $target = app(\App\Services\PublicUrlService::class)->gallery($username, $slug);
     $query = $request->getQueryString();
-    return redirect($query ? "{$target}?{$query}" : $target, 302);
+    return redirect($query ? "{$target}?{$query}" : $target, 301);
 })->name('public.gallery');
 
 Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('public.gallery.photos');
@@ -128,12 +130,12 @@ Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryControll
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->name('public.gallery.export');
 Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
 
-// Shortlink Redirect (/g/{slug} -> canonical subdomain URL)
+// Shortlink Redirect (/g/{slug} -> canonical subdomain URL via 301)
 Route::get('/g/{slug}', function (Request $request, string $slug) {
     $gallery = Gallery::where('slug', $slug)->with('user')->firstOrFail();
-    $target = app(\App\Services\PublicUrlService::class)->galleryUrl($gallery->user->username, $gallery->slug);
+    $target = app(\App\Services\PublicUrlService::class)->gallery($gallery);
     $query = $request->getQueryString();
-    return redirect($query ? "{$target}?{$query}" : $target, 302);
+    return redirect($query ? "{$target}?{$query}" : $target, 301);
 });
 
 // Convenience Root Redirects

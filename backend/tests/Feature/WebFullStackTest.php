@@ -84,6 +84,7 @@ class WebFullStackTest extends TestCase
             'title' => 'Serengeti Safari Collection',
             'slug' => 'serengeti-safari-collection',
             'visibility' => 'public',
+            'show_on_profile' => true,
             'allow_photo_downloads' => true,
             'allow_gallery_downloads' => true,
         ]);
@@ -169,7 +170,7 @@ class WebFullStackTest extends TestCase
 
         // 1. Apex redirect to canonical subdomain
         $apexResponse = $this->get('/p/alexmorgan');
-        $apexResponse->assertStatus(302);
+        $apexResponse->assertStatus(301);
         $apexResponse->assertRedirect($photographerUrl);
 
         // 2. Subdomain renders portfolio
@@ -187,7 +188,7 @@ class WebFullStackTest extends TestCase
 
         // 1. Apex redirect to canonical subdomain
         $apexResponse = $this->get('/p/alexmorgan/serengeti-safari-collection');
-        $apexResponse->assertStatus(302);
+        $apexResponse->assertStatus(301);
         $apexResponse->assertRedirect($galleryUrl);
 
         // 2. Subdomain Blade HTML View
@@ -343,7 +344,7 @@ class WebFullStackTest extends TestCase
 
         // 1. Apex redirect preserves photo query parameter
         $apexResponse = $this->get("/p/alexmorgan/serengeti-safari-collection?photo={$photo->uuid}");
-        $apexResponse->assertStatus(302);
+        $apexResponse->assertStatus(301);
         $apexResponse->assertRedirect("http://alexmorgan.localhost:8000/serengeti-safari-collection?photo={$photo->uuid}");
 
         // 2. Subdomain Blade view embeds deep-linked photo dataset

@@ -264,7 +264,7 @@ class GalleryCountAndSubdomainTest extends TestCase
         $expectedCanonical = $this->urlService->galleryUrl('maximemucyo', 'binance-at-kiyovu') . "?photo={$uuid}";
 
         $response = $this->get($apexUrl);
-        $response->assertStatus(302);
+        $response->assertStatus(301);
         $response->assertRedirect($expectedCanonical);
 
         // Apex photographer redirect
@@ -272,7 +272,7 @@ class GalleryCountAndSubdomainTest extends TestCase
         $expectedPhotographerCanonical = $this->urlService->photographerUrl('maximemucyo');
 
         $photographerResponse = $this->get($apexPhotographerUrl);
-        $photographerResponse->assertStatus(302);
+        $photographerResponse->assertStatus(301);
         $photographerResponse->assertRedirect($expectedPhotographerCanonical);
     }
 
