@@ -48,6 +48,11 @@ class UploadController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
+        $declaredDuration = $request->input('duration_seconds') ?? $request->input('duration');
+        if ($declaredDuration !== null) {
+            $declaredDuration = (int) $declaredDuration;
+        }
+
         try {
             $session = $this->uploadService->createUploadSession(
                 $user,
@@ -56,10 +61,39 @@ class UploadController extends Controller
                 $validated['file_size'],
                 $validated['mime_type'],
                 $validated['sha256'],
-                $idempotencyKey
+                $idempotencyKey,
+                $declaredDuration
             );
 
             return response()->json($session, 201);
+        } catch (\App\Exceptions\VideoNotSupportedOnPlanException $e) {
+            return response()->json([
+                'code' => 'VIDEO_NOT_SUPPORTED_ON_PLAN',
+                'is_video_error' => true,
+                'message' => $e->getMessage(),
+                'upgrade_url' => route('studio.billing.index'),
+            ], 409);
+        } catch (\App\Exceptions\VideoQuotaExceededException $e) {
+            return response()->json([
+                'code' => 'VIDEO_QUOTA_EXCEEDED',
+                'is_video_error' => true,
+                'message' => $e->getMessage(),
+                'required_seconds' => $e->requiredSeconds,
+                'available_seconds' => $e->availableSeconds,
+                'limit_seconds' => $e->limitSeconds,
+                'used_seconds' => $e->usedSeconds,
+                'reserved_seconds' => $e->reservedSeconds,
+                'upgrade_url' => route('studio.billing.index'),
+            ], 409);
+        } catch (\App\Exceptions\VideoFileSizeExceededException $e) {
+            return response()->json([
+                'code' => 'VIDEO_FILE_SIZE_EXCEEDED',
+                'is_video_error' => true,
+                'message' => $e->getMessage(),
+                'file_size_bytes' => $e->fileSizeBytes,
+                'max_allowed_bytes' => $e->maxAllowedBytes,
+                'upgrade_url' => route('studio.billing.index'),
+            ], 413);
         } catch (\App\Exceptions\StorageQuotaExceededException $e) {
             return response()->json([
                 'code' => 'STORAGE_QUOTA_EXCEEDED',

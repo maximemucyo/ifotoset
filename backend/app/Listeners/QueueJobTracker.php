@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Jobs\ProcessPhotoJob;
+use App\Jobs\ProcessVideoJob;
 use App\Models\MediaJob;
 use App\Enums\MediaJobStatus;
 use Illuminate\Queue\Events\JobProcessing;
@@ -19,7 +20,7 @@ class QueueJobTracker
     public static function handleProcessing(JobProcessing $event): void
     {
         $jobInstance = self::resolveJobInstance($event->job);
-        if (!$jobInstance instanceof ProcessPhotoJob) {
+        if (!$jobInstance instanceof ProcessPhotoJob && !$jobInstance instanceof ProcessVideoJob) {
             return;
         }
 
@@ -56,7 +57,7 @@ class QueueJobTracker
     public static function handleProcessed(JobProcessed $event): void
     {
         $jobInstance = self::resolveJobInstance($event->job);
-        if (!$jobInstance instanceof ProcessPhotoJob) {
+        if (!$jobInstance instanceof ProcessPhotoJob && !$jobInstance instanceof ProcessVideoJob) {
             return;
         }
 
@@ -83,7 +84,7 @@ class QueueJobTracker
     public static function handleFailed(JobFailed $event): void
     {
         $jobInstance = self::resolveJobInstance($event->job);
-        if (!$jobInstance instanceof ProcessPhotoJob) {
+        if (!$jobInstance instanceof ProcessPhotoJob && !$jobInstance instanceof ProcessVideoJob) {
             return;
         }
 

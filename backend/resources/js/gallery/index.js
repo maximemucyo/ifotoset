@@ -47,6 +47,10 @@ export function bootstrapGallery() {
             full: card.dataset.photoFull,
             original: card.dataset.photoOriginal || card.dataset.photoFull,
             thumbnail: card.dataset.photoThumb,
+            is_video: card.dataset.isVideo === 'true',
+            duration: card.dataset.videoDuration || '',
+            delivery_url: card.dataset.photoDelivery || null,
+            delivery_download_url: card.dataset.photoDeliveryDownload || null,
             blurhash: blurhash,
             width: pw,
             height: ph

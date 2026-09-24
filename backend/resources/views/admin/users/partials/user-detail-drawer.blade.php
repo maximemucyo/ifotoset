@@ -199,6 +199,26 @@
                     </div>
                 </div>
 
+                <!-- Video Hosting Quota Meter -->
+                <div class="p-4 rounded-xl border border-border bg-card space-y-2">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-bold text-foreground flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-primary fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            Video Hosting Allocation
+                        </span>
+                        <span class="text-muted-foreground font-mono text-[11px]" x-text="user?.video?.formatted || 'No video support'"></span>
+                    </div>
+                    <div class="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
+                        <div class="bg-primary h-2.5 rounded-full transition-all duration-300"
+                             :style="`width: ${Math.min(user?.video?.percent_used || 0, 100)}%`"></div>
+                    </div>
+                    <div class="text-[11px] text-muted-foreground flex justify-between">
+                        <span>Used: <span x-text="user?.video?.used_formatted || '0m'"></span></span>
+                        <span>Reserved: <span x-text="user?.video?.reserved_formatted || '0s'"></span></span>
+                        <span x-text="`${user?.video?.percent_used || 0}% used`"></span>
+                    </div>
+                </div>
+
                 <!-- Quick Action Toggles -->
                 <div class="pt-2 flex flex-wrap gap-3">
                     <form method="POST" :action="`/admin/users/${user?.id}/status`">

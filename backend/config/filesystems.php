@@ -25,10 +25,11 @@ return [
             'endpoint' => env('BACKBLAZE_B2_ENDPOINT'), // e.g. https://s3.us-east-005.backblazeb2.com
             'use_path_style_endpoint' => true,
             'cdn_domain' => env('CLOUDFLARE_CDN_DOMAIN', 'cdn.ifotoset.com'),
+            'cdn_secret' => env('CLOUDFLARE_CDN_SECRET', env('APP_KEY')),
             'use_cdn_downloads' => env('USE_CDN_DOWNLOADS', true),
             'http' => [
-                'connect_timeout' => 10,
-                'timeout' => 30,
+                'connect_timeout' => (int) env('B2_CONNECT_TIMEOUT', 30),
+                'timeout' => (int) env('B2_TIMEOUT', 900),
             ],
         ],
     ],

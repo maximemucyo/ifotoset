@@ -3,6 +3,7 @@
 const KEY_ID = '003ff5db745bcb20000000001';
 const APP_KEY = 'K003I1TxpXT7Q5JA3EMolBQ21T8DbbM';
 const BUCKET = 'ifotoset';
+const CDN_SECRET = 'ifotoset_cdn_secret_key_2026';
 
 let authToken = '';
 let downloadUrl = '';
@@ -27,10 +28,11 @@ async function handle(request, event) {
         return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // Referer & Origin check: block direct URL navigation and hotlinking for gallery assets
+    // Authorization & Referer check: protected galleries require valid token; public gallery assets verify allowed context
     const url = new URL(request.url);
-    if (!isAllowedRequest(request, url)) {
-        return new Response('Forbidden: direct access is not allowed', {
+    const authResult = await isAllowedRequest(request, url);
+    if (!authResult) {
+        return new Response('Forbidden: direct access is not allowed or media token is invalid/expired', {
             status: 403,
             headers: {
                 'Content-Type': 'text/plain; charset=utf-8',
@@ -245,27 +247,70 @@ function isAllowedReferer(req) {
         return false;
     }
 
-    // 4. Allow embedded image elements (<img> tag)
-    if (secDest === 'image') {
+    // 4. Allow embedded image, video, and audio elements
+    if (secDest === 'image' || secDest === 'video' || secDest === 'audio') {
         return true;
     }
 
     return false;
 }
 
-function isAllowedRequest(request, url) {
+async function isAllowedRequest(request, url) {
     // Explicit downloads, ZIP archives, and custom filename deliveries are allowed directly
     if (url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download')) {
         return true;
     }
 
-    // Only enforce referer check on gallery media
-    // Avatars and public brand assets remain accessible for emails and profiles
-    if (!url.pathname.startsWith('/galleries/')) {
-        return true;
+    // 1. Protected Galleries: Strictly require valid, unexpired HMAC signed token
+    if (url.pathname.startsWith('/protected-galleries/')) {
+        const exp = url.searchParams.get('exp');
+        const sig = url.searchParams.get('sig');
+        return await verifyMediaToken(url.pathname, exp, sig);
     }
 
-    return isAllowedReferer(request);
+    // 2. Public Galleries: Enforce referer check (allow signed token bypass if present)
+    if (url.pathname.startsWith('/galleries/')) {
+        if (url.searchParams.has('sig') && url.searchParams.has('exp')) {
+            const isValid = await verifyMediaToken(url.pathname, url.searchParams.get('exp'), url.searchParams.get('sig'));
+            if (isValid) return true;
+        }
+        return isAllowedReferer(request);
+    }
+
+    // Avatars and public brand assets remain accessible for emails and profiles
+    return true;
+}
+
+async function verifyMediaToken(pathname, exp, sig) {
+    if (!exp || !sig) return false;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const expNum = parseInt(exp, 10);
+    if (isNaN(expNum) || expNum < nowSec) {
+        return false;
+    }
+
+    try {
+        const cleanPath = pathname.replace(/^\/+/, '');
+        const data = new TextEncoder().encode(`${cleanPath}:${exp}`);
+        const key = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(CDN_SECRET),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['verify']
+        );
+
+        const sigHex = sig.trim().toLowerCase();
+        if (sigHex.length !== 64 || !/^[0-9a-f]+$/.test(sigHex)) {
+            return false;
+        }
+
+        const sigBytes = new Uint8Array(sigHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        return await crypto.subtle.verify('HMAC', key, sigBytes, data);
+    } catch {
+        return false;
+    }
 }
 
 

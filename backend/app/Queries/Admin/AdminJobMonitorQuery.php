@@ -257,18 +257,354 @@ class AdminJobMonitorQuery
     }
 
     /**
+     * Resolve granular stage pipeline breakdown, active stage, and completion percentage.
+     */
+    public function resolveStageDetails(MediaJob $job): array
+    {
+        $status = $job->status ?? 'queued';
+        $progress = (string) ($job->progress ?? '');
+        $mediaType = $job->photo?->media_type ?? 'photo';
+        if (empty($mediaType) && $job->photo) {
+            $mediaType = $job->photo->isVideo() ? 'video' : 'photo';
+        }
+
+        $error = $job->error_message ?: $job->error;
+
+        if ($mediaType === 'video') {
+            return $this->resolveVideoStages($status, $progress, $error);
+        }
+
+        return $this->resolvePhotoStages($status, $progress, $error);
+    }
+
+    /**
+     * Resolve pipeline stages for Photo jobs.
+     */
+    protected function resolvePhotoStages(string $status, string $progress, ?string $error): array
+    {
+        $baseStages = [
+            [
+                'id' => 'queued',
+                'name' => 'Queued for Worker',
+                'target_percentage' => 5,
+                'description' => 'Job enqueued in Redis waiting for an available background worker.',
+            ],
+            [
+                'id' => 'download',
+                'name' => 'Downloading Original',
+                'target_percentage' => 20,
+                'description' => 'Fetching full-resolution source file from Backblaze B2 storage into worker memory.',
+            ],
+            [
+                'id' => 'metadata',
+                'name' => 'Extracting Metadata',
+                'target_percentage' => 35,
+                'description' => 'Parsing EXIF camera metadata (make, model, lens, focal length, ISO, shutter, aperture & orientation).',
+            ],
+            [
+                'id' => 'webp',
+                'name' => 'Generating WebP Variants',
+                'target_percentage' => 70,
+                'description' => 'Downscaling & lossy WebP compression for responsive sizes (XL, LG, MD, SM, XS) and uploading to B2.',
+            ],
+            [
+                'id' => 'blurhash',
+                'name' => 'Generating BlurHash',
+                'target_percentage' => 85,
+                'description' => 'Computing ultra-compact BlurHash placeholder string from XS variant for instant blurred preview.',
+            ],
+            [
+                'id' => 'statistics',
+                'name' => 'Saving & Finalizing',
+                'target_percentage' => 95,
+                'description' => 'Committing image dimensions, orientation, and EXIF records to database, setting photo status to ready.',
+            ],
+            [
+                'id' => 'completed',
+                'name' => 'Completed',
+                'target_percentage' => 100,
+                'description' => 'Optimization finished; media ready for viewing, sharing, and client download.',
+            ],
+        ];
+
+        $lowerProgress = strtolower($progress);
+        $stageIndex = 0;
+        $currentLabel = 'Queued';
+        $computedPercentage = 0;
+
+        if ($status === 'completed') {
+            $stageIndex = 6;
+            $currentLabel = 'Completed';
+            $computedPercentage = 100;
+        } elseif ($status === 'queued') {
+            $stageIndex = 0;
+            $currentLabel = 'Queued';
+            $computedPercentage = 0;
+        } else {
+            if (str_contains($lowerProgress, 'download')) {
+                $stageIndex = 1;
+                $currentLabel = 'Downloading Original';
+                $computedPercentage = 20;
+            } elseif (str_contains($lowerProgress, 'metadata') || str_contains($lowerProgress, 'exif')) {
+                $stageIndex = 2;
+                $currentLabel = 'Extracting Metadata';
+                $computedPercentage = 35;
+            } elseif (str_contains($lowerProgress, 'webp') || str_contains($lowerProgress, 'generating & uploading') || str_contains($lowerProgress, 'variant')) {
+                $stageIndex = 3;
+                $currentLabel = !empty($progress) ? $progress : 'Generating WebP Variants';
+                if (str_contains($lowerProgress, 'xl')) {
+                    $computedPercentage = 45;
+                } elseif (str_contains($lowerProgress, 'lg')) {
+                    $computedPercentage = 55;
+                } elseif (str_contains($lowerProgress, 'md')) {
+                    $computedPercentage = 65;
+                } elseif (str_contains($lowerProgress, 'sm')) {
+                    $computedPercentage = 75;
+                } elseif (str_contains($lowerProgress, 'xs')) {
+                    $computedPercentage = 80;
+                } else {
+                    $computedPercentage = 60;
+                }
+            } elseif (str_contains($lowerProgress, 'blurhash')) {
+                $stageIndex = 4;
+                $currentLabel = 'Generating BlurHash';
+                $computedPercentage = 85;
+            } elseif (str_contains($lowerProgress, 'statistic') || str_contains($lowerProgress, 'updating') || str_contains($lowerProgress, 'finaliz')) {
+                $stageIndex = 5;
+                $currentLabel = 'Saving Statistics';
+                $computedPercentage = 95;
+            } elseif (str_contains($lowerProgress, 'completed') || str_contains($lowerProgress, 'finalized')) {
+                $stageIndex = 6;
+                $currentLabel = 'Completed';
+                $computedPercentage = 100;
+            } else {
+                $stageIndex = 1;
+                $currentLabel = !empty($progress) ? $progress : 'Processing';
+                $computedPercentage = 20;
+            }
+        }
+
+        $stages = [];
+        foreach ($baseStages as $idx => $s) {
+            $stageStatus = 'pending';
+            if ($status === 'completed') {
+                $stageStatus = 'completed';
+            } elseif ($status === 'failed') {
+                if ($idx < $stageIndex) {
+                    $stageStatus = 'completed';
+                } elseif ($idx === $stageIndex) {
+                    $stageStatus = 'failed';
+                } else {
+                    $stageStatus = 'pending';
+                }
+            } else {
+                if ($idx < $stageIndex) {
+                    $stageStatus = 'completed';
+                } elseif ($idx === $stageIndex) {
+                    $stageStatus = ($status === 'queued') ? 'queued' : 'current';
+                } else {
+                    $stageStatus = 'pending';
+                }
+            }
+
+            $stages[] = [
+                'id' => $s['id'],
+                'step_number' => $idx + 1,
+                'name' => $s['name'],
+                'target_percentage' => $s['target_percentage'],
+                'description' => $s['description'],
+                'status' => $stageStatus,
+            ];
+        }
+
+        return [
+            'media_type' => 'photo',
+            'percentage' => $computedPercentage,
+            'current_stage_label' => $currentLabel,
+            'current_stage_index' => $stageIndex,
+            'stages' => $stages,
+        ];
+    }
+
+    /**
+     * Resolve pipeline stages for Video jobs.
+     */
+    protected function resolveVideoStages(string $status, string $progress, ?string $error): array
+    {
+        $baseStages = [
+            [
+                'id' => 'queued',
+                'name' => 'Queued for Worker',
+                'target_percentage' => 5,
+                'description' => 'Video job waiting in Redis queue for worker pick-up.',
+            ],
+            [
+                'id' => 'download',
+                'name' => 'Downloading Original Video',
+                'target_percentage' => 20,
+                'description' => 'Streaming source video file from Backblaze B2 storage into local scratch directory.',
+            ],
+            [
+                'id' => 'probe',
+                'name' => 'Analyzing Video Metadata',
+                'target_percentage' => 35,
+                'description' => 'Executing ffprobe to inspect video codec, resolution, framerate, duration, and audio stream.',
+            ],
+            [
+                'id' => 'quota',
+                'name' => 'Committing Quota',
+                'target_percentage' => 45,
+                'description' => 'Atomically verifying photographer plan video duration limits and locking usage quota.',
+            ],
+            [
+                'id' => 'poster',
+                'name' => 'Extracting Poster & BlurHash',
+                'target_percentage' => 60,
+                'description' => 'Extracting high-resolution poster frame thumbnail and computing preview BlurHash.',
+            ],
+            [
+                'id' => 'delivery',
+                'name' => 'Preparing Web Delivery',
+                'target_percentage' => 75,
+                'description' => 'Fast-remuxing or H.264/AAC transcoding optimized for progressive web streaming playback.',
+            ],
+            [
+                'id' => 'upload',
+                'name' => 'Uploading Delivery Files',
+                'target_percentage' => 90,
+                'description' => 'Transferring streaming delivery MP4 and poster images back to Backblaze B2 storage.',
+            ],
+            [
+                'id' => 'statistics',
+                'name' => 'Finalizing Video',
+                'target_percentage' => 95,
+                'description' => 'Persisting duration, resolutions, stream URLs, and setting status to ready.',
+            ],
+            [
+                'id' => 'completed',
+                'name' => 'Completed',
+                'target_percentage' => 100,
+                'description' => 'Video delivery fully prepared and ready for streaming in client gallery.',
+            ],
+        ];
+
+        $lowerProgress = strtolower($progress);
+        $stageIndex = 0;
+        $currentLabel = 'Queued';
+        $computedPercentage = 0;
+
+        if ($status === 'completed') {
+            $stageIndex = 8;
+            $currentLabel = 'Completed';
+            $computedPercentage = 100;
+        } elseif ($status === 'queued') {
+            $stageIndex = 0;
+            $currentLabel = 'Queued';
+            $computedPercentage = 0;
+        } else {
+            if (str_contains($lowerProgress, 'download')) {
+                $stageIndex = 1;
+                $currentLabel = 'Downloading Original';
+                $computedPercentage = 20;
+            } elseif (str_contains($lowerProgress, 'metadata') || str_contains($lowerProgress, 'probe') || str_contains($lowerProgress, 'analyz')) {
+                $stageIndex = 2;
+                $currentLabel = 'Analyzing Video Metadata';
+                $computedPercentage = 35;
+            } elseif (str_contains($lowerProgress, 'quota') || str_contains($lowerProgress, 'committ')) {
+                $stageIndex = 3;
+                $currentLabel = 'Committing Quota';
+                $computedPercentage = 45;
+            } elseif (str_contains($lowerProgress, 'poster')) {
+                $stageIndex = 4;
+                $currentLabel = 'Extracting Poster';
+                $computedPercentage = 60;
+            } elseif (str_contains($lowerProgress, 'delivery') || str_contains($lowerProgress, 'prepar') || str_contains($lowerProgress, 'transcod')) {
+                $stageIndex = 5;
+                $currentLabel = 'Preparing Web Delivery';
+                $computedPercentage = 75;
+            } elseif (str_contains($lowerProgress, 'upload')) {
+                $stageIndex = 6;
+                $currentLabel = 'Uploading Delivery Files';
+                $computedPercentage = 90;
+            } elseif (str_contains($lowerProgress, 'finaliz') || str_contains($lowerProgress, 'statistic')) {
+                $stageIndex = 7;
+                $currentLabel = 'Finalizing Video';
+                $computedPercentage = 95;
+            } elseif (str_contains($lowerProgress, 'completed')) {
+                $stageIndex = 8;
+                $currentLabel = 'Completed';
+                $computedPercentage = 100;
+            } else {
+                $stageIndex = 1;
+                $currentLabel = !empty($progress) ? $progress : 'Processing';
+                $computedPercentage = 20;
+            }
+        }
+
+        $stages = [];
+        foreach ($baseStages as $idx => $s) {
+            $stageStatus = 'pending';
+            if ($status === 'completed') {
+                $stageStatus = 'completed';
+            } elseif ($status === 'failed') {
+                if ($idx < $stageIndex) {
+                    $stageStatus = 'completed';
+                } elseif ($idx === $stageIndex) {
+                    $stageStatus = 'failed';
+                } else {
+                    $stageStatus = 'pending';
+                }
+            } else {
+                if ($idx < $stageIndex) {
+                    $stageStatus = 'completed';
+                } elseif ($idx === $stageIndex) {
+                    $stageStatus = ($status === 'queued') ? 'queued' : 'current';
+                } else {
+                    $stageStatus = 'pending';
+                }
+            }
+
+            $stages[] = [
+                'id' => $s['id'],
+                'step_number' => $idx + 1,
+                'name' => $s['name'],
+                'target_percentage' => $s['target_percentage'],
+                'description' => $s['description'],
+                'status' => $stageStatus,
+            ];
+        }
+
+        return [
+            'media_type' => 'video',
+            'percentage' => $computedPercentage,
+            'current_stage_label' => $currentLabel,
+            'current_stage_index' => $stageIndex,
+            'stages' => $stages,
+        ];
+    }
+
+    /**
      * Transform a single MediaJob record for consistent API and frontend consumption.
      */
     public function transformMediaJob(MediaJob $job): array
     {
+        $stageInfo = $this->resolveStageDetails($job);
+
         return [
             'id' => $job->id,
+            'job_uuid' => $job->job_uuid,
+            'job_name' => class_basename($job->job_name ?: ($job->job_type ?: 'ProcessPhotoJob')),
+            'queue' => $job->queue ?: 'photos',
             'photo_uuid' => $job->photo?->uuid,
             'original_filename' => $job->photo?->original_filename ?: ($job->photo?->filename ?: 'photo.jpg'),
             'gallery_title' => $job->photo?->gallery?->title ?: 'N/A',
             'studio_name' => $job->photo?->gallery?->user?->name ?: 'N/A',
+            'media_type' => $stageInfo['media_type'],
             'status' => $job->status,
             'progress' => $job->progress ?: ($job->status === 'completed' ? 'Finalized' : ($job->status === 'failed' ? 'Failed' : 'Queued')),
+            'percentage' => $stageInfo['percentage'],
+            'stage_label' => $stageInfo['current_stage_label'],
+            'stages' => $stageInfo['stages'],
             'attempts' => $job->attempts,
             'max_attempts' => $job->max_attempts ?? 3,
             'duration_ms' => $job->duration_ms,
@@ -277,6 +613,9 @@ class AdminJobMonitorQuery
             'completed_at' => $job->completed_at?->toIso8601String(),
             'failed_at' => $job->failed_at?->toIso8601String(),
             'created_at' => $job->created_at?->toIso8601String(),
+            'file_size' => $job->photo?->size,
+            'width' => $job->photo?->width,
+            'height' => $job->photo?->height,
         ];
     }
 

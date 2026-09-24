@@ -37,6 +37,25 @@ class ReconcileStorageReservationsCommand extends Command
 
         $affectedUserIds = $staleQuery->pluck('user_id')->unique()->all();
 
+        $expiredSessions = UploadSession::where('status', UploadStatus::Requested->value)
+            ->where('expires_at', '<', now());
+
+        if ($specificUserId) {
+            $expiredSessions->where('user_id', $specificUserId);
+        }
+
+        // Clean up any partial objects in storage asynchronously for expired sessions
+        $storageService = app(\App\Services\StorageService::class);
+        $expiredSessions->chunkById(50, function ($sessions) use ($storageService) {
+            foreach ($sessions as $session) {
+                try {
+                    $storageService->delete($session->object_key);
+                } catch (\Throwable $e) {
+                    // Ignore storage deletion errors for expired reservations
+                }
+            }
+        });
+
         $expiredCount = $staleQuery->update([
             'status' => UploadStatus::Expired->value,
             'updated_at' => now(),
@@ -44,13 +63,14 @@ class ReconcileStorageReservationsCommand extends Command
 
         $this->info("Expired {$expiredCount} stale upload session(s).");
 
-        // 2. Reconcile storage_reserved_bytes for affected users (or all users if specific option given)
+        // 2. Reconcile storage_reserved_bytes and video_seconds_reserved for affected users
         $userIdsToReconcile = $specificUserId ? [(int) $specificUserId] : $affectedUserIds;
 
         if (empty($userIdsToReconcile) && !$specificUserId) {
-            // Self-healing: also pick any users who currently have storage_reserved_bytes > 0
+            // Self-healing: also pick any users who currently have storage or video reservations > 0
             $activeReservedUserIds = DB::table('users')
                 ->where('storage_reserved_bytes', '>', 0)
+                ->orWhere('video_seconds_reserved', '>', 0)
                 ->pluck('id')
                 ->all();
             $userIdsToReconcile = array_unique(array_merge($userIdsToReconcile, $activeReservedUserIds));
@@ -58,15 +78,20 @@ class ReconcileStorageReservationsCommand extends Command
 
         $reconciledCount = 0;
         foreach ($userIdsToReconcile as $uid) {
-            $actualReserved = (int) DB::table('upload_sessions')
+            $activeSessions = DB::table('upload_sessions')
                 ->where('user_id', $uid)
                 ->where('status', UploadStatus::Requested->value)
-                ->where('expires_at', '>', now())
-                ->sum('expected_size');
+                ->where('expires_at', '>', now());
+
+            $actualStorageReserved = (int) (clone $activeSessions)->sum('expected_size');
+            $actualVideoReserved = (int) (clone $activeSessions)->sum('reserved_duration_seconds');
 
             DB::table('users')
                 ->where('id', $uid)
-                ->update(['storage_reserved_bytes' => $actualReserved]);
+                ->update([
+                    'storage_reserved_bytes' => $actualStorageReserved,
+                    'video_seconds_reserved' => $actualVideoReserved,
+                ]);
 
             $reconciledCount++;
         }

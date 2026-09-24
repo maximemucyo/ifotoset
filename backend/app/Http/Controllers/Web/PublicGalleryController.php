@@ -69,39 +69,30 @@ class PublicGalleryController extends Controller
             $photoUuid = $request->query('photo');
             if ($photoUuid) {
                 $foundInBatch = $initialPhotos->firstWhere('uuid', $photoUuid);
-                if ($foundInBatch) {
+                $resolvePhoto = $foundInBatch ?: Photo::where('gallery_id', $gallery->id)
+                    ->where('uuid', $photoUuid)
+                    ->where('is_hidden', false)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                if ($resolvePhoto) {
+                    $mediaTokenService = app(\App\Services\MediaTokenService::class);
                     $deepLinkedPhoto = [
-                        'id' => $foundInBatch->id,
-                        'uuid' => $foundInBatch->uuid,
-                        'filename' => $foundInBatch->original_filename,
-                        'large' => $foundInBatch->getUrl('lg'),
-                        'full' => $foundInBatch->getUrl('xl'),
-                        'original' => $foundInBatch->getUrl(),
-                        'thumbnail' => $foundInBatch->getUrl('md'),
-                        'width' => $foundInBatch->width,
-                        'height' => $foundInBatch->height,
-                        'blurhash' => $foundInBatch->blurhash,
+                        'id' => $resolvePhoto->id,
+                        'uuid' => $resolvePhoto->uuid,
+                        'filename' => $resolvePhoto->original_filename,
+                        'large' => $resolvePhoto->getUrl('lg'),
+                        'full' => $resolvePhoto->getUrl('xl'),
+                        'original' => $resolvePhoto->getOriginalDownloadUrl(),
+                        'thumbnail' => $resolvePhoto->getThumbnailUrl('md'),
+                        'is_video' => $resolvePhoto->isVideo(),
+                        'duration' => $resolvePhoto->duration_formatted,
+                        'delivery_url' => $resolvePhoto->isVideo() ? $mediaTokenService->getDeliveryUrl($resolvePhoto, $gallery) : null,
+                        'delivery_download_url' => $resolvePhoto->isVideo() ? $resolvePhoto->getDeliveryDownloadUrl() : $resolvePhoto->getOriginalDownloadUrl(),
+                        'width' => $resolvePhoto->width,
+                        'height' => $resolvePhoto->height,
+                        'blurhash' => $resolvePhoto->blurhash,
                     ];
-                } else {
-                    $dbPhoto = Photo::where('gallery_id', $gallery->id)
-                        ->where('uuid', $photoUuid)
-                        ->where('is_hidden', false)
-                        ->whereNull('deleted_at')
-                        ->first();
-                    if ($dbPhoto) {
-                        $deepLinkedPhoto = [
-                            'id' => $dbPhoto->id,
-                            'uuid' => $dbPhoto->uuid,
-                            'filename' => $dbPhoto->original_filename,
-                            'large' => $dbPhoto->getUrl('lg'),
-                            'full' => $dbPhoto->getUrl('xl'),
-                            'original' => $dbPhoto->getUrl(),
-                            'thumbnail' => $dbPhoto->getUrl('md'),
-                            'width' => $dbPhoto->width,
-                            'height' => $dbPhoto->height,
-                            'blurhash' => $dbPhoto->blurhash,
-                        ];
-                    }
                 }
             }
 
@@ -162,6 +153,8 @@ class PublicGalleryController extends Controller
             return $accessError;
         }
 
+        $mediaTokenService = app(\App\Services\MediaTokenService::class);
+
         // Single photo resolver
         if ($singleUuid = $request->query('uuid')) {
             $photo = Photo::where('gallery_id', $gallery->id)
@@ -178,14 +171,18 @@ class PublicGalleryController extends Controller
                 'data' => [
                     'id' => $photo->id,
                     'uuid' => $photo->uuid,
-                    'large' => $photo->getUrl('lg'),
-                    'full' => $photo->getUrl('xl'),
-                    'original' => $photo->getUrl(),
-                    'thumbnail' => $photo->getUrl('md'),
+                    'filename' => $photo->original_filename,
+                    'large' => $photo->isVideo() ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
+                    'full' => $photo->isVideo() ? $photo->getPosterUrl('xl') : $photo->getUrl('xl'),
+                    'original' => $photo->getOriginalDownloadUrl(),
+                    'thumbnail' => $photo->getThumbnailUrl('md'),
+                    'is_video' => $photo->isVideo(),
+                    'duration' => $photo->duration_formatted,
+                    'delivery_url' => $photo->isVideo() ? $mediaTokenService->getDeliveryUrl($photo, $gallery) : null,
+                    'delivery_download_url' => $photo->isVideo() ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
                     'width' => $photo->width,
                     'height' => $photo->height,
                     'blurhash' => $photo->blurhash,
-                    'filename' => $photo->original_filename,
                 ]
             ]);
         }
@@ -200,18 +197,22 @@ class PublicGalleryController extends Controller
 
         $paginated = $this->photoQuery->getPaginatedForGallery($gallery, $perPage, is_array($uuids) ? $uuids : null);
 
-        $data = collect($paginated->items())->map(function (Photo $photo) {
+        $data = collect($paginated->items())->map(function (Photo $photo) use ($gallery, $mediaTokenService) {
             return [
                 'id' => $photo->id,
                 'uuid' => $photo->uuid,
-                'large' => $photo->getUrl('lg'),
-                'full' => $photo->getUrl('xl'),
-                'original' => $photo->getUrl(),
-                'thumbnail' => $photo->getUrl('md'),
+                'filename' => $photo->original_filename,
+                'large' => $photo->isVideo() ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
+                'full' => $photo->isVideo() ? $photo->getPosterUrl('xl') : $photo->getUrl('xl'),
+                'original' => $photo->getOriginalDownloadUrl(),
+                'thumbnail' => $photo->getThumbnailUrl('md'),
+                'is_video' => $photo->isVideo(),
+                'duration' => $photo->duration_formatted,
+                'delivery_url' => $photo->isVideo() ? $mediaTokenService->getDeliveryUrl($photo, $gallery) : null,
+                'delivery_download_url' => $photo->isVideo() ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
                 'width' => $photo->width,
                 'height' => $photo->height,
                 'blurhash' => $photo->blurhash,
-                'filename' => $photo->original_filename,
             ];
         });
 
@@ -354,7 +355,14 @@ class PublicGalleryController extends Controller
         ]);
 
         $filename = $photo->original_filename ?: ($photo->filename ?: 'photo.jpg');
-        $storagePath = ltrim($photo->path . '/' . ($photo->filename ?? $photo->stored_filename), '/');
+        if ($photo->isVideo()) {
+            $storagePath = $photo->delivery_path ?: $photo->original_path ?: ltrim($photo->path . '/' . ($photo->filename ?? $photo->stored_filename), '/');
+            if (!str_ends_with(strtolower($filename), '.mp4')) {
+                $filename = pathinfo($filename, PATHINFO_FILENAME) . '.mp4';
+            }
+        } else {
+            $storagePath = ltrim($photo->path . '/' . ($photo->filename ?? $photo->stored_filename), '/');
+        }
 
         // Check if running on local storage disk or mocked storage without S3 credentials
         if (config('filesystems.default') === 'local' || !config('filesystems.disks.b2.key')) {

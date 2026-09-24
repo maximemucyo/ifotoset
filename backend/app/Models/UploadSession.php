@@ -17,6 +17,7 @@ class UploadSession extends Model
         'object_key',
         'original_filename',
         'expected_size',
+        'reserved_duration_seconds',
         'expected_sha256',
         'status',
         'expires_at',
@@ -25,6 +26,7 @@ class UploadSession extends Model
     protected $casts = [
         'uuid' => UuidBinaryCast::class,
         'expected_size' => 'integer',
+        'reserved_duration_seconds' => 'integer',
         'expires_at' => 'datetime',
     ];
 }

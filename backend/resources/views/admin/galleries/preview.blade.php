@@ -1,7 +1,101 @@
 @extends('layouts.admin', ['title' => 'Moderation Preview - ' . $gallery->title])
 
 @section('content')
-<div class="space-y-6" x-data="{ takedownModalOpen: false, takedownReason: '' }">
+<div class="space-y-6" x-data="{
+    takedownModalOpen: false,
+    takedownReason: '',
+    previewOpen: false,
+    currentMedia: null,
+    activeArtplayer: null,
+    openPreview(media) {
+        this.currentMedia = media;
+        this.previewOpen = true;
+        document.body.style.overflow = 'hidden';
+        if (media.isVideo) {
+            this.$nextTick(() => {
+                this.initArtplayer(media);
+            });
+        }
+    },
+    closePreview() {
+        this.teardownArtplayer();
+        this.previewOpen = false;
+        this.currentMedia = null;
+        document.body.style.overflow = '';
+    },
+    initArtplayer(media) {
+        this.teardownArtplayer();
+        const container = document.getElementById('admin-artplayer-container');
+        if (!container) return;
+        const videoUrl = media.videoUrl || '';
+        const posterUrl = media.posterUrl || media.imageUrl || '';
+
+        if (window.Artplayer) {
+            try {
+                this.activeArtplayer = new window.Artplayer({
+                    container: container,
+                    url: videoUrl,
+                    poster: posterUrl,
+                    volume: 0.7,
+                    isLive: false,
+                    muted: true,
+                    autoplay: true,
+                    pip: true,
+                    autoSize: false,
+                    autoMini: false,
+                    setting: true,
+                    loop: false,
+                    playbackRate: true,
+                    aspectRatio: true,
+                    fullscreen: true,
+                    fullscreenWeb: true,
+                    playsInline: true,
+                    airplay: true,
+                    theme: '#e11d48',
+                    customType: {
+                        m3u8: function (video, url, artInstance) {
+                            if (window.Hls && window.Hls.isSupported()) {
+                                if (artInstance.hls) artInstance.hls.destroy();
+                                const hls = new window.Hls();
+                                hls.loadSource(url);
+                                hls.attachMedia(video);
+                                artInstance.hls = hls;
+                                artInstance.on('destroy', () => hls.destroy());
+                            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                video.src = url;
+                            } else {
+                                artInstance.notice.show = 'Unsupported video format';
+                            }
+                        },
+                    },
+                });
+            } catch (e) {
+                console.error('[Admin Preview] Artplayer init failed:', e);
+            }
+        }
+
+        if (!this.activeArtplayer) {
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.poster = posterUrl;
+            video.controls = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.className = 'max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl';
+            container.appendChild(video);
+        }
+    },
+    teardownArtplayer() {
+        if (this.activeArtplayer) {
+            try { this.activeArtplayer.destroy(true); } catch (e) {}
+            this.activeArtplayer = null;
+        }
+        const container = document.getElementById('admin-artplayer-container');
+        if (container) {
+            container.innerHTML = '';
+        }
+    }
+}">
     <!-- Admin Moderation Mode Banner -->
     <div class="rounded-xl border border-primary/30 bg-primary/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -149,18 +243,43 @@
         @else
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 @foreach($photos as $photo)
-                    <div class="group relative rounded-xl overflow-hidden bg-muted border border-border aspect-square shadow-sm hover:shadow-md transition-all">
+                    @php
+                        $isVideo = $photo->isVideo();
+                        $videoUrl = $isVideo ? ($photo->getDeliveryUrl() ?? $photo->getUrl()) : null;
+                        $posterUrl = $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : null;
+                        $previewUrl = $isVideo ? ($posterUrl ?? $photo->getUrl('md')) : $photo->getUrl('xl');
+                    @endphp
+                    <div class="group relative rounded-xl overflow-hidden bg-muted border border-border aspect-square shadow-sm hover:shadow-md transition-all cursor-pointer select-none"
+                         @click="openPreview({
+                             uuid: '{{ $photo->uuid }}',
+                             isVideo: {{ $isVideo ? 'true' : 'false' }},
+                             videoUrl: '{{ $videoUrl }}',
+                             posterUrl: '{{ $posterUrl }}',
+                             imageUrl: '{{ $previewUrl }}',
+                             filename: '{{ addslashes($photo->original_filename) }}',
+                             duration: '{{ $photo->duration_formatted }}',
+                             sizeFormatted: '{{ round($photo->size / 1024) }} KB'
+                         })">
                         <img src="{{ $photo->getUrl('md') }}"
                              alt="{{ $photo->original_filename }}"
                              loading="lazy"
                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
+
+                        @if($isVideo)
+                            <!-- Video Indicator Badge -->
+                            <div class="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-semibold flex items-center gap-1">
+                                <svg class="w-3 h-3 text-red-500 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span>{{ $photo->duration_formatted ?: 'Video' }}</span>
+                            </div>
+                        @endif
+
                         <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between text-white text-[10px]">
                             <div class="truncate font-medium">{{ $photo->original_filename }}</div>
                             <div class="flex items-center justify-between font-mono">
                                 <span>{{ round($photo->size / 1024) }} KB</span>
-                                <a href="{{ $photo->getUrl('xl') }}" target="_blank" class="px-2 py-1 rounded bg-white/20 hover:bg-white/40 text-white font-bold transition-colors">
-                                    Full &nearr;
-                                </a>
+                                <span class="px-2 py-1 rounded bg-white/20 hover:bg-white/40 text-white font-bold transition-colors">
+                                    {{ $isVideo ? 'Play Video ▶' : 'Preview ↗' }}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -214,5 +333,64 @@
             </form>
         </div>
     </div>
+
+    <!-- Admin Media Preview Modal (Artplayer for Videos, Zoom/Inspect for Photos) -->
+    <div x-show="previewOpen"
+         x-transition
+         @keydown.escape.window="closePreview()"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md select-none"
+         style="display: none;">
+        <div @click.away="closePreview()" class="relative max-w-5xl w-full flex flex-col items-center max-h-[92vh]">
+            <!-- Header -->
+            <div class="w-full flex items-center justify-between text-white pb-3 px-2 border-b border-white/10 mb-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-semibold truncate max-w-md" x-text="currentMedia?.filename"></span>
+                    <template x-if="currentMedia?.isVideo">
+                        <span class="px-2 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider">Video</span>
+                    </template>
+                    <template x-if="currentMedia?.duration">
+                        <span class="text-white/60 text-xs font-mono" x-text="currentMedia.duration"></span>
+                    </template>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" @click="closePreview()" class="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors" title="Close preview (Esc)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Media Container -->
+            <div class="w-full flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+                <template x-if="currentMedia && currentMedia.isVideo">
+                    <div class="w-full flex items-center justify-center">
+                        <div id="admin-artplayer-container"
+                             class="w-[85vw] max-w-4xl h-[65vh] max-h-[75vh] rounded-xl shadow-2xl overflow-hidden bg-black flex items-center justify-center select-auto pointer-events-auto">
+                        </div>
+                    </div>
+                </template>
+                <template x-if="currentMedia && !currentMedia.isVideo">
+                    <img :src="currentMedia?.imageUrl"
+                         :alt="currentMedia?.filename"
+                         class="max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl">
+                </template>
+            </div>
+
+            <!-- Footer Details -->
+            <div class="w-full flex items-center justify-between text-xs text-white/60 pt-3 px-2 border-t border-white/10 mt-3 font-mono">
+                <span x-text="currentMedia?.sizeFormatted"></span>
+                <template x-if="currentMedia?.videoUrl || currentMedia?.imageUrl">
+                    <a :href="currentMedia.videoUrl || currentMedia.imageUrl" target="_blank" download class="text-primary hover:underline flex items-center gap-1 font-sans">
+                        <span>Download Original</span>
+                        <span>&darr;</span>
+                    </a>
+                </template>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+@endpush

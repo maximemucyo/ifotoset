@@ -477,7 +477,7 @@
             </button>
 
             <!-- Zoom Controls -->
-            <div class="hidden md:flex items-center gap-1 border-l border-border/60 pl-2 ml-1">
+            <div id="lightbox-zoom-controls" class="hidden md:flex items-center gap-1 border-l border-border/60 pl-2 ml-1">
                 <button type="button" id="lightbox-btn-zoom-out" class="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40" aria-label="Zoom out">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -834,5 +834,7 @@ function toggleTheme() {
 @endsection
 
 @push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
     @vite(['resources/js/pages/gallery.js'])
 @endpush

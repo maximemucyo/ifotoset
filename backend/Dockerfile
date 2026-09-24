@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev \
     libwebp-dev \
-    libzip-dev
+    libzip-dev \
+    ffmpeg
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp
 RUN docker-php-ext-install pdo_mysql bcmath gd exif zip pcntl

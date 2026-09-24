@@ -37,6 +37,18 @@ class JobMonitorController extends Controller
     }
 
     /**
+     * Dispatch the appropriate background processing job based on media type.
+     */
+    protected function dispatchJobForPhoto(\App\Models\Photo $photo): void
+    {
+        if ($photo->media_type === 'video' || (method_exists($photo, 'isVideo') && $photo->isVideo())) {
+            \App\Jobs\ProcessVideoJob::dispatch($photo, 30);
+        } else {
+            \App\Jobs\ProcessPhotoJob::dispatch($photo);
+        }
+    }
+
+    /**
      * Retry a single media job.
      * POST /admin/queue/retry/{id}
      */
@@ -61,7 +73,7 @@ class JobMonitorController extends Controller
             'error_message' => null,
         ]);
 
-        \App\Jobs\ProcessPhotoJob::dispatch($job->photo);
+        $this->dispatchJobForPhoto($job->photo);
 
         return response()->json([
             'success' => true,
@@ -91,7 +103,7 @@ class JobMonitorController extends Controller
                     'completed_at' => null,
                     'error_message' => null,
                 ]);
-                \App\Jobs\ProcessPhotoJob::dispatch($job->photo);
+                $this->dispatchJobForPhoto($job->photo);
                 $count++;
             }
         }
@@ -116,7 +128,7 @@ class JobMonitorController extends Controller
         $count = 0;
         foreach ($queuedJobs as $job) {
             if ($job->photo) {
-                \App\Jobs\ProcessPhotoJob::dispatch($job->photo);
+                $this->dispatchJobForPhoto($job->photo);
                 $count++;
             }
         }
@@ -152,7 +164,7 @@ class JobMonitorController extends Controller
                     'completed_at' => null,
                     'error_message' => null,
                 ]);
-                \App\Jobs\ProcessPhotoJob::dispatch($job->photo);
+                $this->dispatchJobForPhoto($job->photo);
                 $count++;
             }
         }

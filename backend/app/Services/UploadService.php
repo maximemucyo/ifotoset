@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\MediaJobStatus;
 use App\Enums\PhotoStatus;
 use App\Enums\UploadStatus;
 use App\Exceptions\StorageQuotaExceededException;
 use App\Models\Gallery;
+use App\Models\MediaJob;
 use App\Models\Photo;
 use App\Models\StorageDisk;
 use App\Models\UploadSession;
@@ -30,8 +32,43 @@ class UploadService
         int $fileSize,
         string $mimeType,
         string $sha256,
-        string $idempotencyKey
+        string $idempotencyKey,
+        ?int $declaredDurationSeconds = null
     ): array {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $isVideo = str_starts_with(strtolower($mimeType), 'video/') || in_array($extension, ['mp4', 'mov', 'webm']);
+
+        // Video plan & quota enforcement
+        $videoReservation = 0;
+        if ($isVideo) {
+            if (!$user->hasVideoSupport()) {
+                throw new \App\Exceptions\VideoNotSupportedOnPlanException();
+            }
+
+            $maxAllowedBytes = (int) ($user->plan?->max_video_size_bytes ?: 524288000); // 500MB default
+            if ($maxAllowedBytes > 0 && $fileSize > $maxAllowedBytes) {
+                throw new \App\Exceptions\VideoFileSizeExceededException($fileSize, $maxAllowedBytes);
+            }
+
+            $maxSingleDuration = (int) ($user->plan?->max_single_video_duration_seconds ?: 900); // 15 mins default
+            if ($declaredDurationSeconds !== null && $declaredDurationSeconds > 0 && $declaredDurationSeconds <= $maxSingleDuration) {
+                $videoReservation = (int) $declaredDurationSeconds;
+            } else {
+                $videoReservation = $maxSingleDuration;
+            }
+
+            $availableSeconds = $user->getAvailableVideoSeconds();
+            if ($availableSeconds < $videoReservation) {
+                throw new \App\Exceptions\VideoQuotaExceededException(
+                    requiredSeconds: $videoReservation,
+                    availableSeconds: $availableSeconds,
+                    limitSeconds: (int) ($user->plan?->video_limit_seconds ?? $user->plan?->video_limit ?? 0),
+                    usedSeconds: (int) $user->video_seconds_used,
+                    reservedSeconds: (int) $user->video_seconds_reserved
+                );
+            }
+        }
+
         // Idempotency check: Return existing active session without allocating a second reservation
         $existingSession = UploadSession::where('user_id', $user->id)
             ->where('idempotency_key', $idempotencyKey)
@@ -67,11 +104,12 @@ class UploadService
 
         if ($staleSession) {
             if ($staleSession->status === UploadStatus::Requested->value) {
-                // Release old reservation if it was still in requested status
+                // Release old storage and video reservations
                 DB::table('users')
                     ->where('id', $user->id)
                     ->update([
                         'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$staleSession->expected_size} THEN storage_reserved_bytes - {$staleSession->expected_size} ELSE 0 END"),
+                        'video_seconds_reserved' => DB::raw("CASE WHEN video_seconds_reserved >= {$staleSession->reserved_duration_seconds} THEN video_seconds_reserved - {$staleSession->reserved_duration_seconds} ELSE 0 END"),
                     ]);
             }
             $staleSession->delete();
@@ -106,14 +144,28 @@ class UploadService
                 ->increment('storage_reserved_bytes', $fileSize);
         }
 
+        // Atomic video seconds reservation
+        if ($isVideo && $videoReservation > 0) {
+            DB::table('users')
+                ->where('id', $user->id)
+                ->increment('video_seconds_reserved', $videoReservation);
+        }
+
         // Generate unique UUID and object path
         $photoUuid = Uuid::uuid7()->toString();
         $basename = pathinfo($filename, PATHINFO_FILENAME);
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
         $sanitizedBasename = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $basename);
         $sanitizedFilename = $sanitizedBasename . '.' . $extension;
 
-        $objectKey = "galleries/{$gallery->uuid}/photos/{$photoUuid}/{$sanitizedFilename}";
+        $isProtected = ($gallery->visibility !== 'public' || !empty($gallery->password_hash));
+        $prefix = $isProtected ? "protected-galleries/{$gallery->uuid}/" : "galleries/{$gallery->uuid}/";
+
+        if ($isVideo) {
+            $objectKey = "{$prefix}videos/{$photoUuid}/original.{$extension}";
+        } else {
+            $objectKey = "{$prefix}photos/{$photoUuid}/{$sanitizedFilename}";
+        }
+
         $expiresAt = now()->addHours(2);
 
         $session = UploadSession::create([
@@ -124,6 +176,7 @@ class UploadService
             'object_key' => $objectKey,
             'original_filename' => $filename,
             'expected_size' => $fileSize,
+            'reserved_duration_seconds' => $videoReservation,
             'expected_sha256' => $sha256,
             'status' => UploadStatus::Requested->value,
             'expires_at' => $expiresAt,
@@ -174,7 +227,7 @@ class UploadService
             throw new Exception("File size mismatch. Expected {$session->expected_size} bytes, got {$actualSize} bytes.");
         }
 
-        // 2. Database Transaction: Create photo record & update upload session status
+        // 2. Database Transaction: Create photo/video record & update upload session status
         return DB::transaction(function () use ($session, $user) {
             $defaultDisk = StorageDisk::firstOrCreate([
                 'driver' => 'b2',
@@ -185,25 +238,33 @@ class UploadService
                 'cdn_domain' => config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com'),
             ]);
 
-            $extension = pathinfo($session->object_key, PATHINFO_EXTENSION);
-            $mimeType = match(strtolower($extension)) {
+            $extension = strtolower(pathinfo($session->object_key, PATHINFO_EXTENSION));
+            $isVideo = in_array($extension, ['mp4', 'mov', 'webm']) || ($session->reserved_duration_seconds > 0);
+
+            $mimeType = match($extension) {
+                'mp4' => 'video/mp4',
+                'mov' => 'video/quicktime',
+                'webm' => 'video/webm',
                 'png' => 'image/png',
                 'gif' => 'image/gif',
                 'webp' => 'image/webp',
                 'heic' => 'image/heic',
                 'heif' => 'image/heif',
                 'tiff' => 'image/tiff',
-                default => 'image/jpeg',
+                default => $isVideo ? 'video/mp4' : 'image/jpeg',
             };
 
             $photo = Photo::create([
                 'uuid' => $session->uuid,
                 'gallery_id' => $session->gallery_id,
                 'disk_id' => $defaultDisk->id,
+                'media_type' => $isVideo ? 'video' : 'photo',
                 'path' => dirname($session->object_key),
                 'filename' => basename($session->object_key),
                 'original_filename' => $session->original_filename ?? basename($session->object_key),
                 'stored_filename' => basename($session->object_key),
+                'original_path' => $session->object_key,
+                'delivery_path' => null,
                 'mime_type' => $mimeType,
                 'size' => $session->expected_size,
                 'checksum' => $session->expected_sha256,
@@ -214,26 +275,43 @@ class UploadService
                 'status' => UploadStatus::Completed->value,
             ]);
 
-            // Release reservation (storage_used_bytes is updated via PhotoObserver)
+            // Release storage reservation (storage_used_bytes is updated via PhotoObserver)
             DB::table('users')
                 ->where('id', $user->id)
                 ->update([
                     'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$session->expected_size} THEN storage_reserved_bytes - {$session->expected_size} ELSE 0 END"),
                 ]);
 
-            // Seed initial media job tracking record in queued status
-            \App\Models\MediaJob::create([
-                'photo_id' => $photo->id,
-                'job_name' => \App\Jobs\ProcessPhotoJob::class,
-                'job_type' => \App\Jobs\ProcessPhotoJob::class,
-                'status' => \App\Enums\MediaJobStatus::Queued->value,
-                'progress' => 'Queued',
-            ]);
+            if ($isVideo) {
+                // Seed initial media job tracking record in queued status
+                MediaJob::create([
+                    'photo_id' => $photo->id,
+                    'job_name' => \App\Jobs\ProcessVideoJob::class,
+                    'job_type' => \App\Jobs\ProcessVideoJob::class,
+                    'status' => MediaJobStatus::Queued->value,
+                    'progress' => 'Queued',
+                ]);
 
-            // Dispatch background WebP resize and metadata extraction job
-            DB::afterCommit(function () use ($photo) {
-                \App\Jobs\ProcessPhotoJob::dispatch($photo);
-            });
+                // Dispatch background video remux/transcode, poster extraction, and metadata job
+                $reservedSeconds = (int) $session->reserved_duration_seconds;
+                DB::afterCommit(function () use ($photo, $reservedSeconds) {
+                    \App\Jobs\ProcessVideoJob::dispatch($photo, $reservedSeconds);
+                });
+            } else {
+                // Seed initial media job tracking record in queued status
+                MediaJob::create([
+                    'photo_id' => $photo->id,
+                    'job_name' => \App\Jobs\ProcessPhotoJob::class,
+                    'job_type' => \App\Jobs\ProcessPhotoJob::class,
+                    'status' => MediaJobStatus::Queued->value,
+                    'progress' => 'Queued',
+                ]);
+
+                // Dispatch background WebP resize and metadata extraction job
+                DB::afterCommit(function () use ($photo) {
+                    \App\Jobs\ProcessPhotoJob::dispatch($photo);
+                });
+            }
 
             return $photo;
         });
@@ -260,6 +338,7 @@ class UploadService
                     ->where('id', $user->id)
                     ->update([
                         'storage_reserved_bytes' => DB::raw("CASE WHEN storage_reserved_bytes >= {$session->expected_size} THEN storage_reserved_bytes - {$session->expected_size} ELSE 0 END"),
+                        'video_seconds_reserved' => DB::raw("CASE WHEN video_seconds_reserved >= {$session->reserved_duration_seconds} THEN video_seconds_reserved - {$session->reserved_duration_seconds} ELSE 0 END"),
                     ]);
             }
 

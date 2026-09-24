@@ -47,6 +47,9 @@ export class GalleryLightbox {
         this.zoomOutBtn = document.getElementById('lightbox-btn-zoom-out');
         this.zoomResetBtn = document.getElementById('lightbox-btn-zoom-reset');
         this.zoomValEl = document.getElementById('lightbox-zoom-val');
+        this.zoomControlsContainer = document.getElementById('lightbox-zoom-controls');
+        this.activeVideo = null;
+        this.activeArtplayer = null;
 
         this.initSubmodules();
         this.bindEvents();
@@ -192,6 +195,7 @@ export class GalleryLightbox {
         this.state = 'IDLE';
         this.slideshow?.stop();
         this.zoom?.reset();
+        this.teardownActiveVideo();
 
         this.container?.classList.add('hidden');
         document.body.style.overflow = '';
@@ -291,7 +295,110 @@ export class GalleryLightbox {
         // 3. Current active slide updates
         if (role === 'current') {
             this.currentIsFull = (targetUrl === photo.full);
-            this.zoom?.setImage(img);
+
+            if (photo.is_video) {
+                this.teardownActiveVideo();
+                if (this.zoomControlsContainer) this.zoomControlsContainer.classList.add('!hidden');
+                this.slideshow?.stop();
+
+                const slotInner = slotEl.querySelector('.lightbox-slide-inner');
+                if (slotInner) {
+                    const videoUrl = photo.delivery_url || photo.original;
+                    const poster = photo.large || photo.full || photo.thumbnail || '';
+                    const playerContainer = document.createElement('div');
+                    playerContainer.className = 'lightbox-artplayer-mount relative z-10 w-full sm:w-auto max-w-full max-h-[82vh] shadow-2xl select-auto pointer-events-auto flex items-center justify-center overflow-hidden';
+                    playerContainer.style.width = '100%';
+                    playerContainer.style.maxWidth = `${pw}px`;
+                    playerContainer.style.maxHeight = '82vh';
+                    playerContainer.style.aspectRatio = aspect;
+
+                    if (window.Artplayer) {
+                        try {
+                            const art = new window.Artplayer({
+                                container: playerContainer,
+                                url: videoUrl,
+                                poster: poster,
+                                volume: 0.7,
+                                isLive: false,
+                                muted: true,
+                                autoplay: true,
+                                pip: true,
+                                autoSize: false,
+                                autoMini: false,
+                                screenshot: false,
+                                setting: true,
+                                loop: false,
+                                playbackRate: true,
+                                aspectRatio: true,
+                                fullscreen: true,
+                                fullscreenWeb: true,
+                                playsInline: true,
+                                airplay: true,
+                                theme: '#e11d48',
+                                customType: {
+                                    m3u8: function (video, url, artInstance) {
+                                        if (window.Hls && window.Hls.isSupported()) {
+                                            if (artInstance.hls) artInstance.hls.destroy();
+                                            const hls = new window.Hls();
+                                            hls.loadSource(url);
+                                            hls.attachMedia(video);
+                                            artInstance.hls = hls;
+                                            artInstance.on('destroy', () => hls.destroy());
+                                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                            video.src = url;
+                                        } else {
+                                            artInstance.notice.show = 'Unsupported video format';
+                                        }
+                                    },
+                                },
+                            });
+
+                            art.on('ready', () => {
+                                img.classList.add('opacity-0');
+                                if (canvas) canvas.style.opacity = '0';
+                            });
+
+                            art.on('video:loadeddata', () => {
+                                img.classList.add('opacity-0');
+                                if (canvas) canvas.style.opacity = '0';
+                            });
+
+                            slotInner.appendChild(playerContainer);
+                            this.activeArtplayer = art;
+                        } catch (e) {
+                            console.error('[Lightbox] Artplayer initialization error:', e);
+                        }
+                    }
+
+                    if (!this.activeArtplayer) {
+                        const video = document.createElement('video');
+                        video.className = 'lightbox-slide-video w-full sm:w-auto max-w-full max-h-full object-contain shadow-2xl select-auto pointer-events-auto z-10';
+                        video.controls = true;
+                        video.playsInline = true;
+                        video.preload = 'auto';
+                        if (poster) {
+                            video.poster = poster;
+                        }
+                        video.src = videoUrl;
+                        video.style.aspectRatio = aspect;
+
+                        video.addEventListener('loadeddata', () => {
+                            img.classList.add('opacity-0');
+                            if (canvas) canvas.style.opacity = '0';
+                        }, { once: true });
+
+                        slotInner.appendChild(video);
+                        this.activeVideo = video;
+
+                        video.muted = true;
+                        video.play().catch(() => {});
+                    }
+                }
+            } else {
+                this.teardownActiveVideo();
+                if (this.zoomControlsContainer) this.zoomControlsContainer.classList.remove('!hidden');
+                this.zoom?.setImage(img);
+            }
 
             if (this.filenameEl) this.filenameEl.textContent = photo.filename || '';
             this.updateCounter();
@@ -305,10 +412,43 @@ export class GalleryLightbox {
         }
     }
 
+    teardownActiveVideo() {
+        if (this.activeArtplayer) {
+            try {
+                this.activeArtplayer.destroy(true);
+            } catch (e) {}
+            this.activeArtplayer = null;
+        }
+
+        if (this.activeVideo) {
+            try {
+                this.activeVideo.pause();
+                this.activeVideo.removeAttribute('src');
+                this.activeVideo.load();
+            } catch (e) {}
+            this.activeVideo.remove();
+            this.activeVideo = null;
+        }
+
+        this.slots.forEach(slot => {
+            const mounts = slot.querySelectorAll('.lightbox-artplayer-mount');
+            mounts.forEach(m => m.remove());
+            const v = slot.querySelector('video');
+            if (v) {
+                try {
+                    v.pause();
+                    v.removeAttribute('src');
+                    v.load();
+                } catch (e) {}
+                v.remove();
+            }
+        });
+    }
+
     upgradeCurrentToFull() {
         if (this.currentIsFull) return;
         const currentPhoto = this.getCurrentPhoto();
-        if (!currentPhoto || !currentPhoto.full) return;
+        if (!currentPhoto || currentPhoto.is_video || !currentPhoto.full) return;
 
         const currentSlot = this.slots[this.slotMap.current];
         const img = currentSlot?.querySelector('.lightbox-slide-img');
@@ -337,6 +477,7 @@ export class GalleryLightbox {
     snapTo(direction) {
         if (!this.track || this.state === 'ANIMATING') return;
         this.state = 'ANIMATING';
+        this.teardownActiveVideo();
 
         const targetPercent = direction === 1 ? -100 : (direction === -1 ? 100 : 0);
         this.track.style.transition = 'transform 280ms cubic-bezier(0.25, 1, 0.5, 1)';

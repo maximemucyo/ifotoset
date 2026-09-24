@@ -330,7 +330,7 @@
                                 <th class="px-6 py-4">Media Job</th>
                                 <th class="px-6 py-4">Studio & Gallery</th>
                                 <th class="px-6 py-4">Status</th>
-                                <th class="px-6 py-4">Stage Progress</th>
+                                <th class="px-6 py-4">Stage Progress <span class="text-[10px] text-muted-foreground font-normal lowercase tracking-normal">(clickable)</span></th>
                                 <th class="px-6 py-4 text-center">Attempts</th>
                                 <th class="px-6 py-4">Duration</th>
                                 <th class="px-6 py-4">Timestamps</th>
@@ -361,19 +361,50 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-xs">
-                                        <template x-if="job.status === 'failed'">
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-destructive font-medium truncate max-w-[180px]" x-text="job.error_message || 'Execution failed'"></span>
-                                                <button type="button"
-                                                        @click="showError(job.original_filename, job.error_message || 'Unknown error')"
-                                                        class="text-[10px] font-bold text-destructive underline hover:text-destructive/80 cursor-pointer shrink-0">
-                                                    Details
-                                                </button>
+                                        <div @click="openStageModal(job)"
+                                             class="group flex flex-col gap-1.5 p-2 -m-1.5 rounded-xl hover:bg-secondary/70 transition-all cursor-pointer border border-transparent hover:border-border"
+                                             title="Click to view full stage pipeline and percentages">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <div class="flex items-center gap-1.5 min-w-0">
+                                                    <span x-show="job.status === 'processing'" class="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0"></span>
+                                                    <span class="font-semibold text-foreground truncate max-w-[150px] group-hover:text-primary transition-colors"
+                                                          x-text="job.stage_label || job.progress || (job.status === 'completed' ? 'Completed' : 'Queued')"></span>
+                                                </div>
+                                                <span class="px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold shrink-0"
+                                                      :class="{
+                                                          'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400': job.status === 'completed',
+                                                          'bg-primary/15 text-primary': job.status === 'processing',
+                                                          'bg-destructive/15 text-destructive': job.status === 'failed',
+                                                          'bg-secondary text-muted-foreground': job.status === 'queued'
+                                                      }"
+                                                      x-text="(job.percentage ?? (job.status === 'completed' ? 100 : 0)) + '%'">
+                                                </span>
                                             </div>
-                                        </template>
-                                        <template x-if="job.status !== 'failed'">
-                                            <span class="font-medium text-foreground" x-text="job.progress || (job.status === 'completed' ? 'Finalized' : 'Queued')"></span>
-                                        </template>
+
+                                            <!-- Mini Progress Bar -->
+                                            <div class="w-full bg-secondary rounded-full h-1.5 overflow-hidden flex">
+                                                <div class="h-full transition-all duration-300 rounded-full"
+                                                     :class="{
+                                                         'bg-emerald-500': job.status === 'completed',
+                                                         'bg-primary animate-pulse': job.status === 'processing',
+                                                         'bg-destructive': job.status === 'failed',
+                                                         'bg-muted-foreground/30': job.status === 'queued'
+                                                     }"
+                                                     :style="'width: ' + (job.percentage ?? (job.status === 'completed' ? 100 : 0)) + '%'">
+                                                </div>
+                                            </div>
+
+                                            <div class="flex items-center justify-between text-[10px] text-muted-foreground">
+                                                <span x-show="job.status === 'failed'" class="text-destructive font-medium truncate max-w-[160px]" x-text="job.error_message || 'Failed - click details'"></span>
+                                                <span x-show="job.status !== 'failed'" class="group-hover:text-primary transition-colors flex items-center gap-1">
+                                                    <span>Inspect stages</span>
+                                                    <svg class="w-2.5 h-2.5 inline-block opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </span>
+                                                <span class="text-[10px] font-mono opacity-60 group-hover:opacity-100 transition-opacity" x-text="'#' + job.id"></span>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-center text-xs font-mono font-semibold" x-text="job.attempts + ' / ' + job.max_attempts"></td>
                                     <td class="px-6 py-4 text-xs font-mono text-muted-foreground">
@@ -536,6 +567,263 @@
         </div>
     </div>
 
+    <!-- Stage Progress & Pipeline Breakdown Modal -->
+    <div x-show="stageModalOpen"
+         x-transition.opacity
+         class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+         style="display: none;"
+         @click.self="stageModalOpen = false"
+         @keydown.escape.window="stageModalOpen = false">
+        
+        <div class="bg-card border border-border rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden my-8 flex flex-col max-h-[90vh]">
+            <!-- Modal Header -->
+            <div class="p-6 border-b border-border bg-card/60 flex items-start justify-between gap-4 shrink-0">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2.5">
+                        <span class="p-2 rounded-xl bg-primary/10 text-primary">
+                            <template x-if="activeStageJob?.media_type === 'video'">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </template>
+                            <template x-if="activeStageJob?.media_type !== 'video'">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </template>
+                        </span>
+                        <div>
+                            <h3 class="text-base font-bold text-foreground">Media Processing Pipeline</h3>
+                            <p class="text-xs text-muted-foreground">Step-by-step optimization stages & live progress</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider"
+                          :class="{
+                              'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400': activeStageJob?.status === 'completed',
+                              'bg-primary/10 text-primary border border-primary/20': activeStageJob?.status === 'processing',
+                              'bg-destructive/10 text-destructive border border-destructive/20': activeStageJob?.status === 'failed',
+                              'bg-secondary text-muted-foreground': activeStageJob?.status === 'queued'
+                          }">
+                        <span x-show="activeStageJob?.status === 'processing'" class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                        <span x-text="activeStageJob?.status"></span>
+                    </span>
+                    <button @click="stageModalOpen = false" class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                <!-- Overall Progress Banner -->
+                <div class="p-5 rounded-2xl bg-secondary/30 border border-border space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Current Stage</div>
+                            <div class="text-lg font-extrabold text-foreground flex items-center gap-2 mt-0.5">
+                                <span x-text="activeStageJob?.stage_label || activeStageJob?.progress"></span>
+                                <span x-show="activeStageJob?.status === 'processing'" class="inline-block w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                            </div>
+                        </div>
+                        <div class="sm:text-right">
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Completion</div>
+                            <div class="text-2xl font-black font-mono mt-0.5"
+                                 :class="{
+                                     'text-emerald-600 dark:text-emerald-400': activeStageJob?.status === 'completed',
+                                     'text-primary': activeStageJob?.status === 'processing',
+                                     'text-destructive': activeStageJob?.status === 'failed',
+                                     'text-muted-foreground': activeStageJob?.status === 'queued'
+                                 }">
+                                <span x-text="(activeStageJob?.percentage ?? 0) + '%'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-secondary rounded-full h-3 overflow-hidden shadow-inner flex">
+                        <div class="h-full transition-all duration-500 rounded-full"
+                             :class="{
+                                 'bg-emerald-500': activeStageJob?.status === 'completed',
+                                 'bg-primary animate-pulse': activeStageJob?.status === 'processing',
+                                 'bg-destructive': activeStageJob?.status === 'failed',
+                                 'bg-muted-foreground/40': activeStageJob?.status === 'queued'
+                             }"
+                             :style="'width: ' + (activeStageJob?.percentage ?? (activeStageJob?.status === 'completed' ? 100 : 0)) + '%'">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span x-text="activeStageJob?.status === 'completed' ? 'All optimization tasks completed successfully' : (activeStageJob?.status === 'processing' ? 'Worker actively processing photo in real time' : (activeStageJob?.status === 'failed' ? 'Job halted due to exception' : 'Waiting in Redis queue for worker'))"></span>
+                        <span class="font-mono" x-show="activeStageJob?.duration_ms" x-text="'Total: ' + formatDuration(activeStageJob?.duration_ms)"></span>
+                    </div>
+                </div>
+
+                <!-- Job Context Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="p-3 rounded-xl bg-card border border-border">
+                        <div class="text-[10px] uppercase font-bold text-muted-foreground">File Name</div>
+                        <div class="text-xs font-bold text-foreground truncate mt-0.5" :title="activeStageJob?.original_filename" x-text="activeStageJob?.original_filename"></div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-card border border-border">
+                        <div class="text-[10px] uppercase font-bold text-muted-foreground">Gallery / Studio</div>
+                        <div class="text-xs font-semibold text-foreground truncate mt-0.5" :title="activeStageJob?.gallery_title" x-text="activeStageJob?.gallery_title"></div>
+                        <div class="text-[10px] text-muted-foreground truncate" x-text="activeStageJob?.studio_name"></div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-card border border-border">
+                        <div class="text-[10px] uppercase font-bold text-muted-foreground">Queue & Attempts</div>
+                        <div class="text-xs font-mono font-bold text-foreground mt-0.5" x-text="(activeStageJob?.queue || 'photos') + ' • ' + (activeStageJob?.attempts || 1) + '/' + (activeStageJob?.max_attempts || 3)"></div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-card border border-border">
+                        <div class="text-[10px] uppercase font-bold text-muted-foreground">Job / Photo ID</div>
+                        <div class="text-xs font-mono font-semibold text-foreground truncate mt-0.5" :title="activeStageJob?.photo_uuid" x-text="'#' + activeStageJob?.id + ' • ' + (activeStageJob?.photo_uuid ? activeStageJob?.photo_uuid.substring(0, 8) + '...' : 'N/A')"></div>
+                    </div>
+                </div>
+
+                <!-- Failure Details Box (if failed) -->
+                <template x-if="activeStageJob?.status === 'failed'">
+                    <div class="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 space-y-2">
+                        <div class="flex items-center gap-2 text-destructive font-bold text-xs">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span>Failure Diagnostic</span>
+                        </div>
+                        <div class="text-xs font-mono text-destructive whitespace-pre-wrap break-words leading-relaxed bg-background/50 p-3 rounded-xl border border-destructive/10"
+                             x-text="activeStageJob?.error_message || 'Job exited with an unhandled exception.'"></div>
+                        <div class="flex justify-end pt-1">
+                            <button type="button"
+                                    @click="retryJob(activeStageJob.id); stageModalOpen = false;"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-destructive text-white hover:bg-destructive/90 transition-all cursor-pointer shadow-sm">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Retry This Job Now</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Detailed Pipeline Stepper Timeline -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pipeline Breakdown</h4>
+                        <span class="text-[11px] font-mono text-muted-foreground" x-text="(activeStageJob?.stages?.filter(s => s.status === 'completed').length || 0) + ' of ' + (activeStageJob?.stages?.length || 0) + ' stages complete'"></span>
+                    </div>
+
+                    <div class="relative pl-6 sm:pl-8 space-y-5 before:content-[''] before:absolute before:left-3 sm:before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-border">
+                        <template x-for="(stage, idx) in activeStageJob?.stages" :key="stage.id">
+                            <div class="relative flex items-start gap-3.5 group">
+                                <!-- Step indicator circle -->
+                                <div class="absolute -left-6 sm:-left-8 top-1 flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-full font-mono text-xs font-bold transition-all shadow-sm"
+                                     :class="{
+                                         'bg-emerald-500 text-white ring-4 ring-emerald-500/20': stage.status === 'completed',
+                                         'bg-primary text-primary-foreground ring-4 ring-primary/20 animate-pulse': stage.status === 'current',
+                                         'bg-destructive text-white ring-4 ring-destructive/20': stage.status === 'failed',
+                                         'bg-secondary text-muted-foreground border border-border': stage.status === 'pending' || stage.status === 'queued'
+                                     }">
+                                    <template x-if="stage.status === 'completed'">
+                                        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </template>
+                                    <template x-if="stage.status === 'current'">
+                                        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    </template>
+                                    <template x-if="stage.status === 'failed'">
+                                        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </template>
+                                    <template x-if="stage.status === 'pending' || stage.status === 'queued'">
+                                        <span x-text="stage.step_number"></span>
+                                    </template>
+                                </div>
+
+                                <!-- Stage content card -->
+                                <div class="flex-1 p-3.5 rounded-2xl border transition-all"
+                                     :class="{
+                                         'bg-emerald-500/5 border-emerald-500/20': stage.status === 'completed',
+                                         'bg-primary/5 border-primary/30 shadow-sm ring-1 ring-primary/20': stage.status === 'current',
+                                         'bg-destructive/5 border-destructive/30': stage.status === 'failed',
+                                         'bg-card border-border/70 opacity-65': stage.status === 'pending' || stage.status === 'queued'
+                                     }">
+                                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-bold text-xs sm:text-sm text-foreground" x-text="stage.name"></span>
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold"
+                                                  :class="{
+                                                      'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400': stage.status === 'completed',
+                                                      'bg-primary/15 text-primary': stage.status === 'current',
+                                                      'bg-destructive/15 text-destructive': stage.status === 'failed',
+                                                      'bg-secondary text-muted-foreground': stage.status === 'pending' || stage.status === 'queued'
+                                                  }"
+                                                  x-text="'~' + stage.target_percentage + '%'"></span>
+                                        </div>
+
+                                        <!-- Status Pill -->
+                                        <div>
+                                            <span x-show="stage.status === 'completed'" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                &check; Done
+                                            </span>
+                                            <span x-show="stage.status === 'current'" class="inline-flex items-center gap-1 text-[11px] font-bold text-primary animate-pulse">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                                Active Now
+                                            </span>
+                                            <span x-show="stage.status === 'failed'" class="inline-flex items-center gap-1 text-[11px] font-bold text-destructive">
+                                                &times; Failed Here
+                                            </span>
+                                            <span x-show="stage.status === 'pending' || stage.status === 'queued'" class="text-[11px] text-muted-foreground">
+                                                Pending
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-muted-foreground mt-1 leading-relaxed" x-text="stage.description"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-border bg-card/80 flex items-center justify-between gap-3 shrink-0">
+                <button type="button"
+                        @click="copyJobDiagnostics(activeStageJob)"
+                        class="px-3 py-1.5 rounded-xl border border-border bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span x-text="copiedDiagnostics ? 'Copied Diagnostics!' : 'Copy Diagnostics'"></span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button x-show="['failed', 'queued'].includes(activeStageJob?.status)"
+                            @click="retryJob(activeStageJob.id); stageModalOpen = false;"
+                            :disabled="actionLoading"
+                            type="button"
+                            class="px-3.5 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Retry Job</span>
+                    </button>
+
+                    <button @click="stageModalOpen = false"
+                            class="px-4 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold cursor-pointer">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Error Detail Modal -->
     <div x-show="errorModalOpen"
          x-transition.opacity
@@ -598,6 +886,9 @@ document.addEventListener('alpine:init', () => {
         pollTimer: null,
         errorModalOpen: false,
         activeError: null,
+        stageModalOpen: false,
+        activeStageJob: null,
+        copiedDiagnostics: false,
         actionLoading: false,
         toastMessage: null,
         toastType: 'success',
@@ -670,6 +961,12 @@ document.addEventListener('alpine:init', () => {
                 }
                 if (data.media_jobs) {
                     this.mediaJobs = data.media_jobs;
+                    if (this.stageModalOpen && this.activeStageJob) {
+                        const updated = this.mediaJobs.find(j => j.id === this.activeStageJob.id);
+                        if (updated) {
+                            this.activeStageJob = updated;
+                        }
+                    }
                 }
                 if (data.exports) {
                     this.exportJobs = data.exports;
@@ -870,6 +1167,44 @@ document.addEventListener('alpine:init', () => {
                 return '~' + item.elapsed_seconds + 's';
             }
             return '—';
+        },
+
+        openStageModal(job) {
+            this.activeStageJob = job;
+            this.copiedDiagnostics = false;
+            this.stageModalOpen = true;
+        },
+
+        copyJobDiagnostics(job) {
+            if (!job) return;
+            const dataToCopy = {
+                job_id: job.id,
+                job_uuid: job.job_uuid,
+                queue: job.queue,
+                status: job.status,
+                media_type: job.media_type,
+                progress_stage: job.stage_label || job.progress,
+                percentage: job.percentage,
+                attempts: `${job.attempts}/${job.max_attempts}`,
+                duration_ms: job.duration_ms,
+                started_at: job.started_at,
+                completed_at: job.completed_at,
+                failed_at: job.failed_at,
+                error_message: job.error_message,
+                photo_uuid: job.photo_uuid,
+                filename: job.original_filename,
+                gallery: job.gallery_title,
+                studio: job.studio_name,
+                stages: job.stages
+            };
+            navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2)).then(() => {
+                this.copiedDiagnostics = true;
+                setTimeout(() => {
+                    this.copiedDiagnostics = false;
+                }, 2000);
+            }).catch(() => {
+                this.showToast('Could not access clipboard', 'error');
+            });
         },
 
         showError(filename, message) {

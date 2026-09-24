@@ -19,6 +19,9 @@ class Plan extends Model
         'currency',
         'storage_limit',
         'video_limit',
+        'video_limit_seconds',
+        'max_video_size_bytes',
+        'max_single_video_duration_seconds',
         'gallery_limit',
         'team_limit',
     ];
@@ -29,9 +32,17 @@ class Plan extends Model
         'annual_price' => 'decimal:2',
         'storage_limit' => 'integer',
         'video_limit' => 'integer',
+        'video_limit_seconds' => 'integer',
+        'max_video_size_bytes' => 'integer',
+        'max_single_video_duration_seconds' => 'integer',
         'gallery_limit' => 'integer',
         'team_limit' => 'integer',
     ];
+
+    public function getVideoLimitSecondsAttribute(): int
+    {
+        return (int) ($this->attributes['video_limit_seconds'] ?? $this->attributes['video_limit'] ?? 0);
+    }
 
     public function users(): HasMany
     {

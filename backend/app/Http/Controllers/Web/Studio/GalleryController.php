@@ -127,16 +127,22 @@ class GalleryController extends Controller
         $coverId = $gallery->cover_photo_id;
 
         $initialPhotosData = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
+            $isVideo = $photo->isVideo();
             return [
                 'id' => $photo->id,
                 'uuid' => $photo->uuid,
+                'media_type' => $photo->media_type ?? 'photo',
+                'is_video' => $isVideo,
+                'duration' => $photo->duration_formatted,
+                'status' => $photo->status,
                 'original_filename' => $photo->original_filename,
                 'filename' => $photo->filename,
-                'thumbnail_url' => $photo->getUrl('sm'),
-                'medium_url' => $photo->getUrl('md'),
-                'large_url' => $photo->getUrl('lg'),
-                'full_url' => $photo->getUrl('xl'),
-                'original_url' => $photo->getUrl(),
+                'thumbnail_url' => $photo->getThumbnailUrl('sm'),
+                'medium_url' => $isVideo ? ($photo->getPosterUrl('md') ?? $photo->getUrl('md')) : $photo->getUrl('md'),
+                'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
+                'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
+                'original_url' => $photo->getOriginalDownloadUrl(),
+                'delivery_url' => $isVideo ? $photo->getDeliveryUrl() : null,
                 'size' => $photo->size,
                 'width' => $photo->width,
                 'height' => $photo->height,
@@ -151,7 +157,7 @@ class GalleryController extends Controller
         $userStorage = $storageService->getStorageStats($request->user());
         $upgradePlans = \App\Models\Plan::where('slug', '!=', 'free')
             ->orderBy('monthly_price')
-            ->get(['id', 'slug', 'name', 'monthly_price', 'storage_limit']);
+            ->get(['id', 'slug', 'name', 'monthly_price', 'storage_limit', 'video_limit_seconds']);
 
         $billingReturnSuccess = ($request->query('billing_return') === 'success') && !$userStorage['is_free'];
 
@@ -181,16 +187,22 @@ class GalleryController extends Controller
         $coverId = $gallery->cover_photo_id;
 
         $data = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
+            $isVideo = $photo->isVideo();
             return [
                 'id' => $photo->id,
                 'uuid' => $photo->uuid,
+                'media_type' => $photo->media_type ?? 'photo',
+                'is_video' => $isVideo,
+                'duration' => $photo->duration_formatted,
+                'status' => $photo->status,
                 'original_filename' => $photo->original_filename,
                 'filename' => $photo->filename,
-                'thumbnail_url' => $photo->getUrl('sm'),
-                'medium_url' => $photo->getUrl('md'),
-                'large_url' => $photo->getUrl('lg'),
-                'full_url' => $photo->getUrl('xl'),
-                'original_url' => $photo->getUrl(),
+                'thumbnail_url' => $photo->getThumbnailUrl('sm'),
+                'medium_url' => $isVideo ? ($photo->getPosterUrl('md') ?? $photo->getUrl('md')) : $photo->getUrl('md'),
+                'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
+                'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
+                'original_url' => $photo->getOriginalDownloadUrl(),
+                'delivery_url' => $isVideo ? $photo->getDeliveryUrl() : null,
                 'size' => $photo->size,
                 'width' => $photo->width,
                 'height' => $photo->height,

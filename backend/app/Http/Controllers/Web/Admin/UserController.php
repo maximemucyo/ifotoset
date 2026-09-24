@@ -95,6 +95,11 @@ class UserController extends Controller
             ];
         });
 
+        $videoLimit = $user->plan?->video_limit_seconds ?? 0;
+        $videoUsed = $user->video_seconds_used ?? 0;
+        $videoReserved = $user->video_seconds_reserved ?? 0;
+        $videoPercent = $videoLimit > 0 ? min(100, round(($videoUsed / $videoLimit) * 100)) : 0;
+
         return response()->json([
             'user' => [
                 'id' => $user->id,
@@ -115,6 +120,16 @@ class UserController extends Controller
                 'joined_at' => $user->created_at->format('M j, Y'),
                 'public_url' => $user->public_url,
                 'storage' => $storageStats,
+                'video' => [
+                    'has_video' => $user->hasVideoSupport(),
+                    'used_seconds' => $videoUsed,
+                    'used_formatted' => $videoUsed >= 3600 ? round($videoUsed / 3600, 1) . 'h' : round($videoUsed / 60) . 'm',
+                    'reserved_seconds' => $videoReserved,
+                    'reserved_formatted' => $videoReserved >= 60 ? round($videoReserved / 60) . 'm' : $videoReserved . 's',
+                    'limit_seconds' => $videoLimit,
+                    'percent_used' => $videoPercent,
+                    'formatted' => $user->getVideoUsageFormatted(),
+                ],
             ],
             'galleries' => $galleries,
             'activities' => $activities,

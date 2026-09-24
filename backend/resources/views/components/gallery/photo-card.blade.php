@@ -4,10 +4,13 @@
 
 @php
     $aspectRatio = ($photo->width && $photo->height) ? ($photo->width / $photo->height) : 1.5;
+    $isVideo = $photo->isVideo();
     $fullUrl = $photo->getUrl('xl');
     $largeUrl = $photo->getUrl('lg');
-    $thumbnailUrl = $photo->getUrl('md');
-    $originalUrl = $photo->getUrl();
+    $thumbnailUrl = $photo->getThumbnailUrl('md');
+    $originalUrl = $photo->getOriginalDownloadUrl();
+    $deliveryUrl = $isVideo ? $photo->getDeliveryUrl() : null;
+    $deliveryDownloadUrl = $isVideo ? $photo->getDeliveryDownloadUrl() : $originalUrl;
     $blurhash = $photo->blurhash;
 @endphp
 
@@ -17,18 +20,22 @@
      data-photo-large="{{ $largeUrl }}"
      data-photo-full="{{ $fullUrl }}"
      data-photo-original="{{ $originalUrl }}"
+     data-photo-delivery="{{ $deliveryUrl }}"
+     data-photo-delivery-download="{{ $deliveryDownloadUrl }}"
      data-photo-thumb="{{ $thumbnailUrl }}"
      data-photo-blurhash="{{ $blurhash }}"
      data-photo-width="{{ $photo->width ?? 1920 }}"
      data-photo-height="{{ $photo->height ?? 1080 }}"
+     data-is-video="{{ $isVideo ? 'true' : 'false' }}"
+     data-video-duration="{{ $photo->duration_formatted }}"
      tabindex="0"
      role="button"
-     aria-label="View photo {{ $photo->original_filename }}">
+     aria-label="View {{ $isVideo ? 'video' : 'photo' }} {{ $photo->original_filename }}">
 
     <!-- Blurhash Placeholder Canvas -->
     <canvas class="photo-blurhash-canvas absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500"></canvas>
 
-    <!-- Main Image -->
+    <!-- Main Image (Poster for Video, Photo for Image) -->
     <img src="{{ $thumbnailUrl }}"
          alt="{{ $photo->title ?? $photo->caption ?? '' }}"
          loading="lazy"
@@ -37,8 +44,18 @@
          height="{{ $photo->height }}"
          onload="this.classList.remove('opacity-0'); if (this.previousElementSibling) this.previousElementSibling.classList.add('opacity-0');">
 
+    <!-- Video Duration / Play Badge -->
+    @if($isVideo)
+        <div class="video-duration-badge absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white text-[11px] font-semibold flex items-center gap-1.5 shadow-sm z-[2] pointer-events-none">
+            <svg class="w-3 h-3 fill-current text-primary" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+            </svg>
+            <span>{{ $photo->duration_formatted ?: 'Video' }}</span>
+        </div>
+    @endif
+
     <!-- Persistent Favorite Heart Badge -->
-    <div class="favorite-badge absolute top-3 right-3 p-1.5 rounded-none bg-black/65 backdrop-blur-sm text-rose-500 shadow-sm transition-opacity duration-300 pointer-events-none hidden"
+    <div class="favorite-badge absolute top-3 right-3 p-1.5 rounded-none bg-black/65 backdrop-blur-sm text-rose-500 shadow-sm transition-opacity duration-300 pointer-events-none hidden z-[2]"
          data-badge-uuid="{{ $photo->uuid }}">
         <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -77,9 +94,10 @@
                     class="btn-download-photo w-8 h-8 rounded-none bg-white/90 hover:bg-white text-zinc-900 hover:text-primary flex items-center justify-center shadow-md transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary"
                     data-uuid="{{ $photo->uuid }}"
                     data-filename="{{ $photo->original_filename }}"
-                    data-url="{{ $originalUrl }}"
-                    aria-label="Download photo"
-                    title="Download photo">
+                    data-url="{{ $deliveryDownloadUrl }}"
+                    data-original-url="{{ $originalUrl }}"
+                    aria-label="Download {{ $isVideo ? 'video' : 'photo' }}"
+                    title="Download {{ $isVideo ? 'video' : 'photo' }}">
                 <svg class="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>

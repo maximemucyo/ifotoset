@@ -32,7 +32,7 @@ services:
       dockerfile: Dockerfile
     container_name: ifotoset_queue
     restart: unless-stopped
-    command: php artisan queue:work --queue=default --verbose --tries=3 --sleep=3 --max-time=3600
+    command: php artisan queue:work --queue=media,default --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
       - './backend:/var/www/html'
     environment:
@@ -58,7 +58,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: php artisan queue:work --queue=photos --verbose --tries=3 --sleep=3 --max-time=3600
+    command: php artisan queue:work --queue=photos,media --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
       - './backend:/var/www/html'
     environment:

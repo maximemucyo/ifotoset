@@ -26,6 +26,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at',
         'storage_used_bytes',
         'storage_reserved_bytes',
+        'video_seconds_used',
+        'video_seconds_reserved',
         'storage_warning_75_active',
         'storage_warning_100_active',
         'storage_warning_generation',
@@ -54,6 +56,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'notification_preferences' => 'array',
         'storage_used_bytes' => 'integer',
         'storage_reserved_bytes' => 'integer',
+        'video_seconds_used' => 'integer',
+        'video_seconds_reserved' => 'integer',
         'storage_warning_75_active' => 'boolean',
         'storage_warning_100_active' => 'boolean',
         'storage_warning_generation' => 'integer',
@@ -67,6 +71,33 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isFree(): bool
     {
         return ! $this->plan_id || ! $this->plan || $this->plan->slug === 'free';
+    }
+
+    public function hasVideoSupport(): bool
+    {
+        return ($this->plan?->video_limit_seconds ?? $this->plan?->video_limit ?? 0) > 0;
+    }
+
+    public function getAvailableVideoSeconds(): int
+    {
+        $limit = (int) ($this->plan?->video_limit_seconds ?? $this->plan?->video_limit ?? 0);
+        $totalCommittedAndReserved = (int) ($this->video_seconds_used + $this->video_seconds_reserved);
+        return max(0, $limit - $totalCommittedAndReserved);
+    }
+
+    public function getVideoUsageFormatted(): string
+    {
+        $usedMinutes = round($this->video_seconds_used / 60);
+        $limitSeconds = (int) ($this->plan?->video_limit_seconds ?? $this->plan?->video_limit ?? 0);
+        $limitMinutes = round($limitSeconds / 60);
+
+        if ($limitMinutes >= 60) {
+            $usedHours = round($this->video_seconds_used / 3600, 1);
+            $limitHours = round($limitSeconds / 3600);
+            return "{$usedHours}h / {$limitHours}h";
+        }
+
+        return "{$usedMinutes}m / {$limitMinutes}m";
     }
 
     public function plan(): BelongsTo

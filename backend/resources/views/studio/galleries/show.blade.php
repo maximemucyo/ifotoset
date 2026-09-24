@@ -16,10 +16,19 @@
     'uploadRequestUrl' => route('studio.uploads.request'),
     'uploadConfirmUrl' => route('studio.uploads.confirm'),
     'uploadAbortUrl' => route('studio.uploads.abort'),
+    'videoStatusUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'storageStatsUrl' => route('studio.storage.stats'),
     'billingCheckoutUrl' => route('studio.billing.checkout', ['plan' => 'basic']) . '?return_to=' . urlencode(request()->getRequestUri()),
     'billingPlansUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
     'userStorage' => $userStorage ?? [],
+    'userVideo' => [
+        'has_video' => auth()->user()->hasVideoSupport(),
+        'used_seconds' => auth()->user()->video_seconds_used,
+        'reserved_seconds' => auth()->user()->video_seconds_reserved,
+        'limit_seconds' => auth()->user()->plan?->video_limit_seconds ?? 0,
+        'available_seconds' => auth()->user()->getAvailableVideoSeconds(),
+        'formatted' => auth()->user()->getVideoUsageFormatted(),
+    ],
     'upgradePlans' => collect($upgradePlans ?? [])->map(fn ($p) => [
         'id' => $p->id,
         'slug' => $p->slug,
@@ -28,6 +37,11 @@
         'storage' => $p->storage_limit >= 1099511627776
             ? round($p->storage_limit / 1099511627776, 1) . ' TB'
             : round($p->storage_limit / 1073741824, 0) . ' GB',
+        'video_limit' => $p->video_limit_seconds > 0
+            ? ($p->video_limit_seconds >= 3600
+                ? round($p->video_limit_seconds / 3600, 1) . ' hrs video'
+                : round($p->video_limit_seconds / 60) . ' mins video')
+            : 'No video',
         'checkoutUrl' => route('studio.billing.checkout', $p->slug) . '?return_to=' . urlencode(request()->getRequestUri()),
     ])->values(),
     'billingReturnSuccess' => $billingReturnSuccess ?? false,
@@ -185,6 +199,25 @@ async function calculateFileSha256(file) {
     }
 }
 
+function getVideoDuration(file) {
+    return new Promise((resolve) => {
+        try {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = () => {
+                URL.revokeObjectURL(video.src);
+                resolve(Math.round(video.duration) || 0);
+            };
+            video.onerror = () => {
+                resolve(0);
+            };
+            video.src = URL.createObjectURL(file);
+        } catch (_) {
+            resolve(0);
+        }
+    });
+}
+
 /**
  * Upload configuration presets
  */
@@ -237,10 +270,12 @@ window.studioGalleryManager = function(inlineConfig) {
         uploadRequestUrl: config.uploadRequestUrl || '',
         uploadConfirmUrl: config.uploadConfirmUrl || '',
         uploadAbortUrl: config.uploadAbortUrl || '',
+        videoStatusUrlBase: config.videoStatusUrlBase || '',
         storageStatsUrl: config.storageStatsUrl || '',
         billingCheckoutUrl: config.billingCheckoutUrl || '',
         billingPlansUrl: config.billingPlansUrl || '',
         userStorage: config.userStorage || null,
+        userVideo: config.userVideo || null,
         upgradePlans: config.upgradePlans || [],
         billingReturnSuccess: Boolean(config.billingReturnSuccess),
 
@@ -313,6 +348,10 @@ window.studioGalleryManager = function(inlineConfig) {
             if (this.billingReturnSuccess) {
                 this.checkAndApplyUpgradedStorage(true);
             }
+            // Resume status polling for any videos currently being processed
+            this.photos.filter(p => p.status === 'processing').forEach(p => {
+                this.pollProcessingStatus(p.uuid);
+            });
         },
 
         setupInfiniteScroll() {
@@ -396,6 +435,9 @@ window.studioGalleryManager = function(inlineConfig) {
             const thumb = photo.thumbnail_url || photo.medium_url || photo.large_url || photo.original_url || photo.cdn_url;
             const filename = photo.original_filename || photo.filename || 'Photo';
             const sizeMb = photo.size ? `${(photo.size / 1048576).toFixed(1)}MB` : '';
+            const isVideo = photo.is_video || photo.media_type === 'video';
+            const duration = photo.duration || '';
+            const isProcessing = photo.status === 'processing';
 
             card.innerHTML = `
                 <div class="aspect-square bg-muted relative overflow-hidden cursor-pointer" onclick="window._openLightboxByUuid('${photo.uuid}')">
@@ -409,6 +451,20 @@ window.studioGalleryManager = function(inlineConfig) {
                             Hidden
                         </span>
                     </div>
+                    ${isVideo ? `
+                        <div class="video-duration-badge absolute bottom-2 left-2 z-10">
+                            <span class="px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white text-[10px] font-semibold flex items-center gap-1 shadow">
+                                <svg class="w-2.5 h-2.5 fill-current text-primary" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                <span>${duration || 'Video'}</span>
+                            </span>
+                        </div>
+                    ` : ''}
+                    ${isProcessing ? `
+                        <div class="processing-overlay absolute inset-0 bg-black/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-white text-xs gap-1.5 pointer-events-none">
+                            <svg class="w-5 h-5 animate-spin text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                            <span class="font-medium">Processing...</span>
+                        </div>
+                    ` : ''}
                     <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-20" onclick="event.stopPropagation()">
                         <div class="flex items-center justify-between">
                             <button type="button" onclick="window._openLightboxByUuid('${photo.uuid}')" class="p-1.5 rounded-lg bg-black/50 hover:bg-black/80 text-white transition-colors" title="Preview photo">
@@ -445,12 +501,86 @@ window.studioGalleryManager = function(inlineConfig) {
         },
 
         // --- Lightbox Methods ---
+        activeStudioArtplayer: null,
+
+        initStudioArtplayer() {
+            this.teardownStudioLightboxVideo();
+            const container = document.getElementById('studio-artplayer-container');
+            const photo = this.currentPhoto;
+            if (!container || !photo) return;
+
+            const videoUrl = photo.delivery_url || photo.original_url || photo.full_url;
+            const posterUrl = photo.full_url || photo.large_url || photo.thumbnail_url || '';
+
+            if (window.Artplayer) {
+                try {
+                    this.activeStudioArtplayer = new window.Artplayer({
+                        container: container,
+                        url: videoUrl,
+                        poster: posterUrl,
+                        volume: 0.7,
+                        isLive: false,
+                        muted: true,
+                        autoplay: true,
+                        pip: true,
+                        autoSize: false,
+                        autoMini: false,
+                        screenshot: false,
+                        setting: true,
+                        loop: false,
+                        playbackRate: true,
+                        aspectRatio: true,
+                        fullscreen: true,
+                        fullscreenWeb: true,
+                        playsInline: true,
+                        airplay: true,
+                        theme: '#e11d48',
+                        customType: {
+                            m3u8: function (video, url, artInstance) {
+                                if (window.Hls && window.Hls.isSupported()) {
+                                    if (artInstance.hls) artInstance.hls.destroy();
+                                    const hls = new window.Hls();
+                                    hls.loadSource(url);
+                                    hls.attachMedia(video);
+                                    artInstance.hls = hls;
+                                    artInstance.on('destroy', () => hls.destroy());
+                                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                    video.src = url;
+                                } else {
+                                    artInstance.notice.show = 'Unsupported video format';
+                                }
+                            },
+                        },
+                    });
+                } catch (e) {
+                    console.error('[Studio Lightbox] Artplayer init failed:', e);
+                }
+            }
+
+            if (!this.activeStudioArtplayer) {
+                const video = document.createElement('video');
+                video.id = 'studio-lightbox-video';
+                video.src = videoUrl;
+                video.poster = posterUrl;
+                video.controls = true;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.className = 'max-h-[82vh] max-w-[90vw] object-contain rounded-lg shadow-2xl';
+                container.appendChild(video);
+            }
+        },
+
         openLightboxByUuid(photoUuid) {
             const idx = this.photos.findIndex(p => p.uuid === photoUuid);
             if (idx !== -1) {
                 this.lightboxIndex = idx;
                 this.lightboxOpen = true;
                 document.body.style.overflow = 'hidden';
+                this.$nextTick(() => {
+                    if (this.currentPhoto && (this.currentPhoto.is_video || this.currentPhoto.media_type === 'video') && this.currentPhoto.status !== 'processing') {
+                        this.initStudioArtplayer();
+                    }
+                });
             }
         },
 
@@ -459,21 +589,55 @@ window.studioGalleryManager = function(inlineConfig) {
                 this.lightboxIndex = index;
                 this.lightboxOpen = true;
                 document.body.style.overflow = 'hidden';
+                this.$nextTick(() => {
+                    if (this.currentPhoto && (this.currentPhoto.is_video || this.currentPhoto.media_type === 'video') && this.currentPhoto.status !== 'processing') {
+                        this.initStudioArtplayer();
+                    }
+                });
+            }
+        },
+
+        teardownStudioLightboxVideo() {
+            if (this.activeStudioArtplayer) {
+                try {
+                    this.activeStudioArtplayer.destroy(true);
+                } catch (e) {}
+                this.activeStudioArtplayer = null;
+            }
+            const container = document.getElementById('studio-artplayer-container');
+            if (container) {
+                container.innerHTML = '';
+            }
+            const video = document.getElementById('studio-lightbox-video');
+            if (video) {
+                try {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.load();
+                } catch (e) {}
+                video.remove();
             }
         },
 
         closeLightbox() {
+            this.teardownStudioLightboxVideo();
             this.lightboxOpen = false;
             document.body.style.overflow = '';
         },
 
         nextLightboxPhoto() {
             if (this.photos.length <= 1) return;
+            this.teardownStudioLightboxVideo();
             if (this.lightboxIndex < this.photos.length - 1) {
                 this.lightboxIndex++;
             } else {
                 this.lightboxIndex = 0;
             }
+            this.$nextTick(() => {
+                if (this.currentPhoto && (this.currentPhoto.is_video || this.currentPhoto.media_type === 'video') && this.currentPhoto.status !== 'processing') {
+                    this.initStudioArtplayer();
+                }
+            });
             if (this.lightboxIndex >= this.photos.length - 3 && this.hasMore && !this.loadingPhotos) {
                 this.fetchNextBatch();
             }
@@ -481,10 +645,92 @@ window.studioGalleryManager = function(inlineConfig) {
 
         prevLightboxPhoto() {
             if (this.photos.length <= 1) return;
+            this.teardownStudioLightboxVideo();
             if (this.lightboxIndex > 0) {
                 this.lightboxIndex--;
             } else {
                 this.lightboxIndex = this.photos.length - 1;
+            }
+            this.$nextTick(() => {
+                if (this.currentPhoto && (this.currentPhoto.is_video || this.currentPhoto.media_type === 'video') && this.currentPhoto.status !== 'processing') {
+                    this.initStudioArtplayer();
+                }
+            });
+        },
+
+        pollProcessingStatus(photoUuid, uploadItem = null) {
+            if (!this.videoStatusUrlBase) return;
+            const url = `${this.videoStatusUrlBase}/${photoUuid}/status`;
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(url, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.status === 'ready') {
+                        clearInterval(interval);
+                        this.updateCardToReady(photoUuid, data.photo);
+                        if (uploadItem) {
+                            uploadItem.status = 'done';
+                            uploadItem.progress = 100;
+                            uploadItem.errorMessage = '';
+                        }
+                    } else if (data.status === 'failed') {
+                        clearInterval(interval);
+                        this.updateCardToFailed(photoUuid, data.error);
+                        if (uploadItem) {
+                            uploadItem.status = 'error';
+                            uploadItem.errorMessage = data.error || 'Video processing failed.';
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Status poll exception:', e);
+                }
+            }, 3000);
+        },
+
+        updateCardToReady(uuid, photoData) {
+            const idx = this.photos.findIndex(p => p.uuid === uuid);
+            if (idx !== -1 && photoData) {
+                Object.assign(this.photos[idx], photoData);
+                this.photos[idx].status = 'ready';
+            }
+            const card = document.getElementById(`photo-card-${uuid}`);
+            if (card) {
+                const procOverlay = card.querySelector('.processing-overlay');
+                if (procOverlay) procOverlay.remove();
+
+                const img = card.querySelector('img');
+                if (img && photoData && (photoData.thumbnail_url || photoData.poster_url)) {
+                    img.src = photoData.thumbnail_url || photoData.poster_url;
+                }
+
+                if (photoData && photoData.duration) {
+                    let badge = card.querySelector('.video-duration-badge');
+                    if (!badge) {
+                        badge = document.createElement('div');
+                        badge.className = 'video-duration-badge absolute bottom-2 left-2 z-10';
+                        badge.innerHTML = `<span class="px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white text-[10px] font-semibold flex items-center gap-1 shadow">
+                            <svg class="w-2.5 h-2.5 fill-current text-primary" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <span>${photoData.duration}</span>
+                        </span>`;
+                        const container = card.querySelector('.aspect-square');
+                        if (container) container.appendChild(badge);
+                    }
+                }
+            }
+        },
+
+        updateCardToFailed(uuid, error) {
+            const card = document.getElementById(`photo-card-${uuid}`);
+            if (card) {
+                const procOverlay = card.querySelector('.processing-overlay');
+                if (procOverlay) {
+                    procOverlay.classList.remove('bg-black/40');
+                    procOverlay.classList.add('bg-destructive/80');
+                    procOverlay.innerHTML = `<span class="text-[11px] font-semibold text-white px-2 text-center">Processing failed</span>`;
+                }
             }
         },
 
@@ -855,7 +1101,7 @@ window.studioGalleryManager = function(inlineConfig) {
         addFiles(fileList) {
             if (!fileList || fileList.length === 0) return;
 
-            const filesArray = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+            const filesArray = Array.from(fileList).filter(f => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name));
             if (filesArray.length === 0) return;
 
             // Preflight batch size check against remaining quota
@@ -878,6 +1124,7 @@ window.studioGalleryManager = function(inlineConfig) {
 
             const newItems = filesArray.map(file => {
                 const id = 'up-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
+                const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(file.name);
 
                 // Non-reactive upload task storage
                 uploadTasks.set(id, {
@@ -897,6 +1144,7 @@ window.studioGalleryManager = function(inlineConfig) {
                     name: file.name,
                     formattedSize: formatBytes(file.size),
                     size: file.size,
+                    isVideo: isVideo,
                     previewUrl: null,
                     status: 'queued',
                     progress: 0,
@@ -955,6 +1203,14 @@ window.studioGalleryManager = function(inlineConfig) {
                     return;
                 }
 
+                // If video, probe declared duration for quota reservation preflight
+                let declaredDuration = null;
+                if (item.isVideo) {
+                    try {
+                        declaredDuration = await getVideoDuration(item.file);
+                    } catch (_) {}
+                }
+
                 // 2. Request upload slot
                 const reqRes = await fetch(this.uploadRequestUrl, {
                     method: 'POST',
@@ -970,8 +1226,9 @@ window.studioGalleryManager = function(inlineConfig) {
                         filename: item.file.name,
                         file_size: item.file.size,
                         size_bytes: item.file.size,
-                        mime_type: item.file.type || 'image/jpeg',
-                        sha256: sha256
+                        mime_type: item.file.type || (item.isVideo ? 'video/mp4' : 'image/jpeg'),
+                        sha256: sha256,
+                        duration_seconds: declaredDuration
                     })
                 });
 
@@ -1002,7 +1259,13 @@ window.studioGalleryManager = function(inlineConfig) {
                         this.cleanupItemPreview(item);
                         return;
                     }
-                    throw new Error(errData.message || 'Unable to prepare photo upload');
+                    if (errData.code === 'VIDEO_NOT_SUPPORTED' || errData.code === 'VIDEO_QUOTA_EXCEEDED' || errData.code === 'VIDEO_FILE_SIZE_EXCEEDED') {
+                        item.status = 'error';
+                        item.errorMessage = errData.message || 'Video plan limit exceeded.';
+                        this.cleanupItemPreview(item);
+                        return;
+                    }
+                    throw new Error(errData.message || 'Unable to prepare upload');
                 }
 
                 const reqData = await reqRes.json();
@@ -1113,14 +1376,18 @@ window.studioGalleryManager = function(inlineConfig) {
                 // Revoke preview immediately upon completion to free RAM
                 this.cleanupItemPreview(item);
 
-                // Photo confirmed and saved to DB
-                item.status = 'done';
-                item.progress = 100;
-                item.errorMessage = '';
-
                 // Live Background Gallery Insertion!
                 const photoData = (confirmData && confirmData.data) ? confirmData.data : confirmData;
                 this.handlePhotoUploaded(photoData);
+
+                if (item.isVideo && photoData && photoData.status === 'processing') {
+                    item.status = 'processing';
+                    this.pollProcessingStatus(photoData.uuid, item);
+                } else {
+                    item.status = 'done';
+                    item.progress = 100;
+                    item.errorMessage = '';
+                }
 
             } catch (err) {
                 if (item.status === 'cancelled' || task.userCancelled) {
@@ -1369,8 +1636,19 @@ document.addEventListener('alpine:init', () => {
                 </x-ui.badge>
             </div>
             <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{{ $gallery->title }}</h1>
-            <p class="text-xs text-muted-foreground mt-1">
-                <span x-text="totalPhotos">{{ $totalPhotosCount }}</span> <span x-text="totalPhotos === 1 ? 'photo' : 'photos'">{{ Str::plural('photo', $totalPhotosCount) }}</span> &bull; Slug: <span class="font-mono text-primary">{{ $gallery->slug }}</span>
+            <p class="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>
+                    <span x-text="totalPhotos">{{ $totalPhotosCount }}</span> <span x-text="totalPhotos === 1 ? 'item' : 'items'">{{ Str::plural('photo', $totalPhotosCount) }}</span>
+                </span>
+                <span>&bull;</span>
+                <span>Slug: <span class="font-mono text-primary">{{ $gallery->slug }}</span></span>
+                @if(auth()->user()->hasVideoSupport())
+                    <span>&bull;</span>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-secondary/80 border border-border text-[11px] font-medium text-foreground">
+                        <svg class="w-3 h-3 text-primary fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span>Video: {{ auth()->user()->getVideoUsageFormatted() }}</span>
+                    </span>
+                @endif
             </p>
         </div>
 
@@ -1384,12 +1662,11 @@ document.addEventListener('alpine:init', () => {
                 Settings
             </a>
             <x-ui.button @click="$dispatch('open-modal', 'upload-photos-modal')" variant="primary" size="sm">
-                + Upload Photos
+                + Upload Photos & Videos
             </x-ui.button>
         </div>
     </div>
 
-    <!-- Upload Dropzone Hero (when gallery is empty) -->
     <!-- Upload Dropzone Hero (when gallery is empty) -->
     <div x-show="totalPhotos === 0"
          x-cloak
@@ -1405,10 +1682,10 @@ document.addEventListener('alpine:init', () => {
         </div>
         <h2 class="text-lg font-bold text-foreground">This collection is currently empty</h2>
         <p class="text-xs text-muted-foreground max-w-sm mt-1 mb-6">
-            Drag and drop your photos to upload and share with your clients in full quality.
+            Drag and drop your photos and videos to upload and share with your clients in full quality.
         </p>
         <x-ui.button type="button" variant="primary">
-            Select Photos to Upload
+            Select Photos & Videos to Upload
         </x-ui.button>
     </div>
 
@@ -1419,9 +1696,11 @@ document.addEventListener('alpine:init', () => {
          style="{{ $photos->isEmpty() ? 'display: none;' : '' }}">
         @foreach($photos as $photo)
             @php
-                $thumbUrl = $photo->getUrl('sm');
+                $thumbUrl = $photo->getThumbnailUrl('sm') ?: $photo->getUrl('sm');
                 $isCover = $gallery->cover_photo_id === $photo->id;
                 $isHidden = (bool) $photo->is_hidden;
+                $isVideo = $photo->isVideo();
+                $isProcessing = $photo->status === 'processing';
             @endphp
             <div id="photo-card-{{ $photo->uuid }}"
                  data-uuid="{{ $photo->uuid }}"
@@ -1447,6 +1726,22 @@ document.addEventListener('alpine:init', () => {
                             Hidden
                         </span>
                     </div>
+
+                    @if($isVideo)
+                        <div class="video-duration-badge absolute bottom-2 left-2 z-10 pointer-events-none">
+                            <span class="px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-white text-[10px] font-semibold flex items-center gap-1 shadow">
+                                <svg class="w-2.5 h-2.5 fill-current text-primary" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                <span>{{ $photo->duration_formatted ?: 'Video' }}</span>
+                            </span>
+                        </div>
+                    @endif
+
+                    @if($isProcessing)
+                        <div class="processing-overlay absolute inset-0 bg-black/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-white text-xs gap-1.5 pointer-events-none">
+                            <svg class="w-5 h-5 animate-spin text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                            <span class="font-medium">Processing...</span>
+                        </div>
+                    @endif
 
                     <!-- Hover Overlay Actions -->
                     <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2.5 z-20"
@@ -1601,12 +1896,33 @@ document.addEventListener('alpine:init', () => {
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
 
-            <!-- Image View -->
+            <!-- Image View -            <!-- Media View (Image or Video) -->
             <template x-if="currentPhoto">
                 <div class="relative max-h-full max-w-full flex items-center justify-center">
-                    <img :src="currentPhoto.full_url || currentPhoto.large_url || currentPhoto.original_url || currentPhoto.medium_url || currentPhoto.thumbnail_url"
-                         :alt="currentPhoto.original_filename"
-                         class="max-h-[82vh] max-w-[90vw] object-contain rounded-lg shadow-2xl transition-all duration-200 select-none" />
+                    <template x-if="currentPhoto.is_video || currentPhoto.media_type === 'video'">
+                        <div class="relative flex flex-col items-center">
+                            <template x-if="currentPhoto.status === 'processing'">
+                                <div class="p-8 rounded-2xl bg-secondary/80 border border-border text-center flex flex-col items-center gap-3">
+                                    <svg class="w-8 h-8 animate-spin text-primary" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                    <h4 class="text-sm font-bold text-foreground">Video is processing...</h4>
+                                    <p class="text-xs text-muted-foreground max-w-xs">Optimizing video for fast streaming and generating thumbnails. It will appear here automatically once ready.</p>
+                                </div>
+                            </template>
+                            <template x-if="currentPhoto.status !== 'processing'">
+                                <div class="relative max-h-[82vh] max-w-[90vw] flex items-center justify-center">
+                                    <div id="studio-artplayer-container"
+                                         x-init="$nextTick(() => initStudioArtplayer())"
+                                         class="w-[85vw] max-w-4xl h-[70vh] max-h-[82vh] rounded-lg shadow-2xl overflow-hidden bg-black flex items-center justify-center select-auto pointer-events-auto">
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="!currentPhoto.is_video && currentPhoto.media_type !== 'video'">
+                        <img :src="currentPhoto.full_url || currentPhoto.large_url || currentPhoto.original_url || currentPhoto.medium_url || currentPhoto.thumbnail_url"
+                             :alt="currentPhoto.original_filename"
+                             class="max-h-[82vh] max-w-[90vw] object-contain rounded-lg shadow-2xl transition-all duration-200 select-none" />
+                    </template>
                 </div>
             </template>
 
@@ -1622,6 +1938,9 @@ document.addEventListener('alpine:init', () => {
         <!-- Bottom Bar / Photo Metadata -->
         <div class="px-6 py-3 border-t border-white/10 text-xs text-white/60 flex items-center justify-between bg-black/40">
             <div class="flex items-center gap-4">
+                <template x-if="currentPhoto && currentPhoto.duration">
+                    <span class="text-primary font-semibold" x-text="'Duration: ' + currentPhoto.duration"></span>
+                </template>
                 <template x-if="currentPhoto && currentPhoto.width && currentPhoto.height">
                     <span x-text="currentPhoto.width + ' × ' + currentPhoto.height + ' px'"></span>
                 </template>
@@ -1664,11 +1983,11 @@ document.addEventListener('alpine:init', () => {
         </button>
     </div>
 
-    <!-- Upload Photos Modal -->
-    <x-ui.modal name="upload-photos-modal" title="Upload Photos" maxWidth="2xl">
+    <!-- Upload Photos & Videos Modal -->
+    <x-ui.modal name="upload-photos-modal" title="Upload Photos & Videos" maxWidth="2xl">
         <div class="space-y-5">
             <p class="text-xs text-muted-foreground">
-                Select photos to add to your collection. Upload high-resolution images in full quality.
+                Select photos and videos to add to your collection. Upload high-resolution images and videos up to your plan limit.
             </p>
 
             <!-- Upgraded Plan Celebration Banner -->
@@ -1825,14 +2144,14 @@ document.addEventListener('alpine:init', () => {
                 <input type="file"
                        id="photo-file-input"
                        multiple
-                       accept="image/jpeg,image/png,image/webp,image/avif"
+                       accept="image/jpeg,image/png,image/webp,image/avif,video/mp4,video/quicktime,video/webm"
                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                        @change="handleFileInput($event)">
                 <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-2xl mb-3 pointer-events-none">
                     📁
                 </div>
-                <p class="text-sm font-semibold text-foreground pointer-events-none">Click to browse or drag and drop photos</p>
-                <p class="text-xs text-muted-foreground mt-1 pointer-events-none">JPEG, PNG, WebP up to 50MB per file</p>
+                <p class="text-sm font-semibold text-foreground pointer-events-none">Click to browse or drag and drop photos & videos</p>
+                <p class="text-xs text-muted-foreground mt-1 pointer-events-none">Photos up to 50MB, MP4 / MOV videos up to plan limit</p>
             </div>
 
             <!-- Global Status Alert Banner -->
@@ -1920,9 +2239,9 @@ document.addEventListener('alpine:init', () => {
                                     </template>
 
                                     <template x-if="item.status === 'processing'">
-                                        <p class="text-[10px] text-primary flex items-center gap-1.5">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                                            Saving to gallery...
+                                        <p class="text-[10px] text-primary flex items-center gap-1.5 font-medium">
+                                            <svg class="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                            <span x-text="item.isVideo ? 'Optimizing video stream...' : 'Saving to gallery...'"></span>
                                         </p>
                                     </template>
 
@@ -1994,3 +2313,8 @@ document.addEventListener('alpine:init', () => {
     </x-ui.modal>
 </div>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+@endpush

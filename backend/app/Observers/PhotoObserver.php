@@ -52,6 +52,15 @@ class PhotoObserver
     public function deleted(Photo $photo): void
     {
         $this->recalculate($photo);
+
+        if ($photo->isVideo() && $photo->duration_seconds > 0 && $photo->status === \App\Enums\PhotoStatus::Ready->value) {
+            $gallery = \App\Models\Gallery::withTrashed()->find($photo->gallery_id);
+            if ($gallery) {
+                \App\Models\User::where('id', $gallery->user_id)
+                    ->where('video_seconds_used', '>=', $photo->duration_seconds)
+                    ->decrement('video_seconds_used', $photo->duration_seconds);
+            }
+        }
     }
 
     /**
@@ -60,6 +69,14 @@ class PhotoObserver
     public function restored(Photo $photo): void
     {
         $this->recalculate($photo);
+
+        if ($photo->isVideo() && $photo->duration_seconds > 0 && $photo->status === \App\Enums\PhotoStatus::Ready->value) {
+            $gallery = \App\Models\Gallery::withTrashed()->find($photo->gallery_id);
+            if ($gallery) {
+                \App\Models\User::where('id', $gallery->user_id)
+                    ->increment('video_seconds_used', $photo->duration_seconds);
+            }
+        }
     }
 
     /**

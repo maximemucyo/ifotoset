@@ -153,6 +153,8 @@ class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
             $baseName = pathinfo($photo->filename, PATHINFO_FILENAME);
 
             foreach ($variants as $sizeName => $targetWidth) {
+                $updateProgress('Generating WebP (' . strtoupper($sizeName) . ')');
+
                 // If original/current image is wider than the target width, scale it down in-place
                 if ($image->width() > $targetWidth) {
                     $image->scale(width: $targetWidth);

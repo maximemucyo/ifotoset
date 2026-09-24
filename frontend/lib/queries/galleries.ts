@@ -18,6 +18,12 @@ export interface PhotoItem {
   height: number | null;
   blurhash: string | null;
   status: string;
+  is_video?: boolean;
+  media_type?: string;
+  duration_seconds?: number | null;
+  duration_formatted?: string | null;
+  delivery_url?: string | null;
+  poster_url?: string | null;
   cdn_url: string;
   variants: {
     xs: string;
