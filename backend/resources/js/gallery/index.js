@@ -47,6 +47,7 @@ export function bootstrapGallery() {
             full: card.dataset.photoFull,
             original: card.dataset.photoOriginal || card.dataset.photoFull,
             thumbnail: card.dataset.photoThumb,
+            srcset: card.dataset.photoSrcset || null,
             is_video: card.dataset.isVideo === 'true',
             duration: card.dataset.videoDuration || '',
             delivery_url: card.dataset.photoDelivery || null,
@@ -146,6 +147,41 @@ export function bootstrapGallery() {
     // Grid Card Event Delegation
     const grid = document.getElementById('gallery-grid');
     if (grid) {
+        // Photos still processing have no stored size (cards fall back to 16:9 and crop portraits),
+        // so reshape a card from its decoded image; naturalWidth/Height already honour EXIF orientation.
+        let relayoutQueued = false;
+        const syncCardAspect = (img) => {
+            const card = img.closest('.photo-card');
+            const nw = img.naturalWidth;
+            const nh = img.naturalHeight;
+            if (!card || !nw || !nh) return;
+            const pw = parseInt(card.dataset.photoWidth || '0', 10);
+            const ph = parseInt(card.dataset.photoHeight || '0', 10);
+            if (pw && ph && Math.abs(nw / nh - pw / ph) < 0.01) return;
+
+            card.dataset.photoWidth = nw;
+            card.dataset.photoHeight = nh;
+            card.style.aspectRatio = `${nw} / ${nh}`;
+            const photo = lightbox.photos.find(p => p.uuid === card.dataset.photoUuid);
+            if (photo) {
+                photo.width = nw;
+                photo.height = nh;
+            }
+            if (!relayoutQueued) {
+                relayoutQueued = true;
+                window.requestAnimationFrame(() => {
+                    relayoutQueued = false;
+                    layout.relayout();
+                });
+            }
+        };
+        grid.addEventListener('load', (e) => {
+            if (e.target instanceof HTMLImageElement) syncCardAspect(e.target);
+        }, true);
+        grid.querySelectorAll('.photo-card img').forEach(img => {
+            if (img.complete) syncCardAspect(img);
+        });
+
         grid.addEventListener('click', (e) => {
             const favBtn = e.target.closest('.btn-favorite');
             if (favBtn) {

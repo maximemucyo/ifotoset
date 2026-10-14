@@ -6,6 +6,9 @@
 import { renderBlurHashToCanvas } from './blurhash.js';
 import { icon, escapeHtml } from './icons.js';
 
+// Mirrors the masonry columns in layout.js (2 / 3 / 4 / 5); keep in sync with photo-card.blade.php
+const CARD_SIZES = '(max-width: 639px) 50vw, (max-width: 1023px) 33vw, (max-width: 1699px) 25vw, 20vw';
+
 export class GalleryPagination {
     constructor(config) {
         this.grid = document.getElementById('gallery-grid');
@@ -92,6 +95,7 @@ export class GalleryPagination {
     async loadNextBatch() {
         if (!this.hasMore || !this.nextCursor || this.isLoading) return;
         this.isLoading = true;
+        let failed = false;
 
         if (this.spinner) this.spinner.classList.remove('hidden');
 
@@ -137,7 +141,6 @@ export class GalleryPagination {
             }
 
             if (!this.hasMore) {
-                if (this.spinner) this.spinner.classList.add('hidden');
                 if (this.endText && !this.filterFavorites) {
                     const hasCards = (this.grid?.querySelectorAll('.photo-card:not(.hidden)')?.length || 0) > 0;
                     if (hasCards) {
@@ -148,9 +151,17 @@ export class GalleryPagination {
             }
         } catch (err) {
             console.error('Gallery stream error:', err);
+            failed = true;
         } finally {
             this.isLoading = false;
-            if (this.spinner && !this.hasMore) this.spinner.classList.add('hidden');
+            if (this.spinner) this.spinner.classList.add('hidden');
+        }
+
+        // IntersectionObserver only fires on changes: if the sentinel is still in range
+        // (short batch, or cards hidden by the favorites filter), re-observing re-checks it.
+        if (this.hasMore && this.observer && this.sentinel) {
+            this.observer.unobserve(this.sentinel);
+            setTimeout(() => this.observer.observe(this.sentinel), failed ? 3000 : 0);
         }
     }
 
@@ -175,6 +186,7 @@ export class GalleryPagination {
         card.dataset.photoDelivery = photo.delivery_url || '';
         card.dataset.photoDeliveryDownload = photo.delivery_download_url || '';
         card.dataset.photoThumb = photo.thumbnail;
+        card.dataset.photoSrcset = photo.srcset || '';
         card.dataset.photoBlurhash = photo.blurhash || '';
         card.dataset.photoWidth = w;
         card.dataset.photoHeight = h;
@@ -187,6 +199,7 @@ export class GalleryPagination {
         card.innerHTML = `
             <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-700"></canvas>
             <img src="${escapeHtml(photo.thumbnail)}"
+                 ${photo.srcset ? `srcset="${escapeHtml(photo.srcset)}" sizes="${CARD_SIZES}"` : ''}
                  alt=""
                  loading="lazy"
                  decoding="async"

@@ -57,6 +57,8 @@ class PublicGalleryController extends Controller
         $hasMore = false;
         $deepLinkedPhoto = null;
         $coverUrl = null;
+        $coverSrcset = null;
+        $coverSizes = null;
 
         // Zero-leak security invariant: only query and hydrate photo data when access is granted
         if ($decision->isGranted()) {
@@ -76,23 +78,7 @@ class PublicGalleryController extends Controller
                     ->first();
 
                 if ($resolvePhoto) {
-                    $mediaTokenService = app(\App\Services\MediaTokenService::class);
-                    $deepLinkedPhoto = [
-                        'id' => $resolvePhoto->id,
-                        'uuid' => $resolvePhoto->uuid,
-                        'filename' => $resolvePhoto->original_filename,
-                        'large' => $resolvePhoto->getUrl('lg'),
-                        'full' => $resolvePhoto->getUrl('xl'),
-                        'original' => $resolvePhoto->getOriginalDownloadUrl(),
-                        'thumbnail' => $resolvePhoto->getThumbnailUrl('md'),
-                        'is_video' => $resolvePhoto->isVideo(),
-                        'duration' => $resolvePhoto->duration_formatted,
-                        'delivery_url' => $resolvePhoto->isVideo() ? $mediaTokenService->getStreamUrl($resolvePhoto, $gallery) : null,
-                        'delivery_download_url' => $resolvePhoto->isVideo() ? $resolvePhoto->getDeliveryDownloadUrl() : $resolvePhoto->getOriginalDownloadUrl(),
-                        'width' => $resolvePhoto->width,
-                        'height' => $resolvePhoto->height,
-                        'blurhash' => $resolvePhoto->blurhash,
-                    ];
+                    $deepLinkedPhoto = $this->photoPayload($resolvePhoto, $gallery);
                 }
             }
 
@@ -113,9 +99,15 @@ class PublicGalleryController extends Controller
             }
 
             // Hero cover image
-            $coverUrl = $gallery->getCoverUrl('xl');
-            if (!$coverUrl && $initialPhotos->isNotEmpty()) {
-                $coverUrl = $initialPhotos->first()->getUrl('xl');
+            $coverPhoto = ($gallery->coverPhoto && !$gallery->coverPhoto->is_hidden)
+                ? $gallery->coverPhoto
+                : $initialPhotos->first();
+            if ($coverPhoto) {
+                $coverUrl = $coverPhoto->getThumbnailUrl('xl') ?: $coverPhoto->getThumbnailUrl('lg');
+                $coverSrcset = $coverPhoto->getSrcset(['md', 'lg', 'xl']);
+                // object-cover: when the viewport is narrower than the photo, height drives the rendered width
+                $coverRatio = ($coverPhoto->width && $coverPhoto->height) ? $coverPhoto->width / $coverPhoto->height : 1.5;
+                $coverSizes = sprintf('(max-aspect-ratio: %d/%d) %svh, 100vw', $coverPhoto->width ?: 3, $coverPhoto->height ?: 2, round($coverRatio * 100, 1));
             }
         }
 
@@ -124,6 +116,8 @@ class PublicGalleryController extends Controller
             'photographer' => $gallery->user,
             'photos' => $initialPhotos,
             'coverUrl' => $coverUrl,
+            'coverSrcset' => $coverSrcset,
+            'coverSizes' => $coverSizes,
             'nextCursor' => $nextCursor,
             'hasMore' => $hasMore,
             'accessDecision' => $decision,
@@ -153,8 +147,6 @@ class PublicGalleryController extends Controller
             return $accessError;
         }
 
-        $mediaTokenService = app(\App\Services\MediaTokenService::class);
-
         // Single photo resolver
         if ($singleUuid = $request->query('uuid')) {
             $photo = Photo::where('gallery_id', $gallery->id)
@@ -167,24 +159,7 @@ class PublicGalleryController extends Controller
                 return response()->json(['code' => 'PHOTO_NOT_FOUND', 'message' => 'Photo not found.'], 404);
             }
 
-            return response()->json([
-                'data' => [
-                    'id' => $photo->id,
-                    'uuid' => $photo->uuid,
-                    'filename' => $photo->original_filename,
-                    'large' => $photo->isVideo() ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
-                    'full' => $photo->isVideo() ? $photo->getPosterUrl('xl') : $photo->getUrl('xl'),
-                    'original' => $photo->getOriginalDownloadUrl(),
-                    'thumbnail' => $photo->getThumbnailUrl('md'),
-                    'is_video' => $photo->isVideo(),
-                    'duration' => $photo->duration_formatted,
-                    'delivery_url' => $photo->isVideo() ? $mediaTokenService->getStreamUrl($photo, $gallery) : null,
-                    'delivery_download_url' => $photo->isVideo() ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
-                    'width' => $photo->width,
-                    'height' => $photo->height,
-                    'blurhash' => $photo->blurhash,
-                ]
-            ]);
+            return response()->json(['data' => $this->photoPayload($photo, $gallery)]);
         }
 
         $perPage = $request->integer('per_page', 24);
@@ -197,30 +172,40 @@ class PublicGalleryController extends Controller
 
         $paginated = $this->photoQuery->getPaginatedForGallery($gallery, $perPage, is_array($uuids) ? $uuids : null);
 
-        $data = collect($paginated->items())->map(function (Photo $photo) use ($gallery, $mediaTokenService) {
-            return [
-                'id' => $photo->id,
-                'uuid' => $photo->uuid,
-                'filename' => $photo->original_filename,
-                'large' => $photo->isVideo() ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
-                'full' => $photo->isVideo() ? $photo->getPosterUrl('xl') : $photo->getUrl('xl'),
-                'original' => $photo->getOriginalDownloadUrl(),
-                'thumbnail' => $photo->getThumbnailUrl('md'),
-                'is_video' => $photo->isVideo(),
-                'duration' => $photo->duration_formatted,
-                'delivery_url' => $photo->isVideo() ? $mediaTokenService->getStreamUrl($photo, $gallery) : null,
-                'delivery_download_url' => $photo->isVideo() ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
-                'width' => $photo->width,
-                'height' => $photo->height,
-                'blurhash' => $photo->blurhash,
-            ];
-        });
+        $data = collect($paginated->items())->map(fn (Photo $photo) => $this->photoPayload($photo, $gallery));
 
         return response()->json([
             'data' => $data,
             'next_cursor' => $paginated->nextCursor()?->encode(),
             'has_more' => $paginated->hasMorePages(),
         ]);
+    }
+
+    /**
+     * Client payload for one photo; mirrors the data-* attributes of components/gallery/photo-card.
+     */
+    private function photoPayload(Photo $photo, Gallery $gallery): array
+    {
+        $isVideo = $photo->isVideo();
+
+        return [
+            'id' => $photo->id,
+            'uuid' => $photo->uuid,
+            'filename' => $photo->original_filename,
+            'large' => $isVideo ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
+            // Video posters stop at 'lg'
+            'full' => $isVideo ? $photo->getPosterUrl('lg') : $photo->getUrl('xl'),
+            'original' => $photo->getOriginalDownloadUrl(),
+            'thumbnail' => $photo->getThumbnailUrl('md'),
+            'srcset' => $photo->getSrcset(),
+            'is_video' => $isVideo,
+            'duration' => $photo->duration_formatted,
+            'delivery_url' => $isVideo ? app(\App\Services\MediaTokenService::class)->getStreamUrl($photo, $gallery) : null,
+            'delivery_download_url' => $isVideo ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
+            'width' => $photo->width,
+            'height' => $photo->height,
+            'blurhash' => $photo->blurhash,
+        ];
     }
 
     /**

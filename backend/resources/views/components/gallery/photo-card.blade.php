@@ -1,6 +1,7 @@
 @props([
     'photo',
     'allowDownloads' => true,
+    'eager' => false,
 ])
 
 @php
@@ -11,6 +12,7 @@
     $originalUrl = $photo->getOriginalDownloadUrl();
     $deliveryUrl = $isVideo ? $photo->getStreamUrl() : null;
     $deliveryDownloadUrl = $isVideo ? $photo->getDeliveryDownloadUrl() : $originalUrl;
+    $srcset = $photo->getSrcset();
     $blurhash = $photo->blurhash;
     $w = $photo->width ?: 1920;
     $h = $photo->height ?: 1080;
@@ -27,6 +29,7 @@
      data-photo-delivery="{{ $deliveryUrl }}"
      data-photo-delivery-download="{{ $deliveryDownloadUrl }}"
      data-photo-thumb="{{ $thumbnailUrl }}"
+     data-photo-srcset="{{ $srcset }}"
      data-photo-blurhash="{{ $blurhash }}"
      data-photo-width="{{ $w }}"
      data-photo-height="{{ $h }}"
@@ -41,8 +44,10 @@
 
     {{-- Image (poster for video) --}}
     <img src="{{ $thumbnailUrl }}"
+         @if($srcset) srcset="{{ $srcset }}" sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, (max-width: 1699px) 25vw, 20vw" @endif
          alt="{{ $photo->title ?? $photo->caption ?? '' }}"
-         loading="lazy"
+         loading="{{ $eager ? 'eager' : 'lazy' }}"
+         @if($eager) fetchpriority="high" @endif
          decoding="async"
          width="{{ $w }}"
          height="{{ $h }}"

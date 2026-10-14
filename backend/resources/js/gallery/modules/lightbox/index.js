@@ -1,13 +1,43 @@
 /**
  * Gallery Lightbox Main Controller
  * Owns photo state, 3-slide carousel slot recycling, responsive image resolution,
- * blurhash rendering, and orchestrates zoom, navigation, slideshow, and deep-linking.
+ * progressive layering (blurhash -> cached grid thumbnail -> full-res), open/close
+ * transitions that fly the photo from/to its grid card, and orchestrates zoom,
+ * navigation, slideshow, and deep-linking.
  */
 import { LightboxZoom } from './zoom.js';
 import { LightboxNavigation } from './navigation.js';
 import { LightboxSlideshow } from './slideshow.js';
 import { LightboxDeepLink } from './deepLink.js';
 import { renderBlurHashToCanvas } from '../blurhash.js';
+
+const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const SLIDE_GAP = 24; // px between neighbouring photos while swiping
+const LG_WIDTH = 1600; // 'lg' rendition width; above this the 'xl' (2560) rendition is used
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/** Transform (center origin) that maps `base` rect onto `target` rect. */
+function flipTransform(target, base) {
+    const tx = (target.left + target.width / 2) - (base.left + base.width / 2);
+    const ty = (target.top + target.height / 2) - (base.top + base.height / 2);
+    return `translate(${tx}px, ${ty}px) scale(${target.width / base.width}, ${target.height / base.height})`;
+}
+
+/** Run `done` once after a transform transition ends (with a timeout safety net). */
+function afterTransition(el, ms, done) {
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        el.removeEventListener('transitionend', onEnd);
+        done();
+    };
+    const onEnd = (e) => {
+        if (e.target === el && e.propertyName === 'transform') finish();
+    };
+    el.addEventListener('transitionend', onEnd);
+    setTimeout(finish, ms + 80);
+}
 
 export class GalleryLightbox {
     constructor(config) {
@@ -24,15 +54,22 @@ export class GalleryLightbox {
         this.photos = [...(config.initialPhotos || [])];
         this.currentIndex = -1;
         this.isOpen = false;
+        this.isClosing = false;
         this.lastActiveElement = null;
 
         // Lifecycle state: 'IDLE' | 'DRAGGING' | 'ANIMATING'
         this.state = 'IDLE';
         this.currentIsFull = false;
+        this.dragOffset = 0;
+        this.dismissBase = null;
+        this.chromeVisible = true;
+        this.hiddenCard = null;
 
         // DOM elements
         this.container = document.getElementById('lightbox-modal');
+        this.backdrop = document.getElementById('lightbox-backdrop');
         this.track = document.getElementById('lightbox-track');
+        this.viewport = this.container?.querySelector('.lightbox-viewport') || null;
         this.slots = this.container ? Array.from(this.container.querySelectorAll('.lightbox-slide')) : [];
 
         // Dynamic 3-slot recycling map
@@ -60,19 +97,12 @@ export class GalleryLightbox {
         if (!this.container || !this.track) return;
 
         // 1. Zoom module (with early 1.1x resolution upgrade callback)
-        const initialImg = this.slots[this.slotMap.current]?.querySelector('.lightbox-slide-img');
         this.zoom = new LightboxZoom(
-            initialImg,
-            this.container.querySelector('.lightbox-viewport'),
+            this.frameOf(this.slots[this.slotMap.current]),
+            this.viewport,
             (scale) => {
                 if (this.zoomValEl) this.zoomValEl.textContent = `${Math.round(scale * 100)}%`;
-                if (this.zoomResetBtn) {
-                    if (scale > 1) {
-                        this.zoomResetBtn.classList.remove('hidden');
-                    } else {
-                        this.zoomResetBtn.classList.add('hidden');
-                    }
-                }
+                if (this.zoomResetBtn) this.zoomResetBtn.classList.toggle('hidden', scale <= 1);
             },
             () => this.upgradeCurrentToFull()
         );
@@ -148,6 +178,11 @@ export class GalleryLightbox {
         newPhotos.forEach(p => this.addPhotoIfMissing(p));
         if (this.isOpen) {
             this.updateCounter();
+            // Neighbours may have changed now that the loaded set grew past the current photo
+            if (this.state === 'IDLE') {
+                this.renderSlide(this.slots[this.slotMap.next], this.getNextPhoto(), 'next');
+                this.renderSlide(this.slots[this.slotMap.prev], this.getPrevPhoto(), 'prev');
+            }
         }
     }
 
@@ -159,12 +194,29 @@ export class GalleryLightbox {
         }
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Open / close                                                        */
+    /* ------------------------------------------------------------------ */
+
     openByIndex(index) {
         if (index < 0 || index >= this.photos.length) return;
+
+        // Already open (e.g. history navigation): jump without the entrance animation
+        if (this.isOpen) {
+            if (this.isClosing || this.state !== 'IDLE') return;
+            this.zoom?.reset();
+            this.currentIndex = index;
+            this.renderAllSlots();
+            this.navigation?.preloadAdjacent(this.currentIndex);
+            return;
+        }
+
         this.lastActiveElement = document.activeElement;
         this.currentIndex = index;
         this.isOpen = true;
-        this.state = 'IDLE';
+        this.state = 'ANIMATING';
+        this.dragOffset = 0;
+        this.setChrome(true);
 
         this.container?.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
@@ -173,13 +225,13 @@ export class GalleryLightbox {
         this.slotMap = { prev: 0, current: 1, next: 2 };
         if (this.track) {
             this.track.style.transition = 'none';
-            this.track.style.transform = 'translate3d(0%, 0, 0)';
+            this.track.style.transform = 'translate3d(0, 0, 0)';
         }
 
         this.positionSlots();
         this.renderAllSlots();
-
-        this.container?.focus();
+        this.container?.focus({ preventScroll: true });
+        this.animateIn();
         this.navigation?.preloadAdjacent(this.currentIndex);
     }
 
@@ -190,25 +242,235 @@ export class GalleryLightbox {
         }
     }
 
-    close(clearUrl = true) {
-        if (!this.isOpen) return;
-        this.isOpen = false;
-        this.state = 'IDLE';
-        this.slideshow?.stop();
-        this.zoom?.reset();
-        this.teardownActiveVideo();
+    animateIn() {
+        const frame = this.currentFrame();
+        const photo = this.getCurrentPhoto();
+        const done = () => {
+            if (frame) {
+                frame.style.transition = '';
+                frame.style.transform = '';
+                frame.style.opacity = '';
+            }
+            this.restoreCard();
+            if (this.isOpen && !this.isClosing) this.state = 'IDLE';
+        };
 
-        this.container?.classList.add('hidden');
-        document.body.style.overflow = '';
+        if (!frame || !this.backdrop || reducedMotion.matches) {
+            if (this.backdrop) this.backdrop.style.opacity = '1';
+            done();
+            return;
+        }
+
+        const card = photo ? this.findCard(photo.uuid) : null;
+        const cardRect = card?.getBoundingClientRect();
+        const cardVisible = cardRect && cardRect.bottom > 0 && cardRect.top < window.innerHeight;
+        const base = frame.getBoundingClientRect();
+
+        frame.style.transition = 'none';
+        if (cardVisible && base.width > 0) {
+            frame.style.transform = flipTransform(cardRect, base);
+            this.hideCard(card);
+        } else {
+            frame.style.transform = 'scale(0.94)';
+            frame.style.opacity = '0';
+        }
+        this.backdrop.style.transition = 'none';
+        this.backdrop.style.opacity = '0';
+        this.container.dataset.chrome = 'hidden';
+
+        void frame.offsetWidth; // commit the start state
+
+        frame.style.transition = `transform 440ms ${EASE_OUT}, opacity 260ms ease`;
+        frame.style.transform = '';
+        frame.style.opacity = '';
+        this.backdrop.style.transition = 'opacity 340ms ease';
+        this.backdrop.style.opacity = '1';
+        this.setChrome(this.chromeVisible);
+
+        afterTransition(frame, 440, done);
+    }
+
+    close(clearUrl = true) {
+        if (!this.isOpen || this.isClosing) return;
+        this.isClosing = true;
+        this.state = 'ANIMATING';
+        this.slideshow?.stop();
+        this.teardownActiveVideo();
 
         if (clearUrl) {
             this.deepLink?.clearUrl();
         }
 
-        if (this.lastActiveElement && typeof this.lastActiveElement.focus === 'function') {
-            this.lastActiveElement.focus();
+        const frame = this.currentFrame();
+        const photo = this.getCurrentPhoto();
+
+        const finish = () => {
+            this.container?.classList.add('hidden');
+            if (frame) {
+                frame.style.transition = '';
+                frame.style.transform = '';
+                frame.style.opacity = '';
+            }
+            if (this.backdrop) {
+                this.backdrop.style.transition = '';
+                this.backdrop.style.opacity = '';
+            }
+            this.restoreCard();
+            this.zoom?.reset();
+            this.dismissBase = null;
+            this.isOpen = false;
+            this.isClosing = false;
+            this.state = 'IDLE';
+            document.body.style.overflow = '';
+
+            if (this.lastActiveElement && typeof this.lastActiveElement.focus === 'function') {
+                this.lastActiveElement.focus({ preventScroll: true });
+            }
+        };
+
+        if (!frame || !this.backdrop || reducedMotion.matches) {
+            finish();
+            return;
         }
+
+        // Rect of the frame without any drag/zoom transform applied
+        let base = this.dismissBase;
+        if (!base) {
+            this.zoom?.reset();
+            frame.style.transition = 'none';
+            frame.style.transform = '';
+            base = frame.getBoundingClientRect();
+        }
+
+        const card = photo ? this.findCard(photo.uuid) : null;
+        let cardRect = null;
+        if (card) {
+            cardRect = card.getBoundingClientRect();
+            if (cardRect.bottom < 0 || cardRect.top > window.innerHeight) {
+                // Bring the card into view behind the lightbox so the photo can land on it
+                window.scrollTo({ top: window.scrollY + cardRect.top - (window.innerHeight - cardRect.height) / 2, behavior: 'instant' });
+                cardRect = card.getBoundingClientRect();
+            }
+        }
+
+        frame.style.transition = `transform 380ms ${EASE_OUT}, opacity 240ms ease`;
+        if (cardRect && base.width > 0) {
+            frame.style.transform = flipTransform(cardRect, base);
+            this.hideCard(card);
+        } else {
+            frame.style.transform = `${frame.style.transform || ''} scale(0.92)`;
+            frame.style.opacity = '0';
+        }
+        this.backdrop.style.transition = 'opacity 300ms ease';
+        this.backdrop.style.opacity = '0';
+        this.container.dataset.chrome = 'hidden';
+
+        afterTransition(frame, 380, finish);
     }
+
+    findCard(uuid) {
+        const card = document.querySelector(`.photo-card[data-photo-uuid="${CSS.escape(uuid)}"]`);
+        return card && !card.classList.contains('hidden') ? card : null;
+    }
+
+    // The flying frame stands in for the card during open/close
+    hideCard(card) {
+        this.restoreCard();
+        card.style.visibility = 'hidden';
+        this.hiddenCard = card;
+    }
+
+    restoreCard() {
+        if (this.hiddenCard) this.hiddenCard.style.visibility = '';
+        this.hiddenCard = null;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Chrome, taps and dismiss gesture                                    */
+    /* ------------------------------------------------------------------ */
+
+    setChrome(visible) {
+        this.chromeVisible = visible;
+        if (this.container) this.container.dataset.chrome = visible ? 'visible' : 'hidden';
+    }
+
+    toggleChrome() {
+        this.setChrome(!this.chromeVisible);
+    }
+
+    /** Single tap toggles the controls; a quick second tap zooms (videos keep native controls). */
+    handleTap(x, y) {
+        const now = performance.now();
+        const last = this.lastTap;
+        if (last && now - last.t < 300 && Math.hypot(x - last.x, y - last.y) < 40) {
+            clearTimeout(this.tapTimer);
+            this.lastTap = null;
+            if (!this.getCurrentPhoto()?.is_video) this.zoom?.toggleAt(x, y);
+            return;
+        }
+        this.lastTap = { t: now, x, y };
+        clearTimeout(this.tapTimer);
+        this.tapTimer = setTimeout(() => {
+            this.lastTap = null;
+            this.toggleChrome();
+        }, 300);
+    }
+
+    /** Desktop: clicking the empty stage around the photo closes the viewer. */
+    handleBackdropClick(x, y) {
+        if (this.state !== 'IDLE' || (this.zoom && this.zoom.scale > 1)) return;
+        const rect = this.currentFrame()?.getBoundingClientRect();
+        if (rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return;
+        this.close();
+    }
+
+    beginDismiss() {
+        const frame = this.currentFrame();
+        if (!frame) return;
+        this.state = 'DRAGGING';
+        this.slideshow?.stop();
+        frame.style.transition = 'none';
+        this.dismissBase = frame.getBoundingClientRect();
+        if (this.backdrop) this.backdrop.style.transition = 'none';
+        if (this.container) this.container.dataset.chrome = 'hidden';
+    }
+
+    updateDismiss(dx, dy) {
+        const frame = this.currentFrame();
+        if (!frame) return;
+        const progress = Math.min(1, Math.abs(dy) / (window.innerHeight * 0.5));
+        frame.style.transform = `translate(${dx * 0.5}px, ${dy}px) scale(${1 - progress * 0.25})`;
+        if (this.backdrop) this.backdrop.style.opacity = String(1 - progress * 0.9);
+    }
+
+    endDismiss(shouldClose) {
+        if (shouldClose) {
+            this.close();
+            return;
+        }
+        const frame = this.currentFrame();
+        this.dismissBase = null;
+        this.state = 'ANIMATING';
+        if (this.backdrop) {
+            this.backdrop.style.transition = 'opacity 280ms ease';
+            this.backdrop.style.opacity = '1';
+        }
+        this.setChrome(this.chromeVisible);
+        if (!frame) {
+            this.state = 'IDLE';
+            return;
+        }
+        frame.style.transition = `transform 320ms ${EASE_OUT}`;
+        frame.style.transform = '';
+        afterTransition(frame, 320, () => {
+            frame.style.transition = '';
+            if (!this.isClosing) this.state = 'IDLE';
+        });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Slides                                                              */
+    /* ------------------------------------------------------------------ */
 
     getCurrentPhoto() {
         return (this.currentIndex >= 0 && this.currentIndex < this.photos.length)
@@ -228,11 +490,19 @@ export class GalleryLightbox {
         return this.photos[nextIdx];
     }
 
+    frameOf(slotEl) {
+        return slotEl?.querySelector('.lightbox-frame') || null;
+    }
+
+    currentFrame() {
+        return this.frameOf(this.slots[this.slotMap.current]);
+    }
+
     positionSlots() {
         if (this.slots.length < 3) return;
-        this.slots[this.slotMap.prev].style.transform = 'translate3d(-100%, 0, 0)';
-        this.slots[this.slotMap.current].style.transform = 'translate3d(0%, 0, 0)';
-        this.slots[this.slotMap.next].style.transform = 'translate3d(100%, 0, 0)';
+        this.slots[this.slotMap.prev].style.transform = `translate3d(calc(-100% - ${SLIDE_GAP}px), 0, 0)`;
+        this.slots[this.slotMap.current].style.transform = 'translate3d(0, 0, 0)';
+        this.slots[this.slotMap.next].style.transform = `translate3d(calc(100% + ${SLIDE_GAP}px), 0, 0)`;
     }
 
     renderAllSlots() {
@@ -242,175 +512,187 @@ export class GalleryLightbox {
         this.renderSlide(this.slots[this.slotMap.next], this.getNextPhoto(), 'next');
     }
 
+    /**
+     * Smallest rendition that stays sharp at the photo's on-screen size and pixel density:
+     * a phone gets 'lg' (1600px), large/retina desktops get 'xl' (2560px).
+     */
+    pickUrl(photo) {
+        if (photo.is_video) return photo.large || photo.full || photo.thumbnail;
+        const ratio = (photo.width && photo.height) ? photo.width / photo.height : 1.5;
+        const availW = window.innerWidth - (window.innerWidth >= 640 ? 176 : 0);
+        const availH = window.innerHeight - 124;
+        const displayW = Math.min(availW, availH * ratio);
+        const needed = displayW * Math.min(window.devicePixelRatio || 1, 2);
+        return (needed > LG_WIDTH * 1.15 && photo.full) ? photo.full : (photo.large || photo.full);
+    }
+
+    /** The exact rendition the grid card already decoded, so the lightbox paints instantly. */
+    cachedThumbFor(photo) {
+        const cardImg = this.findCard(photo.uuid)?.querySelector('img');
+        return (cardImg && cardImg.complete && cardImg.currentSrc) || photo.thumbnail || '';
+    }
+
+    /**
+     * Photos still processing have no stored size (the frame falls back to 16:9), so adopt the
+     * decoded image's real shape; naturalWidth/Height already honour EXIF orientation.
+     */
+    syncAspect(frame, photo, el) {
+        const nw = el.naturalWidth;
+        const nh = el.naturalHeight;
+        if (!nw || !nh) return;
+        if (photo.width && photo.height && Math.abs(nw / nh - photo.width / photo.height) < 0.01) return;
+        photo.width = nw;
+        photo.height = nh;
+        frame.style.setProperty('--ar', String(nw / nh));
+    }
+
     renderSlide(slotEl, photo, role) {
-        if (!slotEl) return;
-        const canvas = slotEl.querySelector('.lightbox-blurhash-canvas');
-        const img = slotEl.querySelector('.lightbox-slide-img');
-        if (!img) return;
+        const frame = this.frameOf(slotEl);
+        if (!frame) return;
+        const canvas = frame.querySelector('.lightbox-blurhash-canvas');
+        const thumb = frame.querySelector('.lightbox-slide-thumb');
+        const img = frame.querySelector('.lightbox-slide-img');
 
         if (!photo) {
-            img.style.display = 'none';
-            if (canvas) canvas.style.display = 'none';
+            frame.style.display = 'none';
             return;
         }
-
-        img.style.display = '';
-        if (canvas) canvas.style.display = '';
-
-        // Predictable bandwidth selection:
-        // <= 768px viewports use 'lg' (~1600px WebP, saves 70% data and RAM on mobile)
-        // > 768px viewports use 'xl' (~2560px WebP)
-        const isMobile = window.innerWidth <= 768;
-        const targetUrl = isMobile ? (photo.large || photo.full) : photo.full;
+        frame.style.display = '';
 
         const pw = photo.width || 1920;
         const ph = photo.height || 1080;
-        const aspect = `${pw} / ${ph}`;
+        frame.style.setProperty('--ar', String(pw / ph));
 
-        // 1. Paint blurhash immediately to canvas without delaying image loading
-        if (photo.blurhash && canvas) {
-            renderBlurHashToCanvas(photo.blurhash, canvas, pw, ph);
-            canvas.style.aspectRatio = aspect;
-            canvas.style.opacity = '1';
-        } else if (canvas) {
-            canvas.style.opacity = '0';
+        // Layer 1: blurhash
+        if (canvas) {
+            canvas.style.display = photo.blurhash ? '' : 'none';
+            if (photo.blurhash) renderBlurHashToCanvas(photo.blurhash, canvas, pw, ph);
         }
 
-        img.style.aspectRatio = aspect;
-
-        // 2. Set image source (check if URL changed to avoid reloading same image)
-        if (img.dataset.loadedUrl !== targetUrl) {
-            img.classList.add('opacity-0');
-            img.onload = () => {
-                img.classList.remove('opacity-0');
-                if (canvas) canvas.style.opacity = '0';
-                img.dataset.loadedUrl = targetUrl;
-            };
-            img.src = targetUrl;
-            img.alt = photo.filename || 'Photo';
-        } else if (img.complete && img.naturalWidth > 0) {
-            img.classList.remove('opacity-0');
-            if (canvas) canvas.style.opacity = '0';
+        // Layer 2: grid thumbnail (normally already in the HTTP cache)
+        const thumbSrc = this.cachedThumbFor(photo);
+        if (thumb && thumb.getAttribute('src') !== thumbSrc) {
+            thumb.src = thumbSrc;
         }
-
-        // 3. Current active slide updates
-        if (role === 'current') {
-            this.currentIsFull = (targetUrl === photo.full);
-
-            if (photo.is_video) {
-                this.teardownActiveVideo();
-                if (this.zoomControlsContainer) this.zoomControlsContainer.classList.add('!hidden');
-                this.slideshow?.stop();
-
-                const slotInner = slotEl.querySelector('.lightbox-slide-inner');
-                if (slotInner) {
-                    const videoUrl = photo.delivery_url || photo.original;
-                    const poster = photo.large || photo.full || photo.thumbnail || '';
-                    const playerContainer = document.createElement('div');
-                    playerContainer.className = 'lightbox-artplayer-mount relative z-10 w-full sm:w-auto max-w-full max-h-[82vh] shadow-2xl select-auto pointer-events-auto flex items-center justify-center overflow-hidden';
-                    playerContainer.style.width = '100%';
-                    playerContainer.style.maxWidth = `${pw}px`;
-                    playerContainer.style.maxHeight = '82vh';
-                    playerContainer.style.aspectRatio = aspect;
-
-                    if (window.Artplayer) {
-                        try {
-                            const art = new window.Artplayer({
-                                container: playerContainer,
-                                url: videoUrl,
-                                poster: poster,
-                                volume: 0.7,
-                                isLive: false,
-                                muted: true,
-                                autoplay: true,
-                                pip: true,
-                                autoSize: false,
-                                autoMini: false,
-                                screenshot: false,
-                                setting: true,
-                                loop: false,
-                                playbackRate: true,
-                                aspectRatio: true,
-                                fullscreen: true,
-                                fullscreenWeb: true,
-                                playsInline: true,
-                                airplay: true,
-                                theme: '#f0532a',
-                                customType: {
-                                    m3u8: function (video, url, artInstance) {
-                                        if (window.Hls && window.Hls.isSupported()) {
-                                            if (artInstance.hls) artInstance.hls.destroy();
-                                            const hls = new window.Hls();
-                                            hls.loadSource(url);
-                                            hls.attachMedia(video);
-                                            artInstance.hls = hls;
-                                            artInstance.on('destroy', () => hls.destroy());
-                                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                            video.src = url;
-                                        } else {
-                                            artInstance.notice.show = 'Unsupported video format';
-                                        }
-                                    },
-                                },
-                            });
-
-                            art.on('ready', () => {
-                                img.classList.add('opacity-0');
-                                if (canvas) canvas.style.opacity = '0';
-                            });
-
-                            art.on('video:loadeddata', () => {
-                                img.classList.add('opacity-0');
-                                if (canvas) canvas.style.opacity = '0';
-                            });
-
-                            slotInner.appendChild(playerContainer);
-                            this.activeArtplayer = art;
-                        } catch (e) {
-                            console.error('[Lightbox] Artplayer initialization error:', e);
-                        }
-                    }
-
-                    if (!this.activeArtplayer) {
-                        const video = document.createElement('video');
-                        video.className = 'lightbox-slide-video w-full sm:w-auto max-w-full max-h-full object-contain shadow-2xl select-auto pointer-events-auto z-10';
-                        video.controls = true;
-                        video.playsInline = true;
-                        video.preload = 'auto';
-                        if (poster) {
-                            video.poster = poster;
-                        }
-                        video.src = videoUrl;
-                        video.style.aspectRatio = aspect;
-
-                        video.addEventListener('loadeddata', () => {
-                            img.classList.add('opacity-0');
-                            if (canvas) canvas.style.opacity = '0';
-                        }, { once: true });
-
-                        slotInner.appendChild(video);
-                        this.activeVideo = video;
-
-                        video.muted = true;
-                        video.play().catch(() => {});
-                    }
-                }
+        if (thumb) {
+            if (thumb.complete) {
+                this.syncAspect(frame, photo, thumb);
             } else {
-                this.teardownActiveVideo();
-                if (this.zoomControlsContainer) this.zoomControlsContainer.classList.remove('!hidden');
-                this.zoom?.setImage(img);
-            }
-
-            if (this.filenameEl) this.filenameEl.textContent = photo.filename || '';
-            this.updateCounter();
-            this.updateFavoriteButton();
-            this.deepLink?.syncUrl(photo.uuid);
-
-            // Trigger safe pre-fetch when approaching end of loaded batch
-            if (this.currentIndex >= this.photos.length - 4) {
-                this.onNeedMorePhotos?.();
+                thumb.addEventListener('load', () => {
+                    if (thumb.getAttribute('src') === thumbSrc) this.syncAspect(frame, photo, thumb);
+                }, { once: true });
             }
         }
+
+        // Layer 3: display rendition, revealed only once decoded
+        const targetUrl = this.pickUrl(photo);
+        if (img && img.dataset.src !== targetUrl) {
+            img.style.transition = 'none';
+            img.classList.add('opacity-0');
+            img.dataset.src = targetUrl;
+            img.alt = photo.filename || 'Photo';
+            img.src = targetUrl;
+            img.decode().catch(() => {}).then(() => {
+                if (img.dataset.src !== targetUrl || !img.naturalWidth) return;
+                this.syncAspect(frame, photo, img);
+                img.style.transition = '';
+                img.classList.remove('opacity-0');
+            });
+        }
+
+        if (role !== 'current') return;
+
+        this.currentIsFull = (targetUrl === photo.full);
+        this.teardownActiveVideo();
+
+        if (photo.is_video) {
+            if (this.zoomControlsContainer) this.zoomControlsContainer.classList.add('!hidden');
+            this.slideshow?.stop();
+            this.zoom?.setImage(null);
+            this.mountVideo(frame, photo);
+        } else {
+            if (this.zoomControlsContainer) this.zoomControlsContainer.classList.remove('!hidden');
+            this.zoom?.setImage(frame);
+        }
+
+        if (this.filenameEl) this.filenameEl.textContent = photo.filename || '';
+        this.updateCounter();
+        this.updateFavoriteButton();
+        this.deepLink?.syncUrl(photo.uuid);
+
+        // Trigger safe pre-fetch when approaching end of loaded batch
+        if (this.currentIndex >= this.photos.length - 4) {
+            this.onNeedMorePhotos?.();
+        }
+    }
+
+    mountVideo(frame, photo) {
+        const videoUrl = photo.delivery_url || photo.original;
+        const poster = photo.large || photo.full || photo.thumbnail || '';
+        const playerContainer = document.createElement('div');
+        playerContainer.className = 'lightbox-artplayer-mount pointer-events-auto absolute inset-0 z-10 select-auto overflow-hidden bg-black';
+
+        if (window.Artplayer) {
+            try {
+                const art = new window.Artplayer({
+                    container: playerContainer,
+                    url: videoUrl,
+                    poster: poster,
+                    volume: 0.7,
+                    isLive: false,
+                    muted: true,
+                    autoplay: true,
+                    pip: true,
+                    autoSize: false,
+                    autoMini: false,
+                    screenshot: false,
+                    setting: true,
+                    loop: false,
+                    playbackRate: true,
+                    aspectRatio: true,
+                    fullscreen: true,
+                    fullscreenWeb: true,
+                    playsInline: true,
+                    airplay: true,
+                    theme: '#f0532a',
+                    customType: {
+                        m3u8: function (video, url, artInstance) {
+                            if (window.Hls && window.Hls.isSupported()) {
+                                if (artInstance.hls) artInstance.hls.destroy();
+                                const hls = new window.Hls();
+                                hls.loadSource(url);
+                                hls.attachMedia(video);
+                                artInstance.hls = hls;
+                                artInstance.on('destroy', () => hls.destroy());
+                            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                video.src = url;
+                            } else {
+                                artInstance.notice.show = 'Unsupported video format';
+                            }
+                        },
+                    },
+                });
+
+                frame.appendChild(playerContainer);
+                this.activeArtplayer = art;
+                return;
+            } catch (e) {
+                console.error('[Lightbox] Artplayer initialization error:', e);
+            }
+        }
+
+        const video = document.createElement('video');
+        video.className = 'lightbox-slide-video pointer-events-auto absolute inset-0 z-10 size-full select-auto bg-black object-contain';
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        if (poster) video.poster = poster;
+        video.src = videoUrl;
+        frame.appendChild(video);
+        this.activeVideo = video;
+
+        video.muted = true;
+        video.play().catch(() => {});
     }
 
     teardownActiveVideo() {
@@ -432,8 +714,7 @@ export class GalleryLightbox {
         }
 
         this.slots.forEach(slot => {
-            const mounts = slot.querySelectorAll('.lightbox-artplayer-mount');
-            mounts.forEach(m => m.remove());
+            slot.querySelectorAll('.lightbox-artplayer-mount').forEach(m => m.remove());
             const v = slot.querySelector('video');
             if (v) {
                 try {
@@ -451,13 +732,19 @@ export class GalleryLightbox {
         const currentPhoto = this.getCurrentPhoto();
         if (!currentPhoto || currentPhoto.is_video || !currentPhoto.full) return;
 
-        const currentSlot = this.slots[this.slotMap.current];
-        const img = currentSlot?.querySelector('.lightbox-slide-img');
-        if (img && img.src !== currentPhoto.full) {
-            this.currentIsFull = true;
-            img.dataset.loadedUrl = currentPhoto.full;
-            img.src = currentPhoto.full;
-        }
+        const img = this.currentFrame()?.querySelector('.lightbox-slide-img');
+        if (!img) return;
+        this.currentIsFull = true;
+
+        // Decode off-screen first so the swap never flashes
+        const full = currentPhoto.full;
+        const loader = new Image();
+        loader.src = full;
+        loader.decode().then(() => {
+            if (this.getCurrentPhoto()?.uuid !== currentPhoto.uuid) return;
+            img.dataset.src = full;
+            img.src = full;
+        }).catch(() => {});
     }
 
     updateCounter() {
@@ -469,46 +756,56 @@ export class GalleryLightbox {
         if (this.counterTopEl) this.counterTopEl.textContent = text;
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Navigation transitions                                              */
+    /* ------------------------------------------------------------------ */
+
     setDragOffset(deltaX) {
         if (!this.track) return;
+        this.dragOffset = deltaX;
         this.track.style.transition = 'none';
         this.track.style.transform = `translate3d(${deltaX}px, 0, 0)`;
     }
 
-    snapTo(direction) {
+    /** Rotate the slot map after the track (or a crossfade) has landed on a neighbour. */
+    shift(direction) {
+        if (direction === 1) {
+            this.currentIndex = (this.currentIndex + 1) % this.photos.length;
+            const oldPrev = this.slotMap.prev;
+            this.slotMap.prev = this.slotMap.current;
+            this.slotMap.current = this.slotMap.next;
+            this.slotMap.next = oldPrev;
+        } else if (direction === -1) {
+            this.currentIndex = (this.currentIndex - 1 + this.photos.length) % this.photos.length;
+            const oldNext = this.slotMap.next;
+            this.slotMap.next = this.slotMap.current;
+            this.slotMap.current = this.slotMap.prev;
+            this.slotMap.prev = oldNext;
+        }
+    }
+
+    /**
+     * Slide to the neighbour (1 / -1) or back to rest (0). Duration follows the remaining
+     * distance and release velocity (px/ms) so a flick lands quickly and a button press glides.
+     */
+    snapTo(direction, velocity = 0) {
         if (!this.track || this.state === 'ANIMATING') return;
         this.state = 'ANIMATING';
-        this.teardownActiveVideo();
+        if (direction !== 0) this.teardownActiveVideo();
 
-        const targetPercent = direction === 1 ? -100 : (direction === -1 ? 100 : 0);
-        this.track.style.transition = 'transform 280ms cubic-bezier(0.25, 1, 0.5, 1)';
-        this.track.style.transform = `translate3d(${targetPercent}%, 0, 0)`;
+        const target = -direction * (this.track.clientWidth + SLIDE_GAP);
+        const remaining = Math.abs(target - this.dragOffset);
+        const duration = reducedMotion.matches
+            ? 0
+            : Math.round(Math.min(420, Math.max(direction === 0 ? 240 : 200, remaining / Math.max(Math.abs(velocity), 0.9))));
 
-        let handled = false;
         const onEnd = () => {
-            if (handled) return;
-            handled = true;
-            this.track.removeEventListener('transitionend', onEnd);
-
-            if (direction === 1) {
-                // Advance next: circular shift slot map
-                this.currentIndex = (this.currentIndex + 1) % this.photos.length;
-                const oldPrev = this.slotMap.prev;
-                this.slotMap.prev = this.slotMap.current;
-                this.slotMap.current = this.slotMap.next;
-                this.slotMap.next = oldPrev;
-            } else if (direction === -1) {
-                // Advance prev: circular shift slot map
-                this.currentIndex = (this.currentIndex - 1 + this.photos.length) % this.photos.length;
-                const oldNext = this.slotMap.next;
-                this.slotMap.next = this.slotMap.current;
-                this.slotMap.current = this.slotMap.prev;
-                this.slotMap.prev = oldNext;
-            }
+            if (direction !== 0) this.shift(direction);
 
             // Reset track transform and re-position slots instantaneously
+            this.dragOffset = 0;
             this.track.style.transition = 'none';
-            this.track.style.transform = 'translate3d(0%, 0, 0)';
+            this.track.style.transform = 'translate3d(0, 0, 0)';
             this.positionSlots();
 
             if (direction !== 0) {
@@ -516,24 +813,63 @@ export class GalleryLightbox {
                 this.navigation?.preloadAdjacent(this.currentIndex);
             }
 
-            this.state = 'IDLE';
+            if (!this.isClosing) this.state = 'IDLE';
         };
 
-        this.track.addEventListener('transitionend', onEnd, { once: true });
-        // Fallback timer to safeguard against skipped transitionend events
-        setTimeout(onEnd, 350);
+        if (duration === 0 || remaining < 1) {
+            onEnd();
+            return;
+        }
+
+        this.track.style.transition = `transform ${duration}ms ${EASE_OUT}`;
+        this.track.style.transform = `translate3d(${target}px, 0, 0)`;
+        afterTransition(this.track, duration, onEnd);
+    }
+
+    /** Slideshow advance: the next photo dissolves in over the current one. */
+    fadeTo(direction = 1) {
+        if (this.state !== 'IDLE' || this.photos.length <= 1) return;
+        if (reducedMotion.matches) {
+            this.snapTo(direction);
+            return;
+        }
+        this.state = 'ANIMATING';
+        this.zoom?.reset();
+        this.teardownActiveVideo();
+
+        const incoming = this.slots[direction === 1 ? this.slotMap.next : this.slotMap.prev];
+        incoming.style.transition = 'none';
+        incoming.style.transform = 'translate3d(0, 0, 0)';
+        incoming.style.opacity = '0';
+        incoming.style.zIndex = '2';
+        void incoming.offsetWidth;
+        incoming.style.transition = 'opacity 700ms ease';
+        incoming.style.opacity = '1';
+
+        setTimeout(() => {
+            this.shift(direction);
+            incoming.style.transition = '';
+            incoming.style.opacity = '';
+            incoming.style.zIndex = '';
+            this.positionSlots();
+            this.renderAllSlots();
+            this.navigation?.preloadAdjacent(this.currentIndex);
+            if (!this.isClosing) this.state = 'IDLE';
+        }, 720);
     }
 
     next() {
         if (this.state !== 'IDLE' || this.photos.length <= 1) return;
         this.zoom?.reset();
         this.snapTo(1);
+        this.slideshow?.restartTimer();
     }
 
     prev() {
         if (this.state !== 'IDLE' || this.photos.length <= 1) return;
         this.zoom?.reset();
         this.snapTo(-1);
+        this.slideshow?.restartTimer();
     }
 
     updateFavoriteButton() {
@@ -548,7 +884,7 @@ export class GalleryLightbox {
     }
 
     handleKeyDown(e) {
-        if (!this.isOpen) return;
+        if (!this.isOpen || this.isClosing) return;
 
         // Do not process lightbox shortcuts if a modal dialog is currently open
         const activeModal = document.querySelector(
@@ -579,7 +915,7 @@ export class GalleryLightbox {
                 this.slideshow?.toggle();
                 break;
             case 'f':
-            case 'F':
+            case 'F': {
                 e.preventDefault();
                 const photo = this.getCurrentPhoto();
                 if (photo) {
@@ -587,12 +923,14 @@ export class GalleryLightbox {
                     this.updateFavoriteButton();
                 }
                 break;
+            }
             case 'd':
-            case 'D':
+            case 'D': {
                 e.preventDefault();
                 const curPhoto = this.getCurrentPhoto();
                 if (curPhoto) this.downloadsManager?.downloadPhoto(curPhoto, this.downloadBtn);
                 break;
+            }
         }
     }
 }

@@ -26,6 +26,31 @@
     #gallery-header[data-state="overlay"] .gallery-header-sub { color: rgb(255 255 255 / .75); }
     #gallery-header[data-state="overlay"] .gallery-header-btn:hover { background: rgb(255 255 255 / .14); color: #fff; }
     @media (prefers-reduced-motion: reduce) { .gallery-hero-img, .gallery-cue-line { animation: none; } }
+
+    /* Locking scroll for the lightbox must not change the page width (it would re-flow the masonry under it) */
+    html { scrollbar-gutter: stable; }
+    /* The sticky toolbar is the scroll target: land flush with it, not 5rem short (layout default) */
+    html { scroll-padding-top: 0; }
+
+    /* Lightbox: each slide reserves room for the floating chrome; the frame is the photo's exact
+       aspect-fit box, so blurhash, cached thumbnail and full-res layers stack pixel-perfectly. */
+    .lightbox-slide-inner {
+        container-type: size;
+        padding: calc(3.75rem + env(safe-area-inset-top)) 0 calc(4rem + env(safe-area-inset-bottom));
+    }
+    @media (min-width: 640px) { .lightbox-slide-inner { padding-inline: 5.5rem; } }
+    .lightbox-frame {
+        --ar: 1.5;
+        aspect-ratio: var(--ar);
+        width: min(100cqw, 100cqh * var(--ar));
+        transform-origin: 50% 50%;
+        will-change: transform;
+    }
+    .lightbox-chrome { transition: opacity .25s ease; }
+    /* Chrome bars let taps on their empty areas through to the stage; only their buttons are interactive */
+    #lightbox-modal[data-chrome="hidden"] .lightbox-chrome { opacity: 0; }
+    #lightbox-modal[data-chrome="hidden"] .lightbox-chrome,
+    #lightbox-modal[data-chrome="hidden"] .lightbox-chrome * { pointer-events: none; }
 </style>
 @endpush
 
@@ -160,6 +185,7 @@
     @if($coverUrl)
         <section id="gallery-hero" data-variant="image" class="relative flex h-svh min-h-[560px] w-full select-none flex-col items-center justify-end overflow-hidden bg-black text-white">
             <img src="{{ $coverUrl }}"
+                 @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="{{ $coverSizes }}" @endif
                  alt="{{ $gallery->title }}"
                  fetchpriority="high"
                  decoding="async"
@@ -257,14 +283,16 @@
                     <span class="hidden lg:inline">Share</span>
                 </button>
 
+                @if($photoTotal > 0)
                 <button type="button"
                         id="btn-play-slideshow"
                         aria-label="Play slideshow"
                         title="Slideshow"
-                        class="{{ $iconBtn }} {{ $photoTotal === 0 ? 'hidden' : '' }}">
+                        class="{{ $iconBtn }}">
                     <x-icon name="play" class="size-[18px]" />
                     <span class="hidden lg:inline">Slideshow</span>
                 </button>
+                @endif
             </div>
         </div>
     </div>
@@ -287,7 +315,7 @@
 
         <div id="gallery-grid" class="relative w-full">
             @foreach($photos as $photo)
-                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" />
+                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :eager="! $coverUrl && $loop->index < 6" />
             @endforeach
         </div>
 
@@ -347,14 +375,14 @@
 
         {{-- Infinite scroll sentinel --}}
         <div id="gallery-sentinel" class="flex items-center justify-center py-14">
-            <div id="gallery-spinner" class="flex items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-muted-foreground {{ $hasMore ? '' : 'hidden' }}">
+            <div id="gallery-spinner" class="flex hidden items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                 <x-icon name="loader-circle" class="size-4 animate-spin" />
                 <span>Loading</span>
             </div>
             <button type="button"
                     id="gallery-end"
                     onclick="(document.getElementById('gallery-action-bar') || document.getElementById('gallery-container'))?.scrollIntoView({ behavior: 'smooth' })"
-                    class="group inline-flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
+                    class="group flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
                     aria-label="Back to top">
                 <span class="flex size-10 items-center justify-center rounded-full border border-border transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:border-border-strong">
                     <x-icon name="arrow-up" class="size-4" />
@@ -365,14 +393,47 @@
     </div>
 
     {{-- ===================== Lightbox ===================== --}}
+    {{-- Full-screen stage: chrome floats above the slides so a photo can fly in from (and back to) its grid card. --}}
     <div id="lightbox-modal"
-         class="fixed inset-0 z-50 flex hidden touch-none select-none flex-col justify-between bg-background focus:outline-none"
+         class="fixed inset-0 z-50 hidden touch-none select-none overscroll-none focus:outline-none"
+         data-chrome="visible"
          role="dialog"
          aria-modal="true"
          aria-label="Photo viewer"
          tabindex="-1">
 
-        <header class="z-10 flex w-full shrink-0 items-center justify-between gap-2 px-2 py-2 sm:px-4"
+        <div id="lightbox-backdrop" class="absolute inset-0 bg-background"></div>
+
+        <div class="lightbox-viewport absolute inset-0 overflow-hidden">
+            <div id="lightbox-track" class="absolute inset-0 will-change-transform">
+                @foreach([0, 1, 2] as $slotIndex)
+                    <div class="lightbox-slide pointer-events-none absolute inset-0" data-slot="{{ $slotIndex }}">
+                        <div class="lightbox-slide-inner absolute inset-0 flex items-center justify-center">
+                            <div class="lightbox-frame relative">
+                                <canvas class="lightbox-blurhash-canvas absolute inset-0 size-full"></canvas>
+                                <img src="" alt="" decoding="async" class="lightbox-slide-thumb absolute inset-0 size-full object-cover">
+                                <img src="" alt="" decoding="async" class="lightbox-slide-img absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-500">
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <button type="button"
+                id="lightbox-btn-prev"
+                class="lightbox-chrome btn-lightbox-prev absolute left-3 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:flex lg:left-5"
+                aria-label="Previous photo">
+            <x-icon name="chevron-left" class="size-7" stroke-width="1.5" />
+        </button>
+        <button type="button"
+                id="lightbox-btn-next"
+                class="lightbox-chrome btn-lightbox-next absolute right-3 top-1/2 z-20 hidden size-12 -translate-y-1/2 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:flex lg:right-5"
+                aria-label="Next photo">
+            <x-icon name="chevron-right" class="size-7" stroke-width="1.5" />
+        </button>
+
+        <header class="lightbox-chrome pointer-events-none absolute inset-x-0 top-0 z-30 flex [&_button]:pointer-events-auto items-center justify-between gap-2 px-2 py-2 sm:px-4"
                 style="padding-top: calc(0.5rem + env(safe-area-inset-top)); padding-left: calc(0.5rem + env(safe-area-inset-left)); padding-right: calc(0.5rem + env(safe-area-inset-right));">
             <button type="button" class="btn-close-lightbox {{ $lbBtn }} w-auto gap-2 px-3 text-[13px] font-medium" aria-label="Back to gallery">
                 <x-icon name="arrow-left" class="size-[18px]" />
@@ -414,34 +475,12 @@
             </div>
         </header>
 
-        <div class="lightbox-viewport relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden px-0 sm:px-20">
-            <button type="button"
-                    id="lightbox-btn-prev"
-                    class="btn-lightbox-prev absolute left-2 z-20 hidden size-12 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:left-4 sm:flex"
-                    aria-label="Previous photo">
-                <x-icon name="chevron-left" class="size-7" stroke-width="1.5" />
-            </button>
-
-            <div id="lightbox-track" class="relative flex size-full select-none items-center justify-center overflow-hidden will-change-transform">
-                @foreach([0, 1, 2] as $slot)
-                    <div class="lightbox-slide pointer-events-none absolute inset-0 flex size-full items-center justify-center p-0 sm:py-2" data-slot="{{ $slot }}">
-                        <div class="lightbox-slide-inner relative flex size-full min-h-0 min-w-0 items-center justify-center">
-                            <canvas class="lightbox-blurhash-canvas pointer-events-none absolute max-h-full w-full max-w-full object-contain transition-opacity duration-300 sm:w-auto"></canvas>
-                            <img src="" alt="" decoding="async" class="lightbox-slide-img pointer-events-none max-h-full w-full max-w-full select-none object-contain opacity-0 transition-opacity duration-300 sm:w-auto">
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-
-            <button type="button"
-                    id="lightbox-btn-next"
-                    class="btn-lightbox-next absolute right-2 z-20 hidden size-12 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:right-4 sm:flex"
-                    aria-label="Next photo">
-                <x-icon name="chevron-right" class="size-7" stroke-width="1.5" />
-            </button>
+        {{-- Slideshow progress --}}
+        <div class="lightbox-chrome pointer-events-none absolute inset-x-0 top-0 z-30 h-0.5" style="top: env(safe-area-inset-top);">
+            <div id="lightbox-slideshow-progress" class="h-full w-full origin-left scale-x-0 bg-brand opacity-0 transition-opacity"></div>
         </div>
 
-        <footer class="z-10 w-full shrink-0 px-3 py-3" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+        <footer class="lightbox-chrome pointer-events-none absolute inset-x-0 bottom-0 z-30 px-3 py-3 [&_button]:pointer-events-auto" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
             <div class="relative mx-auto flex max-w-xl items-center justify-between sm:justify-center">
                 <button type="button" id="lightbox-btn-prev-mobile" class="btn-lightbox-prev {{ $lbBtn }} sm:hidden" aria-label="Previous photo">
                     <x-icon name="chevron-left" class="size-5" />

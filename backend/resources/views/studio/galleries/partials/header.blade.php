@@ -73,7 +73,12 @@
                     <button type="button" class="menu-item" role="menuitem" @click="$clipboard(@js($publicUrl), 'Gallery link copied'); close()"><x-icon name="link" /> Copy gallery link</button>
                     <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open client view</a>
                     <div class="menu-separator"></div>
-                    <a href="{{ route('studio.trash.index') }}" class="menu-item" role="menuitem"><x-icon name="trash-2" /> Trash</a>
+                    <form method="POST" action="{{ route('studio.galleries.destroy', $gallery->uuid) }}"
+                          onsubmit="return confirm('Move this gallery to trash? Clients will immediately lose access.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="menu-item menu-item-danger w-full" role="menuitem"><x-icon name="trash-2" /> Move to trash</button>
+                    </form>
                 </div>
             </div>
         </div>

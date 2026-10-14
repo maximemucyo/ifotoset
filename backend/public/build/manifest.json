@@ -88,7 +88,7 @@
     "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CwoE9Ni3.css",
+    "file": "assets/app-L0z1BB9z.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -99,7 +99,7 @@
     "isEntry": true
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-BDnZ_aEA.js",
+    "file": "assets/gallery-Bdcpq_LY.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
     "isEntry": true

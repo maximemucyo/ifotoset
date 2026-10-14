@@ -1,20 +1,17 @@
 @props(['href' => null, 'size' => 'md', 'wordmark' => true])
 @php
-    $mark = ['sm' => 'size-6', 'md' => 'size-7', 'lg' => 'size-9'][$size] ?? 'size-7';
-    $text = ['sm' => 'text-[15px]', 'md' => 'text-[17px]', 'lg' => 'text-xl'][$size] ?? 'text-[17px]';
+    $mark = ['sm' => 'size-7', 'md' => 'size-8', 'lg' => 'size-10'][$size] ?? 'size-8';
+    $text = ['sm' => 'text-[16px]', 'md' => 'text-[18px]', 'lg' => 'text-[22px]'][$size] ?? 'text-[18px]';
     $tag = $href ? 'a' : 'span';
 @endphp
 <{{ $tag }} @if($href) href="{{ $href }}" @endif {{ $attributes->merge(['class' => 'group inline-flex items-center gap-2']) }}>
-    <span class="relative inline-flex {{ $mark }} items-center justify-center rounded-[28%] bg-foreground text-background shadow-sm">
-        {{-- Aperture-inspired mark --}}
-        <svg viewBox="0 0 32 32" class="size-[62%]" fill="none" aria-hidden="true">
-            <circle cx="16" cy="16" r="11" stroke="currentColor" stroke-width="2.6"/>
-            <circle cx="16" cy="16" r="4.2" fill="var(--brand)"/>
-            <path d="M16 5v6.5M27 16h-6.5M16 27v-6.5M5 16h6.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity=".35"/>
-        </svg>
-    </span>
+    <img src="{{ asset('logo-mark.webp') }}"
+         alt="{{ $wordmark ? '' : 'ifotoset' }}"
+         width="112" height="112"
+         decoding="async"
+         class="{{ $mark }} shrink-0 object-contain drop-shadow-sm transition-transform duration-500 ease-out group-hover:rotate-[30deg]">
     @if($wordmark)
-        <span class="font-display {{ $text }} font-semibold tracking-tight text-foreground">ifotoset</span>
+        <span class="font-display {{ $text }} font-bold leading-none tracking-tight text-foreground">ifoto<span class="text-brand">set</span></span>
     @endif
     {{ $slot }}
 </{{ $tag }}>

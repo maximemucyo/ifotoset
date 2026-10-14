@@ -1,155 +1,176 @@
 /**
  * Lightbox Navigation & Touch Physics Module
  * Pure interaction & physics layer:
- * - Real-time 1:1 touch dragging with threshold and velocity snapping.
- * - Strict gesture separation: horizontal drag only when zoom scale === 1.
+ * - 1:1 horizontal drag between photos, snapping on distance or release velocity.
+ * - Vertical drag to dismiss (photo follows the finger, backdrop fades).
+ * - Tap toggles the controls, double-tap zooms (delegated to the lightbox).
+ * - Gestures only start when zoom scale === 1; when zoomed, touches belong to panning.
  * - Protects against rapid-swipe race conditions by respecting lightbox lifecycle state.
- * - Keyboard shortcuts (Arrows, Escape, Space, F, D) and button bindings.
- * - Preloads only immediate adjacent photos (prev/next) for bandwidth optimization.
+ * - Preloads photos beyond the immediate neighbours (which are already rendered in their slots).
  */
+const VELOCITY_WINDOW_MS = 100;
+
 export class LightboxNavigation {
     constructor(lightbox) {
         this.lightbox = lightbox;
 
-        // Touch tracking state
-        this.isTracking = false;
-        this.isHorizontal = null;
-        this.startX = 0;
-        this.startY = 0;
-        this.startTime = 0;
+        // Active single-finger gesture: { x0, y0, t0, mode: null | 'swipe' | 'dismiss' | 'none', samples }
+        this.gesture = null;
+        this.lastTouchAt = 0;
+        this.mouseDown = null;
 
         this.init();
     }
 
     init() {
-        const viewport = this.lightbox.container?.querySelector('.lightbox-viewport');
+        const viewport = this.lightbox.viewport;
         if (!viewport) return;
 
-        // Touch drag events for 1:1 mobile carousel tracking
         viewport.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
         viewport.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
         viewport.addEventListener('touchend', (e) => this.handleTouchEnd(e));
-        viewport.addEventListener('touchcancel', (e) => this.handleTouchEnd(e));
+        viewport.addEventListener('touchcancel', () => this.cancelGesture());
+
+        // Desktop: click on the empty stage closes (ignoring clicks synthesised from touches and pan drags)
+        viewport.addEventListener('mousedown', (e) => {
+            this.mouseDown = { x: e.clientX, y: e.clientY };
+        });
+        viewport.addEventListener('click', (e) => {
+            const down = this.mouseDown;
+            this.mouseDown = null;
+            if (performance.now() - this.lastTouchAt < 800) return;
+            if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+            this.lightbox.handleBackdropClick(e.clientX, e.clientY);
+        });
 
         // Prev / Next button bindings
-        const prevBtns = this.lightbox.container.querySelectorAll('.btn-lightbox-prev, #lightbox-btn-prev, #lightbox-btn-prev-mobile');
-        const nextBtns = this.lightbox.container.querySelectorAll('.btn-lightbox-next, #lightbox-btn-next, #lightbox-btn-next-mobile');
-
-        prevBtns.forEach(btn => btn.addEventListener('click', () => {
-            if (this.lightbox.state !== 'IDLE') return;
-            this.lightbox.prev();
-        }));
-
-        nextBtns.forEach(btn => btn.addEventListener('click', () => {
-            if (this.lightbox.state !== 'IDLE') return;
-            this.lightbox.next();
-        }));
+        const prevBtns = this.lightbox.container.querySelectorAll('.btn-lightbox-prev');
+        const nextBtns = this.lightbox.container.querySelectorAll('.btn-lightbox-next');
+        prevBtns.forEach(btn => btn.addEventListener('click', () => this.lightbox.prev()));
+        nextBtns.forEach(btn => btn.addEventListener('click', () => this.lightbox.next()));
     }
 
     handleTouchStart(e) {
-        // Only allow carousel swipe if:
-        // 1. Lightbox is currently IDLE (prevents rapid-swipe corruption)
-        // 2. Zoom scale is 1 (when zoomed in, touch gestures belong to image panning)
-        // 3. Exactly 1 touch point
-        if (this.lightbox.state !== 'IDLE' || (this.lightbox.zoom && this.lightbox.zoom.scale > 1)) {
-            this.isTracking = false;
-            return;
-        }
+        this.lastTouchAt = performance.now();
 
+        // A second finger means pinch-zoom: abandon any drag in progress
         if (e.touches.length !== 1) {
-            this.isTracking = false;
+            this.cancelGesture();
             return;
         }
 
-        this.isTracking = true;
-        this.isHorizontal = null;
-        this.startX = e.touches[0].clientX;
-        this.startY = e.touches[0].clientY;
-        this.startTime = performance.now();
+        const t = e.touches[0];
+        const now = performance.now();
+        this.gesture = {
+            x0: t.clientX,
+            y0: t.clientY,
+            t0: now,
+            mode: null,
+            canDrag: this.lightbox.state === 'IDLE' && !(this.lightbox.zoom && this.lightbox.zoom.scale > 1),
+            samples: [{ x: t.clientX, y: t.clientY, t: now }],
+        };
     }
 
     handleTouchMove(e) {
-        if (!this.isTracking) return;
+        const g = this.gesture;
+        if (!g || e.touches.length !== 1) return;
 
-        if (this.lightbox.zoom && this.lightbox.zoom.scale > 1) {
-            this.isTracking = false;
-            return;
-        }
+        const t = e.touches[0];
+        const now = performance.now();
+        const dx = t.clientX - g.x0;
+        const dy = t.clientY - g.y0;
 
-        const currentX = e.touches[0].clientX;
-        const currentY = e.touches[0].clientY;
-        const deltaX = currentX - this.startX;
-        const deltaY = currentY - this.startY;
+        g.samples.push({ x: t.clientX, y: t.clientY, t: now });
+        while (g.samples.length > 2 && now - g.samples[0].t > VELOCITY_WINDOW_MS) g.samples.shift();
 
-        // Determine gesture angle early
-        if (this.isHorizontal === null) {
-            if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
-                this.isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
-                if (!this.isHorizontal) {
-                    // Vertical gesture; cancel carousel tracking
-                    this.isTracking = false;
-                    return;
-                }
-            } else {
-                return;
-            }
-        }
-
-        if (this.isHorizontal) {
-            // Prevent native page pull-down/scroll while swiping gallery photos
-            if (e.cancelable) e.preventDefault();
-
-            if (this.lightbox.state === 'IDLE') {
+        // Lock the gesture axis once the finger has clearly moved
+        if (!g.mode) {
+            if (Math.hypot(dx, dy) < 8) return;
+            if (!g.canDrag || this.lightbox.state !== 'IDLE') {
+                g.mode = 'none';
+            } else if (Math.abs(dx) > Math.abs(dy)) {
+                g.mode = 'swipe';
                 this.lightbox.state = 'DRAGGING';
+            } else {
+                g.mode = 'dismiss';
+                this.lightbox.beginDismiss();
             }
+        }
 
-            if (this.lightbox.state === 'DRAGGING') {
-                // Apply slight boundary resistance if single photo
-                const effectiveDeltaX = (this.lightbox.photos.length <= 1) ? deltaX * 0.25 : deltaX;
-                this.lightbox.setDragOffset(effectiveDeltaX);
-            }
+        if (g.mode === 'none') return;
+        if (e.cancelable) e.preventDefault();
+
+        if (g.mode === 'swipe') {
+            // Resistance when there is nowhere to go
+            this.lightbox.setDragOffset(this.lightbox.photos.length <= 1 ? dx * 0.25 : dx);
+        } else {
+            this.lightbox.updateDismiss(dx, dy);
         }
     }
 
     handleTouchEnd(e) {
-        if (!this.isTracking) return;
-        this.isTracking = false;
+        this.lastTouchAt = performance.now();
+        const g = this.gesture;
+        if (!g || e.touches.length > 0) return;
+        this.gesture = null;
 
-        if (this.lightbox.state !== 'DRAGGING') return;
+        const t = e.changedTouches[0];
+        if (!t) return;
+        const dx = t.clientX - g.x0;
+        const dy = t.clientY - g.y0;
 
-        const endX = e.changedTouches[0]?.clientX ?? this.startX;
-        const deltaX = endX - this.startX;
-        const duration = Math.max(1, performance.now() - this.startTime);
-        const velocity = deltaX / duration; // pixels per ms
+        if (!g.mode) {
+            if (performance.now() - g.t0 < 350) this.lightbox.handleTap(t.clientX, t.clientY);
+            return;
+        }
 
-        // Snap threshold: 50px offset or flick velocity > 0.3 px/ms
-        if (this.lightbox.photos.length <= 1) {
-            this.lightbox.snapTo(0);
-        } else if (deltaX < -50 || velocity < -0.3) {
-            this.lightbox.snapTo(1); // Next photo
-        } else if (deltaX > 50 || velocity > 0.3) {
-            this.lightbox.snapTo(-1); // Previous photo
-        } else {
-            this.lightbox.snapTo(0); // Snap back to current
+        const { vx, vy } = this.releaseVelocity(g, t);
+
+        if (g.mode === 'swipe') {
+            if (this.lightbox.photos.length <= 1) {
+                this.lightbox.snapTo(0);
+            } else if (dx < -60 || (vx < -0.35 && dx < 0)) {
+                this.lightbox.snapTo(1, vx);
+            } else if (dx > 60 || (vx > 0.35 && dx > 0)) {
+                this.lightbox.snapTo(-1, vx);
+            } else {
+                this.lightbox.snapTo(0, vx);
+            }
+            this.lightbox.slideshow?.restartTimer();
+        } else if (g.mode === 'dismiss') {
+            const flung = Math.abs(vy) > 0.5 && Math.sign(vy) === Math.sign(dy) && Math.abs(dy) > 30;
+            this.lightbox.endDismiss(Math.abs(dy) > 120 || flung);
         }
     }
 
+    /** Abort an in-flight drag and return to rest (e.g. a second finger lands). */
+    cancelGesture() {
+        const g = this.gesture;
+        this.gesture = null;
+        if (!g) return;
+        if (g.mode === 'swipe') this.lightbox.snapTo(0);
+        if (g.mode === 'dismiss') this.lightbox.endDismiss(false);
+    }
+
+    /** Velocity (px/ms) over the last ~100ms of movement, not the whole gesture. */
+    releaseVelocity(g, t) {
+        const now = performance.now();
+        const first = g.samples.find(s => now - s.t <= VELOCITY_WINDOW_MS) || g.samples[g.samples.length - 1];
+        const dt = Math.max(1, now - first.t);
+        return { vx: (t.clientX - first.x) / dt, vy: (t.clientY - first.y) / dt };
+    }
+
+    /** Warm the cache two photos out in each direction; the ±1 neighbours load in their slots. */
     preloadAdjacent(currentIndex) {
         const photos = this.lightbox.photos;
-        if (!photos || photos.length <= 1) return;
+        if (!photos || photos.length <= 3) return;
 
-        const isMobile = window.innerWidth <= 768;
-        const nextIdx = (currentIndex + 1) % photos.length;
-        const prevIdx = (currentIndex - 1 + photos.length) % photos.length;
-
-        // Preload only immediate next and prev (bandwidth-conserving)
-        [photos[nextIdx], photos[prevIdx]].forEach(photo => {
-            if (!photo) return;
-            const targetUrl = isMobile ? (photo.large || photo.full) : photo.full;
-            if (targetUrl) {
-                const img = new Image();
-                img.src = targetUrl;
-            }
+        [currentIndex + 2, currentIndex - 2].forEach(i => {
+            const photo = photos[(i + photos.length) % photos.length];
+            if (!photo || photo.is_video) return;
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = this.lightbox.pickUrl(photo);
         });
     }
 }

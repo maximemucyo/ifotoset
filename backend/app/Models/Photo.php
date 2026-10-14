@@ -234,6 +234,25 @@ class Photo extends Model
         return $this->getUrl($size);
     }
 
+    /**
+     * Responsive srcset across generated WebP variants (photo renditions or video posters),
+     * letting the browser pick the smallest file for the rendered size and pixel density.
+     * Null while variants don't exist yet (unprocessed photo / video without a poster).
+     */
+    public function getSrcset(array $sizes = ['sm', 'md', 'lg']): ?string
+    {
+        if ($this->isVideo() ? !$this->poster_path : $this->status !== \App\Enums\PhotoStatus::Ready->value) {
+            return null;
+        }
+
+        $widths = config('images.variants');
+
+        return collect($sizes)
+            ->filter(fn ($size) => isset($widths[$size]) && !($this->isVideo() && $size === 'xl'))
+            ->map(fn ($size) => $this->getThumbnailUrl($size) . ' ' . $widths[$size] . 'w')
+            ->implode(', ') ?: null;
+    }
+
     public function getThumbnailUrlAttribute(): string
     {
         return $this->getThumbnailUrl('sm');

@@ -19,6 +19,7 @@ export class LightboxZoom {
         // Touch pinch
         this.pinchStartDist = null;
         this.pinchStartScale = 1;
+        this.lastTouchAt = 0;
 
         this.init();
     }
@@ -139,13 +140,20 @@ export class LightboxZoom {
     }
 
     handleDoubleClick(e) {
+        // Touch double-taps are recognised by the navigation module; ignore the emulated dblclick
+        if (performance.now() - this.lastTouchAt < 800) return;
+        this.toggleAt(e.clientX, e.clientY);
+    }
+
+    /** Zoom to 2.5x around a point, or back to fit when already zoomed. */
+    toggleAt(clientX, clientY) {
         if (!this.image) return;
         if (this.scale > 1) {
             this.reset();
         } else {
             const rect = this.image.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left - rect.width / 2;
-            const mouseY = e.clientY - rect.top - rect.height / 2;
+            const mouseX = clientX - rect.left - rect.width / 2;
+            const mouseY = clientY - rect.top - rect.height / 2;
             const targetScale = 2.5;
 
             const imageX = (mouseX - this.position.x) / this.scale;
@@ -185,6 +193,7 @@ export class LightboxZoom {
     }
 
     handleTouchStart(e) {
+        if (!this.image) return;
         if (e.touches.length === 2) {
             this.pinchStartDist = Math.hypot(
                 e.touches[0].clientX - e.touches[1].clientX,
@@ -226,6 +235,7 @@ export class LightboxZoom {
     }
 
     handleTouchEnd() {
+        this.lastTouchAt = performance.now();
         this.pinchStartDist = null;
         this.isDragging = false;
     }
