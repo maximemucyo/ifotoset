@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\PaymentGateway;
+use App\DTO\PaymentStatusData;
 use App\Models\Payment;
 use App\Models\PaymentWebhook;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Ramsey\Uuid\Uuid;
 use Tests\TestCase;
 
@@ -60,6 +63,44 @@ class PawaPayCallbackTest extends TestCase
         ]);
     }
 
+    private function createPendingPayment(string $depositId, string $idempotencyKey): Payment
+    {
+        return Payment::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'user_id' => $this->user->id,
+            'plan_id' => $this->proPlan->id,
+            'purpose' => 'plan_subscription',
+            'billing_cycle' => 'monthly',
+            'amount' => 29999.00,
+            'currency' => 'RWF',
+            'phone_number' => '250788000000',
+            'provider' => 'MTN_MOMO_RWA',
+            'idempotency_key' => $idempotencyKey,
+            'pawapay_deposit_id' => $depositId,
+            'status' => 'pending',
+        ]);
+    }
+
+    /**
+     * Stub the PawaPay status query that the callback re-fetches before finalizing.
+     */
+    private function mockProviderStatus(string $depositId, string $status, float $amount = 29999.00): void
+    {
+        $gateway = Mockery::mock(PaymentGateway::class);
+        $gateway->shouldReceive('verifyDepositStatus')
+            ->with($depositId)
+            ->andReturn(new PaymentStatusData(
+                found: true,
+                status: $status,
+                depositId: $depositId,
+                amount: $amount,
+                currency: 'RWF',
+                providerTransactionId: 'prov_verified',
+            ));
+
+        $this->app->instance(PaymentGateway::class, $gateway);
+    }
+
     public function test_handles_valid_direct_callback(): void
     {
         $depositId = Uuid::uuid4()->toString();
@@ -86,6 +127,8 @@ class PawaPayCallbackTest extends TestCase
             'currency' => 'RWF',
             'providerTransactionId' => 'prov_tx_123',
         ];
+
+        $this->mockProviderStatus($depositId, 'COMPLETED');
 
         $response = $this->postJson('/api/v1/callbacks/pawapay', $payload, [
             'X-Event-ID' => 'evt_direct_1',
@@ -130,6 +173,8 @@ class PawaPayCallbackTest extends TestCase
                 'providerTransactionId' => 'prov_relay_456',
             ]
         ];
+
+        $this->mockProviderStatus($depositId, 'COMPLETED');
 
         $response = $this->postJson('/api/v1/callbacks/pawapay', $payload, [
             'X-Relay-Secret' => config('services.pawapay.relay_secret'),
@@ -201,5 +246,58 @@ class PawaPayCallbackTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJson(['message' => 'Event already processed.']);
+    }
+
+    public function test_forged_completed_callback_does_not_finalize_when_provider_reports_pending(): void
+    {
+        $depositId = Uuid::uuid4()->toString();
+        $payment = $this->createPendingPayment($depositId, 'cb_forged_1');
+        $this->mockProviderStatus($depositId, 'ACCEPTED');
+
+        $response = $this->postJson('/api/v1/callbacks/pawapay', [
+            'depositId' => $depositId,
+            'status' => 'COMPLETED',
+            'amount' => 29999.00,
+            'currency' => 'RWF',
+        ], ['X-Event-ID' => 'evt_forged_1']);
+
+        $response->assertStatus(200);
+        $this->assertEquals('pending', $payment->fresh()->status);
+        $this->assertEquals($this->freePlan->id, $this->user->fresh()->plan_id);
+
+        // The event stays open so the genuine callback with the same ID is still processed.
+        $this->assertEquals('pending_provider', PaymentWebhook::where('event_id', 'evt_forged_1')->value('processing_status'));
+    }
+
+    public function test_finalizes_with_provider_amount_not_callback_amount(): void
+    {
+        $depositId = Uuid::uuid4()->toString();
+        $payment = $this->createPendingPayment($depositId, 'cb_forged_2');
+        $this->mockProviderStatus($depositId, 'COMPLETED', 100.00);
+
+        $this->postJson('/api/v1/callbacks/pawapay', [
+            'depositId' => $depositId,
+            'status' => 'COMPLETED',
+            'amount' => 29999.00,
+            'currency' => 'RWF',
+        ])->assertStatus(200);
+
+        $this->assertEquals('verification_failed', $payment->fresh()->status);
+        $this->assertEquals($this->freePlan->id, $this->user->fresh()->plan_id);
+    }
+
+    public function test_unauthenticated_callback_is_rejected_when_auth_is_required(): void
+    {
+        config(['services.pawapay.require_callback_auth' => true]);
+
+        $depositId = Uuid::uuid4()->toString();
+        $payment = $this->createPendingPayment($depositId, 'cb_forged_3');
+
+        $this->postJson('/api/v1/callbacks/pawapay', [
+            'depositId' => $depositId,
+            'status' => 'COMPLETED',
+        ])->assertStatus(401);
+
+        $this->assertEquals('pending', $payment->fresh()->status);
     }
 }

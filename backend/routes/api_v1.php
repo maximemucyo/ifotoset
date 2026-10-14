@@ -95,7 +95,7 @@ Route::get('/auth/verify-email/{id}/{hash}', [VerificationController::class, 've
     ->name('verification.verify');
 
 // PawaPay Callback Webhook (CSRF-exempt)
-Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCallback']);
+Route::post('/callbacks/pawapay', [PawaPayCallbackController::class, 'handleCallback'])->middleware('throttle:120,1');
 
 // Authenticated Routes (Sanctum SPA cookie / Bearer Token)
 Route::middleware('auth:sanctum')->group(function () {

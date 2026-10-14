@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1\Callback;
 
 use App\Actions\Billing\FinalizePawaPayPayment;
+use App\Contracts\PaymentGateway;
 use App\Http\Controllers\Controller;
+use App\Models\Payment;
 use App\Models\PaymentWebhook;
 use App\Services\Payments\PawaPayWebhookNormalizer;
 use Exception;
@@ -15,12 +17,16 @@ class PawaPayCallbackController extends Controller
 {
     public function __construct(
         protected PawaPayWebhookNormalizer $normalizer,
-        protected FinalizePawaPayPayment $finalizer
+        protected FinalizePawaPayPayment $finalizer,
+        protected PaymentGateway $gateway
     ) {}
 
     /**
      * Handles PawaPay Mobile Money deposit callbacks (direct or relayed).
      * POST /api/v1/callbacks/pawapay
+     *
+     * The callback body is never trusted: it only tells us which deposit to look at.
+     * Status, amount and currency always come from a fresh PawaPay status query.
      */
     public function handleCallback(Request $request): JsonResponse
     {
@@ -47,7 +53,12 @@ class PawaPayCallbackController extends Controller
 
         // 3. Cryptographic PawaPay signature verification if configured
         $pawapayWebhookSecret = config('services.pawapay.webhook_secret');
-        if (!empty($pawapayWebhookSecret)) {
+        if (!$isRelayed && empty($pawapayWebhookSecret) && config('services.pawapay.require_callback_auth')) {
+            Log::warning("PawaPay webhook rejected: no relay secret or signature from IP: {$request->ip()}");
+            return response()->json(['error' => 'Unauthenticated callback.'], 401);
+        }
+
+        if (!$isRelayed && !empty($pawapayWebhookSecret)) {
             if (empty($signature)) {
                 Log::warning("PawaPay webhook missing signature header from IP: {$request->ip()}");
                 return response()->json(['error' => 'Missing cryptographic signature.'], 401);
@@ -87,14 +98,32 @@ class PawaPayCallbackController extends Controller
             return response()->json(['status' => 'ignored', 'message' => 'No deposit events in payload.'], 200);
         }
 
-        // 6. Process each event through the single authoritative FinalizePawaPayPayment action
+        // 6. Re-fetch each deposit from PawaPay and finalize on the provider's answer only
         try {
+            $settled = true;
+
             foreach ($events as $event) {
-                $this->finalizer->execute($event->depositId, $event);
+                $payment = Payment::where('pawapay_deposit_id', $event->depositId)->first();
+                if (!$payment) {
+                    Log::warning("PawaPay callback for unknown deposit: {$event->depositId}", ['ip' => $request->ip()]);
+                    continue;
+                }
+
+                $statusData = $this->gateway->verifyDepositStatus($event->depositId);
+                if (!$statusData->found) {
+                    throw new Exception("Deposit {$event->depositId} could not be verified with PawaPay: {$statusData->failureReason}");
+                }
+
+                $payment = $this->finalizer->execute($event->depositId, $statusData);
+                if (!in_array($payment->status, ['completed', 'failed', 'verification_failed'], true)) {
+                    $settled = false;
+                }
             }
 
+            // Only a settled event is closed for replay, so an early or forged delivery
+            // cannot block the genuine one that follows with the same event ID.
             $webhookRecord->update([
-                'processing_status' => 'completed',
+                'processing_status' => $settled ? 'completed' : 'pending_provider',
                 'processed_at' => now(),
             ]);
 

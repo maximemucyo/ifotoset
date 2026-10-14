@@ -8,6 +8,8 @@ return [
         'country' => env('PAWAPAY_COUNTRY', 'RWA'),
         'webhook_secret' => env('PAWAPAY_WEBHOOK_SECRET', ''),
         'relay_secret' => env('IFOTOSET_RELAY_SECRET'),
+        // Reject callbacks that carry neither a valid relay secret nor a signature.
+        'require_callback_auth' => (bool) env('PAWAPAY_REQUIRE_CALLBACK_AUTH', false),
     ],
     'google_analytics' => [
         'id' => env('GOOGLE_ANALYTICS_ID', 'G-HFSHFGP0LV'),
