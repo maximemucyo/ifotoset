@@ -38,5 +38,6 @@
         <env name="CLOUDFLARE_CDN_DOMAIN" value="localhost:8333/ifotoset-media" force="true"/>
         <env name="CLOUDFLARE_CDN_SECRET" value="" force="true"/>
         <env name="USE_CDN_DOWNLOADS" value="false" force="true"/>
+        <env name="IFOTOSET_RELAY_SECRET" value="testing-relay-secret" force="true"/>
     </php>
 </phpunit>

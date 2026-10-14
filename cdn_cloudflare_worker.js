@@ -1,9 +1,9 @@
 // === Cloudflare Worker: cdn.ifotoset.com proxy for object storage ===
 
-const KEY_ID = '003ff5db745bcb20000000001';
-const APP_KEY = 'K003I1TxpXT7Q5JA3EMolBQ21T8DbbM';
+// KEY_ID, APP_KEY and CDN_SECRET are Worker secrets (Settings → Variables and Secrets,
+// or `wrangler secret put <NAME>`). In service-worker syntax they are exposed as globals.
+// CDN_SECRET must match CLOUDFLARE_CDN_SECRET in the backend .env.
 const BUCKET = 'ifotoset';
-const CDN_SECRET = 'ifotoset_cdn_secret_key_2026';
 
 let authToken = '';
 let downloadUrl = '';
