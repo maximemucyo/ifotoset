@@ -8,9 +8,13 @@ use Ramsey\Uuid\Uuid;
 
 class PlanSeeder extends Seeder
 {
+    /**
+     * Creates any missing default plans. Existing plans are left untouched: this runs on every
+     * production deploy, and prices/limits are managed from the admin panel.
+     */
     public function run(): void
     {
-        Plan::updateOrCreate([
+        Plan::firstOrCreate([
             'slug' => 'free',
         ], [
             'uuid' => Uuid::uuid7()->toString(),
@@ -27,7 +31,7 @@ class PlanSeeder extends Seeder
             'team_limit' => 0,
         ]);
 
-        Plan::updateOrCreate([
+        Plan::firstOrCreate([
             'slug' => 'basic',
         ], [
             'uuid' => Uuid::uuid7()->toString(),
@@ -44,7 +48,7 @@ class PlanSeeder extends Seeder
             'team_limit' => 0,
         ]);
 
-        Plan::updateOrCreate([
+        Plan::firstOrCreate([
             'slug' => 'pro',
         ], [
             'uuid' => Uuid::uuid7()->toString(),
@@ -61,7 +65,7 @@ class PlanSeeder extends Seeder
             'team_limit' => 1,
         ]);
 
-        Plan::updateOrCreate([
+        Plan::firstOrCreate([
             'slug' => 'business',
         ], [
             'uuid' => Uuid::uuid7()->toString(),
