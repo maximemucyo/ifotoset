@@ -6,10 +6,17 @@ use App\Casts\UuidBinaryCast;
 use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 
 class Plan extends Model
 {
     use HasBinaryUuid;
+
+    /**
+     * Cache key for the plans shown on the public landing page.
+     */
+    public const LANDING_CACHE_KEY = 'landing_plans';
+
     protected $fillable = [
         'uuid',
         'slug',
@@ -38,6 +45,13 @@ class Plan extends Model
         'gallery_limit' => 'integer',
         'team_limit' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        // Keep the landing page pricing in sync with admin edits.
+        static::saved(fn () => Cache::forget(self::LANDING_CACHE_KEY));
+        static::deleted(fn () => Cache::forget(self::LANDING_CACHE_KEY));
+    }
 
     public function getVideoLimitSecondsAttribute(): int
     {

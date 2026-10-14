@@ -125,4 +125,21 @@ class AdminPlanManagementTest extends TestCase
 
         $this->assertEquals(25, $this->basicPlan->gallery_limit);
     }
+
+    public function test_landing_page_reflects_updated_plan_pricing(): void
+    {
+        // Prime the landing page plans cache.
+        $this->get('/')->assertOk()->assertDontSee('98,765');
+
+        $this->actingAs($this->admin)->put(route('admin.plans.update', $this->basicPlan->slug), [
+            'name' => 'Basic',
+            'monthly_price' => 98765,
+            'annual_price' => 987650,
+            'storage_gb' => 50,
+            'currency' => 'RWF',
+            'unlimited_galleries' => '1',
+        ])->assertRedirect();
+
+        $this->get('/')->assertOk()->assertSee('98,765');
+    }
 }

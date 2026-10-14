@@ -15,7 +15,7 @@ class HomeController extends Controller
      */
     public function index(): View
     {
-        $plans = Cache::remember('landing_plans', 86400, function () {
+        $plans = Cache::remember(Plan::LANDING_CACHE_KEY, 86400, function () {
             return Plan::orderBy('monthly_price', 'asc')->get();
         });
 
