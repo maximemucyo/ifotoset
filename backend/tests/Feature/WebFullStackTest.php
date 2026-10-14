@@ -125,7 +125,8 @@ class WebFullStackTest extends TestCase
         $response = $this->get('/');
         $response->assertStatus(200);
         $response->assertSee('ifotoset');
-        $response->assertSee('The Complete Photography Platform');
+        $response->assertSee('Galleries your clients');
+        $response->assertSee('A studio that runs itself.');
     }
 
     public function test_login_flow(): void
@@ -222,9 +223,9 @@ class WebFullStackTest extends TestCase
         // 1. Export UI renders on subdomain for public gallery
         $response = $this->get("{$galleryUrl}/export?type=zip");
         $response->assertStatus(200);
-        $response->assertSee('Export Gallery');
+        $response->assertSee('Prepare download');
         $response->assertSee('Serengeti Safari Collection');
-        $response->assertSee('Download Gallery Archive (ZIP)');
+        $response->assertSee('Download gallery (ZIP)');
 
         // 2. Private gallery export redirects when locked
         $privateGallery = Gallery::create([
@@ -249,7 +250,7 @@ class WebFullStackTest extends TestCase
 
         $unlockedExportResponse = $this->get("{$privateGalleryUrl}/export");
         $unlockedExportResponse->assertStatus(200);
-        $unlockedExportResponse->assertSee('Export Gallery');
+        $unlockedExportResponse->assertSee('Prepare download');
     }
 
     public function test_password_checksum_session_invalidation_when_password_changes(): void
@@ -408,11 +409,11 @@ class WebFullStackTest extends TestCase
         // Admin can access admin dashboard, users, and moderation
         $adminResponse = $this->actingAs($this->admin)->get('/admin/dashboard');
         $adminResponse->assertStatus(200);
-        $adminResponse->assertSee('Platform Overview');
+        $adminResponse->assertSee('Platform overview');
 
         $usersResponse = $this->actingAs($this->admin)->get('/admin/users');
         $usersResponse->assertStatus(200);
-        $usersResponse->assertSee('User Management');
+        $usersResponse->assertSee('Every photographer, client and administrator');
     }
 
     public function test_concurrent_booking_deterministic_locking(): void

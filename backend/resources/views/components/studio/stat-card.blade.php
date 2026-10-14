@@ -4,21 +4,30 @@
     'hint' => null,
     'change' => null,
     'changeType' => 'positive',
+    'icon' => null,
+    'href' => null,
 ])
-
-<div class="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
-    <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-muted-foreground">{{ $label }}</span>
+@php($tag = $href ? 'a' : 'div')
+<{{ $tag }} @if($href) href="{{ $href }}" @endif {{ $attributes->merge(['class' => 'card group relative p-5' . ($href ? ' card-hover' : '')]) }}>
+    <div class="flex items-center justify-between gap-3">
+        <span class="text-[13px] font-medium text-muted-foreground">{{ $label }}</span>
+        @if($icon)
+            <span class="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+                <x-icon :name="$icon" class="size-3.5" />
+            </span>
+        @endif
+    </div>
+    <div class="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span class="stat-value">{{ $value }}</span>
         @if($change)
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $changeType === 'positive' ? 'bg-green-500/10 text-green-600' : 'bg-destructive/10 text-destructive' }}">
+            <span class="inline-flex items-center gap-0.5 text-xs font-medium {{ $changeType === 'positive' ? 'text-success' : ($changeType === 'neutral' ? 'text-muted-foreground' : 'text-destructive') }}">
+                <x-icon :name="$changeType === 'negative' ? 'trending-down' : 'trending-up'" class="size-3" />
                 {{ $change }}
             </span>
         @endif
     </div>
-    <div class="mt-3 flex items-baseline gap-2">
-        <span class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{{ $value }}</span>
-        @if($hint)
-            <span class="text-xs text-muted-foreground">{{ $hint }}</span>
-        @endif
-    </div>
-</div>
+    @if($hint)
+        <p class="mt-1 text-xs text-muted-foreground">{{ $hint }}</p>
+    @endif
+    {{ $slot }}
+</{{ $tag }}>

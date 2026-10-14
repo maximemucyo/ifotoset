@@ -105,6 +105,6 @@ class UploadAvatarAction
         }
 
         $cdnDomain = config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
-        return "https://{$cdnDomain}/" . ltrim($compressedKey, '/');
+        return \App\Support\Cdn::scheme() . "://{$cdnDomain}/" . ltrim($compressedKey, '/');
     }
 }

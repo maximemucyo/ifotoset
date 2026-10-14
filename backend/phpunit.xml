@@ -16,6 +16,7 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
+        <env name="CDN_PROTOCOL" value="https" force="true"/>
         <env name="APP_KEY" value="base64:w/M3o1q4LhE2g9R2P8T1v8v0x1z3A5B5C5D5E5F5G5H=" force="true"/>
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
@@ -26,5 +27,16 @@
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="PROTOCOL" value="http" force="true"/>
         <env name="ROOT_DOMAIN" value="localhost:8000" force="true"/>
+        <!-- Keep tests on the local docker S3 even when .env points at the live Backblaze bucket -->
+        <env name="FILESYSTEM_DISK" value="local" force="true"/>
+        <env name="BACKBLAZE_B2_KEY_ID" value="ifotoset" force="true"/>
+        <env name="BACKBLAZE_B2_APPLICATION_KEY" value="ifotoset-secret" force="true"/>
+        <env name="BACKBLAZE_B2_REGION" value="us-east-1" force="true"/>
+        <env name="BACKBLAZE_B2_BUCKET" value="ifotoset-media" force="true"/>
+        <env name="BACKBLAZE_B2_ENDPOINT" value="http://s3:8333" force="true"/>
+        <env name="BACKBLAZE_B2_PUBLIC_ENDPOINT" value="http://localhost:8333" force="true"/>
+        <env name="CLOUDFLARE_CDN_DOMAIN" value="localhost:8333/ifotoset-media" force="true"/>
+        <env name="CLOUDFLARE_CDN_SECRET" value="" force="true"/>
+        <env name="USE_CDN_DOWNLOADS" value="false" force="true"/>
     </php>
 </phpunit>

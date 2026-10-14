@@ -16,4 +16,14 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    server: {
+        host: 'localhost',
+        port: 5173,
+        strictPort: true,
+        cors: true,
+    },
+    build: {
+        cssMinify: 'lightningcss',
+        reportCompressedSize: false,
+    },
 });

@@ -1,43 +1,58 @@
-<footer class="bg-card border-t border-border py-12">
-    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
-            <div class="col-span-2 md:col-span-1">
-                <a href="{{ url('/') }}" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-8 h-8 object-contain drop-shadow-sm">
-                    <span class="text-2xl font-bold tracking-tight text-foreground">
-                        ifoto<span class="text-primary">set</span>
-                    </span>
-                </a>
-                <p class="text-muted-foreground text-sm mt-4">
-                    Photography platform built for modern photographers.
+@php
+    $columns = [
+        'Product' => [
+            ['Features', '#features'],
+            ['Showcase', '#showcase'],
+            ['Pricing', '#pricing'],
+            ['FAQ', '#faq'],
+        ],
+        'For photographers' => [
+            ['Client galleries', '#features'],
+            ['Portfolio website', '#features'],
+            ['Bookings & payments', '#features'],
+            ['Video delivery', '#features'],
+        ],
+        'Account' => auth()->check()
+            ? [['Open studio', url('/studio/dashboard')]]
+            : [['Start free', route('register')], ['Sign in', route('login')], ['Reset password', route('password.request')]],
+    ];
+@endphp
+
+<footer class="border-t border-border bg-card/50">
+    <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div class="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div class="max-w-sm">
+                <x-brand.logo :href="url('/')" />
+                <p class="mt-4 text-[14px] leading-relaxed text-muted-foreground">
+                    Client galleries, portfolio websites and studio management for photographers. Built in East Africa, for photographers everywhere.
                 </p>
+                <div class="mt-6 flex items-center gap-2">
+                    <x-ui.theme-toggle variant="segmented" />
+                </div>
             </div>
-            <div>
-                <p class="font-semibold text-foreground mb-4">Product</p>
-                <ul class="space-y-2 text-muted-foreground text-sm">
-                    <li><a href="#features" class="hover:text-primary transition-colors">Features</a></li>
-                    <li><a href="#pricing" class="hover:text-primary transition-colors">Pricing</a></li>
-                    <li><a href="#" class="hover:text-primary transition-colors">Security</a></li>
-                </ul>
-            </div>
-            <div>
-                <p class="font-semibold text-foreground mb-4">Company</p>
-                <ul class="space-y-2 text-muted-foreground text-sm">
-                    <li><a href="#" class="hover:text-primary transition-colors">About</a></li>
-                    <li><a href="#" class="hover:text-primary transition-colors">Blog</a></li>
-                    <li><a href="#" class="hover:text-primary transition-colors">Contact</a></li>
-                </ul>
-            </div>
-            <div>
-                <p class="font-semibold text-foreground mb-4">Legal</p>
-                <ul class="space-y-2 text-muted-foreground text-sm">
-                    <li><a href="#" class="hover:text-primary transition-colors">Privacy</a></li>
-                    <li><a href="#" class="hover:text-primary transition-colors">Terms</a></li>
-                </ul>
+
+            <div class="grid grid-cols-2 gap-8 sm:grid-cols-3">
+                @foreach($columns as $heading => $links)
+                    <div>
+                        <p class="text-[13px] font-semibold text-foreground">{{ $heading }}</p>
+                        <ul class="mt-4 space-y-2.5">
+                            @foreach($links as [$label, $href])
+                                <li><a href="{{ $href }}" class="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground">{{ $label }}</a></li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endforeach
             </div>
         </div>
-        <div class="border-t border-border pt-8 text-center text-muted-foreground text-sm">
+
+        <div class="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 text-[13px] text-muted-foreground sm:flex-row">
             <p>&copy; {{ date('Y') }} ifotoset. All rights reserved.</p>
+            <p class="inline-flex items-center gap-1.5"><x-icon name="camera" class="size-3.5" /> Made for photographers</p>
         </div>
+    </div>
+
+    {{-- Oversized wordmark --}}
+    <div aria-hidden="true" class="pointer-events-none select-none overflow-hidden">
+        <p class="mx-auto -mb-[0.24em] max-w-7xl px-4 text-center font-display text-[24vw] font-semibold leading-none tracking-[-0.06em] text-foreground/[0.035] sm:px-6 lg:px-8 lg:text-[220px]">ifotoset</p>
     </div>
 </footer>

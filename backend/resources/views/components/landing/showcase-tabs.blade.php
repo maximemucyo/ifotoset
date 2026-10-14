@@ -1,265 +1,217 @@
-<section id="showcase" x-data="{ activeTab: 'galleries' }" class="py-20 md:py-28 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto overflow-hidden border-t border-border/80">
-    <div class="text-center max-w-3xl mx-auto mb-12">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
-            See the Product in Action
-        </h2>
-        <p class="text-lg text-muted-foreground">
-            Delivering files, showing off your best work, and closing client bookings has never been so seamless.
-        </p>
-    </div>
+@php
+    $img = fn (string $n) => asset("images/marketing/hero-{$n}.webp");
+    $tabs = [
+        'gallery' => [
+            'icon' => 'images',
+            'title' => 'Client gallery',
+            'body' => 'A distraction-free viewer with favourites, full-set downloads and Google Photos export. Your clients never see an ad or a login wall.',
+        ],
+        'portfolio' => [
+            'icon' => 'globe',
+            'title' => 'Portfolio website',
+            'body' => 'Feature your best galleries on a site that loads fast on any phone, and let visitors book a session directly.',
+        ],
+        'studio' => [
+            'icon' => 'layout-dashboard',
+            'title' => 'Studio dashboard',
+            'body' => 'See bookings, payments, storage and gallery views at a glance. Every client and session, one click away.',
+        ],
+    ];
+@endphp
 
-    <!-- Tab controls -->
-    <div class="flex justify-center border-b border-border mb-12">
-        <div role="tablist" aria-label="ifotoset Product Showcase" class="flex gap-2 sm:gap-6">
-            <button
-                type="button"
-                role="tab"
-                :aria-selected="activeTab === 'galleries'"
-                @click="activeTab = 'galleries'"
-                class="py-4 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-t-lg"
-                :class="activeTab === 'galleries' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'"
-            >
-                Client Galleries
-            </button>
-            <button
-                type="button"
-                role="tab"
-                :aria-selected="activeTab === 'portfolio'"
-                @click="activeTab = 'portfolio'"
-                class="py-4 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-t-lg"
-                :class="activeTab === 'portfolio' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'"
-            >
-                Portfolio Showcase
-            </button>
-            <button
-                type="button"
-                role="tab"
-                :aria-selected="activeTab === 'studio'"
-                @click="activeTab = 'studio'"
-                class="py-4 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-t-lg"
-                :class="activeTab === 'studio' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'"
-            >
-                Studio Manager
-            </button>
-        </div>
-    </div>
+<section id="showcase" class="relative overflow-hidden border-y border-border bg-muted/40 py-24 sm:py-32"
+    x-data="{
+        tab: 'gallery',
+        order: ['gallery', 'portfolio', 'studio'],
+        progress: 0,
+        paused: false,
+        timer: null,
+        start() {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            this.timer = setInterval(() => {
+                if (this.paused || document.hidden) return;
+                this.progress += 100 / 7000;
+                if (this.progress >= 1) this.next();
+            }, 100);
+        },
+        next() { this.progress = 0; this.tab = this.order[(this.order.indexOf(this.tab) + 1) % this.order.length]; },
+        select(t) { this.tab = t; this.progress = 0; },
+    }"
+    x-init="start()"
+    @mouseenter="paused = true"
+    @mouseleave="paused = false"
+>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <x-landing.section-heading eyebrow="Showcase" description="A closer look at what you and your clients will use every day.">
+            Designed for the way <em class="font-serif font-normal italic tracking-normal">you</em> work.
+        </x-landing.section-heading>
 
-    <!-- Showcase Grid (Dynamic Layout) -->
-    <div class="grid lg:grid-cols-12 gap-12 items-center min-h-[480px]">
-        <!-- Left Side: Dynamic Copy -->
-        <div class="lg:col-span-5 flex flex-col justify-center text-center lg:text-left">
-            <!-- Galleries Text -->
-            <div x-show="activeTab === 'galleries'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
-                <span class="text-xs uppercase tracking-widest text-primary font-bold mb-2 block">
-                    Client Galleries
-                </span>
-                <h3 class="text-2xl sm:text-3xl font-bold text-foreground mb-4">
-                    Beautiful galleries your clients will love.
-                </h3>
-                <p class="text-muted-foreground leading-relaxed text-base">
-                    Deliver their photos through a fast, branded experience designed around your work. Give clients the options to download, share, and favorite their photos seamlessly.
-                </p>
-            </div>
-
-            <!-- Portfolio Text -->
-            <div x-show="activeTab === 'portfolio'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
-                <span class="text-xs uppercase tracking-widest text-primary font-bold mb-2 block">
-                    Portfolio Showcase
-                </span>
-                <h3 class="text-2xl sm:text-3xl font-bold text-foreground mb-4">
-                    Turn your photography into your best marketing tool.
-                </h3>
-                <p class="text-muted-foreground leading-relaxed text-base">
-                    Create a clean, stunning public profile that displays your editorial collections. Let prospects explore your portfolios and book inquiries directly from your website.
-                </p>
-            </div>
-
-            <!-- Studio Text -->
-            <div x-show="activeTab === 'studio'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
-                <span class="text-xs uppercase tracking-widest text-primary font-bold mb-2 block">
-                    Studio Manager
-                </span>
-                <h3 class="text-2xl sm:text-3xl font-bold text-foreground mb-4">
-                    Spend less time managing and more time creating.
-                </h3>
-                <p class="text-muted-foreground leading-relaxed text-base">
-                    An all-in-one studio management workspace. Track your booking calendar, package details, client lists, and monthly earnings directly from an interactive panel.
-                </p>
-            </div>
-        </div>
-
-        <!-- Right Side: High-Fidelity Mockups -->
-        <div class="lg:col-span-7 w-full flex justify-center">
-            <div class="w-full relative aspect-[16/10] bg-card rounded-xl border border-border/80 shadow-xl overflow-hidden transition-all duration-500 hover:border-primary/20">
-                <!-- Galleries Mockup -->
-                <div x-show="activeTab === 'galleries'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="w-full h-full p-4 flex flex-col justify-between bg-card text-foreground">
-                    <!-- Galleries Header -->
-                    <div class="flex items-center justify-between border-b border-border/80 pb-3">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">SJ</div>
-                            <div>
-                                <div class="font-bold text-xs">Sarah Jenkins</div>
-                                <p class="text-[10px] text-muted-foreground">Kigali, Rwanda</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <span class="px-2 py-1 bg-secondary text-muted-foreground text-[10px] rounded font-semibold flex items-center gap-1">
-                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                </svg>
-                                Private
+        <div class="mt-14 grid items-center gap-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
+            {{-- Tab list --}}
+            <div class="grid grid-cols-3 gap-1.5 sm:gap-2 lg:flex lg:flex-col" role="tablist" aria-label="Product showcase" data-reveal>
+                @foreach($tabs as $key => $t)
+                    <button
+                        type="button"
+                        role="tab"
+                        id="showcase-tab-{{ $key }}"
+                        aria-controls="showcase-panel-{{ $key }}"
+                        :aria-selected="(tab === '{{ $key }}').toString()"
+                        @click="select('{{ $key }}')"
+                        class="group relative min-w-0 overflow-hidden rounded-xl border px-2 py-3 text-center transition-all duration-300 sm:px-4 lg:px-5 lg:py-4 lg:text-left"
+                        :class="tab === '{{ $key }}' ? 'border-border bg-card shadow-sm' : 'border-transparent hover:bg-card/60'"
+                    >
+                        <span class="flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-2.5 lg:justify-start">
+                            <span class="inline-flex size-8 items-center justify-center rounded-lg transition-colors"
+                                :class="tab === '{{ $key }}' ? 'bg-brand/10 text-brand' : 'bg-muted text-muted-foreground'">
+                                <x-icon :name="$t['icon']" />
                             </span>
-                        </div>
+                            <span class="text-[12.5px] font-semibold leading-tight tracking-tight sm:text-[15px]"
+                                :class="tab === '{{ $key }}' ? 'text-foreground' : 'text-muted-foreground'">{{ $t['title'] }}</span>
+                        </span>
+                        <span class="hidden lg:block" x-show="tab === '{{ $key }}'" x-collapse>
+                            <span class="block pt-3 text-[14px] leading-relaxed text-muted-foreground">{{ $t['body'] }}</span>
+                        </span>
+                        <span aria-hidden="true" class="absolute inset-x-0 bottom-0 hidden h-0.5 bg-border lg:block" x-show="tab === '{{ $key }}'">
+                            <span class="block h-full origin-left bg-brand transition-transform duration-100 ease-linear" :style="`transform: scaleX(${tab === '{{ $key }}' ? progress : 0})`"></span>
+                        </span>
+                    </button>
+                @endforeach
+            </div>
+
+            {{-- Mobile description --}}
+            <div class="-mt-2 lg:hidden">
+                @foreach($tabs as $key => $t)
+                    <p class="text-[14.5px] leading-relaxed text-muted-foreground" x-show="tab === '{{ $key }}'" @if(!$loop->first) x-cloak @endif>{{ $t['body'] }}</p>
+                @endforeach
+            </div>
+
+            {{-- Panels --}}
+            <div class="relative" data-reveal style="--reveal-delay: 120ms">
+                <div aria-hidden="true" class="absolute -inset-6 -z-10 rounded-[2rem] bg-brand/10 blur-3xl"></div>
+                <div class="overflow-hidden rounded-2xl border border-border bg-card shadow-xl dark:shadow-black/40">
+                    <div class="flex items-center gap-1.5 border-b border-border bg-muted/60 px-4 py-2.5" aria-hidden="true">
+                        <span class="size-2.5 rounded-full bg-border-strong"></span>
+                        <span class="size-2.5 rounded-full bg-border-strong"></span>
+                        <span class="size-2.5 rounded-full bg-border-strong"></span>
+                        <span class="ml-3 truncate text-[11.5px] text-muted-foreground"
+                            x-text="{ gallery: 'yourstudio.ifotoset.com/golden-hour', portfolio: 'yourstudio.ifotoset.com', studio: 'ifotoset.com/studio' }[tab]">yourstudio.ifotoset.com/golden-hour</span>
                     </div>
 
-                    <!-- Galleries Body Grid -->
-                    <div class="flex-1 py-4 grid grid-cols-3 gap-2 overflow-hidden">
-                        <div class="relative rounded overflow-hidden border border-border/50">
-                            <img
-                                src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80"
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                class="w-full h-full object-cover"
-                            >
-                        </div>
-                        <div class="relative rounded overflow-hidden border border-border/50">
-                            <img
-                                src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=400&q=80"
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                class="w-full h-full object-cover"
-                            >
-                        </div>
-                        <div class="relative rounded overflow-hidden border border-border/50">
-                            <img
-                                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                class="w-full h-full object-cover"
-                            >
-                        </div>
-                    </div>
-
-                    <!-- Galleries Footer Controls -->
-                    <div class="border-t border-border/80 pt-3 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Wedding - Sarah & John</span>
-                        <div class="flex gap-3">
-                            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-[11px] font-semibold">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                                Favorite
-                            </button>
-                            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-[11px] font-semibold">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                Download
-                            </button>
-                            <button type="button" class="flex items-center gap-1 hover:text-primary transition-colors text-[11px] font-semibold">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                                Share
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Portfolio Mockup -->
-                <div x-show="activeTab === 'portfolio'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="w-full h-full p-4 flex flex-col justify-between bg-card text-foreground" style="display: none;">
-                    <!-- Portfolio Branding -->
-                    <div class="flex items-center justify-between border-b border-border/80 pb-3">
-                        <span class="font-bold text-xs uppercase tracking-wider">SARAH JENKINS</span>
-                        <div class="flex gap-4 text-[10px] font-medium text-muted-foreground">
-                            <span class="text-primary font-semibold">Galleries</span>
-                            <span>About</span>
-                            <span>Contact</span>
-                        </div>
-                    </div>
-
-                    <!-- Portfolio Collage -->
-                    <div class="flex-1 py-4 grid grid-cols-12 gap-2 overflow-hidden">
-                        <div class="col-span-8 relative rounded overflow-hidden border border-border/50">
-                            <img
-                                src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=400&q=80"
-                                alt=""
-                                loading="lazy"
-                                decoding="async"
-                                class="w-full h-full object-cover"
-                            >
-                            <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-[8px] text-white">East African Landscapes</div>
-                        </div>
-                        <div class="col-span-4 flex flex-col gap-2">
-                            <div class="flex-1 relative rounded overflow-hidden border border-border/50">
-                                <img
-                                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80"
-                                    alt=""
-                                    loading="lazy"
-                                    decoding="async"
-                                    class="w-full h-full object-cover"
-                                >
+                    <div class="grid aspect-[4/5] sm:aspect-[16/11] [&>*]:col-start-1 [&>*]:row-start-1">
+                        {{-- Gallery viewer --}}
+                        <div id="showcase-panel-gallery" role="tabpanel" aria-labelledby="showcase-tab-gallery"
+                            x-show="tab === 'gallery'"
+                            x-transition:enter="transition duration-500 ease-out" x-transition:enter-start="opacity-0 scale-[0.985]" x-transition:enter-end="opacity-100 scale-100"
+                            x-transition:leave="transition duration-200 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                            class="flex min-h-0 flex-col bg-black text-white">
+                            <div class="flex items-center justify-between px-4 py-3 text-[12px] text-white/70">
+                                <span class="inline-flex items-center gap-2"><x-icon name="arrow-left" class="size-3.5" /> Golden Hour</span>
+                                <span class="tabular-nums">12 / 186</span>
+                                <span class="flex items-center gap-3">
+                                    <x-icon name="heart" class="size-4 fill-current text-brand" />
+                                    <x-icon name="share-2" class="size-4" />
+                                    <x-icon name="download" class="size-4" />
+                                </span>
                             </div>
-                            <div class="flex-1 relative rounded overflow-hidden border border-border/50">
-                                <img
-                                    src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80"
-                                    alt=""
-                                    loading="lazy"
-                                    decoding="async"
-                                    class="w-full h-full object-cover"
-                                >
+                            <div class="relative flex min-h-0 flex-1 items-center justify-center px-10 sm:px-16">
+                                <span class="absolute left-3 inline-flex size-8 items-center justify-center rounded-full bg-white/10"><x-icon name="chevron-left" class="size-4" /></span>
+                                <img src="{{ $img(1) }}" width="1000" height="1250" alt="Couple sitting on a bench at sunset" loading="lazy" decoding="async" class="max-h-full w-auto rounded-sm object-contain shadow-2xl">
+                                <span class="absolute right-3 inline-flex size-8 items-center justify-center rounded-full bg-white/10"><x-icon name="chevron-right" class="size-4" /></span>
+                            </div>
+                            <div class="flex justify-center gap-1.5 overflow-hidden px-4 py-3">
+                                @foreach([2, 5, 1, 13, 11, 10, 3] as $i => $n)
+                                    <img src="{{ $img($n) }}" width="80" height="56" alt="" loading="lazy" decoding="async" class="h-10 w-14 shrink-0 rounded-sm object-cover {{ $n === 1 ? 'ring-2 ring-white' : 'opacity-50' }} {{ $i > 4 ? 'hidden sm:block' : '' }}">
+                                @endforeach
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Portfolio Info -->
-                    <div class="border-t border-border/80 pt-3 flex items-center justify-between text-xs">
-                        <span class="text-muted-foreground">&copy; {{ date('Y') }} Sarah Jenkins. All rights reserved.</span>
-                        <button type="button" class="px-3 py-1 bg-primary text-primary-foreground font-semibold rounded text-[10px] hover:bg-accent transition-colors">Book Inquiry</button>
-                    </div>
-                </div>
-
-                <!-- Studio Mockup -->
-                <div x-show="activeTab === 'studio'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" class="w-full h-full p-4 flex flex-col bg-secondary/10 text-foreground" style="display: none;">
-                    <!-- Studio Bar Header -->
-                    <div class="flex items-center justify-between border-b border-border/80 pb-3 mb-3">
-                        <div class="flex items-center gap-1.5">
-                            <span class="text-[10px] bg-primary text-primary-foreground font-semibold px-2 py-0.5 rounded">STUDIO</span>
-                            <span class="font-bold text-xs">Sarah's Workspace</span>
-                        </div>
-                        <div class="flex items-center gap-2 text-[10px] text-muted-foreground font-semibold">
-                            <span class="w-2 h-2 rounded-full bg-green-500"></span> Live Status
-                        </div>
-                    </div>
-
-                    <!-- Studio Metrics Row -->
-                    <div class="grid grid-cols-3 gap-2 mb-3">
-                        <div class="bg-card border border-border/80 p-2.5 rounded-lg flex flex-col justify-between">
-                            <span class="text-[9px] text-muted-foreground block font-medium">Active Galleries</span>
-                            <span class="text-sm font-bold text-foreground mt-0.5">12</span>
-                        </div>
-                        <div class="bg-card border border-border/80 p-2.5 rounded-lg flex flex-col justify-between">
-                            <span class="text-[9px] text-muted-foreground block font-medium">Monthly Views</span>
-                            <span class="text-sm font-bold text-foreground mt-0.5">2,341</span>
-                        </div>
-                        <div class="bg-card border border-border/80 p-2.5 rounded-lg flex flex-col justify-between">
-                            <span class="text-[9px] text-muted-foreground block font-medium">Total Earnings</span>
-                            <span class="text-sm font-bold text-primary mt-0.5">RWF 627K</span>
-                        </div>
-                    </div>
-
-                    <!-- Mini Table List -->
-                    <div class="flex-1 bg-card border border-border/80 rounded-lg p-2.5 overflow-hidden flex flex-col">
-                        <span class="text-[9px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider block">Recent Galleries</span>
-                        <div class="flex-1 overflow-y-auto space-y-1.5 text-[10px]">
-                            <div class="flex items-center justify-between py-1 border-b border-border/40">
-                                <span class="font-semibold text-foreground truncate max-w-[120px]">Wedding - Sarah & John</span>
-                                <span class="px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-[8px] rounded font-bold">Published</span>
+                        {{-- Portfolio --}}
+                        <div id="showcase-panel-portfolio" role="tabpanel" aria-labelledby="showcase-tab-portfolio"
+                            x-show="tab === 'portfolio'" x-cloak
+                            x-transition:enter="transition duration-500 ease-out" x-transition:enter-start="opacity-0 scale-[0.985]" x-transition:enter-end="opacity-100 scale-100"
+                            x-transition:leave="transition duration-200 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                            class="flex min-h-0 flex-col overflow-hidden bg-card">
+                            <div class="relative h-[48%] shrink-0 overflow-hidden">
+                                <img src="{{ $img(14) }}" width="1200" height="800" alt="Misty hills at sunrise" loading="lazy" decoding="async" class="absolute inset-0 size-full object-cover">
+                                <div class="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/50"></div>
+                                <div class="absolute inset-x-0 top-0 flex items-center justify-between px-5 py-3.5 text-[12px] text-white">
+                                    <span class="font-display text-[13px] font-semibold tracking-tight">Your Studio</span>
+                                    <span class="hidden gap-4 text-white/80 sm:flex"><span>Work</span><span>About</span><span>Contact</span></span>
+                                    <span class="rounded-md bg-white px-2.5 py-1 text-[11px] font-medium text-black">Book a session</span>
+                                </div>
+                                <div class="absolute bottom-4 left-5 text-white sm:bottom-6 sm:left-7">
+                                    <p class="text-[10px] uppercase tracking-[0.2em] text-white/70">Photography</p>
+                                    <p class="mt-1 font-serif text-3xl italic leading-none sm:text-5xl">Light &amp; Story</p>
+                                </div>
                             </div>
-                            <div class="flex items-center justify-between py-1 border-b border-border/40">
-                                <span class="font-semibold text-foreground truncate max-w-[120px]">Corporate Tech Summit</span>
-                                <span class="px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 text-[8px] rounded font-bold">Published</span>
+                            <div class="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+                                <div class="flex items-baseline justify-between">
+                                    <p class="text-[13px] font-semibold text-foreground">Selected work</p>
+                                    <p class="text-[11px] text-muted-foreground">View all</p>
+                                </div>
+                                <div class="mt-3 grid min-h-0 flex-1 grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
+                                    @foreach([['n' => 6, 't' => 'Travel'], ['n' => 2, 't' => 'Portraits'], ['n' => 4, 't' => 'Events']] as $i => $c)
+                                        <div class="relative min-h-0 overflow-hidden rounded-lg {{ $i === 2 ? 'hidden sm:block' : '' }}">
+                                            <img src="{{ $img($c['n']) }}" width="800" height="1000" alt="" loading="lazy" decoding="async" class="absolute inset-0 size-full object-cover">
+                                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                                            <span class="absolute bottom-2 left-2.5 text-[12px] font-medium text-white">{{ $c['t'] }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
-                            <div class="flex items-center justify-between py-1 border-b border-border/40">
-                                <span class="font-semibold text-foreground truncate max-w-[120px]">Portrait Session - Jan</span>
-                                <span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300 text-[8px] rounded font-bold">Draft</span>
+                        </div>
+
+                        {{-- Studio dashboard --}}
+                        <div id="showcase-panel-studio" role="tabpanel" aria-labelledby="showcase-tab-studio"
+                            x-show="tab === 'studio'" x-cloak
+                            x-transition:enter="transition duration-500 ease-out" x-transition:enter-start="opacity-0 scale-[0.985]" x-transition:enter-end="opacity-100 scale-100"
+                            x-transition:leave="transition duration-200 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                            class="flex min-h-0 bg-background">
+                            <aside class="hidden w-40 shrink-0 flex-col gap-0.5 border-r border-border bg-sidebar p-3 sm:flex">
+                                <div class="mb-3 flex items-center gap-2 px-1.5">
+                                    <x-brand.logo size="sm" :wordmark="false" />
+                                    <span class="text-[12px] font-semibold">Your Studio</span>
+                                </div>
+                                @foreach([['layout-dashboard', 'Dashboard', true], ['images', 'Galleries', false], ['calendar', 'Bookings', false], ['users', 'Clients', false], ['package', 'Packages', false], ['chart-column', 'Analytics', false]] as [$icon, $label, $active])
+                                    <span class="flex items-center gap-2 rounded-md px-2 py-1.5 text-[11.5px] {{ $active ? 'bg-sidebar-accent font-medium text-foreground shadow-xs ring-1 ring-sidebar-border' : 'text-sidebar-foreground' }}">
+                                        <x-icon :name="$icon" class="size-3.5 {{ $active ? 'text-brand' : 'opacity-70' }}" /> {{ $label }}
+                                    </span>
+                                @endforeach
+                            </aside>
+                            <div class="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4 sm:p-5">
+                                <div>
+                                    <p class="text-[15px] font-semibold tracking-tight text-foreground">Good morning</p>
+                                    <p class="text-[11px] text-muted-foreground">Here's what's happening in your studio.</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                                    @foreach([['Revenue', 'RWF 840k', 'wallet'], ['Bookings', '18', 'calendar-check'], ['Gallery views', '2.4k', 'eye'], ['Storage', '38%', 'hard-drive']] as $i => [$label, $value, $icon])
+                                        <div class="rounded-lg border border-border bg-card p-2.5 {{ $i > 1 ? 'hidden lg:block' : '' }}">
+                                            <p class="flex items-center gap-1.5 text-[10px] text-muted-foreground"><x-icon :name="$icon" class="size-3" /> {{ $label }}</p>
+                                            <p class="mt-1 font-display text-[15px] font-semibold tabular-nums tracking-tight">{{ $value }}</p>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <div class="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card p-3">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-[11.5px] font-semibold">Revenue</p>
+                                        <span class="text-[10px] text-muted-foreground">Last 12 weeks</span>
+                                    </div>
+                                    <div class="mt-2 flex min-h-0 flex-1 items-end gap-1.5">
+                                        @foreach([38, 52, 44, 61, 48, 70, 58, 76, 64, 82, 72, 92] as $i => $h)
+                                            <span class="flex-1 rounded-t-[3px] {{ $i === 11 ? 'bg-brand' : 'bg-brand/25' }}" style="height: {{ $h }}%"></span>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <div class="rounded-lg border border-border bg-card">
+                                    @foreach([['Wedding package', 'Mobile Money', 'badge-success', 'Paid'], ['Portrait session', 'Mobile Money', 'badge-warning', 'Pending']] as [$what, $how, $badge, $status])
+                                        <div class="flex items-center gap-2.5 px-3 py-2 {{ $loop->first ? '' : 'border-t border-border' }}">
+                                            <span class="inline-flex size-6 items-center justify-center rounded-md bg-muted"><x-icon name="smartphone" class="size-3 text-muted-foreground" /></span>
+                                            <span class="min-w-0 flex-1 truncate text-[11.5px] font-medium">{{ $what }}</span>
+                                            <span class="hidden text-[10.5px] text-muted-foreground sm:inline">{{ $how }}</span>
+                                            <span class="badge {{ $badge }} text-[10px]">{{ $status }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
                         </div>
                     </div>

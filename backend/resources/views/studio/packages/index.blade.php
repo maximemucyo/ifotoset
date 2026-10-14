@@ -1,7 +1,7 @@
-@extends('layouts.app', ['title' => 'Pricing Packages - Studio'])
+@extends('layouts.app', ['title' => 'Packages · ifotoset'])
 
 @section('content')
-<div class="space-y-6" x-data="{
+<div x-data="{
     createModalOpen: false,
     editModalOpen: false,
     selectedPkg: null,
@@ -10,273 +10,187 @@
         this.editModalOpen = true;
     }
 }">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-foreground">Photography Packages</h1>
-            <p class="text-xs text-muted-foreground mt-1">Configure packages and session options available for client online booking.</p>
-        </div>
-        <button type="button"
-                @click="createModalOpen = true"
-                class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-90 transition-opacity">
-            + New Package
-        </button>
-    </div>
+    <x-ui.page-header title="Packages" description="The sessions clients can book from your profile: pricing, duration, deposit and what's included.">
+        @if($packages->total() > 0)
+            <x-slot:meta>
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+                    <span class="inline-flex items-center gap-1.5"><x-icon name="package" class="size-3.5" /> <span class="font-medium tabular-nums text-foreground">{{ $packages->total() }}</span> {{ \Illuminate\Support\Str::plural('package', $packages->total()) }}</span>
+                    @php $hiddenOnPage = $packages->getCollection()->where('is_active', false)->count(); @endphp
+                    @if($hiddenOnPage > 0)
+                        <span class="text-subtle">·</span>
+                        <span>{{ $hiddenOnPage }} hidden from booking</span>
+                    @endif
+                </div>
+            </x-slot:meta>
+        @endif
+        <x-slot:actions>
+            <a href="{{ route('studio.availability.index') }}" class="btn btn-outline"><x-icon name="clock" /> Availability</a>
+            <button type="button" @click="createModalOpen = true" class="btn btn-primary">
+                <x-icon name="plus" /> New package
+            </button>
+        </x-slot:actions>
+    </x-ui.page-header>
 
-    <!-- Packages Grid -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        @forelse($packages as $pkg)
-            <div class="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative">
-                <div>
-                    <!-- Header -->
-                    <div class="flex items-start justify-between gap-2">
-                        <div>
-                            <h3 class="font-bold text-base text-foreground">{{ $pkg->name }}</h3>
-                            <div class="text-xs text-muted-foreground mt-0.5">{{ $pkg->duration_minutes }} minutes session</div>
+    @if($errors->any())
+        <div class="alert alert-danger mb-6">
+            <x-icon name="circle-alert" />
+            <div>
+                <p class="font-medium">Please check the package details.</p>
+                <p class="mt-0.5 text-[13px]">{{ $errors->first() }}</p>
+            </div>
+        </div>
+    @endif
+
+    @if($packages->isEmpty())
+        <x-ui.empty-state icon="package"
+            title="Create your first package"
+            description="Packages are what clients book: a name, a price, how long it takes and what they get. Start with your most popular session and add more later."
+            action-label="New package" action-click="createModalOpen = true" />
+    @else
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            @foreach($packages as $pkg)
+                @php
+                    $deliverables = is_array($pkg->deliverables) ? array_values(array_filter($pkg->deliverables)) : [];
+                    $hours = intdiv((int) $pkg->duration_minutes, 60);
+                    $mins = (int) $pkg->duration_minutes % 60;
+                    $durationLabel = $hours ? ($hours . 'h' . ($mins ? ' ' . $mins . 'm' : '')) : $mins . ' min';
+                    $payload = [
+                        'uuid' => $pkg->uuid,
+                        'name' => $pkg->name,
+                        'description' => $pkg->description,
+                        'price' => $pkg->price,
+                        'currency' => $pkg->currency,
+                        'duration_minutes' => $pkg->duration_minutes,
+                        'deliverables_text' => implode("\n", $pkg->deliverables ?? []),
+                        'deposit_type' => $pkg->deposit_type,
+                        'deposit_amount' => $pkg->deposit_amount,
+                        'is_active' => $pkg->is_active,
+                        'sort_order' => $pkg->sort_order,
+                    ];
+                @endphp
+                <article class="card card-hover group relative flex flex-col {{ $pkg->is_active ? '' : 'bg-muted/30' }}">
+                    <div class="flex items-start justify-between gap-3 p-5 pb-0">
+                        <div class="min-w-0">
+                            <h3 class="truncate text-[15px] font-semibold text-foreground {{ $pkg->is_active ? '' : 'text-muted-foreground' }}" title="{{ $pkg->name }}">{{ $pkg->name }}</h3>
+                            <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                                <span class="inline-flex items-center gap-1 text-xs text-muted-foreground"><x-icon name="timer" class="size-3.5" /> {{ $durationLabel }}</span>
+                                @unless($pkg->is_active)
+                                    <x-ui.badge variant="neutral">Hidden</x-ui.badge>
+                                @endunless
+                            </div>
                         </div>
-                        <form method="POST" action="{{ route('studio.packages.toggle', $pkg->uuid) }}">
+                        <form method="POST" action="{{ route('studio.packages.toggle', $pkg->uuid) }}" class="shrink-0">
                             @csrf
-                            @method('PATCH')
-                            <button type="submit" title="Click to toggle status" class="cursor-pointer">
-                                <x-ui.badge :variant="$pkg->is_active ? 'success' : 'muted'">
-                                    {{ $pkg->is_active ? 'Active' : 'Inactive' }}
-                                </x-ui.badge>
+                            <button type="submit" role="switch" aria-checked="{{ $pkg->is_active ? 'true' : 'false' }}"
+                                    class="switch" title="{{ $pkg->is_active ? 'Hide from booking page' : 'Show on booking page' }}"
+                                    aria-label="{{ $pkg->is_active ? 'Deactivate' : 'Activate' }} {{ $pkg->name }}">
+                                <input type="checkbox" class="sr-only" tabindex="-1" disabled @checked($pkg->is_active)>
+                                <span></span>
                             </button>
                         </form>
                     </div>
 
-                    <!-- Price -->
-                    <div class="mt-4 pt-3 border-t border-border flex items-baseline gap-1">
-                        <span class="text-xs font-semibold text-primary uppercase">{{ $pkg->currency }}</span>
-                        <span class="text-2xl font-bold text-foreground">{{ number_format($pkg->price, 0) }}</span>
-                    </div>
-
-                    @if($pkg->description)
-                        <p class="text-xs text-muted-foreground mt-2 leading-relaxed">{{ $pkg->description }}</p>
-                    @endif
-
-                    <!-- Deposit Policy -->
-                    <div class="mt-3 text-[11px] text-muted-foreground">
-                        @if($pkg->deposit_type === 'percentage')
-                            <span class="font-medium text-foreground">&bull; Deposit: {{ $pkg->deposit_amount }}% upon booking</span>
-                        @elseif($pkg->deposit_type === 'fixed')
-                            <span class="font-medium text-foreground">&bull; Deposit: {{ $pkg->currency }} {{ number_format($pkg->deposit_amount, 0) }}</span>
-                        @else
-                            <span>&bull; No upfront deposit required</span>
+                    <div class="px-5 pt-4">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="font-display text-[32px] font-semibold leading-none tracking-tight tabular-nums text-foreground">{{ number_format($pkg->price, 0) }}</span>
+                            <span class="text-sm font-medium text-muted-foreground">{{ $pkg->currency }}</span>
+                        </div>
+                        <p class="mt-2 text-xs text-muted-foreground">
+                            @if($pkg->deposit_type === 'percentage' && $pkg->deposit_amount)
+                                <span class="font-medium text-foreground">{{ rtrim(rtrim(number_format($pkg->deposit_amount, 2), '0'), '.') }}% deposit</span> to secure the date
+                            @elseif($pkg->deposit_type === 'fixed' && $pkg->deposit_amount)
+                                <span class="font-medium text-foreground">{{ $pkg->currency }} {{ number_format($pkg->deposit_amount, 0) }} deposit</span> to secure the date
+                            @else
+                                No deposit required
+                            @endif
+                        </p>
+                        @if($pkg->description)
+                            <p class="mt-3 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">{{ $pkg->description }}</p>
                         @endif
                     </div>
 
-                    <!-- Deliverables List -->
-                    @if(!empty($pkg->deliverables) && is_array($pkg->deliverables))
-                        <div class="mt-4 space-y-1.5 pt-3 border-t border-border/60">
-                            <span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Deliverables:</span>
-                            @foreach($pkg->deliverables as $item)
-                                <div class="flex items-center gap-2 text-xs text-foreground">
-                                    <span class="text-primary font-bold">&check;</span>
-                                    <span>{{ $item }}</span>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-
-                <!-- Footer Actions -->
-                <div class="mt-6 pt-4 border-t border-border flex items-center justify-between text-xs">
-                    <span class="text-muted-foreground">{{ $pkg->bookings_count }} sessions booked</span>
-
-                    <div class="flex items-center gap-3">
-                        <button type="button"
-                                @click="openEdit({{ json_encode([
-                                    'uuid' => $pkg->uuid,
-                                    'name' => $pkg->name,
-                                    'description' => $pkg->description,
-                                    'price' => $pkg->price,
-                                    'currency' => $pkg->currency,
-                                    'duration_minutes' => $pkg->duration_minutes,
-                                    'deliverables_text' => implode("\n", $pkg->deliverables ?? []),
-                                    'deposit_type' => $pkg->deposit_type,
-                                    'deposit_amount' => $pkg->deposit_amount,
-                                    'is_active' => $pkg->is_active,
-                                    'sort_order' => $pkg->sort_order,
-                                ]) }})"
-                                class="font-semibold text-primary hover:underline">
-                            Edit
-                        </button>
-
-                        <form method="POST" action="{{ route('studio.packages.destroy', $pkg->uuid) }}" onsubmit="return confirm('Archive package {{ addslashes($pkg->name) }}?');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="text-muted-foreground hover:text-destructive transition-colors">
-                                Archive
+                    <div class="mx-5 mt-4 flex-1 border-t border-border pt-4">
+                        @if(count($deliverables))
+                            <ul class="space-y-2">
+                                @foreach(array_slice($deliverables, 0, 5) as $item)
+                                    <li class="flex items-start gap-2 text-[13px] text-foreground">
+                                        <span class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-success/10 text-success"><x-icon name="check" class="size-2.5" stroke-width="3" /></span>
+                                        <span>{{ $item }}</span>
+                                    </li>
+                                @endforeach
+                                @if(count($deliverables) > 5)
+                                    <li class="pl-6 text-xs text-muted-foreground">+ {{ count($deliverables) - 5 }} more</li>
+                                @endif
+                            </ul>
+                        @else
+                            <button type="button" @click="openEdit({{ json_encode($payload) }})" class="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2.5 text-left text-xs text-muted-foreground transition hover:border-border-strong hover:text-foreground">
+                                <x-icon name="plus" class="size-3.5" /> Add what's included
                             </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @empty
-            <div class="col-span-3 text-center py-16 rounded-2xl border border-dashed border-border p-8">
-                <p class="text-sm font-medium text-muted-foreground mb-4">No photography packages created yet.</p>
-                <button type="button" @click="createModalOpen = true" class="px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl shadow-sm hover:opacity-90">
-                    Create Your First Package
-                </button>
-            </div>
-        @endforelse
-    </div>
-
-    <div class="pt-4">
-        {{ $packages->links() }}
-    </div>
-
-    <!-- Create Package Modal -->
-    <div x-show="createModalOpen"
-         x-transition
-         class="fixed inset-0 z-50 overflow-y-auto"
-         style="display: none;">
-        <div class="fixed inset-0 bg-foreground/40 backdrop-blur-sm" @click="createModalOpen = false"></div>
-        <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative w-full max-w-lg rounded-2xl bg-card border border-border p-6 shadow-2xl text-left"
-                 x-data="{ depType: 'none' }">
-                <div class="flex items-center justify-between pb-3 mb-4 border-b border-border">
-                    <h3 class="text-base font-bold text-foreground">Create Photography Package</h3>
-                    <button type="button" @click="createModalOpen = false" class="text-muted-foreground hover:text-foreground text-lg">&times;</button>
-                </div>
-
-                <form method="POST" action="{{ route('studio.packages.store') }}" class="space-y-4">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Package Title *</label>
-                        <input type="text" name="name" required placeholder="e.g. Editorial Portrait Session" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
+                        @endif
                     </div>
 
-                    <div class="grid sm:grid-cols-3 gap-3">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Price *</label>
-                            <input type="number" step="0.01" name="price" required placeholder="75000" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
+                    <footer class="mt-5 flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+                        <span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <x-icon name="calendar-check" class="size-3.5" />
+                            {{ $pkg->bookings_count }} {{ \Illuminate\Support\Str::plural('booking', $pkg->bookings_count) }}
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <button type="button" @click="openEdit({{ json_encode($payload) }})" class="btn btn-ghost btn-sm">
+                                <x-icon name="pencil" /> Edit
+                            </button>
+                            <form method="POST" action="{{ route('studio.packages.destroy', $pkg->uuid) }}"
+                                  @submit.prevent="$dispatch('confirm-action', { form: $el, title: @js('Archive ' . $pkg->name . '?'), message: 'It will be removed from your booking page. Existing bookings for this package are not affected.', confirm: 'Archive package' })">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost btn-icon btn-sm text-muted-foreground hover:text-destructive" title="Archive package" aria-label="Archive {{ $pkg->name }}">
+                                    <x-icon name="trash-2" />
+                                </button>
+                            </form>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Currency</label>
-                            <input type="text" name="currency" value="RWF" required class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Duration (Mins)</label>
-                            <input type="number" name="duration_minutes" value="60" required class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                    </div>
+                    </footer>
+                </article>
+            @endforeach
 
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Description (Optional)</label>
-                        <textarea name="description" rows="2" placeholder="Summary of what this session entails..." class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Deliverables (One per line)</label>
-                        <textarea name="deliverables_text" rows="3" placeholder="25 High-Resolution Edited Photos&#10;Private Online Gallery&#10;Full Commercial Usage Rights" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground font-mono focus:border-primary focus:outline-none"></textarea>
-                    </div>
-
-                    <div class="grid sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Deposit Requirement</label>
-                            <select name="deposit_type" x-model="depType" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                                <option value="none">No Deposit Required</option>
-                                <option value="percentage">Percentage (%)</option>
-                                <option value="fixed">Fixed Amount</option>
-                            </select>
-                        </div>
-                        <div x-show="depType !== 'none'">
-                            <label class="block text-xs font-medium text-foreground mb-1" x-text="depType === 'percentage' ? 'Deposit %' : 'Deposit Amount'"></label>
-                            <input type="number" step="0.01" name="deposit_amount" placeholder="e.g. 30" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                    </div>
-
-                    <label class="flex items-center gap-2 cursor-pointer pt-2">
-                        <input type="checkbox" name="is_active" value="1" checked class="rounded border-border text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-xs font-medium text-foreground">Make this package active for public booking</span>
-                    </label>
-
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-border">
-                        <button type="button" @click="createModalOpen = false" class="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-90">Create Package</button>
-                    </div>
-                </form>
-            </div>
+            <button type="button" @click="createModalOpen = true"
+                    class="group flex min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-strong/70 bg-card/40 p-6 text-center transition hover:border-foreground/30 hover:bg-card">
+                <span class="flex size-10 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-xs transition group-hover:text-foreground">
+                    <x-icon name="plus" class="size-4" />
+                </span>
+                <span>
+                    <span class="block text-sm font-medium text-foreground">New package</span>
+                    <span class="mt-0.5 block text-xs text-muted-foreground">Add another session type</span>
+                </span>
+            </button>
         </div>
-    </div>
 
-    <!-- Edit Package Modal -->
-    <div x-show="editModalOpen"
-         x-transition
-         class="fixed inset-0 z-50 overflow-y-auto"
-         style="display: none;">
-        <div class="fixed inset-0 bg-foreground/40 backdrop-blur-sm" @click="editModalOpen = false"></div>
-        <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative w-full max-w-lg rounded-2xl bg-card border border-border p-6 shadow-2xl text-left"
-                 x-data="{ depType: 'none' }">
-                <div class="flex items-center justify-between pb-3 mb-4 border-b border-border">
-                    <h3 class="text-base font-bold text-foreground">Edit Package</h3>
-                    <button type="button" @click="editModalOpen = false" class="text-muted-foreground hover:text-foreground text-lg">&times;</button>
-                </div>
+        @if($packages->hasPages())
+            <div class="mt-6">{{ $packages->links() }}</div>
+        @endif
+    @endif
 
-                <form method="POST" :action="'/studio/packages/' + (selectedPkg?.uuid ?? '')" class="space-y-4">
-                    @csrf
-                    @method('PATCH')
-
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Package Title *</label>
-                        <input type="text" name="name" required :value="selectedPkg?.name" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                    </div>
-
-                    <div class="grid sm:grid-cols-3 gap-3">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Price *</label>
-                            <input type="number" step="0.01" name="price" required :value="selectedPkg?.price" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Currency</label>
-                            <input type="text" name="currency" required :value="selectedPkg?.currency" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Duration (Mins)</label>
-                            <input type="number" name="duration_minutes" required :value="selectedPkg?.duration_minutes" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Description (Optional)</label>
-                        <textarea name="description" rows="2" x-text="selectedPkg?.description" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"></textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Deliverables (One per line)</label>
-                        <textarea name="deliverables_text" rows="3" x-text="selectedPkg?.deliverables_text" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground font-mono focus:border-primary focus:outline-none"></textarea>
-                    </div>
-
-                    <div class="grid sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Deposit Requirement</label>
-                            <select name="deposit_type" :value="selectedPkg?.deposit_type" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                                <option value="none">No Deposit Required</option>
-                                <option value="percentage">Percentage (%)</option>
-                                <option value="fixed">Fixed Amount</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Deposit Amount / %</label>
-                            <input type="number" step="0.01" name="deposit_amount" :value="selectedPkg?.deposit_amount" class="w-full rounded-lg border border-border bg-input px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none">
-                        </div>
-                    </div>
-
-                    <label class="flex items-center gap-2 cursor-pointer pt-2">
-                        <input type="checkbox" name="is_active" value="1" :checked="selectedPkg?.is_active" class="rounded border-border text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-xs font-medium text-foreground">Make this package active for public booking</span>
-                    </label>
-
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-border">
-                        <button type="button" @click="editModalOpen = false" class="px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
-                        <button type="submit" class="px-4 py-2 text-xs font-semibold rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-90">Update Package</button>
-                    </div>
-                </form>
+    {{-- Create package modal --}}
+    @component('studio.partials.business.modal', ['show' => 'createModalOpen', 'title' => 'New package', 'description' => 'Define a session clients can book.', 'icon' => 'package', 'maxWidth' => 'lg'])
+        <form method="POST" action="{{ route('studio.packages.store') }}" x-data="{ depType: 'none' }">
+            @csrf
+            <div class="px-5 pt-4 pb-5 sm:px-6">
+                @include('studio.partials.business.package-fields', ['prefix' => 'new-pkg', 'bind' => null])
             </div>
-        </div>
-    </div>
+            @include('studio.partials.business.modal-footer', ['cancel' => 'createModalOpen = false', 'submit' => 'Create package'])
+        </form>
+    @endcomponent
+
+    {{-- Edit package modal --}}
+    @component('studio.partials.business.modal', ['show' => 'editModalOpen', 'title' => 'Edit package', 'description' => 'Changes apply to new bookings only.', 'icon' => 'pencil', 'maxWidth' => 'lg'])
+        <form method="POST" :action="'/studio/packages/' + (selectedPkg?.uuid ?? '')"
+              x-data="{ depType: 'none' }" x-effect="depType = selectedPkg?.deposit_type ?? 'none'">
+            @csrf
+            @method('PATCH')
+            <div class="px-5 pt-4 pb-5 sm:px-6">
+                @include('studio.partials.business.package-fields', ['prefix' => 'edit-pkg', 'bind' => 'selectedPkg'])
+            </div>
+            @include('studio.partials.business.modal-footer', ['cancel' => 'editModalOpen = false', 'submit' => 'Save changes'])
+        </form>
+    @endcomponent
+
+    @include('studio.partials.business.confirm-dialog')
 </div>
 @endsection

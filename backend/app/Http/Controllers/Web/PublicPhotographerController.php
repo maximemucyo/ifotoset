@@ -22,6 +22,9 @@ class PublicPhotographerController extends Controller
             ->whereNull('deleted_at')
             ->firstOrFail();
 
+        // Hidden profiles are only visible to their owner (e.g. to preview before going public)
+        abort_if($photographer->profile_public === false && auth()->id() !== $photographer->id, 404);
+
         $galleries = $photographer->galleries()
             ->shownOnProfile()
             ->with(['coverPhoto', 'stats'])

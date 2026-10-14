@@ -43,17 +43,16 @@ export class GalleryLayout {
     }
 
     getColumnsAndGap(containerWidth) {
-        let cols = 5;
+        // Keep in sync with the pre-paint script in resources/views/public/gallery.blade.php
+        let cols = 4;
         if (containerWidth < 640) {
             cols = 2;
-        } else if (containerWidth < 768) {
-            cols = 3;
         } else if (containerWidth < 1024) {
-            cols = 4;
-        } else if (containerWidth >= 1800) {
-            cols = 6;
+            cols = 3;
+        } else if (containerWidth >= 1700) {
+            cols = 5;
         }
-        const gap = containerWidth < 768 ? 12 : this.gap;
+        const gap = containerWidth < 640 ? 4 : (containerWidth < 1024 ? 8 : 12);
         return { cols, gap };
     }
 

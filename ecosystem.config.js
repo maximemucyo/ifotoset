@@ -23,6 +23,18 @@ module.exports = {
       max_memory_restart: '450M',
       autorestart: true,
       watch: false
+    },
+    {
+      // Video transcoding + HLS packaging (ProcessVideoJob runs on the "media" queue; needs ffmpeg on the host)
+      name: 'ifotoset-video-queue',
+      cwd: './backend',
+      script: '/www/server/php/84/bin/php',
+      args: 'artisan queue:work --queue=media --sleep=3 --tries=2 --timeout=3600 --max-time=7200',
+      exec_mode: 'fork',
+      instances: 1,
+      max_memory_restart: '450M',
+      autorestart: true,
+      watch: false
     }
   ]
 };

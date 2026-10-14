@@ -20,7 +20,7 @@ class StorageService
     public function generatePresignedUploadUrl(string $objectKey, string $base64Sha256, DateTimeInterface $expiresAt): string
     {
         // AWS S3 Flysystem driver presigned URL generation
-        $client = Storage::disk('b2')->getClient();
+        $client = $this->presignClient();
         $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
 
         $cmd = $client->getCommand('PutObject', [
@@ -52,13 +52,13 @@ class StorageService
         // If CDN domain is available, return a clean, branded CDN download URL with attachment filename
         if (!empty($this->cdnDomain) && config('filesystems.disks.b2.use_cdn_downloads', true)) {
             $cleanKey = ltrim($objectKey, '/');
-            return "https://{$this->cdnDomain}/{$cleanKey}?filename={$utf8Filename}";
+            return \App\Support\Cdn::scheme() . "://{$this->cdnDomain}/{$cleanKey}?filename={$utf8Filename}";
         }
 
         try {
             $disk = Storage::disk('b2');
             if (method_exists($disk, 'getClient')) {
-                $client = $disk->getClient();
+                $client = $this->presignClient();
                 if ($client && method_exists($client, 'getCommand')) {
                     $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
 
@@ -78,6 +78,28 @@ class StorageService
         }
 
         return Storage::disk('b2')->url($objectKey);
+    }
+
+    /**
+     * S3 client used for browser-facing presigned URLs. Uses the public endpoint
+     * when one is configured (e.g. local docker storage reachable on localhost).
+     */
+    protected function presignClient(): \Aws\S3\S3Client
+    {
+        $client = Storage::disk('b2')->getClient();
+        $publicEndpoint = config('filesystems.disks.b2.public_endpoint');
+
+        if (empty($publicEndpoint)) {
+            return $client;
+        }
+
+        return new \Aws\S3\S3Client([
+            'version' => 'latest',
+            'region' => config('filesystems.disks.b2.region'),
+            'endpoint' => $publicEndpoint,
+            'use_path_style_endpoint' => true,
+            'credentials' => $client->getCredentials()->wait(),
+        ]);
     }
 
     /**
@@ -168,11 +190,11 @@ class StorageService
 
         if ($size) {
             $baseName = $filename ? pathinfo($filename, PATHINFO_FILENAME) : 'original';
-            return "https://{$domain}/{$baseDir}{$baseName}_{$size}.webp";
+            return \App\Support\Cdn::scheme() . "://{$domain}/{$baseDir}{$baseName}_{$size}.webp";
         }
 
         $file = $filename ?? 'original.jpg';
-        return "https://{$domain}/{$baseDir}{$file}";
+        return \App\Support\Cdn::scheme() . "://{$domain}/{$baseDir}{$file}";
     }
 }
 ?>

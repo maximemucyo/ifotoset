@@ -2,7 +2,7 @@
 
 **ifotoset** is a production-grade, highly scalable SaaS platform for photographers to manage portfolios, organize client galleries, and collect payments. 
 
-This platform uses a decoupled architecture consisting of a **Next.js 16 (React 19)** frontend and a **Laravel 11 (PHP 8.3)** REST API backend, backed by **MySQL**, **Redis**, and S3-compatible **Backblaze B2** storage proxied through **Cloudflare CDN** for zero egress costs.
+This platform is a **Laravel 11 (PHP 8.3)** full-stack application (Blade, Tailwind CSS v4, Alpine.js) with a versioned REST API, backed by **MySQL**, **Redis**, and S3-compatible **Backblaze B2** storage proxied through **Cloudflare CDN** for zero egress costs.
 
 ---
 
@@ -41,27 +41,60 @@ ifotoset/
 
 ## 3. Getting Started (Local Development)
 
+The web UI is a Laravel full-stack app (Blade + Tailwind v4 + Alpine.js, built with Vite).
+The legacy `frontend/` Next.js app is no longer used.
+
 ### Prerequisites
-* Docker & Docker Compose
-* Node.js v20+ (optional, or run inside container)
+* Docker (OrbStack or Docker Desktop)
+* Node.js 20+ on the host (for Vite)
 
-### Step 1: Initialize Docker Services
-Spin up MySQL 8, Redis 7, Mailpit, and the Laravel backend container:
-```bash
-docker compose up -d
+### Step 1: Environment
+Create `backend/.env` (see the keys referenced in `backend/config/*`). For local development, point
+storage at the bundled S3-compatible service and mail at Mailpit:
+
+```dotenv
+APP_URL=http://localhost:8000
+PROTOCOL=http
+ROOT_DOMAIN=localhost:8000            # photographer sites live at http://{username}.localhost:8000
+DB_HOST=mysql
+REDIS_HOST=redis
+QUEUE_CONNECTION=redis
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+BACKBLAZE_B2_KEY_ID=ifotoset
+BACKBLAZE_B2_APPLICATION_KEY=ifotoset-secret
+BACKBLAZE_B2_REGION=us-east-1
+BACKBLAZE_B2_BUCKET=ifotoset-media
+BACKBLAZE_B2_ENDPOINT=http://s3:8333                 # server-side (inside docker)
+BACKBLAZE_B2_PUBLIC_ENDPOINT=http://localhost:8333   # browser-facing presigned URLs
+CLOUDFLARE_CDN_DOMAIN=localhost:8333/ifotoset-media
+CDN_PROTOCOL=http
+USE_CDN_DOWNLOADS=false
 ```
 
-### Step 2: Initialize Database Migrations & Seeds
-Run migrations and default seeds (plans, features) inside the backend container:
+Host port forwards can be overridden in a root `.env` (`FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`, `FORWARD_MAILPIT_PORT`,
+`FORWARD_MAILPIT_DASHBOARD_PORT`, `FORWARD_S3_PORT`).
+
+### Step 2: Start the stack
 ```bash
-docker compose exec backend php artisan migrate --force
-docker compose exec backend php artisan db:seed --force
+docker compose up -d --build
+docker compose exec backend composer install
+docker compose exec backend php artisan key:generate
+docker compose exec backend php artisan migrate --seed   # includes DemoContentSeeder (real photos, clients, bookings…)
+docker compose exec backend php artisan storage:init-local
 ```
 
-### Step 3: Run Frontend Development Server
-Start the frontend development container:
+Services: `backend` (:8000), `queue`, `queue_photos`, `scheduler`, `mysql`, `redis`, `mailpit` (UI :8025),
+and `s3` (SeaweedFS S3 gateway on :8333, standing in for Backblaze B2 + Cloudflare CDN).
+
+### Step 3: Frontend assets
 ```bash
-docker run -d --name ifotoset_frontend -p 3000:3000 -v $(pwd)/frontend:/app -w /app node:20-alpine npm run dev
+cd backend && npm install
+npm run dev     # Vite dev server with HMR
+npm run build   # production build into public/build
 ```
-Open `http://localhost:3000` to view the frontend application.
-Access the Mailpit dashboard at `http://localhost:8025` to inspect outgoing emails.
+
+Demo logins: `studio@ifotoset.com` / `demo123` (photographer), `admin@ifotoset.com` / `demo123` (admin).
+
+### Design system
+See `backend/resources/views/DESIGN-SYSTEM.md` for tokens, component classes, Blade components and layout conventions.

@@ -1,197 +1,54 @@
-@extends('layouts.app', ['title' => 'Gallery Settings - Studio'])
+@extends('layouts.app', ['title' => 'Gallery settings · ifotoset'])
 
 @section('content')
-<div class="max-w-2xl mx-auto space-y-6">
-    <div class="flex items-center justify-between pb-4 border-b border-border">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-foreground">Gallery Settings</h1>
-            <p class="text-xs text-muted-foreground mt-1">Update title, event date, and client privacy settings.</p>
-        </div>
-        <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="text-xs font-semibold text-muted-foreground hover:text-foreground">
-            &larr; Back to Gallery
-        </a>
-    </div>
+<div class="mx-auto max-w-5xl">
+    <x-ui.page-header :title="$gallery->title"
+                      eyebrow="Gallery settings"
+                      description="Update details, client access and download options."
+                      :back="route('studio.galleries.show', $gallery->uuid)" back-label="Back to gallery">
+        <x-slot:actions>
+            <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-outline btn-sm"><x-icon name="images" /> Manage photos</a>
+        </x-slot:actions>
+    </x-ui.page-header>
 
-    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="space-y-6" x-data="{ visibility: '{{ old('visibility', $gallery->visibility) }}' }">
+    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data"
+          x-data="{ visibility: '{{ old('visibility', $gallery->visibility) }}', submitting: false }" @submit="submitting = true">
         @csrf
         @method('PATCH')
 
-        <x-ui.input label="Gallery Title"
-                    name="title"
-                    required
-                    :value="old('title', $gallery->title)"
-                    :error="$errors->first('title')" />
+        @include('studio.partials.gallery-form', ['gallery' => $gallery, 'invitations' => $invitations ?? collect()])
 
-        <div class="grid sm:grid-cols-2 gap-4">
-            <x-ui.input label="Client Name (Optional)"
-                        name="client_name"
-                        :value="old('client_name', $gallery->client_name)"
-                        :error="$errors->first('client_name')" />
+        <div class="divider my-6"></div>
 
-            <x-ui.input label="Event Date"
-                        type="date"
-                        name="event_date"
-                        :value="old('event_date', $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date)->format('Y-m-d') : '')"
-                        :error="$errors->first('event_date')" />
-        </div>
-
-        <div class="space-y-2">
-            <label class="block text-sm font-medium text-foreground">Privacy & Visibility</label>
-            <div class="grid sm:grid-cols-3 gap-3">
-                <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
-                       :class="visibility === 'private' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold text-xs text-foreground">Private</span>
-                        <input type="radio" name="visibility" value="private" x-model="visibility" class="text-primary focus:ring-primary">
-                    </div>
-                    <span class="text-[11px] text-muted-foreground">Restricted to invited client emails</span>
-                </label>
-
-                <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
-                       :class="visibility === 'password' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold text-xs text-foreground">PIN Protected</span>
-                        <input type="radio" name="visibility" value="password" x-model="visibility" class="text-primary focus:ring-primary">
-                    </div>
-                    <span class="text-[11px] text-muted-foreground">Requires gallery PIN to access</span>
-                </label>
-
-                <label class="cursor-pointer border rounded-xl p-3 flex flex-col gap-1 transition-all"
-                       :class="visibility === 'public' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card'">
-                    <div class="flex items-center justify-between">
-                        <span class="font-semibold text-xs text-foreground">Public</span>
-                        <input type="radio" name="visibility" value="public" x-model="visibility" class="text-primary focus:ring-primary">
-                    </div>
-                    <span class="text-[11px] text-muted-foreground">Accessible via direct link</span>
-                </label>
+        {{-- Danger zone --}}
+        <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div class="lg:pt-5">
+                <h2 class="text-[15px] font-semibold text-foreground">Danger zone</h2>
+                <p class="mt-1 text-[13px] text-muted-foreground">Trashed galleries can be restored from Trash.</p>
             </div>
-        </div>
-
-        <!-- Public: Show on Profile Checkbox -->
-        <div x-show="visibility === 'public'" class="p-4 rounded-xl bg-card border border-border space-y-1">
-            <label class="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" name="show_on_profile" value="1" {{ old('show_on_profile', $gallery->show_on_profile) ? 'checked' : '' }} class="mt-0.5 rounded border-border text-primary focus:ring-primary h-4 w-4 bg-input">
+            <div class="card flex flex-col gap-4 border-destructive/25 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
-                    <span class="text-xs font-semibold text-foreground block">Show on my public portfolio / profile</span>
-                    <span class="text-[11px] text-muted-foreground block">When unchecked, this gallery is accessible via direct link only and will not appear in your public profile showcase.</span>
+                    <p class="text-sm font-medium text-foreground">Move gallery to trash</p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">Clients immediately lose access to this gallery.</p>
                 </div>
-            </label>
-        </div>
-
-        <!-- PIN Protection Settings -->
-        <div x-show="visibility === 'password'" class="pt-2" style="{{ old('visibility', $gallery->visibility) === 'password' ? '' : 'display: none;' }}">
-            <x-ui.input :label="$gallery->password_hash ? 'Set New Gallery PIN' : 'Set Gallery PIN'"
-                        type="password"
-                        name="password"
-                        :placeholder="$gallery->password_hash ? 'Leave blank to keep existing PIN' : 'Choose a 4-8 character PIN'"
-                        :error="$errors->first('password')" />
-        </div>
-
-        <!-- Private: Email Invitations -->
-        <div x-show="visibility === 'private'" class="space-y-4 pt-2" style="{{ old('visibility', $gallery->visibility) === 'private' ? '' : 'display: none;' }}">
-            <div class="p-4 rounded-xl bg-card border border-border space-y-3">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xs font-bold text-foreground uppercase tracking-wider">Invite Recipients</h3>
-                        <p class="text-[11px] text-muted-foreground">Recipients will receive a secure, personal invitation link via email.</p>
-                    </div>
-                    <a href="{{ route('studio.galleries.invitations.template') }}" class="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                        Download CSV Template
-                    </a>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-foreground mb-1">Enter Emails (comma, semicolon, or newline separated)</label>
-                    <textarea name="invite_emails" rows="3" placeholder="client1@example.com, client2@example.com" class="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"></textarea>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-foreground mb-1">Or Upload CSV / TSV File</label>
-                    <input type="file" name="invite_file" accept=".csv,.tsv,.txt" class="block w-full text-xs text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-secondary file:text-secondary-foreground hover:file:bg-secondary/80 cursor-pointer">
-                </div>
+                <button type="button"
+                        onclick="if(confirm('Are you sure you want to move this gallery to trash?')) document.getElementById('delete-gallery-form').submit();"
+                        class="btn btn-danger btn-sm shrink-0">
+                    <x-icon name="trash-2" /> Move to trash
+                </button>
             </div>
+        </section>
 
-            @if(isset($invitations) && $invitations->isNotEmpty())
-                <div class="rounded-xl border border-border bg-card overflow-hidden">
-                    <div class="p-3 border-b border-border bg-muted/30 flex items-center justify-between">
-                        <span class="text-xs font-bold text-foreground">Invited Clients ({{ $invitations->count() }})</span>
-                    </div>
-                    <div class="divide-y divide-border max-h-64 overflow-y-auto">
-                        @foreach($invitations as $invitation)
-                            <div class="p-3 flex items-center justify-between text-xs gap-3">
-                                <div class="min-w-0 flex-1">
-                                    <div class="font-medium text-foreground truncate">{{ $invitation->email }}</div>
-                                    <div class="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                        @if($invitation->isRevoked())
-                                            <span class="text-destructive font-semibold">Revoked</span>
-                                        @elseif($invitation->isExpired())
-                                            <span class="text-amber-500 font-semibold">Expired</span>
-                                        @elseif($invitation->accepted_at)
-                                            <span class="text-emerald-500 font-semibold">Accessed {{ $invitation->accepted_at->diffForHumans() }}</span>
-                                        @else
-                                            <span class="text-muted-foreground">Invited {{ $invitation->created_at->diffForHumans() }} (Pending)</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 shrink-0">
-                                    @if(!$invitation->isRevoked())
-                                        <button type="button"
-                                                formaction="{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}"
-                                                formmethod="POST"
-                                                onclick="this.form.action='{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}'; this.form.submit();"
-                                                class="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
-                                            Resend
-                                        </button>
-                                        <button type="button"
-                                                formaction="{{ route('studio.galleries.invitations.revoke', [$gallery->uuid, $invitation->id]) }}"
-                                                formmethod="POST"
-                                                onclick="if(confirm('Revoke access for {{ $invitation->email }}?')) { this.form.action='{{ route('studio.galleries.invitations.revoke', [$gallery->uuid, $invitation->id]) }}'; this.form.submit(); }"
-                                                class="text-[11px] font-semibold text-destructive hover:underline cursor-pointer">
-                                            Revoke
-                                        </button>
-                                    @else
-                                        <button type="button"
-                                                formaction="{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}"
-                                                formmethod="POST"
-                                                onclick="this.form.action='{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}'; this.form.submit();"
-                                                class="text-[11px] font-semibold text-primary hover:underline cursor-pointer">
-                                            Re-invite
-                                        </button>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
+        <div class="sticky bottom-3 z-20 mt-8 rounded-xl border border-border bg-card/90 px-3 py-2.5 shadow-lg backdrop-blur-md sm:bottom-4 sm:px-4">
+            <div class="flex items-center justify-between gap-3">
+                <p class="hidden text-[13px] text-muted-foreground sm:block">Last updated {{ $gallery->updated_at->diffForHumans() }}</p>
+                <div class="flex flex-1 items-center justify-end gap-2">
+                    <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-ghost">Cancel</a>
+                    <button type="submit" class="btn btn-primary" :disabled="submitting">
+                        <x-icon name="loader-circle" class="animate-spin" x-show="submitting" x-cloak />
+                        Save changes
+                    </button>
                 </div>
-            @endif
-        </div>
-
-        <div class="border-t border-border pt-4 space-y-3">
-            <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="allow_photo_downloads" value="1" {{ $gallery->allow_photo_downloads ? 'checked' : '' }} class="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-input">
-                <span class="text-xs font-medium text-foreground">Allow photo downloads</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="allow_gallery_downloads" value="1" {{ $gallery->allow_gallery_downloads ? 'checked' : '' }} class="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-input">
-                <span class="text-xs font-medium text-foreground">Allow full gallery ZIP download</span>
-            </label>
-        </div>
-
-        <div class="pt-4 flex items-center justify-between border-t border-border">
-            <button type="button"
-                    onclick="if(confirm('Are you sure you want to move this gallery to trash?')) document.getElementById('delete-gallery-form').submit();"
-                    class="text-xs font-semibold text-destructive hover:underline cursor-pointer">
-                Move Gallery to Trash
-            </button>
-
-            <div class="flex gap-3">
-                <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground">
-                    Cancel
-                </a>
-                <x-ui.button type="submit" variant="primary">
-                    Save Changes
-                </x-ui.button>
             </div>
         </div>
     </form>
@@ -200,5 +57,13 @@
         @csrf
         @method('DELETE')
     </form>
+
+    {{-- Standalone invitation action forms (referenced via the `form` attribute so they don't submit the settings form). --}}
+    @foreach(($invitations ?? collect()) as $invitation)
+        <form id="invitation-resend-{{ $invitation->id }}" method="POST" action="{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}" class="hidden">@csrf</form>
+        @unless($invitation->isRevoked())
+            <form id="invitation-revoke-{{ $invitation->id }}" method="POST" action="{{ route('studio.galleries.invitations.revoke', [$gallery->uuid, $invitation->id]) }}" class="hidden">@csrf</form>
+        @endunless
+    @endforeach
 </div>
 @endsection

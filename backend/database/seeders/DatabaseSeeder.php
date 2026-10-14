@@ -30,6 +30,11 @@ class DatabaseSeeder extends Seeder
         DB::table('galleries')->truncate();
         DB::table('gallery_stats')->truncate();
         DB::table('reviews')->truncate();
+        foreach (['photo_metadata', 'media_jobs', 'photos', 'bookings', 'clients', 'packages', 'availability_settings'] as $table) {
+            if (\Illuminate\Support\Facades\Schema::hasTable($table)) {
+                DB::table($table)->truncate();
+            }
+        }
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // 2. Orchestrate seeders
@@ -39,6 +44,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             GallerySeeder::class,
             ReviewSeeder::class,
+            DemoContentSeeder::class,
         ]);
     }
 }

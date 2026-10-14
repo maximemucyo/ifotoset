@@ -1,433 +1,457 @@
-<!-- User Detail Drawer Component -->
+{{-- User detail slide-over drawer. Opened with $dispatch('open-user-drawer', { id }) --}}
 <div x-data="userDetailDrawer()"
      @open-user-drawer.window="openUser($event.detail.id)"
+     @keydown.escape.window="if (isOpen && !confirmUnverifyModal) close()"
      class="relative z-50">
 
     <!-- Backdrop -->
     <div x-show="isOpen"
-         x-transition:enter="transition-opacity ease-linear duration-200"
+         x-transition:enter="transition-opacity ease-out duration-200"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
-         x-transition:leave="transition-opacity ease-linear duration-200"
+         x-transition:leave="transition-opacity ease-in duration-150"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="close()"
-         class="fixed inset-0 bg-foreground/40 backdrop-blur-xs"
+         class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
          style="display: none;"></div>
 
-    <!-- Slide-over Drawer Panel -->
-    <div x-show="isOpen"
-         x-transition:enter="transition ease-in-out duration-300 transform"
+    <!-- Slide-over panel -->
+    <aside x-show="isOpen"
+         x-transition:enter="transition ease-out duration-300 transform"
          x-transition:enter-start="translate-x-full"
          x-transition:enter-end="translate-x-0"
-         x-transition:leave="transition ease-in-out duration-300 transform"
+         x-transition:leave="transition ease-in duration-200 transform"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 max-w-2xl w-full bg-card border-l border-border shadow-2xl flex flex-col z-50 overflow-hidden font-sans"
+         role="dialog" aria-modal="true" aria-label="User details"
+         class="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col overflow-hidden border-l border-border bg-background shadow-2xl sm:inset-y-2 sm:right-2 sm:rounded-2xl sm:border"
          style="display: none;">
 
         <!-- Header -->
-        <div class="px-6 py-5 border-b border-border bg-secondary/30 flex items-center justify-between shrink-0">
-            <div class="flex items-center gap-3 min-w-0">
-                <div class="w-11 h-11 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 uppercase"
-                     x-text="user?.name ? user.name.substring(0, 2) : 'US'">
-                </div>
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                        <h2 class="text-base font-bold text-foreground truncate" x-text="user?.name || 'Loading user...'"></h2>
-                        <span x-show="user?.role === 'admin'" class="px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive uppercase">Admin</span>
+        <header class="shrink-0 border-b border-border bg-card px-5 pt-5">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-3.5">
+                    <span class="avatar size-12 text-base uppercase" :style="avatarStyle()" x-text="initials()"></span>
+                    <div class="min-w-0">
+                        <template x-if="user">
+                            <h2 class="truncate text-[17px] font-semibold tracking-tight text-foreground" x-text="user.name"></h2>
+                        </template>
+                        <template x-if="!user">
+                            <div class="skeleton h-5 w-40"></div>
+                        </template>
+                        <p class="mt-0.5 truncate text-[13px] text-muted-foreground" x-text="user?.email || ''"></p>
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5" x-show="user">
+                            <span x-show="user?.role === 'admin'" class="badge badge-brand"><x-icon name="shield" /> Admin</span>
+                            <span x-show="user?.role !== 'admin'" class="badge badge-neutral">Photographer</span>
+                            <span class="badge badge-dot" :class="user?.is_active ? 'badge-success' : 'badge-danger'" x-text="user?.is_active ? 'Active' : 'Suspended'"></span>
+                            <span class="badge" :class="user?.is_email_verified ? 'badge-success' : 'badge-warning'">
+                                <x-icon name="mail" />
+                                <span x-text="user?.is_email_verified ? 'Verified' : 'Unverified'"></span>
+                            </span>
+                            <span class="badge badge-neutral" x-text="user?.plan_name || 'Free'"></span>
+                        </div>
                     </div>
-                    <div class="text-xs text-muted-foreground truncate" x-text="user?.email || ''"></div>
                 </div>
+                <button type="button" @click="close()" class="btn btn-ghost btn-icon btn-sm -mr-1.5 -mt-1 shrink-0" aria-label="Close panel">
+                    <x-icon name="x" />
+                </button>
             </div>
 
-            <div class="flex items-center gap-3 shrink-0">
-                <!-- Impersonate Quick Action -->
+            <!-- Primary actions -->
+            <div class="mt-4 flex flex-wrap items-center gap-2" x-show="user">
                 <template x-if="user && user.role !== 'admin' && user.is_active">
                     <form method="POST" :action="`/admin/users/${user.id}/impersonate`">
                         <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1.5">
-                            <span>Impersonate</span>
-                            <span>&rarr;</span>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <x-icon name="log-in" /> Impersonate
                         </button>
                     </form>
                 </template>
-
-                <button @click="close()" class="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary transition-colors cursor-pointer text-lg leading-none">
-                    &times;
+                <template x-if="user?.public_url && user?.username">
+                    <a :href="user.public_url" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+                        <x-icon name="globe" /> Portfolio <x-icon name="arrow-up-right" class="!size-3" />
+                    </a>
+                </template>
+                <button type="button" @click="$clipboard(user?.email || '', 'Email copied')" class="btn btn-ghost btn-sm">
+                    <x-icon name="copy" /> Copy email
                 </button>
             </div>
-        </div>
 
-        <!-- Tabs Navigation -->
-        <div class="flex border-b border-border px-6 bg-card shrink-0 text-xs font-semibold text-muted-foreground gap-6">
-            <button @click="activeTab = 'overview'"
-                    :class="activeTab === 'overview' ? 'border-primary text-foreground' : 'border-transparent hover:text-foreground'"
-                    class="py-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5">
-                Overview &amp; Profile
-            </button>
-            <button @click="activeTab = 'galleries'"
-                    :class="activeTab === 'galleries' ? 'border-primary text-foreground' : 'border-transparent hover:text-foreground'"
-                    class="py-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5">
-                Galleries (<span x-text="galleries.length">0</span>)
-            </button>
-            <button @click="activeTab = 'activities'"
-                    :class="activeTab === 'activities' ? 'border-primary text-foreground' : 'border-transparent hover:text-foreground'"
-                    class="py-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5">
-                Activity Timeline (<span x-text="activities.length">0</span>)
-            </button>
-            <button @click="activeTab = 'notes'"
-                    :class="activeTab === 'notes' ? 'border-primary text-foreground' : 'border-transparent hover:text-foreground'"
-                    class="py-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5">
-                Admin Notes (<span x-text="notes.length">0</span>)
-            </button>
-        </div>
+            <!-- Tabs -->
+            <nav class="tabs-line -mx-5 mt-4 gap-5 overflow-x-auto px-5" role="tablist">
+                <button type="button" role="tab" @click="activeTab = 'overview'" :aria-selected="activeTab === 'overview'" class="tab-line whitespace-nowrap text-[13px]">
+                    Overview
+                </button>
+                <button type="button" role="tab" @click="activeTab = 'galleries'" :aria-selected="activeTab === 'galleries'" class="tab-line whitespace-nowrap text-[13px]">
+                    Galleries <span class="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground" x-text="galleries.length">0</span>
+                </button>
+                <button type="button" role="tab" @click="activeTab = 'activities'" :aria-selected="activeTab === 'activities'" class="tab-line whitespace-nowrap text-[13px]">
+                    Activity <span class="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground" x-text="activities.length">0</span>
+                </button>
+                <button type="button" role="tab" @click="activeTab = 'notes'" :aria-selected="activeTab === 'notes'" class="tab-line whitespace-nowrap text-[13px]">
+                    Notes <span class="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground" x-text="notes.length">0</span>
+                </button>
+            </nav>
+        </header>
 
-        <!-- Drawer Content Area -->
-        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto overscroll-contain p-5">
 
-            <!-- Loading Spinner -->
-            <div x-show="isLoading" class="py-20 text-center text-muted-foreground space-y-2">
-                <div class="inline-block w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <div class="text-xs">Loading user record &amp; activities...</div>
+            <!-- Loading skeleton -->
+            <div x-show="isLoading" class="space-y-4" aria-live="polite">
+                <span class="sr-only">Loading user record</span>
+                <div class="skeleton h-28 w-full rounded-xl"></div>
+                <div class="skeleton h-20 w-full rounded-xl"></div>
+                <div class="skeleton h-36 w-full rounded-xl"></div>
             </div>
 
-            <!-- Error Banner -->
-            <div x-show="errorMessage" class="p-4 rounded-xl bg-destructive/10 text-destructive text-xs" x-text="errorMessage" style="display: none;"></div>
+            <!-- Error -->
+            <div x-show="errorMessage" class="alert alert-danger" style="display: none;">
+                <x-icon name="circle-alert" />
+                <span x-text="errorMessage"></span>
+            </div>
 
-            <!-- TAB 1: Overview & Profile -->
-            <div x-show="!isLoading && activeTab === 'overview'" class="space-y-6">
+            <!-- TAB: Overview -->
+            <div x-show="!isLoading && !errorMessage && activeTab === 'overview'" class="space-y-5">
 
-                <!-- Email Verification Card -->
-                <div class="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-bold text-foreground">Email Verification Status</span>
-                            <template x-if="user?.is_email_verified">
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-700 dark:text-green-400">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                    Verified (<span x-text="user?.email_verified_at"></span>)
-                                </span>
-                            </template>
-                            <template x-if="user && !user.is_email_verified">
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                    Unverified
-                                </span>
-                            </template>
+                <!-- Account details -->
+                <section class="card">
+                    <h3 class="border-b border-border px-4 py-3 text-[13px] font-semibold text-foreground">Account</h3>
+                    <dl class="grid grid-cols-1 divide-y divide-border text-[13px] sm:grid-cols-2 sm:divide-y-0">
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-b sm:border-border">
+                            <dt class="text-muted-foreground">Username</dt>
+                            <dd class="truncate font-mono text-xs text-foreground" x-text="user?.username ? `@${user.username}` : 'None assigned'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-b sm:border-l sm:border-border">
+                            <dt class="text-muted-foreground">Plan</dt>
+                            <dd class="font-medium text-foreground" x-text="user?.plan_name || 'Free'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-b sm:border-border">
+                            <dt class="text-muted-foreground">Status</dt>
+                            <dd class="font-medium" :class="user?.is_active ? 'text-success' : 'text-destructive'" x-text="user?.is_active ? 'Active' : 'Suspended'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-b sm:border-l sm:border-border">
+                            <dt class="text-muted-foreground">Joined</dt>
+                            <dd class="text-foreground" x-text="user?.joined_at || '-'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5">
+                            <dt class="text-muted-foreground">Phone</dt>
+                            <dd class="truncate text-foreground" :class="!user?.phone && 'text-subtle'" x-text="user?.phone || 'Not provided'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-l sm:border-border">
+                            <dt class="text-muted-foreground">Location</dt>
+                            <dd class="truncate text-foreground" :class="!user?.location && 'text-subtle'" x-text="user?.location || 'Not provided'"></dd>
+                        </div>
+                    </dl>
+                </section>
+
+                <!-- Usage -->
+                <section class="card p-4">
+                    <h3 class="text-[13px] font-semibold text-foreground">Usage</h3>
+                    <div class="mt-4 space-y-5">
+                        <div>
+                            <div class="flex items-center justify-between gap-3 text-[13px]">
+                                <span class="flex items-center gap-2 text-muted-foreground"><x-icon name="hard-drive" class="size-4" /> Storage</span>
+                                <span class="font-mono text-xs text-foreground" x-text="`${Math.round((user?.storage?.used_bytes || 0) / (1024*1024))} MB / ${user?.storage?.limit_bytes ? Math.round(user.storage.limit_bytes / (1024*1024*1024)) + ' GB' : 'Unlimited'}`"></span>
+                            </div>
+                            <div class="progress mt-2 !h-2">
+                                <span :class="(user?.storage?.percent_used || 0) >= 90 ? '!bg-destructive' : ((user?.storage?.percent_used || 0) >= 75 ? '!bg-warning' : '')"
+                                      :style="`width: ${Math.min(user?.storage?.percent_used || 0, 100)}%`"></span>
+                            </div>
+                            <div class="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+                                <span>Active <span class="tabular-nums text-foreground" x-text="Math.round((user?.storage?.active_bytes || 0) / (1024*1024))">0</span> MB</span>
+                                <span>Trash <span class="tabular-nums text-foreground" x-text="Math.round((user?.storage?.trash_bytes || 0) / (1024*1024))">0</span> MB</span>
+                                <span class="tabular-nums" x-text="`${user?.storage?.percent_used || 0}% used`"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between gap-3 text-[13px]">
+                                <span class="flex items-center gap-2 text-muted-foreground"><x-icon name="video" class="size-4" /> Video hosting</span>
+                                <span class="font-mono text-xs text-foreground" x-text="user?.video?.formatted || 'No video support'"></span>
+                            </div>
+                            <div class="progress mt-2 !h-2">
+                                <span :style="`width: ${Math.min(user?.video?.percent_used || 0, 100)}%`"></span>
+                            </div>
+                            <div class="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+                                <span>Used <span class="text-foreground" x-text="user?.video?.used_formatted || '0m'"></span></span>
+                                <span>Reserved <span class="text-foreground" x-text="user?.video?.reserved_formatted || '0s'"></span></span>
+                                <span class="tabular-nums" x-text="`${user?.video?.percent_used || 0}% used`"></span>
+                            </div>
                         </div>
                     </div>
+                </section>
 
-                    <!-- Email Verification Actions -->
-                    <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <template x-if="user && !user.is_email_verified">
-                            <button type="button"
-                                    @click="verifyEmail()"
-                                    class="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer">
-                                Mark as Verified
-                            </button>
-                        </template>
-
-                        <template x-if="user?.is_email_verified">
-                            <button type="button"
-                                    @click="confirmUnverifyModal = true"
-                                    class="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground font-semibold text-xs transition-colors cursor-pointer">
-                                Mark as Unverified
-                            </button>
-                        </template>
-
-                        <template x-if="user && !user.is_email_verified">
-                            <button type="button"
-                                    @click="resendVerificationEmail()"
-                                    class="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground font-semibold text-xs transition-colors cursor-pointer">
-                                Resend Verification Link
-                            </button>
-                        </template>
-
-                        <button type="button"
-                                @click="triggerPasswordReset()"
-                                class="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-foreground font-semibold text-xs transition-colors cursor-pointer">
-                            Send Password Reset
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Account Meta Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Username / Subdomain</div>
-                        <div class="font-semibold text-foreground font-mono">
-                            <span x-text="user?.username ? `@${user.username}` : 'None assigned'"></span>
+                <!-- Email & security -->
+                <section class="card p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-[13px] font-semibold text-foreground">Email &amp; security</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                <template x-if="user?.is_email_verified">
+                                    <span>Verified <span x-text="user?.email_verified_at"></span></span>
+                                </template>
+                                <template x-if="user && !user.is_email_verified">
+                                    <span>This email address has not been verified yet.</span>
+                                </template>
+                            </p>
                         </div>
-                    </div>
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Subscription Tier</div>
-                        <div class="font-semibold text-foreground" x-text="user?.plan_name || 'Free'"></div>
-                    </div>
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Account Status</div>
-                        <div class="font-semibold" :class="user?.is_active ? 'text-green-600' : 'text-destructive'" x-text="user?.is_active ? 'Active' : 'Suspended'"></div>
-                    </div>
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Registered Date</div>
-                        <div class="font-semibold text-foreground" x-text="user?.joined_at || '-'"></div>
-                    </div>
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Phone</div>
-                        <div class="font-semibold text-foreground" x-text="user?.phone || 'Not provided'"></div>
-                    </div>
-                    <div class="p-3.5 rounded-xl border border-border bg-card space-y-1">
-                        <div class="text-muted-foreground font-medium">Location</div>
-                        <div class="font-semibold text-foreground" x-text="user?.location || 'Not provided'"></div>
-                    </div>
-                </div>
-
-                <!-- Storage Quota Meter -->
-                <div class="p-4 rounded-xl border border-border bg-card space-y-2">
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="font-bold text-foreground">Storage Allocation</span>
-                        <span class="text-muted-foreground font-mono" x-text="`${Math.round((user?.storage?.used_bytes || 0) / (1024*1024))} MB / ${user?.storage?.limit_bytes ? Math.round(user.storage.limit_bytes / (1024*1024*1024)) + ' GB' : 'Unlimited'}`"></span>
-                    </div>
-                    <div class="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
-                        <div class="bg-primary h-2.5 rounded-full transition-all duration-300"
-                             :style="`width: ${Math.min(user?.storage?.percent_used || 0, 100)}%`"></div>
-                    </div>
-                    <div class="text-[11px] text-muted-foreground flex justify-between">
-                        <span>Active: <span x-text="Math.round((user?.storage?.active_bytes || 0) / (1024*1024))">0</span> MB</span>
-                        <span>Trash: <span x-text="Math.round((user?.storage?.trash_bytes || 0) / (1024*1024))">0</span> MB</span>
-                        <span x-text="`${user?.storage?.percent_used || 0}% used`"></span>
-                    </div>
-                </div>
-
-                <!-- Video Hosting Quota Meter -->
-                <div class="p-4 rounded-xl border border-border bg-card space-y-2">
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="font-bold text-foreground flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5 text-primary fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            Video Hosting Allocation
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+                              :class="user?.is_email_verified ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">
+                            <x-icon name="shield-check" class="size-4" />
                         </span>
-                        <span class="text-muted-foreground font-mono text-[11px]" x-text="user?.video?.formatted || 'No video support'"></span>
                     </div>
-                    <div class="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
-                        <div class="bg-primary h-2.5 rounded-full transition-all duration-300"
-                             :style="`width: ${Math.min(user?.video?.percent_used || 0, 100)}%`"></div>
-                    </div>
-                    <div class="text-[11px] text-muted-foreground flex justify-between">
-                        <span>Used: <span x-text="user?.video?.used_formatted || '0m'"></span></span>
-                        <span>Reserved: <span x-text="user?.video?.reserved_formatted || '0s'"></span></span>
-                        <span x-text="`${user?.video?.percent_used || 0}% used`"></span>
-                    </div>
-                </div>
-
-                <!-- Quick Action Toggles -->
-                <div class="pt-2 flex flex-wrap gap-3">
-                    <form method="POST" :action="`/admin/users/${user?.id}/status`">
-                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                        <button type="submit"
-                                class="px-3.5 py-2 rounded-xl text-xs font-semibold border border-border hover:bg-secondary transition-colors cursor-pointer"
-                                x-text="user?.is_active ? 'Suspend Account' : 'Activate Account'">
+                    <div class="mt-4 flex flex-wrap items-center gap-2">
+                        <template x-if="user && !user.is_email_verified">
+                            <button type="button" @click="verifyEmail()" :disabled="busy === 'verify'" class="btn btn-primary btn-sm">
+                                <x-icon name="loader-circle" class="animate-spin" x-show="busy === 'verify'" />
+                                <x-icon name="circle-check" x-show="busy !== 'verify'" />
+                                Mark as verified
+                            </button>
+                        </template>
+                        <template x-if="user?.is_email_verified">
+                            <button type="button" @click="confirmUnverifyModal = true" class="btn btn-outline btn-sm">
+                                <x-icon name="circle-x" /> Mark as unverified
+                            </button>
+                        </template>
+                        <template x-if="user && !user.is_email_verified">
+                            <button type="button" @click="resendVerificationEmail()" :disabled="busy === 'resend'" class="btn btn-outline btn-sm">
+                                <x-icon name="loader-circle" class="animate-spin" x-show="busy === 'resend'" />
+                                <x-icon name="send" x-show="busy !== 'resend'" />
+                                Resend verification
+                            </button>
+                        </template>
+                        <button type="button" @click="triggerPasswordReset()" :disabled="busy === 'reset'" class="btn btn-outline btn-sm">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy === 'reset'" />
+                            <x-icon name="key" x-show="busy !== 'reset'" />
+                            Send password reset
                         </button>
-                    </form>
-                </div>
+                    </div>
+                </section>
+
+                <!-- Access -->
+                <section class="card divide-y divide-border">
+                    <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-[13px] font-semibold text-foreground">Account access</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground" x-text="user?.is_active ? 'Suspending blocks sign-in and disables their galleries.' : 'This account is suspended and cannot sign in.'"></p>
+                        </div>
+                        <form method="POST" :action="`/admin/users/${user?.id}/status`"
+                              @submit="if (!confirm(user?.is_active ? 'Suspend this account?' : 'Activate this account?')) $event.preventDefault()">
+                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm whitespace-nowrap" :class="user?.is_active ? 'btn-danger-ghost border border-destructive/30' : 'btn-primary'">
+                                <span x-text="user?.is_active ? 'Suspend Account' : 'Activate Account'"></span>
+                            </button>
+                        </form>
+                    </div>
+                    <div class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-[13px] font-semibold text-foreground">Role</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">Admins can access this console.</p>
+                        </div>
+                        <form method="POST" :action="`/admin/users/${user?.id}/role`" class="flex items-center gap-2"
+                              @submit="if (!confirm('Change this user\'s role?')) $event.preventDefault()">
+                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                            <select name="role" class="select input-sm w-36" aria-label="Role">
+                                <option value="user" :selected="user?.role !== 'admin'">Photographer</option>
+                                <option value="admin" :selected="user?.role === 'admin'">Admin</option>
+                            </select>
+                            <button type="submit" class="btn btn-outline btn-sm">Save</button>
+                        </form>
+                    </div>
+                </section>
             </div>
 
-            <!-- TAB 2: User Galleries & Moderation -->
-            <div x-show="!isLoading && activeTab === 'galleries'" class="space-y-4">
+            <!-- TAB: Galleries -->
+            <div x-show="!isLoading && !errorMessage && activeTab === 'galleries'" class="space-y-3">
                 <template x-if="galleries.length === 0">
-                    <div class="py-12 text-center text-muted-foreground text-xs">
-                        This photographer has not created any client galleries yet.
+                    <div class="rounded-xl border border-dashed border-border-strong/70 px-6 py-12 text-center">
+                        <div class="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground"><x-icon name="images" class="size-4" /></div>
+                        <p class="text-[13px] font-medium text-foreground">No galleries yet</p>
+                        <p class="mt-1 text-xs text-muted-foreground">This photographer has not created any client galleries.</p>
                     </div>
                 </template>
 
-                <div class="space-y-3">
-                    <template x-for="gal in galleries" :key="gal.uuid">
-                        <div class="p-4 rounded-xl border border-border bg-card shadow-xs hover:border-primary/40 transition-colors space-y-3">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-12 h-12 rounded-lg bg-secondary border border-border overflow-hidden shrink-0 flex items-center justify-center">
-                                        <template x-if="gal.cover_url">
-                                            <img :src="gal.cover_url" class="w-full h-full object-cover">
-                                        </template>
-                                        <template x-if="!gal.cover_url">
-                                            <span class="text-xs text-muted-foreground">No img</span>
-                                        </template>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <div class="font-bold text-xs text-foreground truncate" x-text="gal.title"></div>
-                                        <div class="text-[11px] text-muted-foreground font-mono truncate" x-text="`/g/${gal.slug}`"></div>
-                                        <div class="text-[11px] text-muted-foreground mt-0.5">
-                                            <span x-text="`${gal.photo_count} photos`"></span> &bull;
-                                            <span x-text="`${Math.round(gal.total_bytes / (1024*1024))} MB`"></span> &bull;
-                                            <span x-text="gal.created_at"></span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-col items-end gap-1 shrink-0">
-                                    <!-- Visibility Badge -->
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
-                                          :class="{
-                                              'bg-primary/10 text-primary': gal.visibility === 'public',
-                                              'bg-amber-500/10 text-amber-600': gal.visibility === 'password',
-                                              'bg-muted text-muted-foreground': gal.visibility === 'private'
-                                          }"
-                                          x-text="gal.visibility">
-                                    </span>
-
-                                    <!-- Moderation Badge -->
-                                    <template x-if="gal.is_taken_down">
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-destructive text-destructive-foreground uppercase">
-                                            Taken Down
-                                        </span>
-                                    </template>
-                                </div>
+                <template x-for="gal in galleries" :key="gal.uuid">
+                    <div class="card overflow-hidden transition-colors hover:border-border-strong">
+                        <div class="flex items-start gap-3 p-3">
+                            <div class="flex aspect-[4/3] w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted text-muted-foreground">
+                                <template x-if="gal.cover_url">
+                                    <img :src="gal.cover_url" alt="" class="size-full object-cover" loading="lazy" decoding="async">
+                                </template>
+                                <template x-if="!gal.cover_url">
+                                    <x-icon name="image" class="size-4" />
+                                </template>
                             </div>
-
-                            <!-- Moderation Actions -->
-                            <div class="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
-                                <a :href="`/admin/galleries/${gal.uuid}/preview`"
-                                   class="font-bold text-primary hover:underline flex items-center gap-1">
-                                    <span>🛡 Preview as Admin (Bypass)</span>
-                                    <span>&nearr;</span>
-                                </a>
-
-                                <div class="flex items-center gap-2">
-                                    <form method="POST" :action="`/admin/galleries/${gal.uuid}/visibility`">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="truncate text-[13px] font-medium text-foreground" x-text="gal.title"></p>
+                                    <div class="flex shrink-0 gap-1">
+                                        <span class="badge capitalize"
+                                              :class="{
+                                                  'badge-success': gal.visibility === 'public',
+                                                  'badge-warning': gal.visibility === 'password',
+                                                  'badge-neutral': gal.visibility === 'private'
+                                              }"
+                                              x-text="gal.visibility === 'password' ? 'PIN' : gal.visibility"></span>
+                                        <template x-if="gal.is_taken_down">
+                                            <span class="badge badge-danger">Taken down</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <p class="truncate font-mono text-[11px] text-muted-foreground" x-text="`/g/${gal.slug}`"></p>
+                                <p class="mt-1 text-[11px] text-muted-foreground">
+                                    <span x-text="`${gal.photo_count} photos`"></span> ·
+                                    <span x-text="`${Math.round(gal.total_bytes / (1024*1024))} MB`"></span> ·
+                                    <span x-text="gal.created_at"></span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-2">
+                            <a :href="`/admin/galleries/${gal.uuid}/preview`" class="btn btn-ghost btn-xs">
+                                <x-icon name="shield" /> Admin preview
+                            </a>
+                            <div class="flex items-center gap-1">
+                                <form method="POST" :action="`/admin/galleries/${gal.uuid}/visibility`">
+                                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-ghost btn-xs">
+                                        <x-icon name="eye-off" x-show="gal.visibility === 'public'" />
+                                        <x-icon name="eye" x-show="gal.visibility !== 'public'" />
+                                        <span x-text="gal.visibility === 'public' ? 'Make Private' : 'Make Public'"></span>
+                                    </button>
+                                </form>
+                                <template x-if="gal.is_taken_down">
+                                    <form method="POST" :action="`/admin/galleries/${gal.uuid}/restore`" onsubmit="return confirm('Restore this gallery?');">
                                         <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                                        <input type="hidden" name="_method" value="PATCH">
-                                        <button type="submit" class="text-muted-foreground hover:text-foreground text-xs font-semibold cursor-pointer"
-                                                x-text="gal.visibility === 'public' ? 'Make Private' : 'Make Public'">
+                                        <button type="submit" class="btn btn-outline btn-xs text-success">
+                                            <x-icon name="rotate-ccw" /> Restore
                                         </button>
                                     </form>
-
-                                    <template x-if="gal.is_taken_down">
-                                        <form method="POST" :action="`/admin/galleries/${gal.uuid}/restore`" onsubmit="return confirm('Restore this gallery?');">
-                                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                                            <button type="submit" class="text-green-600 hover:underline font-bold text-xs cursor-pointer">
-                                                Restore
-                                            </button>
-                                        </form>
-                                    </template>
-                                </div>
+                                </template>
                             </div>
                         </div>
-                    </template>
-                </div>
+                    </div>
+                </template>
             </div>
 
-            <!-- TAB 3: Activity Timeline -->
-            <div x-show="!isLoading && activeTab === 'activities'" class="space-y-4">
+            <!-- TAB: Activity -->
+            <div x-show="!isLoading && !errorMessage && activeTab === 'activities'">
                 <template x-if="activities.length === 0">
-                    <div class="py-12 text-center text-muted-foreground text-xs">
-                        No recorded activity logs or audit events found for this account.
+                    <div class="rounded-xl border border-dashed border-border-strong/70 px-6 py-12 text-center">
+                        <div class="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground"><x-icon name="history" class="size-4" /></div>
+                        <p class="text-[13px] font-medium text-foreground">No activity recorded</p>
+                        <p class="mt-1 text-xs text-muted-foreground">No activity logs or audit events found for this account.</p>
                     </div>
                 </template>
 
-                <div class="space-y-3">
+                <ol class="relative space-y-1">
                     <template x-for="item in activities" :key="item.id">
-                        <div class="p-3.5 rounded-xl border border-border bg-card space-y-1.5 text-xs">
-                            <div class="flex items-center justify-between">
-                                <span class="font-bold text-foreground" x-text="item.description"></span>
-                                <span class="text-[11px] text-muted-foreground font-mono" x-text="item.created_at_human"></span>
-                            </div>
-
-                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                <span>Actor: <strong class="text-foreground" x-text="item.actor_name"></strong> (<span x-text="item.actor_role"></span>)</span>
-                                <span>&bull;</span>
-
-                                <!-- Masked IP with Secure Reveal -->
-                                <span class="flex items-center gap-1">
-                                    <span>IP:</span>
-                                    <span class="font-mono text-foreground" x-text="revealedIps[item.audit_log_id] || item.ip_masked"></span>
-                                    <template x-if="item.can_reveal_ip && !revealedIps[item.audit_log_id]">
-                                        <button type="button"
-                                                @click="revealIp(item.audit_log_id)"
-                                                class="text-primary hover:underline text-[10px] font-bold cursor-pointer ml-1">
-                                            Reveal
-                                        </button>
-                                    </template>
+                        <li class="relative flex gap-3 pb-3 last:pb-0">
+                            <div class="relative flex w-6 shrink-0 justify-center">
+                                <span class="absolute top-6 bottom-[-0.75rem] w-px bg-border [li:last-child_&]:hidden"></span>
+                                <span class="relative mt-1 flex size-6 items-center justify-center rounded-full border border-border bg-card"
+                                      :class="item.source === 'admin_audit' ? 'text-brand' : 'text-muted-foreground'">
+                                    <span class="size-1.5 rounded-full bg-current"></span>
                                 </span>
                             </div>
-                        </div>
+                            <div class="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2.5">
+                                <div class="flex items-start justify-between gap-3">
+                                    <p class="text-[13px] font-medium text-foreground" x-text="item.description"></p>
+                                    <time class="shrink-0 text-[11px] text-muted-foreground" :datetime="item.created_at" x-text="item.created_at_human"></time>
+                                </div>
+                                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                    <span><span class="text-foreground" x-text="item.actor_name"></span> (<span x-text="item.actor_role"></span>)</span>
+                                    <span class="flex items-center gap-1">
+                                        <span>IP</span>
+                                        <span class="font-mono text-foreground" x-text="revealedIps[item.audit_log_id] || item.ip_masked"></span>
+                                        <template x-if="item.can_reveal_ip && !revealedIps[item.audit_log_id]">
+                                            <button type="button" @click="revealIp(item.audit_log_id)" class="ml-0.5 inline-flex items-center gap-0.5 font-medium text-brand hover:underline">
+                                                <x-icon name="eye" class="size-3" /> Reveal
+                                            </button>
+                                        </template>
+                                    </span>
+                                </div>
+                            </div>
+                        </li>
                     </template>
-                </div>
+                </ol>
             </div>
 
-            <!-- TAB 4: Admin Notes & Danger Zone -->
-            <div x-show="!isLoading && activeTab === 'notes'" class="space-y-6">
-
-                <!-- Add Note Form -->
-                <div class="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
-                    <h4 class="text-xs font-bold text-foreground">Add Internal Administrative Note</h4>
-                    <form @submit.prevent="submitNote()" class="space-y-2">
-                        <textarea x-model="newNoteContent"
-                                  rows="2"
-                                  required
-                                  placeholder="Record administrative observations, support context, or billing inquiries..."
-                                  class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"></textarea>
-                        <div class="flex justify-end">
-                            <button type="submit"
-                                    :disabled="!newNoteContent.trim() || submittingNote"
-                                    class="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs disabled:opacity-50 transition-all cursor-pointer">
-                                <span x-text="submittingNote ? 'Saving note...' : 'Post Admin Note'"></span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Existing Notes Thread -->
-                <div class="space-y-3">
-                    <h4 class="text-xs font-bold text-muted-foreground uppercase tracking-wider">Historical Notes</h4>
-                    <template x-if="notes.length === 0">
-                        <div class="py-6 text-center text-muted-foreground text-xs">
-                            No internal administrative notes recorded yet.
-                        </div>
-                    </template>
-                    <template x-for="note in notes" :key="note.id">
-                        <div class="p-3.5 rounded-xl border border-border bg-card space-y-1 text-xs">
-                            <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                                <span class="font-bold text-foreground" x-text="note.admin_name"></span>
-                                <span x-text="note.created_at_human"></span>
-                            </div>
-                            <div class="text-foreground leading-relaxed whitespace-pre-wrap" x-text="note.content"></div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Danger Zone: Account Deletion -->
-                <div class="p-4 rounded-xl border border-destructive/30 bg-destructive/5 space-y-3">
-                    <div class="text-xs font-bold text-destructive flex items-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                        Danger Zone: Account Deletion
+            <!-- TAB: Notes & danger zone -->
+            <div x-show="!isLoading && !errorMessage && activeTab === 'notes'" class="space-y-5">
+                <form @submit.prevent="submitNote()" class="card overflow-hidden">
+                    <label for="admin-note" class="sr-only">Internal note</label>
+                    <textarea id="admin-note"
+                              x-model="newNoteContent"
+                              rows="3"
+                              required
+                              placeholder="Add an internal note: support context, billing inquiries, observations…"
+                              class="block w-full resize-none border-0 bg-transparent px-4 py-3 text-[13px] text-foreground placeholder:text-subtle focus:outline-none focus:ring-0"></textarea>
+                    <div class="flex items-center justify-between gap-3 border-t border-border bg-muted/40 px-3 py-2">
+                        <span class="flex items-center gap-1.5 text-[11px] text-muted-foreground"><x-icon name="lock" class="size-3" /> Only visible to admins</span>
+                        <button type="submit" :disabled="!newNoteContent.trim() || submittingNote" class="btn btn-primary btn-xs">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="submittingNote" />
+                            <span x-text="submittingNote ? 'Saving note...' : 'Post note'"></span>
+                        </button>
                     </div>
-                    <p class="text-xs text-muted-foreground">
-                        Soft-deleting this account immediately prevents login and disables all galleries. Underlying photograph assets and payment histories are safely retained in accordance with storage lifecycle policies.
+                </form>
+
+                <div>
+                    <h4 class="mb-3 text-xs font-medium uppercase tracking-wider text-subtle">History</h4>
+                    <template x-if="notes.length === 0">
+                        <p class="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">No internal notes recorded yet.</p>
+                    </template>
+                    <div class="space-y-2.5">
+                        <template x-for="note in notes" :key="note.id">
+                            <div class="rounded-lg border border-border bg-card px-4 py-3">
+                                <div class="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                                    <span class="font-medium text-foreground" x-text="note.admin_name"></span>
+                                    <span :title="note.created_at" x-text="note.created_at_human"></span>
+                                </div>
+                                <p class="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-foreground" x-text="note.content"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Danger zone -->
+                <section class="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                    <h4 class="flex items-center gap-2 text-[13px] font-semibold text-destructive">
+                        <x-icon name="triangle-alert" class="size-4" /> Danger zone
+                    </h4>
+                    <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                        Soft-deleting this account immediately prevents login and disables all galleries. Photo assets and payment history are retained according to storage lifecycle policies.
                     </p>
-                    <form method="POST" :action="`/admin/users/${user?.id}`" onsubmit="return confirm('Are you sure you want to soft-delete this user account? All their galleries will become inaccessible.');">
+                    <form method="POST" :action="`/admin/users/${user?.id}`" class="mt-3" onsubmit="return confirm('Are you sure you want to soft-delete this user account? All their galleries will become inaccessible.');">
                         <input type="hidden" name="_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="_method" value="DELETE">
-                        <button type="submit" class="px-3.5 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold shadow-xs transition-colors cursor-pointer">
-                            Soft-Delete User Account
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <x-icon name="trash-2" /> Delete account
                         </button>
                     </form>
-                </div>
+                </section>
             </div>
         </div>
-    </div>
+    </aside>
 
-    <!-- Confirm Unverify Modal -->
+    <!-- Confirm unverify modal -->
     <div x-show="confirmUnverifyModal"
-         x-transition
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-xs"
+         class="fixed inset-0 z-[60] flex items-center justify-center p-4"
+         @keydown.escape.window="confirmUnverifyModal = false"
+         role="alertdialog" aria-modal="true"
          style="display: none;">
-        <div @click.away="confirmUnverifyModal = false" class="bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-sm font-bold text-foreground">Confirm Email Unverification</h3>
-            <p class="text-xs text-muted-foreground">
-                Marking this user's email as unverified may restrict their access to certain features until they re-verify. Are you sure?
-            </p>
-            <div class="flex justify-end gap-2">
-                <button type="button" @click="confirmUnverifyModal = false" class="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold">Cancel</button>
-                <button type="button" @click="unverifyEmail()" class="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground font-bold text-xs">Confirm</button>
+        <div x-show="confirmUnverifyModal" x-transition.opacity class="absolute inset-0 bg-black/40"></div>
+        <div x-show="confirmUnverifyModal" x-transition @click.away="confirmUnverifyModal = false" class="relative w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div class="flex gap-3">
+                <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"><x-icon name="triangle-alert" class="size-4" /></span>
+                <div>
+                    <h3 class="text-[15px] font-semibold text-foreground">Mark email as unverified?</h3>
+                    <p class="mt-1 text-[13px] text-muted-foreground">The user may lose access to some features until they verify again.</p>
+                </div>
+            </div>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" @click="confirmUnverifyModal = false" class="btn btn-ghost btn-sm">Cancel</button>
+                <button type="button" @click="unverifyEmail()" class="btn btn-danger btn-sm">Mark unverified</button>
             </div>
         </div>
     </div>
@@ -435,6 +459,11 @@
 
 <script>
 function userDetailDrawer() {
+    const notify = (message, type = 'success') => {
+        if (typeof window.toast === 'function') window.toast(message, type);
+        else alert(message);
+    };
+
     return {
         isOpen: false,
         isLoading: false,
@@ -448,6 +477,26 @@ function userDetailDrawer() {
         submittingNote: false,
         errorMessage: '',
         confirmUnverifyModal: false,
+        busy: '',
+
+        // Mirrors the Blade avatar component: initials from first + last word, hue from crc32(name)
+        initials() {
+            const w = (this.user?.name || '').trim().split(/\s+/).filter(Boolean);
+            if (!w.length) return '';
+            return (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
+        },
+        avatarStyle() {
+            const name = this.user?.name || '';
+            if (!name) return '';
+            let c = -1;
+            for (const byte of new TextEncoder().encode(name)) {
+                c ^= byte;
+                for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+            }
+            const hues = [18, 32, 200, 262, 152, 340, 220, 45];
+            const h = hues[((c ^ -1) >>> 0) % hues.length];
+            return `background: hsl(${h} 70% 92%); color: hsl(${h} 45% 30%)`;
+        },
 
         openUser(id) {
             this.isOpen = true;
@@ -486,6 +535,7 @@ function userDetailDrawer() {
 
         verifyEmail() {
             if (!this.user) return;
+            this.busy = 'verify';
             fetch(`/admin/users/${this.user.id}/email/verify`, {
                 method: 'POST',
                 headers: {
@@ -497,7 +547,9 @@ function userDetailDrawer() {
             .then(data => {
                 this.user.is_email_verified = true;
                 this.user.email_verified_at = 'Just now';
-            });
+                notify(data.message || 'Email marked as verified.');
+            })
+            .finally(() => { this.busy = ''; });
         },
 
         unverifyEmail() {
@@ -514,11 +566,13 @@ function userDetailDrawer() {
             .then(data => {
                 this.user.is_email_verified = false;
                 this.user.email_verified_at = null;
+                notify(data.message || 'Email marked as unverified.', 'info');
             });
         },
 
         resendVerificationEmail() {
             if (!this.user) return;
+            this.busy = 'resend';
             fetch(`/admin/users/${this.user.id}/email/resend`, {
                 method: 'POST',
                 headers: {
@@ -528,12 +582,14 @@ function userDetailDrawer() {
             })
             .then(res => res.json())
             .then(data => {
-                alert(data.message || 'Verification email dispatched.');
-            });
+                notify(data.message || 'Verification email dispatched.');
+            })
+            .finally(() => { this.busy = ''; });
         },
 
         triggerPasswordReset() {
             if (!this.user) return;
+            this.busy = 'reset';
             fetch(`/admin/users/${this.user.id}/password-reset`, {
                 method: 'POST',
                 headers: {
@@ -543,8 +599,9 @@ function userDetailDrawer() {
             })
             .then(res => res.json())
             .then(data => {
-                alert(data.message || 'Password reset link sent.');
-            });
+                notify(data.message || 'Password reset link sent.');
+            })
+            .finally(() => { this.busy = ''; });
         },
 
         revealIp(auditLogId) {

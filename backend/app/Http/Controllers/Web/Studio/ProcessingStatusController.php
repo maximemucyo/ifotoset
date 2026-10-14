@@ -33,7 +33,7 @@ class ProcessingStatusController extends Controller
             'width' => $photo->width,
             'height' => $photo->height,
             'thumbnail_url' => $photo->thumbnail_url,
-            'delivery_url' => $photo->getDeliveryUrl(),
+            'delivery_url' => $photo->getStreamUrl() ?? $photo->getDeliveryUrl(),
             'error' => $photo->processing_error,
             'processed_at' => $photo->processed_at?->toIso8601String(),
         ]);

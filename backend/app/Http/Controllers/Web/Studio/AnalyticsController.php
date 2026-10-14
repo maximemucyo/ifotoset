@@ -19,6 +19,9 @@ class AnalyticsController extends Controller
 
         $analytics = $query->get($user, $period);
 
-        return view('studio.analytics.index', array_merge($analytics, ['user' => $user]));
+        return view('studio.analytics.index', array_merge($analytics, [
+            'user' => $user,
+            'galleryCount' => $user->galleries()->count(),
+        ]));
     }
 }

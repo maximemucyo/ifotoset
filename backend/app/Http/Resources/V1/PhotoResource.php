@@ -38,7 +38,7 @@ class PhotoResource extends JsonResource
             'media_type' => $this->media_type ?? 'photo',
             'duration_seconds' => $this->duration_seconds,
             'duration_formatted' => $this->duration_formatted,
-            'delivery_url' => $this->isVideo() ? $this->getDeliveryUrl() : null,
+            'delivery_url' => $this->isVideo() ? $this->getStreamUrl() : null,
             'poster_url' => $this->isVideo() ? $this->getPosterUrl('lg') : null,
             'mime_type' => $this->mime_type,
             'size' => $this->size,

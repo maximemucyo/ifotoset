@@ -5,19 +5,20 @@
 ])
 
 @section('content')
-<div class="flex flex-col min-h-screen bg-background">
+<div class="flex min-h-screen flex-col bg-background">
     <x-landing.navbar />
 
-    <main class="flex-grow">
+    <div class="flex-1">
         <x-landing.hero />
         <x-landing.product-suite />
         <x-landing.showcase-tabs />
         <x-landing.feature-grid />
+        <x-landing.how-it-works />
         <x-landing.brand-statement />
-        <x-landing.pricing />
+        <x-landing.pricing :plans="$plans ?? collect()" />
         <x-landing.faq />
         <x-landing.cta />
-    </main>
+    </div>
 
     <x-landing.footer />
 </div>

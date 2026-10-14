@@ -145,7 +145,7 @@ class EmailSystemTest extends TestCase
 
         $renderedHtml = view($mailMessage->view, $mailMessage->viewData)->render();
         $this->assertStringContainsString('120 minutes', $renderedHtml);
-        $this->assertStringContainsString('Verify Email Address', $renderedHtml);
+        $this->assertStringContainsString('Verify email address', $renderedHtml);
     }
 
     // --- 2. Password Reset Account Enumeration & Template ---
@@ -180,7 +180,7 @@ class EmailSystemTest extends TestCase
 
         $renderedHtml = view($mailMessage->view, $mailMessage->viewData)->render();
         $this->assertStringContainsString('45 minutes', $renderedHtml);
-        $this->assertStringContainsString('Reset Password', $renderedHtml);
+        $this->assertStringContainsString('Reset password', $renderedHtml);
     }
 
     // --- 3. Booking Creation & Preferences ---
@@ -450,7 +450,7 @@ class EmailSystemTest extends TestCase
     {
         $response = $this->get('/login?verified=1');
         $response->assertStatus(200);
-        $response->assertSee('Your email address has been verified successfully!');
+        $response->assertSee('Your email address has been verified.');
     }
 
     public function test_web_login_page_displays_invalid_verification_banner(): void

@@ -10,6 +10,7 @@ services:
     volumes:
       - './backend:/var/www/html'
     environment:
+      - PHP_CLI_SERVER_WORKERS=8
       - APP_ENV=local
       - APP_DEBUG=true
       - DB_CONNECTION=mysql
@@ -54,6 +55,7 @@ services:
         condition: service_healthy
 
   queue_photos:
+    container_name: ifotoset_queue_photos
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -79,8 +81,47 @@ services:
       redis:
         condition: service_healthy
 
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ifotoset_scheduler
+    restart: unless-stopped
+    command: php artisan schedule:work
+    volumes:
+      - './backend:/var/www/html'
+    environment:
+      - APP_ENV=local
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=ifotoset
+      - DB_USERNAME=ifotoset_user
+      - DB_PASSWORD=secret
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Local S3-compatible object storage (stands in for Backblaze B2 + Cloudflare CDN in development)
+  s3:
+    image: 'chrislusf/seaweedfs:latest'
+    restart: unless-stopped
+    container_name: ifotoset_s3
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -master.volumeSizeLimitMB=1024
+    ports:
+      - '${FORWARD_S3_PORT:-8333}:8333'
+    volumes:
+      - 'ifotoset_s3:/data'
+      - './docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro'
+
   mysql:
     image: 'mysql/mysql-server:8.0'
+    restart: unless-stopped
     container_name: ifotoset_mysql
     ports:
       - '${FORWARD_DB_PORT:-3306}:3306'
@@ -100,6 +141,7 @@ services:
 
   redis:
     image: 'redis:7-alpine'
+    restart: unless-stopped
     container_name: ifotoset_redis
     ports:
       - '${FORWARD_REDIS_PORT:-6379}:6379'
@@ -112,12 +154,15 @@ services:
 
   mailpit:
     image: 'axllent/mailpit:latest'
+    restart: unless-stopped
     container_name: ifotoset_mailpit
     ports:
       - '${FORWARD_MAILPIT_PORT:-1025}:1025'
       - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
 
 volumes:
+  ifotoset_s3:
+    driver: local
   ifotoset_mysql:
     driver: local
   ifotoset_redis:

@@ -1,173 +1,170 @@
-@extends('layouts.admin', ['title' => 'Plans & Pricing - Admin'])
+@extends('layouts.admin', ['title' => 'Plans & pricing · Admin'])
 
 @section('content')
-<div class="space-y-8">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-foreground">Payment Plans &amp; Storage Quotas</h1>
-            <p class="text-xs text-muted-foreground mt-1">Configure subscription pricing, annual discount rates, and cloud storage allocations for all tiers.</p>
-        </div>
-        <div class="text-xs text-muted-foreground">
-            Total Plans: <span class="font-bold text-foreground">{{ $plans->count() }}</span>
-        </div>
-    </div>
+@php
+    $fmtMinutes = function (?int $seconds): string {
+        $seconds = (int) $seconds;
+        if ($seconds <= 0) return '—';
+        $m = $seconds / 60;
+        return $m >= 60 && fmod($m, 60) == 0 ? number_format($m / 60) . ' h' : number_format($m) . ' min';
+    };
+    $fmtGb = function (?int $bytes): string {
+        $bytes = (int) $bytes;
+        if ($bytes <= 0) return '—';
+        $gb = $bytes / (1024 ** 3);
+        return $gb >= 1 ? rtrim(rtrim(number_format($gb, 1), '0'), '.') . ' GB' : number_format($bytes / (1024 ** 2)) . ' MB';
+    };
+@endphp
 
-    <!-- Metrics Cards -->
-    <div class="grid sm:grid-cols-3 gap-6">
-        <x-studio.stat-card label="Paid Subscribers" :value="number_format($totalSubscribers)" />
-        <x-studio.stat-card label="Est. Monthly Run-rate" :value="'RWF ' . number_format($estimatedMonthlyMrr, 0)" />
-        <x-studio.stat-card label="Active Tiers" :value="$plans->count() . ' Configured'" />
-    </div>
+<x-ui.page-header title="Plans & pricing" description="Subscription pricing, storage quotas and gallery limits for every tier. Changes apply to new checkouts immediately." />
 
-    <!-- Plans Table -->
-    <div class="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-secondary/40 text-xs uppercase tracking-wider text-muted-foreground border-b border-border">
-                    <tr>
-                        <th class="px-6 py-4">Plan</th>
-                        <th class="px-6 py-4">Monthly Price</th>
-                        <th class="px-6 py-4">Annual Price</th>
-                        <th class="px-6 py-4">Storage Allocation</th>
-                        <th class="px-6 py-4">Gallery Cap</th>
-                        <th class="px-6 py-4">Subscribers</th>
-                        <th class="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-border">
-                    @foreach($plans as $plan)
-                        @php
-                            $storageGb = ($plan->storage_limit % 1000000000 === 0 && ($plan->storage_limit % (1024 * 1024) !== 0))
-                                ? round($plan->storage_limit / 1000000000, 1)
-                                : round($plan->storage_limit / (1024 * 1024 * 1024), 1);
-                        @endphp
-                        <tr class="hover:bg-muted/30 transition-colors"
-                            x-data="{
-                                editModalOpen: false,
-                                unlimGalleries: {{ is_null($plan->gallery_limit) ? 'true' : 'false' }}
-                            }">
-                            <td class="px-6 py-4">
-                                <div class="font-bold text-foreground">{{ $plan->name }}</div>
-                                <div class="text-xs text-muted-foreground font-mono">slug: {{ $plan->slug }}</div>
-                            </td>
-                            <td class="px-6 py-4 text-xs">
-                                @if($plan->monthly_price > 0)
-                                    <span class="font-bold text-primary">{{ $plan->currency }} {{ number_format($plan->monthly_price, 0) }}</span>
-                                    <span class="text-muted-foreground">/ mo</span>
-                                @else
-                                    <span class="font-semibold text-green-600 dark:text-green-400">Free (0 RWF)</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 text-xs">
-                                @if($plan->annual_price > 0)
-                                    <span class="font-bold text-foreground">{{ $plan->currency }} {{ number_format($plan->annual_price, 0) }}</span>
-                                    <span class="text-muted-foreground">/ yr</span>
-                                @else
-                                    <span class="text-muted-foreground">&ndash;</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 text-xs">
-                                <span class="font-semibold text-foreground">
-                                    @if($storageGb >= 1000)
-                                        {{ round($storageGb / 1000, 1) }} TB ({{ number_format($storageGb) }} GB)
-                                    @else
-                                        {{ $storageGb }} GB
-                                    @endif
-                                </span>
-                                <div class="text-[10px] text-muted-foreground font-mono">{{ number_format($plan->storage_limit) }} bytes</div>
-                            </td>
-                            <td class="px-6 py-4 text-xs">
-                                @if(is_null($plan->gallery_limit))
-                                    <x-ui.badge variant="success">Unlimited</x-ui.badge>
-                                @else
-                                    <span class="font-semibold text-foreground">{{ $plan->gallery_limit }} Galleries</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 text-xs font-semibold text-foreground">
-                                {{ $plan->users_count }} users
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <button type="button"
-                                        @click="editModalOpen = true"
-                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground transition-colors border border-border shadow-sm">
-                                    Edit Pricing &amp; Quota
-                                </button>
-
-                                <!-- Edit Plan Modal -->
-                                <div x-show="editModalOpen"
-                                     style="display: none;"
-                                     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/30 backdrop-blur-sm">
-                                    <div @click.away="editModalOpen = false" class="bg-card border border-border rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 text-left">
-                                        <div>
-                                            <h3 class="text-lg font-bold text-foreground">Edit {{ $plan->name }} Plan</h3>
-                                            <p class="text-xs text-muted-foreground mt-0.5">Adjust public pricing and storage quota. Changes apply immediately to new checkouts.</p>
-                                        </div>
-
-                                        <form method="POST" action="{{ route('admin.plans.update', $plan->slug) }}" class="space-y-4">
-                                            @csrf
-                                            @method('PUT')
-
-                                            <div class="grid sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Display Name</label>
-                                                    <input type="text" name="name" value="{{ $plan->name }}" required class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-medium text-foreground">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Currency</label>
-                                                    <input type="text" name="currency" value="{{ $plan->currency }}" required class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-mono font-medium text-foreground">
-                                                </div>
-                                            </div>
-
-                                            <div class="grid sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Monthly Price ({{ $plan->currency }})</label>
-                                                    <input type="number" step="0.01" min="0" name="monthly_price" value="{{ (float) $plan->monthly_price }}" required class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-mono font-medium text-foreground">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Annual Price ({{ $plan->currency }})</label>
-                                                    <input type="number" step="0.01" min="0" name="annual_price" value="{{ (float) $plan->annual_price }}" required class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-mono font-medium text-foreground">
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label class="block text-xs font-semibold text-foreground mb-1">Storage Quota in Gigabytes (GB)</label>
-                                                <div class="flex items-center gap-2">
-                                                    <input type="number" step="1" min="1" name="storage_gb" value="{{ (int) $storageGb }}" required class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-mono font-medium text-foreground">
-                                                    <span class="text-xs font-mono font-semibold text-muted-foreground whitespace-nowrap">GB</span>
-                                                </div>
-                                                <p class="text-[11px] text-muted-foreground mt-1">e.g. 50 for 50GB, 1000 for 1TB, 3000 for 3TB.</p>
-                                            </div>
-
-                                            <div class="space-y-2 pt-2 border-t border-border">
-                                                <label class="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer">
-                                                    <input type="checkbox" name="unlimited_galleries" value="1" x-model="unlimGalleries" class="rounded border-border text-primary focus:ring-primary w-4 h-4">
-                                                    <span>Unlimited Galleries (Recommended)</span>
-                                                </label>
-
-                                                <div x-show="!unlimGalleries" class="pt-1">
-                                                    <label class="block text-xs font-semibold text-foreground mb-1">Custom Gallery Limit Cap</label>
-                                                    <input type="number" min="1" name="gallery_limit" value="{{ $plan->gallery_limit ?? 10 }}" class="w-full rounded-xl border border-border bg-input px-3.5 py-2 text-xs font-mono text-foreground">
-                                                </div>
-                                            </div>
-
-                                            <div class="flex items-center justify-end gap-2 pt-4 border-t border-border">
-                                                <button type="button" @click="editModalOpen = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground">
-                                                    Cancel
-                                                </button>
-                                                <button type="submit" class="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">
-                                                    Save Changes
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
+{{-- KPI row --}}
+<div class="grid gap-3 sm:grid-cols-3 sm:gap-4">
+    <x-studio.stat-card label="Paid subscribers" :value="number_format($totalSubscribers)" icon="users" hint="On a paid tier" />
+    <x-studio.stat-card label="Est. monthly run-rate" :value="'RWF ' . number_format($estimatedMonthlyMrr, 0)" icon="trending-up" hint="Monthly price × subscribers" />
+    <x-studio.stat-card label="Tiers" :value="$plans->count()" icon="layers" hint="Configured plans" />
 </div>
+
+@if($plans->isEmpty())
+    <x-ui.empty-state class="mt-6" icon="package" title="No plans configured" description="Seed the plans table to start selling subscriptions." />
+@else
+    <div class="mt-6 grid gap-4 xl:grid-cols-2">
+        @foreach($plans as $plan)
+            @php
+                $storageGb = ($plan->storage_limit % 1000000000 === 0 && ($plan->storage_limit % (1024 * 1024) !== 0))
+                    ? round($plan->storage_limit / 1000000000, 1)
+                    : round($plan->storage_limit / (1024 * 1024 * 1024), 1);
+                $isFree = (float) $plan->monthly_price <= 0;
+                $annualSaving = (!$isFree && $plan->annual_price > 0 && $plan->monthly_price > 0)
+                    ? (int) round((1 - ($plan->annual_price / ($plan->monthly_price * 12))) * 100)
+                    : 0;
+            @endphp
+            <form method="POST" action="{{ route('admin.plans.update', $plan->slug) }}"
+                  class="card flex flex-col"
+                  x-data="{
+                      unlimGalleries: {{ is_null($plan->gallery_limit) ? 'true' : 'false' }},
+                      storage: {{ (int) $storageGb }},
+                      dirty: false,
+                      busy: false,
+                  }"
+                  @input="dirty = true" @change="dirty = true"
+                  @submit="busy = true">
+                @csrf
+                @method('PUT')
+
+                {{-- Header --}}
+                <div class="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg {{ $isFree ? 'bg-muted text-muted-foreground' : 'bg-brand/10 text-brand' }}">
+                            <x-icon :name="$isFree ? 'package' : ($plan->monthly_price >= 50000 ? 'crown' : 'zap')" class="size-4" />
+                        </span>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h2 class="truncate text-[15px] font-semibold text-foreground">{{ $plan->name }}</h2>
+                                <span class="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{{ $plan->slug }}</span>
+                            </div>
+                            <p class="mt-0.5 text-[13px] text-muted-foreground">
+                                @if($isFree)
+                                    Free tier
+                                @else
+                                    <span class="font-medium tabular-nums text-foreground">{{ $plan->currency }} {{ number_format($plan->monthly_price, 0) }}</span>/mo
+                                    @if($annualSaving > 0)<span class="text-success">· {{ $annualSaving }}% off yearly</span>@endif
+                                @endif
+                            </p>
+                        </div>
+                    </div>
+                    <div class="shrink-0 text-right">
+                        <div class="font-display text-xl font-semibold tabular-nums text-foreground">{{ number_format($plan->users_count) }}</div>
+                        <div class="text-xs text-muted-foreground">{{ \Illuminate\Support\Str::plural('subscriber', $plan->users_count) }}</div>
+                    </div>
+                </div>
+
+                {{-- Editable fields --}}
+                <div class="grid flex-1 gap-4 p-5 sm:grid-cols-2">
+                    <div>
+                        <label class="label" for="plan-{{ $plan->id }}-name">Display name</label>
+                        <input id="plan-{{ $plan->id }}-name" type="text" name="name" value="{{ $plan->name }}" required class="input">
+                    </div>
+                    <div>
+                        <label class="label" for="plan-{{ $plan->id }}-currency">Currency</label>
+                        <input id="plan-{{ $plan->id }}-currency" type="text" name="currency" value="{{ $plan->currency }}" required maxlength="10" class="input font-mono uppercase">
+                    </div>
+
+                    <div>
+                        <label class="label" for="plan-{{ $plan->id }}-monthly">Monthly price</label>
+                        <div class="relative">
+                            <input id="plan-{{ $plan->id }}-monthly" type="number" step="0.01" min="0" name="monthly_price" value="{{ (float) $plan->monthly_price }}" required class="input pr-14 tabular-nums">
+                            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">/ mo</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="label" for="plan-{{ $plan->id }}-annual">Annual price</label>
+                        <div class="relative">
+                            <input id="plan-{{ $plan->id }}-annual" type="number" step="0.01" min="0" name="annual_price" value="{{ (float) $plan->annual_price }}" required class="input pr-14 tabular-nums">
+                            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">/ yr</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="label" for="plan-{{ $plan->id }}-storage">Storage quota</label>
+                        <div class="relative">
+                            <input id="plan-{{ $plan->id }}-storage" type="number" step="1" min="1" name="storage_gb" value="{{ (int) $storageGb }}" x-model.number="storage" required class="input pr-12 tabular-nums">
+                            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-muted-foreground">GB</span>
+                        </div>
+                        <p class="help" x-text="storage >= 1000 ? '≈ ' + (Math.round(storage / 100) / 10) + ' TB' : 'e.g. 50 for 50 GB, 1000 for 1 TB'">e.g. 50 for 50 GB, 1000 for 1 TB</p>
+                    </div>
+
+                    <div>
+                        <span class="label">Galleries</span>
+                        <div class="flex h-10 items-center gap-3">
+                            <input type="hidden" name="unlimited_galleries" value="0">
+                            <label class="switch" title="Unlimited galleries">
+                                <input type="checkbox" name="unlimited_galleries" value="1" x-model="unlimGalleries" class="sr-only">
+                                <span></span>
+                            </label>
+                            <span class="text-[13px] text-foreground" x-text="unlimGalleries ? 'Unlimited' : 'Capped at'">{{ is_null($plan->gallery_limit) ? 'Unlimited' : 'Capped at' }}</span>
+                            <div x-show="!unlimGalleries" x-cloak class="relative w-28">
+                                <input type="number" min="1" name="gallery_limit" value="{{ $plan->gallery_limit ?? 10 }}" class="input input-sm pr-3 tabular-nums" aria-label="Gallery limit">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Read-only video & team limits --}}
+                <dl class="mx-5 mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+                    @foreach([
+                        ['Video quota', $fmtMinutes($plan->video_limit_seconds), 'video'],
+                        ['Max clip length', $fmtMinutes($plan->max_single_video_duration_seconds), 'timer'],
+                        ['Max video file', $fmtGb($plan->max_video_size_bytes), 'hard-drive'],
+                        ['Team seats', (int) $plan->team_limit > 0 ? number_format($plan->team_limit) : '—', 'users'],
+                    ] as [$label, $value, $icon])
+                        <div class="bg-card px-3 py-2.5">
+                            <dt class="flex items-center gap-1.5 text-[11px] text-muted-foreground"><x-icon :name="$icon" class="size-3" /> {{ $label }}</dt>
+                            <dd class="mt-0.5 text-[13px] font-medium tabular-nums text-foreground">{{ $value }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+
+                {{-- Footer --}}
+                <div class="card-footer justify-between">
+                    <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span class="size-1.5 rounded-full transition-colors" :class="dirty ? 'bg-warning' : 'bg-border-strong'"></span>
+                        <span x-text="dirty ? 'Unsaved changes' : 'Up to date'">Up to date</span>
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <button type="reset" class="btn btn-ghost btn-sm" x-show="dirty" x-cloak
+                                @click="$nextTick(() => { dirty = false; unlimGalleries = {{ is_null($plan->gallery_limit) ? 'true' : 'false' }}; storage = {{ (int) $storageGb }}; })">Reset</button>
+                        <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            Save {{ $plan->name }}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        @endforeach
+    </div>
+    <p class="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <x-icon name="info" class="size-3.5" /> Video and team limits are shown for reference and can’t be edited from this page.
+    </p>
+@endif
 @endsection

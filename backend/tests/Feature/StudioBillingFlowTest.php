@@ -78,7 +78,7 @@ class StudioBillingFlowTest extends TestCase
         $response = $this->actingAs($this->user)->get('/studio/billing');
 
         $response->assertStatus(200);
-        $response->assertSee('Subscription &amp; Storage Plans', false);
+        $response->assertSee('Billing &amp; plans', false);
         $response->assertSee('Professional');
         $response->assertSee('Unlimited');
     }
@@ -151,8 +151,8 @@ class StudioBillingFlowTest extends TestCase
         // 4. View printable receipt
         $receiptResponse = $this->actingAs($this->user)->get('/studio/billing/receipt/' . $paymentUuid);
         $receiptResponse->assertStatus(200);
-        $receiptResponse->assertSee('Payment Receipt');
-        $receiptResponse->assertSee('Professional Plan');
+        $receiptResponse->assertSee('Receipt RCT-');
+        $receiptResponse->assertSee('Professional plan');
     }
 
     public function test_photographer_can_pay_for_multiple_months_at_once(): void
@@ -171,7 +171,7 @@ class StudioBillingFlowTest extends TestCase
         $checkoutResponse = $this->actingAs($this->user)->get('/studio/billing/checkout/pro?months=3');
         $checkoutResponse->assertStatus(200);
         $checkoutResponse->assertSee('Upgrade to Professional');
-        $checkoutResponse->assertSee('Subscription Duration');
+        $checkoutResponse->assertSee('Duration');
         $checkoutResponse->assertSee('+250');
         $checkoutResponse->assertDontSee('256-bit SSL');
         $checkoutResponse->assertDontSee('PawaPay Rwanda Mobile Money gateway');
@@ -227,7 +227,7 @@ class StudioBillingFlowTest extends TestCase
         // 4. Verify receipt shows 3 Months
         $receiptResponse = $this->actingAs($this->user)->get('/studio/billing/receipt/' . $paymentUuid);
         $receiptResponse->assertStatus(200);
-        $receiptResponse->assertSee('3 Months');
+        $receiptResponse->assertSee('3 months');
         $receiptResponse->assertSee('89,997 RWF');
         $receiptResponse->assertSee('MTN Mobile Money');
         $receiptResponse->assertDontSee('pawapay');
@@ -294,8 +294,8 @@ class StudioBillingFlowTest extends TestCase
         \App\Services\StorageStatisticsService::clearCache($this->user->id);
         $response = $this->actingAs($this->user)->get('/studio/dashboard');
         $response->assertStatus(200);
-        $response->assertSee('Storage Used');
-        $response->assertSee('Free Plan');
+        $response->assertSee('Storage');
+        $response->assertSeeText('Free');
         $response->assertSee('Upgrade');
         $response->assertSee(route('studio.billing.index'));
 
@@ -305,7 +305,7 @@ class StudioBillingFlowTest extends TestCase
         \App\Services\StorageStatisticsService::clearCache($this->user->id);
         $paidResponse = $this->actingAs($this->user)->get('/studio/dashboard');
         $paidResponse->assertStatus(200);
-        $paidResponse->assertSee('Professional Plan');
+        $paidResponse->assertSeeText('Professional');
         $paidResponse->assertDontSee('Upgrade');
     }
 }

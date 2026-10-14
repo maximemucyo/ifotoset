@@ -1,373 +1,380 @@
-@extends('layouts.admin', ['title' => 'Platform Settings - Admin'])
+@extends('layouts.admin', ['title' => 'Settings · Admin'])
 
 @section('content')
-<div class="space-y-8" x-data="{ activeTab: '{{ session('email_otp_sent') || $errors->has('current_password') || $errors->has('password') || $errors->has('new_email') || $errors->has('code') ? 'security' : 'smtp' }}' }">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-foreground">Platform & Email Settings</h1>
-            <p class="text-xs text-muted-foreground mt-1">Configure transactional mail delivery, security credentials, and administrator account settings.</p>
-        </div>
-        <div class="flex items-center gap-2 flex-wrap">
-            <button @click="activeTab = 'smtp'"
-                    :class="activeTab === 'smtp' ? 'bg-primary text-primary-foreground font-semibold shadow-sm' : 'bg-secondary/60 text-muted-foreground hover:text-foreground'"
-                    class="px-4 py-2 rounded-xl text-xs transition-colors">
-                SMTP Configuration
-            </button>
-            <button @click="activeTab = 'general'"
-                    :class="activeTab === 'general' ? 'bg-primary text-primary-foreground font-semibold shadow-sm' : 'bg-secondary/60 text-muted-foreground hover:text-foreground'"
-                    class="px-4 py-2 rounded-xl text-xs transition-colors">
-                Platform & Regional Defaults
-            </button>
-            <button @click="activeTab = 'security'"
-                    :class="activeTab === 'security' ? 'bg-primary text-primary-foreground font-semibold shadow-sm' : 'bg-secondary/60 text-muted-foreground hover:text-foreground'"
-                    class="px-4 py-2 rounded-xl text-xs transition-colors">
-                Admin Account & Security
-            </button>
-        </div>
-    </div>
+@php
+    $forcedTab = (session('email_otp_sent') || $errors->has('current_password') || $errors->has('password') || $errors->has('new_email') || $errors->has('code'))
+        ? 'security'
+        : ($errors->hasAny(['host', 'port', 'username', 'encryption', 'from_address', 'from_name', 'test_email'])
+            ? 'smtp'
+            : ($errors->hasAny(['platform_name', 'support_email', 'support_phone', 'default_currency', 'momo_merchant_code', 'momo_account_name', 'announcement_banner']) ? 'general' : null));
+    $sections = [
+        'general' => ['label' => 'General', 'icon' => 'globe', 'hint' => 'Brand, support & payments'],
+        'smtp' => ['label' => 'Email delivery', 'short' => 'Email', 'icon' => 'mail', 'hint' => 'SMTP server & test'],
+        'security' => ['label' => 'Security', 'icon' => 'shield', 'hint' => 'Password & login email'],
+    ];
+    $flashToast = session('toast');
+@endphp
 
-    <!-- SMTP Configuration Section -->
-    <div x-show="activeTab === 'smtp'" class="space-y-6">
-        <div class="grid lg:grid-cols-3 gap-6">
-            <!-- SMTP Settings Form (2 columns) -->
-            <div class="lg:col-span-2 rounded-2xl border border-border bg-card p-6 shadow-sm">
-                <div class="flex items-center justify-between pb-4 mb-6 border-b border-border">
-                    <div>
-                        <h2 class="text-base font-bold text-foreground">Outbound Mail Server (SMTP)</h2>
-                        <p class="text-xs text-muted-foreground mt-0.5">Transactional emails, client invitations, booking confirmations, and ZIP download links.</p>
-                    </div>
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold {{ $smtp['has_password'] ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-600 border border-amber-500/20' }}">
-                        <span class="w-1.5 h-1.5 rounded-full {{ $smtp['has_password'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
-                        {{ $smtp['has_password'] ? 'Configured & Encrypted' : 'Unconfigured' }}
-                    </span>
-                </div>
+<div x-data="{
+        activeTab: @js($forcedTab) || (function () { try { return sessionStorage.getItem('admin-settings-tab'); } catch (e) { return null; } })() || 'general',
+        setTab(tab) {
+            this.activeTab = tab;
+            try { sessionStorage.setItem('admin-settings-tab', tab); } catch (e) {}
+        }
+     }">
+    <x-ui.page-header title="Settings" description="Platform defaults, transactional email delivery and your administrator account." />
 
-                <form method="POST" action="{{ route('admin.settings.smtp') }}" class="space-y-4">
-                    @csrf
-                    @method('PUT')
-
-                    <div class="grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">SMTP Host</label>
-                            <input type="text" name="host" value="{{ old('host', $smtp['host']) }}" required
-                                   placeholder="smtp.mailgun.org or email-smtp.us-east-1.amazonaws.com"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('host') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">SMTP Port</label>
-                            <input type="number" name="port" value="{{ old('port', $smtp['port']) }}" required
-                                   placeholder="587"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('port') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-                    <div class="grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">SMTP Username</label>
-                            <input type="text" name="username" value="{{ old('username', $smtp['username']) }}" required
-                                   placeholder="postmaster@yourdomain.com"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('username') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">
-                                SMTP Password / API Secret
-                                @if($smtp['has_password'])
-                                    <span class="text-muted-foreground font-normal">(Encrypted - leave blank to keep unchanged)</span>
-                                @endif
-                            </label>
-                            <input type="password" name="password"
-                                   placeholder="{{ $smtp['has_password'] ? '••••••••••••' : 'Enter SMTP password' }}"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('password') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-                    <div class="grid sm:grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Encryption Protocol</label>
-                            <select name="encryption" required class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                                <option value="tls" {{ old('encryption', $smtp['encryption']) === 'tls' ? 'selected' : '' }}>TLS (Port 587)</option>
-                                <option value="ssl" {{ old('encryption', $smtp['encryption']) === 'ssl' ? 'selected' : '' }}>SSL (Port 465)</option>
-                                <option value="none" {{ old('encryption', $smtp['encryption']) === 'none' ? 'selected' : '' }}>None (Port 25)</option>
-                            </select>
-                            @error('encryption') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">From Email Address</label>
-                            <input type="email" name="from_address" value="{{ old('from_address', $smtp['from_address']) }}" required
-                                   placeholder="no-reply@ifotoset.com"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('from_address') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">From Sender Name</label>
-                            <input type="text" name="from_name" value="{{ old('from_name', $smtp['from_name']) }}" required
-                                   placeholder="ifotoset"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('from_name') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-                    <div class="pt-4 flex justify-end">
-                        <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-sm">
-                            Save SMTP Settings
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- SMTP Live Verification Panel -->
-            <div class="space-y-6">
-                <div class="rounded-2xl border border-border bg-card p-6 shadow-sm">
-                    <h2 class="text-base font-bold text-foreground">Send Test Email</h2>
-                    <p class="text-xs text-muted-foreground mt-1 mb-4">Validate that outbound mail delivery is functioning before notifying photographers or clients.</p>
-
-                    <form method="POST" action="{{ route('admin.settings.smtp.test') }}" class="space-y-3">
-                        @csrf
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Recipient Email</label>
-                            <input type="email" name="test_email" required
-                                   value="{{ auth()->user()->email }}"
-                                   placeholder="admin@yourdomain.com"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('test_email') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-
-                        <button type="submit" class="w-full px-4 py-2.5 rounded-xl border border-primary text-primary hover:bg-primary/10 font-semibold text-xs transition-colors">
-                            Send Live Test Email
-                        </button>
-                    </form>
-                </div>
-
-                <div class="rounded-2xl border border-border bg-secondary/30 p-5 text-xs text-muted-foreground space-y-2">
-                    <p class="font-semibold text-foreground">Security Note</p>
-                    <p>SMTP passwords are encrypted at rest using AES-256-GCM via Laravel's encryption engine and are never exposed in browser HTML markup.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Platform & Regional Defaults Section -->
-    <div x-show="activeTab === 'general'" class="space-y-6" style="display: none;">
-        <div class="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div class="pb-4 mb-6 border-b border-border">
-                <h2 class="text-base font-bold text-foreground">Platform Defaults & Regional Support</h2>
-                <p class="text-xs text-muted-foreground mt-0.5">Branding, regional currency (RWF), local Rwandan mobile money configuration, and customer support channels.</p>
-            </div>
-
-            <form method="POST" action="{{ route('admin.settings.general') }}" class="space-y-6">
-                @csrf
-                @method('PUT')
-
-                <div class="grid sm:grid-cols-3 gap-6">
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Platform Brand Name</label>
-                        <input type="text" name="platform_name" value="{{ old('platform_name', $general['platform_name']) }}" required
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        @error('platform_name') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Support Email Address</label>
-                        <input type="email" name="support_email" value="{{ old('support_email', $general['support_email']) }}" required
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        @error('support_email') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Support Hotline / WhatsApp</label>
-                        <input type="text" name="support_phone" value="{{ old('support_phone', $general['support_phone']) }}"
-                               placeholder="+250 788 000 000"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        @error('support_phone') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                    </div>
-                </div>
-
-                <div class="grid sm:grid-cols-3 gap-6 pt-4 border-t border-border">
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Default Platform Currency</label>
-                        <select name="default_currency" class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            <option value="RWF" {{ old('default_currency', $general['default_currency']) === 'RWF' ? 'selected' : '' }}>RWF (Rwandan Franc)</option>
-                            <option value="USD" {{ old('default_currency', $general['default_currency']) === 'USD' ? 'selected' : '' }}>USD ($)</option>
-                            <option value="EUR" {{ old('default_currency', $general['default_currency']) === 'EUR' ? 'selected' : '' }}>EUR (€)</option>
-                        </select>
-                        <p class="text-[11px] text-muted-foreground mt-1">Used across media houses and studio pricing packages.</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">MTN / Airtel MoMo Merchant Code</label>
-                        <input type="text" name="momo_merchant_code" value="{{ old('momo_merchant_code', $general['momo_merchant_code']) }}"
-                               placeholder="e.g. 182*8*1*123456#"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        <p class="text-[11px] text-muted-foreground mt-1">Direct MoMo pay code for media house subscriptions & offline payments.</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">MoMo Registered Account Name</label>
-                        <input type="text" name="momo_account_name" value="{{ old('momo_account_name', $general['momo_account_name']) }}"
-                               placeholder="IFOTOSET MEDIA LTD"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        <p class="text-[11px] text-muted-foreground mt-1">Displayed to clients when completing mobile money transfers.</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4 pt-4 border-t border-border">
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Broadcast Announcement Banner</label>
-                        <input type="text" name="announcement_banner" value="{{ old('announcement_banner', $general['announcement_banner']) }}"
-                               placeholder="e.g., Welcome Rwandan Media Houses! High-resolution B2 delivery is now active across Kigali."
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        <p class="text-[11px] text-muted-foreground mt-1">Visible to all studios at the top of their dashboard when populated.</p>
-                    </div>
-                </div>
-
-                <div class="pt-4 flex justify-end">
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-sm">
-                        Save Platform Defaults
+    <div class="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
+        {{-- Section nav --}}
+        <nav aria-label="Settings sections" class="lg:sticky lg:top-4 lg:self-start">
+            <div class="tabs w-full overflow-x-auto scrollbar-none lg:hidden">
+                @foreach($sections as $key => $s)
+                    <button type="button" class="tab flex-1 justify-center whitespace-nowrap" :aria-selected="activeTab === @js($key)" @click="setTab(@js($key))">
+                        <x-icon :name="$s['icon']" /> {{ $s['short'] ?? $s['label'] }}
                     </button>
-                </div>
-            </form>
-        </div>
-    </div>
+                @endforeach
+            </div>
+            <ul class="hidden space-y-0.5 lg:block">
+                @foreach($sections as $key => $s)
+                    <li>
+                        <button type="button" @click="setTab(@js($key))"
+                                :class="activeTab === @js($key) ? 'bg-card text-foreground shadow-xs ring-1 ring-border' : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                                class="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors">
+                            <x-icon :name="$s['icon']" class="mt-0.5 size-4" x-bind:class="activeTab === '{{ $key }}' ? 'text-brand' : ''" />
+                            <span class="min-w-0">
+                                <span class="block text-[13px] font-medium">{{ $s['label'] }}</span>
+                                <span class="block text-xs text-muted-foreground">{{ $s['hint'] }}</span>
+                            </span>
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
+        </nav>
 
-    <!-- Admin Account & Security Section -->
-    <div x-show="activeTab === 'security'" class="space-y-6" style="display: none;">
-        <div class="grid lg:grid-cols-2 gap-6">
-            <!-- 1. Password Modification Card -->
-            <div class="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-                <div class="flex items-center justify-between pb-4 border-b border-border">
-                    <div>
-                        <h2 class="text-base font-bold text-foreground">Change Password</h2>
-                        <p class="text-xs text-muted-foreground mt-0.5">Update your superadmin console password and invalidate other sessions.</p>
-                    </div>
-                    <span class="p-2 rounded-xl bg-primary/10 text-primary">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                    </span>
-                </div>
-
-                <form method="POST" action="{{ route('admin.settings.password') }}" class="space-y-4">
+        <div class="min-w-0">
+            {{-- ============ General ============ --}}
+            <section x-show="activeTab === 'general'" x-cloak class="space-y-6">
+                <form method="POST" action="{{ route('admin.settings.general') }}" class="card" x-data="{ busy: false }" @submit="busy = true">
                     @csrf
                     @method('PUT')
-
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Current Password</label>
-                        <input type="password" name="current_password" required autocomplete="current-password"
-                               placeholder="Enter your current password"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        @error('current_password') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Brand & support</h2>
+                            <p class="card-description mt-0.5">How the platform introduces itself and where customers can reach you.</p>
+                        </div>
+                    </div>
+                    <div class="card-body grid gap-5 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                            <label class="label" for="platform_name">Platform name</label>
+                            <input id="platform_name" type="text" name="platform_name" value="{{ old('platform_name', $general['platform_name']) }}" required class="input @error('platform_name') input-error @enderror">
+                            @error('platform_name') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label" for="support_email">Support email</label>
+                            <div class="input-group">
+                                <x-icon name="mail" />
+                                <input id="support_email" type="email" name="support_email" value="{{ old('support_email', $general['support_email']) }}" required class="input @error('support_email') input-error @enderror">
+                            </div>
+                            @error('support_email') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label" for="support_phone">Support phone / WhatsApp</label>
+                            <div class="input-group">
+                                <x-icon name="phone" />
+                                <input id="support_phone" type="text" name="support_phone" value="{{ old('support_phone', $general['support_phone']) }}" placeholder="+250 788 000 000" class="input @error('support_phone') input-error @enderror">
+                            </div>
+                            @error('support_phone') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">New Password</label>
-                        <input type="password" name="password" required autocomplete="new-password"
-                               placeholder="Minimum 8 characters with numbers & symbols"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                        @error('password') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
+                    <div class="border-t border-border px-5 pb-1 pt-5">
+                        <h3 class="text-[13px] font-semibold text-foreground">Currency & mobile money</h3>
+                        <p class="mt-0.5 text-xs text-muted-foreground">Shown to clients when they pay by MTN or Airtel mobile money.</p>
+                    </div>
+                    <div class="card-body grid gap-5 sm:grid-cols-3">
+                        <div>
+                            <label class="label" for="default_currency">Default currency</label>
+                            <select id="default_currency" name="default_currency" class="select">
+                                <option value="RWF" {{ old('default_currency', $general['default_currency']) === 'RWF' ? 'selected' : '' }}>RWF · Rwandan franc</option>
+                                <option value="USD" {{ old('default_currency', $general['default_currency']) === 'USD' ? 'selected' : '' }}>USD · US dollar</option>
+                                <option value="EUR" {{ old('default_currency', $general['default_currency']) === 'EUR' ? 'selected' : '' }}>EUR · Euro</option>
+                            </select>
+                            <p class="help">Used for studio packages and pricing.</p>
+                        </div>
+                        <div>
+                            <label class="label" for="momo_merchant_code">MoMo merchant code</label>
+                            <input id="momo_merchant_code" type="text" name="momo_merchant_code" value="{{ old('momo_merchant_code', $general['momo_merchant_code']) }}" placeholder="182*8*1*123456#" class="input font-mono">
+                            <p class="help">Pay code for offline subscriptions.</p>
+                        </div>
+                        <div>
+                            <label class="label" for="momo_account_name">MoMo account name</label>
+                            <input id="momo_account_name" type="text" name="momo_account_name" value="{{ old('momo_account_name', $general['momo_account_name']) }}" placeholder="IFOTOSET MEDIA LTD" class="input">
+                            <p class="help">Shown during mobile money transfers.</p>
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-medium text-foreground mb-1">Confirm New Password</label>
-                        <input type="password" name="password_confirmation" required autocomplete="new-password"
-                               placeholder="Confirm new password"
-                               class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
+                    <div class="border-t border-border px-5 pb-1 pt-5">
+                        <h3 class="text-[13px] font-semibold text-foreground">Announcement</h3>
+                        <p class="mt-0.5 text-xs text-muted-foreground">Displayed at the top of every studio dashboard while it has text. Leave empty to hide.</p>
+                    </div>
+                    <div class="card-body">
+                        <label class="sr-only" for="announcement_banner">Announcement banner</label>
+                        <div class="input-group">
+                            <x-icon name="bell" />
+                            <input id="announcement_banner" type="text" name="announcement_banner" value="{{ old('announcement_banner', $general['announcement_banner']) }}"
+                                   placeholder="e.g. Scheduled maintenance on Sunday from 02:00 to 03:00 CAT." class="input">
+                        </div>
                     </div>
 
-                    <div class="p-3 bg-muted/40 rounded-xl border border-border text-xs text-muted-foreground flex items-center gap-2">
-                        <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                        <span>Changing your password will automatically log out all other active sessions across devices.</span>
-                    </div>
-
-                    <div class="pt-2 flex justify-end">
-                        <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-sm">
-                            Update Password
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            Save general settings
                         </button>
                     </div>
                 </form>
-            </div>
+            </section>
 
-            <!-- 2. Email Modification with 2-Step OTP Card -->
-            <div class="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-                <div class="flex items-center justify-between pb-4 border-b border-border">
-                    <div>
-                        <h2 class="text-base font-bold text-foreground">Change Login Email</h2>
-                        <p class="text-xs text-muted-foreground mt-0.5">Requires re-authentication and a 6-digit verification code sent to the new email.</p>
+            {{-- ============ SMTP ============ --}}
+            <section x-show="activeTab === 'smtp'" x-cloak class="space-y-6">
+                <form method="POST" action="{{ route('admin.settings.smtp') }}" class="card" x-data="{ busy: false }" @submit="busy = true">
+                    @csrf
+                    @method('PUT')
+                    <div class="card-header">
+                        <div class="min-w-0">
+                            <h2 class="card-title">SMTP server</h2>
+                            <p class="card-description mt-0.5">Used for invitations, booking confirmations, verification codes and download links.</p>
+                        </div>
+                        @if($smtp['has_password'])
+                            <x-ui.badge variant="success" dot class="shrink-0">Configured</x-ui.badge>
+                        @else
+                            <x-ui.badge variant="warning" dot class="shrink-0">Not configured</x-ui.badge>
+                        @endif
                     </div>
-                    <span class="p-2 rounded-xl bg-primary/10 text-primary">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    </span>
+                    <div class="card-body grid gap-5 sm:grid-cols-6">
+                        <div class="sm:col-span-4">
+                            <label class="label" for="smtp_host">Host</label>
+                            <div class="input-group">
+                                <x-icon name="server" />
+                                <input id="smtp_host" type="text" name="host" value="{{ old('host', $smtp['host']) }}" required placeholder="smtp.mailgun.org" class="input font-mono text-[13px] @error('host') input-error @enderror">
+                            </div>
+                            @error('host') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="label" for="smtp_port">Port</label>
+                            <input id="smtp_port" type="number" name="port" value="{{ old('port', $smtp['port']) }}" required placeholder="587" class="input font-mono tabular-nums @error('port') input-error @enderror">
+                            @error('port') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-3">
+                            <label class="label" for="smtp_username">Username</label>
+                            <input id="smtp_username" type="text" name="username" value="{{ old('username', $smtp['username']) }}" required placeholder="postmaster@yourdomain.com" autocomplete="off" class="input @error('username') input-error @enderror">
+                            @error('username') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-3">
+                            <label class="label" for="smtp_password">Password / API secret</label>
+                            <div class="input-group">
+                                <x-icon name="key" />
+                                <input id="smtp_password" type="password" name="password" autocomplete="new-password"
+                                       placeholder="{{ $smtp['has_password'] ? '••••••••••••' : 'Enter SMTP password' }}"
+                                       class="input">
+                            </div>
+                            @if($smtp['has_password'])
+                                <p class="help">Stored encrypted. Leave blank to keep the current secret.</p>
+                            @endif
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="label" for="smtp_encryption">Encryption</label>
+                            <select id="smtp_encryption" name="encryption" required class="select @error('encryption') input-error @enderror">
+                                <option value="tls" {{ old('encryption', $smtp['encryption']) === 'tls' ? 'selected' : '' }}>TLS · port 587</option>
+                                <option value="ssl" {{ old('encryption', $smtp['encryption']) === 'ssl' ? 'selected' : '' }}>SSL · port 465</option>
+                                <option value="none" {{ old('encryption', $smtp['encryption']) === 'none' ? 'selected' : '' }}>None · port 25</option>
+                            </select>
+                            @error('encryption') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="label" for="smtp_from_address">From address</label>
+                            <input id="smtp_from_address" type="email" name="from_address" value="{{ old('from_address', $smtp['from_address']) }}" required placeholder="no-reply@ifotoset.com" class="input @error('from_address') input-error @enderror">
+                            @error('from_address') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="label" for="smtp_from_name">From name</label>
+                            <input id="smtp_from_name" type="text" name="from_name" value="{{ old('from_name', $smtp['from_name']) }}" required placeholder="ifotoset" class="input @error('from_name') input-error @enderror">
+                            @error('from_name') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    <div class="card-footer justify-between">
+                        <p class="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                            <x-icon name="lock" class="size-3.5" /> Secrets are encrypted at rest and never rendered in the page.
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            Save SMTP settings
+                        </button>
+                    </div>
+                </form>
+
+                <form method="POST" action="{{ route('admin.settings.smtp.test') }}" class="card" x-data="{ busy: false }" @submit="busy = true">
+                    @csrf
+                    <div class="card-body flex flex-col gap-4 sm:flex-row sm:items-end">
+                        <div class="flex items-start gap-3 sm:w-64 sm:shrink-0 sm:self-center">
+                            <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="send" class="size-4" /></span>
+                            <div>
+                                <h2 class="text-[13px] font-semibold text-foreground">Send a test email</h2>
+                                <p class="mt-0.5 text-xs text-muted-foreground">Check delivery with the saved settings.</p>
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <label class="label" for="test_email">Recipient</label>
+                            <input id="test_email" type="email" name="test_email" required value="{{ auth()->user()->email }}" placeholder="admin@yourdomain.com" class="input @error('test_email') input-error @enderror">
+                            @error('test_email') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <button type="submit" class="btn btn-outline" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            <x-icon name="send" x-show="!busy" />
+                            <span x-text="busy ? 'Sending…' : 'Send test'">Send test</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- ============ Security ============ --}}
+            <section x-show="activeTab === 'security'" x-cloak class="space-y-6">
+                {{-- Password --}}
+                <form method="POST" action="{{ route('admin.settings.password') }}" class="card" x-data="{ busy: false }" @submit="busy = true">
+                    @csrf
+                    @method('PUT')
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Password</h2>
+                            <p class="card-description mt-0.5">Changing your password signs you out on all other devices.</p>
+                        </div>
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="lock" class="size-4" /></span>
+                    </div>
+                    <div class="card-body grid gap-5 sm:grid-cols-2">
+                        <div class="sm:col-span-2 sm:max-w-[calc(50%-0.625rem)]">
+                            <label class="label" for="current_password_pw">Current password</label>
+                            <input id="current_password_pw" type="password" name="current_password" required autocomplete="current-password" placeholder="Enter your current password" class="input @error('current_password') input-error @enderror">
+                            @error('current_password') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label" for="new_password">New password</label>
+                            <input id="new_password" type="password" name="password" required autocomplete="new-password" placeholder="At least 8 characters" class="input @error('password') input-error @enderror">
+                            @error('password') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label" for="new_password_confirmation">Confirm new password</label>
+                            <input id="new_password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password" placeholder="Repeat new password" class="input">
+                        </div>
+                    </div>
+                    <div class="card-footer justify-between">
+                        <p class="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
+                            <x-icon name="triangle-alert" class="size-3.5 text-warning" /> Other sessions will be logged out.
+                        </p>
+                        <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            Update password
+                        </button>
+                    </div>
+                </form>
+
+                {{-- Login email with verification code --}}
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Login email</h2>
+                            <p class="card-description mt-0.5">We'll send a 6-digit code to the new address to confirm you own it.</p>
+                        </div>
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="at-sign" class="size-4" /></span>
+                    </div>
+
+                    {{-- Stepper --}}
+                    <div class="flex items-center gap-3 border-b border-border bg-muted/30 px-5 py-3 text-xs">
+                        @php($onStep2 = (bool) session('email_otp_sent'))
+                        <span class="inline-flex items-center gap-1.5 {{ $onStep2 ? 'text-muted-foreground' : 'font-medium text-foreground' }}">
+                            <span class="flex size-5 items-center justify-center rounded-full text-[11px] font-semibold {{ $onStep2 ? 'bg-success/15 text-success' : 'bg-primary text-primary-foreground' }}">
+                                @if($onStep2)<x-icon name="check" class="size-3" />@else 1 @endif
+                            </span>
+                            Request code
+                        </span>
+                        <span class="h-px w-6 bg-border-strong sm:w-10"></span>
+                        <span class="inline-flex items-center gap-1.5 {{ $onStep2 ? 'font-medium text-foreground' : 'text-muted-foreground' }}">
+                            <span class="flex size-5 items-center justify-center rounded-full text-[11px] font-semibold {{ $onStep2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground ring-1 ring-border' }}">2</span>
+                            Verify
+                        </span>
+                    </div>
+
+                    <div class="card-body space-y-5">
+                        <div class="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-[13px]">
+                            <span class="text-muted-foreground">Current</span>
+                            <span class="truncate font-mono text-foreground">{{ auth()->user()->email }}</span>
+                        </div>
+
+                        @if(!session('email_otp_sent'))
+                            <form method="POST" action="{{ route('admin.settings.email.request') }}" class="space-y-5" x-data="{ busy: false }" @submit="busy = true">
+                                @csrf
+                                <div class="grid gap-5 sm:grid-cols-2">
+                                    <div>
+                                        <label class="label" for="new_email">New email</label>
+                                        <input id="new_email" type="email" name="new_email" value="{{ old('new_email') }}" required placeholder="newadmin@ifotoset.com" class="input @error('new_email') input-error @enderror">
+                                        @error('new_email') <p class="error-text">{{ $message }}</p> @enderror
+                                    </div>
+                                    <div>
+                                        <label class="label" for="current_password_email">Current password</label>
+                                        <input id="current_password_email" type="password" name="current_password" required autocomplete="current-password" placeholder="To authorize the change" class="input @error('current_password') input-error @enderror">
+                                        @error('current_password') <p class="error-text">{{ $message }}</p> @enderror
+                                    </div>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                                        <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                                        Send verification code
+                                        <x-icon name="arrow-right" x-show="!busy" />
+                                    </button>
+                                </div>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ route('admin.settings.email.verify') }}" class="space-y-5" x-data="{ busy: false }" @submit="busy = true">
+                                @csrf
+                                @method('PUT')
+                                <div class="alert alert-info">
+                                    <x-icon name="mail" />
+                                    <p class="text-[13px]">
+                                        We sent a 6-digit code to <strong class="font-semibold">{{ session('target_new_email') }}</strong>. It expires in 15 minutes. Check spam if it doesn't arrive.
+                                    </p>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <label class="label text-center" for="email_code">Verification code</label>
+                                    <input id="email_code" type="text" name="code" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" autofocus
+                                           placeholder="000000"
+                                           class="input h-14 w-56 text-center font-mono text-2xl font-semibold tracking-[0.5em] tabular-nums @error('code') input-error @enderror">
+                                    @error('code') <p class="error-text text-center">{{ $message }}</p> @enderror
+                                </div>
+                                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <a href="{{ route('admin.settings.index') }}" class="btn btn-ghost btn-sm">
+                                        <x-icon name="arrow-left" /> Use a different email
+                                    </a>
+                                    <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                                        <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                                        <x-icon name="shield-check" x-show="!busy" />
+                                        Verify & update email
+                                    </button>
+                                </div>
+                            </form>
+                        @endif
+                    </div>
                 </div>
-
-                <!-- Current Email Display -->
-                <div class="flex items-center justify-between p-3 rounded-xl bg-secondary/40 border border-border text-xs">
-                    <span class="text-muted-foreground">Current Login Email:</span>
-                    <span class="font-mono font-bold text-foreground">{{ auth()->user()->email }}</span>
-                </div>
-
-                @if(!session('email_otp_sent'))
-                    <!-- Step 1: Request OTP Form -->
-                    <form method="POST" action="{{ route('admin.settings.email.request') }}" class="space-y-4">
-                        @csrf
-
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Confirm Current Password</label>
-                            <input type="password" name="current_password" required autocomplete="current-password"
-                                   placeholder="Enter your current password to authorize"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('current_password') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1">Proposed New Email Address</label>
-                            <input type="email" name="new_email" value="{{ old('new_email') }}" required
-                                   placeholder="newadmin@ifotoset.com"
-                                   class="w-full px-3 py-2 text-sm rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring">
-                            @error('new_email') <p class="text-xs text-destructive mt-1">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div class="pt-2 flex justify-end">
-                            <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-1.5">
-                                <span>Send Verification Code</span>
-                                <span>&rarr;</span>
-                            </button>
-                        </div>
-                    </form>
-                @else
-                    <!-- Step 2: Verify OTP Form -->
-                    <form method="POST" action="{{ route('admin.settings.email.verify') }}" class="space-y-4">
-                        @csrf
-                        @method('PUT')
-
-                        <div class="p-3.5 bg-primary/10 rounded-xl border border-primary/20 text-xs text-foreground space-y-1">
-                            <p class="font-semibold text-primary flex items-center gap-1.5">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                Verification Code Sent!
-                            </p>
-                            <p class="text-muted-foreground">
-                                We sent a 6-digit verification code to <strong class="text-foreground">{{ session('target_new_email') }}</strong>. Please check your inbox (and spam folder). The code is valid for 15 minutes.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-foreground mb-1.5 text-center">
-                                Enter 6-Digit Code
-                            </label>
-                            <input type="text" name="code" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" autofocus
-                                   placeholder="••••••"
-                                   class="w-48 mx-auto block px-4 py-3 text-center text-2xl font-mono tracking-widest font-bold rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring shadow-sm">
-                            @error('code') <p class="text-xs text-destructive text-center mt-1.5">{{ $message }}</p> @enderror
-                        </div>
-
-                        <div class="pt-3 flex items-center justify-between">
-                            <a href="{{ route('admin.settings.index') }}" class="text-xs text-muted-foreground hover:text-foreground font-medium">
-                                &larr; Cancel / Change Email
-                            </a>
-                            <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors shadow-sm">
-                                Verify &amp; Update Email
-                            </button>
-                        </div>
-                    </form>
-                @endif
-            </div>
+            </section>
         </div>
     </div>
 </div>
+
+@if(is_array($flashToast) && !empty($flashToast['message']))
+    @push('scripts')
+    <script>
+        document.addEventListener('alpine:initialized', () => {
+            window.toast?.(@js($flashToast['message']), @js($flashToast['type'] ?? 'info'), 6000);
+        });
+    </script>
+    @endpush
+@endif
 @endsection

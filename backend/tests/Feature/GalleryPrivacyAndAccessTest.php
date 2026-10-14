@@ -252,7 +252,7 @@ class GalleryPrivacyAndAccessTest extends TestCase
 
         $response = $this->get($galleryUrl);
         $response->assertStatus(200);
-        $response->assertSee('Invitation Required');
+        $response->assertSee('Invitation only');
 
         // Zero-leak check:
         $content = $response->getContent();
@@ -305,7 +305,7 @@ class GalleryPrivacyAndAccessTest extends TestCase
         // 4. Subsequent visit with the SAME session must be denied immediately!
         $revokedResponse = $this->get($galleryUrl);
         $revokedResponse->assertStatus(200);
-        $revokedResponse->assertSee('Invitation Unavailable');
+        $revokedResponse->assertSee('Invitation unavailable');
         $this->assertStringNotContainsString('family2.jpg', $revokedResponse->getContent());
     }
 

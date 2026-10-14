@@ -28,7 +28,20 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 2;
-    public int $timeout = 600;
+
+    // Multi-rendition HLS encoding of long videos can take a while; keep REDIS_QUEUE_RETRY_AFTER above this.
+    public int $timeout = 3600;
+
+    /**
+     * HLS rendition ladder keyed by the short side of the frame (bitrates in kbps).
+     */
+    protected const HLS_LADDER = [
+        360 => ['video' => 800, 'audio' => 96],
+        720 => ['video' => 2800, 'audio' => 128],
+        1080 => ['video' => 5000, 'audio' => 160],
+    ];
+
+    protected const HLS_SEGMENT_SECONDS = 6;
 
     public function uniqueId(): string
     {
@@ -37,7 +50,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
 
     public function uniqueFor(): int
     {
-        return 1200;
+        return 3900;
     }
 
     public function __construct(
@@ -96,12 +109,15 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
         $extension = pathinfo($photo->filename, PATHINFO_EXTENSION) ?: 'mp4';
         $tempInputPath = "{$tempDir}/original.{$extension}";
         $tempDeliveryPath = "{$tempDir}/delivery.mp4";
-        $tempPosterPath = "{$tempDir}/poster.jpg";
+        $tempHlsDir = "{$tempDir}/hls";
 
         try {
             // 1. Download original from B2 storage
             $updateProgress('Downloading Original');
             $originalKey = $photo->original_path ?: ($photo->path . '/' . $photo->filename);
+            $mediaDir = dirname($originalKey);
+            // Derived files keep the uploaded file's name (e.g. wedding_poster.webp), like photo variants do
+            $baseName = pathinfo($originalKey, PATHINFO_FILENAME) ?: 'video';
             $stream = Storage::disk('b2')->readStream($originalKey);
             if (!$stream) {
                 throw new \Exception("Could not read original video stream from storage: {$originalKey}");
@@ -139,39 +155,56 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
             $updateProgress('Preparing Web Delivery');
             $this->prepareDeliveryVideo($tempInputPath, $tempDeliveryPath, $probeData);
 
-            // 6. Upload delivery.mp4 and poster variants to B2
+            // 6. Upload delivery MP4 and poster variants to B2
             $updateProgress('Uploading Delivery Files');
-            $deliveryKey = dirname($originalKey) . '/delivery.mp4';
+            $deliveryName = "{$baseName}_delivery.mp4";
+            $deliveryKey = "{$mediaDir}/{$deliveryName}";
             Storage::disk('b2')->putFileAs(
-                dirname($originalKey),
+                $mediaDir,
                 new \Illuminate\Http\File($tempDeliveryPath),
-                'delivery.mp4'
+                $deliveryName,
+                ['ContentType' => 'video/mp4']
             );
 
-            // Upload poster variants
-            $posterKey = dirname($originalKey) . '/poster.webp';
+            $posterKey = null;
             if (!empty($posterInfo['poster_file']) && File::exists($posterInfo['poster_file'])) {
+                $posterKey = "{$mediaDir}/{$baseName}_poster.webp";
                 Storage::disk('b2')->putFileAs(
-                    dirname($originalKey),
+                    $mediaDir,
                     new \Illuminate\Http\File($posterInfo['poster_file']),
-                    'poster.webp'
+                    "{$baseName}_poster.webp",
+                    ['ContentType' => 'image/webp']
                 );
 
+                // Variant names follow StorageService::getCdnUrl(): {poster basename}_{size}.webp
                 foreach (['sm', 'md', 'lg'] as $sizeVariant) {
                     $variantFile = "{$tempDir}/poster_{$sizeVariant}.webp";
                     if (File::exists($variantFile)) {
                         Storage::disk('b2')->putFileAs(
-                            dirname($originalKey),
+                            $mediaDir,
                             new \Illuminate\Http\File($variantFile),
-                            "poster_{$sizeVariant}.webp"
+                            "{$baseName}_poster_{$sizeVariant}.webp",
+                            ['ContentType' => 'image/webp']
                         );
                     }
                 }
             }
 
-            // 7. Update database records in transaction
+            // 7. Adaptive HLS streaming renditions (MP4 delivery stays as fallback and download source)
+            $updateProgress('Encoding HLS Stream');
+            $hlsKey = null;
+            try {
+                $masterName = $this->prepareHlsStream($tempDeliveryPath, $tempHlsDir, $baseName, $probeData);
+
+                $updateProgress('Uploading HLS Stream');
+                $hlsKey = $this->uploadHlsStream($tempHlsDir, "{$mediaDir}/hls", $masterName);
+            } catch (Throwable $e) {
+                Log::warning("ProcessVideoJob: HLS packaging failed for photo {$photo->id}, serving MP4 only: " . $e->getMessage());
+            }
+
+            // 8. Update database records in transaction
             $updateProgress('Finalizing');
-            DB::transaction(function () use ($photo, $actualDuration, $probeData, $deliveryKey, $posterKey, $posterInfo) {
+            DB::transaction(function () use ($photo, $actualDuration, $probeData, $deliveryKey, $hlsKey, $posterKey, $posterInfo) {
                 $photo->update([
                     'media_type' => 'video',
                     'duration_seconds' => (int) round($actualDuration),
@@ -179,6 +212,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
                     'height' => $probeData['display_height'] ?? $probeData['height'],
                     'original_path' => $photo->original_path ?: ($photo->path . '/' . $photo->filename),
                     'delivery_path' => $deliveryKey,
+                    'hls_path' => $hlsKey,
                     'poster_path' => $posterKey,
                     'blurhash' => $posterInfo['blurhash'] ?? null,
                     'video_metadata' => $probeData['bounded_metadata'] ?? null,
@@ -535,5 +569,111 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
         if (!File::exists($outputPath) || File::size($outputPath) === 0) {
             throw new \Exception("Failed to generate delivery.mp4 via FFmpeg transcode.");
         }
+    }
+
+    /**
+     * Encodes the web-ready MP4 into an HLS VOD ladder (one ffmpeg pass, keyframe-aligned renditions).
+     * Returns the master playlist file name inside $outputDir.
+     */
+    protected function prepareHlsStream(string $inputPath, string $outputDir, string $baseName, array $probeData): string
+    {
+        File::ensureDirectoryExists($outputDir);
+
+        // delivery.mp4 is already rotation-normalized, so display dimensions are the encoded ones
+        $width = (int) ($probeData['display_width'] ?? $probeData['width'] ?? 0);
+        $height = (int) ($probeData['display_height'] ?? $probeData['height'] ?? 0);
+        $shortSide = min($width, $height);
+        if ($shortSide <= 0) {
+            throw new \Exception('Cannot build HLS ladder without video dimensions.');
+        }
+
+        $renditions = array_filter(self::HLS_LADDER, fn ($rung) => $rung <= $shortSide, ARRAY_FILTER_USE_KEY);
+        if (empty($renditions)) {
+            // Tiny source: single rendition at native size
+            $renditions = [$shortSide - ($shortSide % 2) => self::HLS_LADDER[360]];
+        }
+
+        $isLandscape = $width >= $height;
+        $hasAudio = !in_array($probeData['audio_codec'] ?? 'none', ['none', ''], true);
+        $count = count($renditions);
+        $threads = (int) config('media.ffmpeg_threads', env('MEDIA_FFMPEG_THREADS', 2));
+        $segment = self::HLS_SEGMENT_SECONDS;
+
+        $splitOutputs = '';
+        $scaleFilters = [];
+        $maps = [];
+        $streamMap = [];
+        $i = 0;
+        foreach ($renditions as $rung => $rates) {
+            $splitOutputs .= "[v{$i}]";
+            $scale = $isLandscape ? "-2:{$rung}" : "{$rung}:-2";
+            $scaleFilters[] = "[v{$i}]scale={$scale}[v{$i}out]";
+
+            $maxrate = (int) round($rates['video'] * 1.07);
+            $bufsize = (int) round($rates['video'] * 1.5);
+            $maps[] = "-map [v{$i}out] -c:v:{$i} libx264 -b:v:{$i} {$rates['video']}k -maxrate:v:{$i} {$maxrate}k -bufsize:v:{$i} {$bufsize}k";
+            if ($hasAudio) {
+                $maps[] = "-map 0:a:0 -c:a:{$i} aac -b:a:{$i} {$rates['audio']}k -ac:a:{$i} 2";
+            }
+
+            $streamMap[] = $hasAudio ? "v:{$i},a:{$i},name:{$rung}p" : "v:{$i},name:{$rung}p";
+            $i++;
+        }
+
+        $filterComplex = "[0:v]split={$count}{$splitOutputs};" . implode(';', $scaleFilters);
+        $masterName = "{$baseName}.m3u8";
+
+        $cmd = implode(' ', [
+            'ffmpeg -y -i ' . escapeshellarg($inputPath),
+            '-filter_complex ' . escapeshellarg($filterComplex),
+            implode(' ', $maps),
+            '-preset veryfast -profile:v high -pix_fmt yuv420p -sc_threshold 0',
+            '-force_key_frames ' . escapeshellarg("expr:gte(t,n_forced*{$segment})"),
+            "-threads {$threads}",
+            "-f hls -hls_time {$segment} -hls_playlist_type vod -hls_flags independent_segments",
+            '-hls_segment_filename ' . escapeshellarg("{$outputDir}/{$baseName}_%v_%04d.ts"),
+            '-master_pl_name ' . escapeshellarg($masterName),
+            '-var_stream_map ' . escapeshellarg(implode(' ', $streamMap)),
+            escapeshellarg("{$outputDir}/{$baseName}_%v.m3u8"),
+            '2>&1',
+        ]);
+
+        $output = shell_exec($cmd);
+
+        if (!File::exists("{$outputDir}/{$masterName}") || empty(File::glob("{$outputDir}/*.ts"))) {
+            throw new \Exception('FFmpeg HLS packaging produced no output: ' . mb_substr((string) $output, -500));
+        }
+
+        return $masterName;
+    }
+
+    /**
+     * Uploads segments first and playlists last so a playable master never references missing files.
+     * Returns the master playlist object key.
+     */
+    protected function uploadHlsStream(string $localDir, string $remoteDir, string $masterName): string
+    {
+        $files = File::files($localDir);
+        usort($files, fn ($a, $b) => ($a->getExtension() === 'm3u8') <=> ($b->getExtension() === 'm3u8'));
+
+        foreach ($files as $file) {
+            $contentType = match ($file->getExtension()) {
+                'm3u8' => 'application/vnd.apple.mpegurl',
+                'ts' => 'video/mp2t',
+                default => null,
+            };
+            if ($contentType === null) {
+                continue;
+            }
+
+            Storage::disk('b2')->putFileAs(
+                $remoteDir,
+                new \Illuminate\Http\File($file->getPathname()),
+                $file->getFilename(),
+                ['ContentType' => $contentType]
+            );
+        }
+
+        return "{$remoteDir}/{$masterName}";
     }
 }

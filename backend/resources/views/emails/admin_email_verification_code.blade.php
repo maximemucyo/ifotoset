@@ -1,26 +1,19 @@
-<x-email.layout title="Admin Email Verification Code">
-    <x-email.heading 
-        title="Admin Email Verification" 
-        subtitle="A request was made to update the administrator login email for your ifotoset account." 
+<x-email.layout title="Admin Email Verification Code" :preheader="'Your verification code is ' . $code . '. It expires in ' . $expiresInMinutes . ' minutes.'">
+    <x-email.heading
+        eyebrow="Security"
+        title="Confirm your new admin email"
+        subtitle="A request was made to update the administrator login email for your ifotoset account."
     />
 
-    <p style="font-size: 15px; color: #44403c; line-height: 1.6; margin: 0 0 20px;">
-        Hi {{ $admin->name }},
-    </p>
+    <x-email.text>Hi {{ $admin->name }},</x-email.text>
 
-    <p style="font-size: 15px; color: #44403c; line-height: 1.6; margin: 0 0 24px;">
-        Please use the 6-digit verification code below in your administrative settings to confirm this new email address (<strong>{{ $newEmail }}</strong>):
-    </p>
+    <x-email.text>
+        Enter this 6-digit code in your administrative settings to confirm <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $newEmail }}</strong> as your new login email.
+    </x-email.text>
 
-    <div style="text-align: center; margin: 28px 0; padding: 24px; background-color: #f5f5f4; border: 2px dashed #d6d3d1; border-radius: 16px;">
-        <span style="font-family: monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1c1917;">
-            {{ $code }}
-        </span>
-    </div>
+    <x-email.code :code="$code" />
 
-    <x-email.card>
-        <p style="margin: 0; font-size: 13px; color: #78716c; line-height: 1.5;">
-            <strong>Security Notice:</strong> This code will expire in <strong>{{ $expiresInMinutes }} minutes</strong>. For your security, this request required current administrative credentials. If you did not request this email change, please log in immediately and rotate your administrator password.
-        </p>
-    </x-email.card>
+    <x-email.text muted size="13px" spacing="0">
+        This code expires in <strong>{{ $expiresInMinutes }} minutes</strong>. For your security, this request required current administrative credentials. If you did not request this email change, log in immediately and rotate your administrator password.
+    </x-email.text>
 </x-email.layout>

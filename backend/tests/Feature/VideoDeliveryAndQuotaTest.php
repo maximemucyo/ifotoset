@@ -171,6 +171,46 @@ class VideoDeliveryAndQuotaTest extends TestCase
         $session = UploadSession::where('uuid', $response->json('upload_session_id'))->first();
         $this->assertNotNull($session);
         $this->assertEquals(120, $session->reserved_duration_seconds);
+
+        // Videos keep the uploaded file name, like photos
+        $this->assertMatchesRegularExpression(
+            '#^galleries/' . $this->basicGallery->uuid . '/videos/[0-9a-f-]{36}/wedding_highlights\.mp4$#',
+            $response->json('object_key')
+        );
+    }
+
+    public function test_protected_gallery_hls_stream_url_carries_directory_token_in_path(): void
+    {
+        $this->basicGallery->update(['visibility' => 'private']);
+        $dir = "protected-galleries/{$this->basicGallery->uuid}/videos/abc";
+
+        $photo = Photo::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'gallery_id' => $this->basicGallery->id,
+            'disk_id' => $this->disk->id,
+            'media_type' => 'video',
+            'path' => $dir,
+            'filename' => 'clip.mp4',
+            'original_filename' => 'clip.mp4',
+            'stored_filename' => 'clip.mp4',
+            'original_path' => "{$dir}/clip.mp4",
+            'delivery_path' => "{$dir}/clip_delivery.mp4",
+            'hls_path' => "{$dir}/hls/clip.m3u8",
+            'mime_type' => 'video/mp4',
+            'size' => 1000,
+            'checksum' => hash('sha256', 'hls-protected'),
+            'status' => \App\Enums\PhotoStatus::Ready->value,
+        ]);
+
+        $url = $photo->getStreamUrl();
+        $this->assertMatchesRegularExpression(
+            '#^https://cdn\.ifotoset\.com/' . preg_quote("{$dir}/hls", '#') . '/_t/(\d+)/([0-9a-f]{64})/clip\.m3u8$#',
+            $url
+        );
+
+        // Signature covers the directory, so every playlist and segment beneath it is authorized
+        preg_match('#/_t/(\d+)/([0-9a-f]{64})/#', $url, $m);
+        $this->assertTrue(app(\App\Services\MediaTokenService::class)->validateToken("{$dir}/hls/", (int) $m[1], $m[2]));
     }
 
     public function test_video_upload_rejects_when_quota_exceeded(): void
@@ -427,6 +467,22 @@ class VideoDeliveryAndQuotaTest extends TestCase
         $this->assertEquals(320, $freshPhoto->width);
         $this->assertEquals(240, $freshPhoto->height);
         $this->assertNotNull($freshPhoto->processed_at);
+
+        // Derived files keep the uploaded file's name
+        $dir = dirname($relPath);
+        $this->assertEquals("{$dir}/job_sample_delivery.mp4", $freshPhoto->delivery_path);
+        $this->assertEquals("{$dir}/job_sample_poster.webp", $freshPhoto->poster_path);
+        \Illuminate\Support\Facades\Storage::disk('b2')->assertExists("{$dir}/job_sample_poster_sm.webp");
+
+        // HLS: source is smaller than the lowest rung, so a single native-size rendition is produced
+        $this->assertEquals("{$dir}/hls/job_sample.m3u8", $freshPhoto->hls_path);
+        $master = \Illuminate\Support\Facades\Storage::disk('b2')->get($freshPhoto->hls_path);
+        $this->assertStringContainsString('job_sample_240p.m3u8', $master);
+        $variant = \Illuminate\Support\Facades\Storage::disk('b2')->get("{$dir}/hls/job_sample_240p.m3u8");
+        $this->assertStringContainsString('#EXT-X-PLAYLIST-TYPE:VOD', $variant);
+        $this->assertStringContainsString('job_sample_240p_0000.ts', $variant);
+        \Illuminate\Support\Facades\Storage::disk('b2')->assertExists("{$dir}/hls/job_sample_240p_0000.ts");
+        $this->assertStringEndsWith("/{$dir}/hls/job_sample.m3u8", $freshPhoto->getStreamUrl());
 
         $freshUser = $this->basicUser->fresh();
         $this->assertEquals(2, $freshUser->video_seconds_used);

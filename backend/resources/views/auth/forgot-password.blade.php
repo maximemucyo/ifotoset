@@ -1,10 +1,10 @@
-@extends('layouts.guest', ['title' => 'Forgot Password - ifotoset', 'heading' => 'Reset your password', 'subheading' => 'Enter your registered email and we will send you a reset link.'])
+@extends('layouts.guest', ['title' => 'Reset password · ifotoset', 'icon' => 'key', 'heading' => 'Forgot your password?', 'subheading' => 'Enter the email you signed up with and we’ll send you a secure reset link.'])
 
 @section('content')
-<form method="POST" action="{{ route('password.email') }}" class="space-y-4">
+<form method="POST" action="{{ route('password.email') }}" class="space-y-4" x-data="{ submitting: false }" @submit="submitting = true">
     @csrf
 
-    <x-ui.input label="Email address"
+    <x-ui.input label="Email"
                 type="email"
                 name="email"
                 id="email"
@@ -12,17 +12,16 @@
                 required
                 autofocus
                 autocomplete="email"
-                placeholder="you@example.com"
+                placeholder="you@studio.com"
                 :error="$errors->first('email')" />
 
-    <x-ui.button type="submit" variant="primary" class="w-full">
-        Send Reset Link
-    </x-ui.button>
+    <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="submitting">
+        <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
+        Send reset link
+    </button>
 
-    <div class="text-center pt-2">
-        <a href="{{ route('login') }}" class="text-xs font-semibold text-primary hover:underline">
-            &larr; Back to sign in
-        </a>
-    </div>
+    <a href="{{ route('login') }}" class="flex items-center justify-center gap-1.5 pt-3 text-[13px] font-medium text-muted-foreground transition hover:text-foreground">
+        <x-icon name="arrow-left" class="size-3.5" /> Back to sign in
+    </a>
 </form>
 @endsection

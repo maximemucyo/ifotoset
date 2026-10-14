@@ -1,17 +1,105 @@
 {
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/inter-tight-cyrillic-ext-wght-normal-okcGN4Nq.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-wght-normal.woff2": {
+    "file": "assets/inter-tight-cyrillic-wght-normal-BS41q_Tv.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-greek-ext-wght-normal.woff2": {
+    "file": "assets/inter-tight-greek-ext-wght-normal-DQgQPNk4.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-greek-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-greek-wght-normal.woff2": {
+    "file": "assets/inter-tight-greek-wght-normal-sS1B39LI.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-greek-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-ext-wght-normal.woff2": {
+    "file": "assets/inter-tight-latin-ext-wght-normal-B4u9PlvR.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2": {
+    "file": "assets/inter-tight-latin-wght-normal-DX-nOvPD.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter-tight/files/inter-tight-vietnamese-wght-normal.woff2": {
+    "file": "assets/inter-tight-vietnamese-wght-normal-TKKdAiBA.woff2",
+    "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-vietnamese-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2": {
+    "file": "assets/inter-cyrillic-wght-normal-DqGufNeO.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-greek-ext-wght-normal.woff2": {
+    "file": "assets/inter-greek-ext-wght-normal-DlzME5K_.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-greek-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-greek-wght-normal.woff2": {
+    "file": "assets/inter-greek-wght-normal-CkhJZR-_.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-greek-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2": {
+    "file": "assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2": {
+    "file": "assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/inter/files/inter-vietnamese-wght-normal.woff2": {
+    "file": "assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2",
+    "src": "node_modules/@fontsource-variable/inter/files/inter-vietnamese-wght-normal.woff2"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff": {
+    "file": "assets/instrument-serif-latin-400-italic-u__WvvIK.woff",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2": {
+    "file": "assets/instrument-serif-latin-400-italic-DKMiL14s.woff2",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff": {
+    "file": "assets/instrument-serif-latin-400-normal-BVbkICAY.woff",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2": {
+    "file": "assets/instrument-serif-latin-400-normal-DnYpCC2O.woff2",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-italic.woff": {
+    "file": "assets/instrument-serif-latin-ext-400-italic-D7-lnxEk.woff",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-italic.woff"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-italic.woff2": {
+    "file": "assets/instrument-serif-latin-ext-400-italic-C9HzH3YL.woff2",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-italic.woff2"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff": {
+    "file": "assets/instrument-serif-latin-ext-400-normal-CFCUzsTy.woff",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff"
+  },
+  "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2": {
+    "file": "assets/instrument-serif-latin-ext-400-normal-C2je3j2s.woff2",
+    "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2"
+  },
   "resources/css/app.css": {
-    "file": "assets/app-BI0ZbepV.css",
+    "file": "assets/app-CwoE9Ni3.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-CV_h_uio.js",
+    "file": "assets/app-X8-x1cAP.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-7kIRC8xK.js",
+    "file": "assets/gallery-BDnZ_aEA.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
     "isEntry": true

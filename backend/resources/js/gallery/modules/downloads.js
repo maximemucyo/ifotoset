@@ -173,6 +173,7 @@ export class GalleryDownloads {
      */
     async downloadPhoto(photo, triggerButton = null) {
         if (!photo || !photo.uuid) return;
+        if (!this.allowPhotoDownloads) return;
         if (this.downloadingUuids.has(photo.uuid)) return;
 
         this.downloadingUuids.add(photo.uuid);

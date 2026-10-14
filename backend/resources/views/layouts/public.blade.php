@@ -1,86 +1,32 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full scroll-pt-20">
 <head>
-    <x-google-tag />
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    @include('layouts.partials.head', ['defaultMode' => $defaultTheme ?? 'system'])
     <meta name="referrer" content="no-referrer-when-downgrade">
-
     @include('layouts.partials.seo')
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @if(($defaultTheme ?? '') === 'light')
-    <script>
-        if (localStorage.getItem('theme') === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    </script>
-    @else
-    <script>
-        if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    </script>
-    @endif
     @stack('styles')
 </head>
-<body class="h-full flex flex-col font-sans bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+<body class="flex min-h-full flex-col bg-background text-foreground antialiased">
     <x-admin.impersonation-banner />
-    <!-- Flash Toast Notification -->
-    <div x-data="toastNotification('{{ session('success') ?? session('message') }}', '{{ session('success') ? 'success' : (session('error') ? 'error' : 'info') }}')"
-         x-show="show"
-         x-transition:enter="transition ease-out duration-300 transform"
-         x-transition:enter-start="opacity-0 translate-y-2"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-200 transform"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-2"
-         class="fixed bottom-5 right-5 z-[70] max-w-sm w-full bg-card border border-border shadow-xl rounded-xl p-4 flex items-start gap-3"
-         style="display: none;">
-        <div class="w-2 h-2 mt-2 rounded-full" :class="type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-destructive' : 'bg-primary')"></div>
-        <div class="flex-1 text-sm font-medium text-foreground" x-text="message"></div>
-        <button @click="show = false" class="text-muted-foreground hover:text-foreground text-xs">&times;</button>
-    </div>
 
     @if(!($hideNav ?? false))
-    <!-- Navigation Header -->
-    <header class="sticky top-0 z-40 w-full backdrop-blur-md bg-background/80 border-b border-border">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-6">
-                <a href="{{ url('/') }}" class="flex items-center gap-2">
-                    <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-7 h-7 object-contain">
-                    <span class="text-xl font-bold tracking-tight text-primary">ifoto<span class="text-foreground">set</span></span>
-                </a>
+        <header class="sticky top-0 z-40 w-full border-b border-border/70 glass">
+            <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+                <x-brand.logo :href="url('/')" />
+                <nav class="flex items-center gap-1.5">
+                    <x-ui.theme-toggle />
+                    @auth
+                        <a href="{{ route('studio.dashboard') }}" class="btn btn-primary btn-sm">Open studio <x-icon name="arrow-right" /></a>
+                    @else
+                        <a href="{{ route('login') }}" class="btn btn-ghost btn-sm">Sign in</a>
+                        <a href="{{ route('register') }}" class="btn btn-primary btn-sm">Start free</a>
+                    @endauth
+                </nav>
             </div>
-
-            <nav class="flex items-center gap-4">
-                @auth
-                    <a href="{{ url('/studio/dashboard') }}" class="text-sm font-medium text-foreground hover:text-primary transition-colors">Studio</a>
-                    <form method="POST" action="{{ route('logout') }}" class="inline">
-                        @csrf
-                        <button type="submit" class="text-sm font-medium text-muted-foreground hover:text-foreground">Logout</button>
-                    </form>
-                @else
-                    <a href="{{ route('login') }}" class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sign in</a>
-                    <a href="{{ route('register') }}" class="text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-lg shadow-sm hover:opacity-90 transition-opacity">Get Started</a>
-                @endauth
-            </nav>
-        </div>
-    </header>
+        </header>
     @endif
 
-    <!-- Main Content -->
     <main class="flex-1">
         {{ $slot ?? '' }}
         @yield('content')
@@ -89,19 +35,23 @@
     @hasSection('footer')
         @yield('footer')
     @elseif(!($hideFooter ?? false))
-    <!-- Public Footer -->
-    <footer class="border-t border-border bg-card py-10 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>&copy; {{ date('Y') }} ifotoset. All rights reserved.</p>
-            <div class="flex items-center gap-6">
-                <a href="{{ url('/') }}" class="hover:text-foreground transition-colors">Home</a>
-                <a href="{{ route('login') }}" class="hover:text-foreground transition-colors">Login</a>
-                <a href="{{ route('register') }}" class="hover:text-foreground transition-colors">Register</a>
+        <footer class="mt-auto border-t border-border">
+            <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-[13px] text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
+                <div class="flex items-center gap-3">
+                    <x-brand.logo :href="url('/')" size="sm" :wordmark="false" />
+                    <p>&copy; {{ date('Y') }} ifotoset. Crafted for photographers.</p>
+                </div>
+                <div class="flex items-center gap-5">
+                    <a href="{{ url('/') }}" class="transition hover:text-foreground">Home</a>
+                    <a href="{{ url('/') }}#pricing" class="transition hover:text-foreground">Pricing</a>
+                    <a href="{{ route('login') }}" class="transition hover:text-foreground">Sign in</a>
+                </div>
             </div>
-        </div>
-    </footer>
+        </footer>
     @endif
 
+    @include('layouts.partials.toaster')
+    @stack('modals')
     @stack('scripts')
 </body>
 </html>

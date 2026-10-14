@@ -30,7 +30,10 @@ async function handle(request, event) {
 
     // Authorization & Referer check: protected galleries require valid token; public gallery assets verify allowed context
     const url = new URL(request.url);
-    const authResult = await isAllowedRequest(request, url);
+    const pathToken = extractPathToken(url.pathname);
+    const authResult = pathToken
+        ? await verifyMediaToken(pathToken.dir + '/', pathToken.exp, pathToken.sig)
+        : await isAllowedRequest(request, url);
     if (!authResult) {
         return new Response('Forbidden: direct access is not allowed or media token is invalid/expired', {
             status: 403,
@@ -46,7 +49,7 @@ async function handle(request, event) {
         await authorizeStorage();
 
         // 2. Fetch from storage and cache/serve the asset
-        return await proxyAndCache(request, event);
+        return await proxyAndCache(request, event, pathToken ? pathToken.objectPath : null);
     } catch (err) {
         const cors = corsHeaders(request.headers.get('Origin'));
         cors.set('Content-Type', 'application/json; charset=utf-8');
@@ -76,12 +79,12 @@ async function authorizeStorage() {
     authExpiry = Date.now() + 23 * 60 * 60 * 1000; // Refresh token after 23 hours
 }
 
-async function proxyAndCache(request, event) {
+async function proxyAndCache(request, event, objectPathOverride = null) {
     const url = new URL(request.url);
     const originHeader = request.headers.get('Origin');
 
-    // Normalize path (remove double slashes, etc.)
-    let filePath = decodeURIComponent(url.pathname).replace(/\/{2,}/g, '/');
+    // Normalize path (remove double slashes, etc.). Path-token URLs are served from the object path without the token.
+    let filePath = decodeURIComponent(objectPathOverride || url.pathname).replace(/\/{2,}/g, '/');
 
     // Fallback: If requesting a gallery photo folder without a file extension, default to original.jpg
     const pathParts = filePath.split('/');
@@ -90,9 +93,12 @@ async function proxyAndCache(request, event) {
         filePath = `${filePath}/original.jpg`;
     }
 
-    // Ignore any query params for the cache key to maximize hits
+    // Ignore any query params (and path tokens) for the cache key to maximize hits
     const cacheKeyUrl = new URL(request.url);
     cacheKeyUrl.search = '';
+    if (objectPathOverride) {
+        cacheKeyUrl.pathname = objectPathOverride;
+    }
     const cacheKey = new Request(cacheKeyUrl.toString(), request);
     const cache = (typeof caches !== 'undefined' && caches.default) ? caches.default : null;
 
@@ -169,6 +175,13 @@ async function proxyAndCache(request, event) {
         outHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
     }
     outHeaders.set('Accept-Ranges', 'bytes');
+
+    // HLS playlists/segments uploaded before content types were set explicitly
+    if (filePath.endsWith('.m3u8')) {
+        outHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
+    } else if (filePath.endsWith('.ts')) {
+        outHeaders.set('Content-Type', 'video/mp2t');
+    }
     outHeaders.set('Vary', 'Origin, Accept');
 
     // Strip internal S3 headers
@@ -279,6 +292,19 @@ async function isAllowedRequest(request, url) {
 
     // Avatars and public brand assets remain accessible for emails and profiles
     return true;
+}
+
+// Directory-scoped token embedded in the path: /{dir}/_t/{exp}/{sig}/{file...}
+// Used for HLS so relative playlist/segment references inherit the token (query strings would be dropped).
+// The signature covers "{dir}/:{exp}", matching MediaTokenService::signDirectoryUrl().
+function extractPathToken(pathname) {
+    const match = pathname.match(/^(\/(?:protected-)?galleries\/.+?)\/_t\/(\d+)\/([0-9a-fA-F]{64})\/(.+)$/);
+    if (!match) return null;
+
+    const [, dir, exp, sig, rest] = match;
+    if (rest.split('/').includes('..')) return null;
+
+    return { dir, exp, sig, objectPath: `${dir}/${rest}` };
 }
 
 async function verifyMediaToken(pathname, exp, sig) {

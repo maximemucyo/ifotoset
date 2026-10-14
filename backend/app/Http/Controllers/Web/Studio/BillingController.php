@@ -48,6 +48,16 @@ class BillingController extends Controller
         $storageService = app(StorageStatisticsService::class);
         $storageStats = $storageService->getStorageStats($user);
 
+        // Subscription payment history (plan eager-loaded to avoid N+1 in the table)
+        $payments = Payment::where('user_id', $user->id)
+            ->where(fn ($q) => $q->where('purpose', 'plan_subscription')->orWhereNull('purpose'))
+            ->with('plan')
+            ->latest()
+            ->limit(25)
+            ->get();
+
+        $galleryCount = $user->galleries()->count();
+
         $rawReturnTo = $request->query('return_to');
         $returnTo = $rawReturnTo ? \App\Support\SafeReturnUrl::sanitize($rawReturnTo, route('studio.dashboard')) : null;
 
@@ -58,6 +68,8 @@ class BillingController extends Controller
             'activeSubscription' => $activeSubscription,
             'pendingPayment' => $pendingPayment,
             'returnTo' => $returnTo,
+            'payments' => $payments,
+            'galleryCount' => $galleryCount,
             'storage' => [
                 'used_bytes' => $storageStats['used_bytes'],
                 'limit_bytes' => $storageStats['limit_bytes'] ?? 2147483648,

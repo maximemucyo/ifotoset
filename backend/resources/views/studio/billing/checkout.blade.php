@@ -1,7 +1,28 @@
-@extends('layouts.app', ['title' => 'Checkout - ' . $plan->name])
+@extends('layouts.app', ['title' => 'Checkout · ' . $plan->name . ' · ifotoset'])
+
+@php
+    $fmtSize = function ($bytes): string {
+        $gb = ((float) $bytes) / (1024 ** 3);
+        if ($gb >= 1000) return rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB';
+        return rtrim(rtrim(number_format($gb, $gb >= 100 ? 0 : 1), '0'), '.') . ' GB';
+    };
+    $videoSeconds = (int) $plan->video_limit_seconds;
+    $videoLabel = $videoSeconds >= 3600
+        ? rtrim(rtrim(number_format($videoSeconds / 3600, 1), '0'), '.') . ' h of video delivery'
+        : ($videoSeconds > 0 ? round($videoSeconds / 60) . ' min of video delivery' : null);
+    $annualSaving = ($annualPrice > 0 && $monthlyPrice > 0 && $annualPrice < $monthlyPrice * 12)
+        ? (int) floor((1 - $annualPrice / ($monthlyPrice * 12)) * 100)
+        : 0;
+@endphp
+
+@section('breadcrumbs')
+    <a href="{{ route('studio.billing.index') }}" class="transition hover:text-foreground">Billing &amp; plans</a>
+    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
+    <span class="font-medium text-foreground">Checkout</span>
+@endsection
 
 @section('content')
-<div class="max-w-xl mx-auto space-y-4"
+<div class="mx-auto max-w-5xl"
      x-data="checkoutFlow({
          planSlug: '{{ $plan->slug }}',
          planName: '{{ $plan->name }}',
@@ -16,296 +37,344 @@
          returnTo: '{{ $returnTo ?? '' }}'
      })">
 
-    <!-- Back Navigation -->
-    <div>
-        <a :href="returnTo || '{{ route('studio.billing.index') }}'" class="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
-            &larr; <span x-text="returnTo ? 'Back to Gallery' : 'Back to Plans'">Back to Plans</span>
+    {{-- Back navigation + heading --}}
+    <div class="mb-8">
+        <a :href="returnTo || '{{ route('studio.billing.index') }}'" class="mb-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition hover:text-foreground">
+            <x-icon name="arrow-left" class="size-3.5" />
+            <span x-text="returnTo ? 'Back to gallery' : 'Back to plans'">Back to plans</span>
         </a>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 class="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">Upgrade to {{ $plan->name }}</h1>
+            <span class="badge badge-neutral"><x-icon name="lock" class="size-3" /> Secure checkout</span>
+        </div>
+        <p class="mt-1.5 text-sm text-muted-foreground">Pay instantly with MTN Mobile Money or Airtel Money. Your plan activates as soon as you approve.</p>
     </div>
 
-    <!-- Step 1: Payment Form View -->
-    <div x-show="step === 'input'" class="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-        <div>
-            <span class="text-xs font-bold uppercase tracking-wider text-primary">Secure Checkout</span>
-            <h1 class="text-2xl font-bold tracking-tight text-foreground mt-1">Upgrade to {{ $plan->name }}</h1>
-            <p class="text-xs text-muted-foreground mt-1">Pay with Mobile Money (MTN MoMo or Airtel Money Rwanda).</p>
-        </div>
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
 
-        <!-- Duration Selection -->
-        <div class="space-y-3">
-            <div class="flex items-center justify-between">
-                <label class="block text-xs font-semibold text-foreground">
-                    Subscription Duration
-                </label>
-                <span class="text-xs text-muted-foreground" x-text="durationSummary"></span>
-            </div>
-
-            <!-- Quick Pill Options -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button type="button"
-                        @click="setMonths(1)"
-                        :class="months === 1 ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary'"
-                        class="py-2.5 px-3 rounded-xl border text-xs text-center transition-all">
-                    1 Month
-                </button>
-                <button type="button"
-                        @click="setMonths(3)"
-                        :class="months === 3 ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary'"
-                        class="py-2.5 px-3 rounded-xl border text-xs text-center transition-all">
-                    3 Months
-                </button>
-                <button type="button"
-                        @click="setMonths(6)"
-                        :class="months === 6 ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary'"
-                        class="py-2.5 px-3 rounded-xl border text-xs text-center transition-all">
-                    6 Months
-                </button>
-                <button type="button"
-                        @click="setMonths(12)"
-                        :class="months === 12 ? 'border-primary bg-primary/10 text-primary font-bold shadow-sm' : 'border-border bg-secondary/40 text-muted-foreground hover:text-foreground hover:bg-secondary'"
-                        class="py-2.5 px-3 rounded-xl border text-xs text-center transition-all relative">
-                    <span>12 Months</span>
-                    @if($annualPrice > 0 && $annualPrice < ($monthlyPrice * 12))
-                        <span class="hidden sm:inline-block ml-1 text-[9px] font-bold text-primary uppercase">Save ~18%</span>
-                    @endif
-                </button>
-            </div>
-
-            <!-- Custom Months Stepper -->
-            <div class="flex items-center justify-between p-3 rounded-xl bg-secondary/20 border border-border text-xs">
-                <span class="text-muted-foreground">Or choose exact months:</span>
-                <div class="flex items-center gap-2.5">
-                    <button type="button"
-                            @click="decrementMonths()"
-                            :disabled="months <= 1"
-                            class="w-7 h-7 rounded-lg border border-border bg-card flex items-center justify-center font-bold hover:bg-secondary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                        &minus;
-                    </button>
-                    <span class="font-mono font-bold text-foreground text-xs min-w-[60px] text-center"
-                          x-text="months + (months === 1 ? ' month' : ' months')">
+        {{-- ================= Order summary ================= --}}
+        <aside class="card overflow-hidden lg:sticky lg:top-6 lg:order-2" aria-label="Order summary">
+            <div class="relative border-b border-border p-5">
+                <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+                <div class="relative flex items-start gap-3">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20">
+                        <x-icon name="crown" class="size-5" />
                     </span>
-                    <button type="button"
-                            @click="incrementMonths()"
-                            :disabled="months >= 36"
-                            class="w-7 h-7 rounded-lg border border-border bg-card flex items-center justify-center font-bold hover:bg-secondary disabled:opacity-30 disabled:pointer-events-none transition-colors">
-                        +
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Plan Summary Card -->
-        <div class="p-4 rounded-2xl bg-secondary/30 border border-border flex items-center justify-between gap-4">
-            <div class="space-y-1">
-                <div class="text-sm font-bold text-foreground flex items-center gap-1.5 flex-wrap">
-                    <span>{{ $plan->name }} Plan</span>
-                    <span class="text-muted-foreground font-normal">&bull;</span>
-                    <span class="text-primary font-semibold" x-text="durationLabel"></span>
-                </div>
-                <div class="text-xs text-muted-foreground">
-                    @if($plan->slug === 'basic') 50 GB Cloud Storage @elseif($plan->slug === 'pro') 1 TB (1,000 GB) Storage @else 3 TB Storage @endif
-                    &bull; Unlimited Galleries
-                </div>
-            </div>
-            <div class="text-right shrink-0">
-                <div class="text-lg font-extrabold text-primary" x-text="formattedPrice + ' ' + currency">{{ number_format($price, 0) }} {{ $plan->currency }}</div>
-                <div class="text-[11px] text-muted-foreground" x-text="billingSubtext">Billed {{ $billingCycle }}</div>
-            </div>
-        </div>
-
-        <!-- Phone Number & Telecom Selection -->
-        <form @submit.prevent="startPayment" class="space-y-6">
-            <div class="space-y-2">
-                <label class="block text-xs font-semibold text-foreground">
-                    Mobile Money Phone Number (Rwanda)
-                </label>
-                <!-- Responsive Input Group: Flag & Country Code cleanly segmented -->
-                <div class="flex items-stretch rounded-xl border border-border bg-input shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all overflow-hidden">
-                    <div class="flex items-center gap-1.5 px-3.5 py-3 bg-muted/40 border-r border-border text-xs font-mono font-medium text-foreground select-none shrink-0">
-                        <span class="text-base leading-none">🇷🇼</span>
-                        <span class="text-muted-foreground font-semibold">+250</span>
+                    <div class="min-w-0">
+                        <p class="eyebrow">Order summary</p>
+                        <p class="mt-0.5 text-[15px] font-semibold text-foreground">{{ $plan->name }} plan</p>
+                        <p class="text-xs text-muted-foreground" x-text="durationSummary"></p>
                     </div>
-                    <input type="tel"
-                           x-model="phone"
-                           @input="handlePhoneInput"
-                           required
-                           inputmode="numeric"
-                           autocomplete="tel"
-                           placeholder="788 000 000"
-                           class="flex-1 min-w-0 bg-transparent px-3.5 py-3 text-foreground text-sm font-mono tracking-wide focus:outline-none placeholder:text-muted-foreground/40">
                 </div>
-                
-                <!-- Telecom Network Detection Badge -->
-                <div class="flex items-center justify-between text-xs pt-1">
-                    <span class="text-muted-foreground">Network:</span>
-                    <span x-show="detectedProvider === 'MTN_MOMO_RWA'" class="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> MTN Mobile Money
-                    </span>
-                    <span x-show="detectedProvider === 'AIRTEL_RWA'" class="font-bold text-red-600 dark:text-red-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-red-500"></span> Airtel Money
-                    </span>
-                    <span x-show="!detectedProvider" class="text-muted-foreground italic">
-                        Auto-detected from phone number
-                    </span>
+                <ul class="relative mt-4 space-y-2 text-[13px] text-muted-foreground">
+                    <li class="flex items-center gap-2"><x-icon name="hard-drive" class="size-3.5 text-foreground/70" /> {{ $plan->storage_limit ? $fmtSize($plan->storage_limit) : 'Unlimited' }} cloud storage</li>
+                    @if($videoLabel)
+                        <li class="flex items-center gap-2"><x-icon name="video" class="size-3.5 text-foreground/70" /> {{ $videoLabel }}</li>
+                    @endif
+                    <li class="flex items-center gap-2"><x-icon name="images" class="size-3.5 text-foreground/70" /> {{ $plan->gallery_limit ? number_format($plan->gallery_limit) . ' galleries' : 'Unlimited galleries' }}</li>
+                </ul>
+            </div>
+
+            <dl class="space-y-2.5 p-5 text-[13px]">
+                <div class="flex items-center justify-between gap-4">
+                    <dt class="text-muted-foreground">Monthly price</dt>
+                    <dd class="tabular-nums text-foreground">{{ number_format($monthlyPrice, 0) }} {{ $plan->currency }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <dt class="text-muted-foreground">Duration</dt>
+                    <dd class="tabular-nums text-foreground" x-text="durationLabel">{{ $months }} {{ \Illuminate\Support\Str::plural('month', $months) }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-4" x-show="months === 12 && annualPrice > 0 && annualPrice < monthlyPrice * 12" x-cloak>
+                    <dt class="flex items-center gap-1.5 text-success"><x-icon name="tag" class="size-3.5" /> Annual discount</dt>
+                    <dd class="tabular-nums text-success" x-text="'− ' + new Intl.NumberFormat('en-US').format(monthlyPrice * 12 - annualPrice) + ' ' + currency"></dd>
+                </div>
+                <div class="!mt-4 flex items-end justify-between gap-4 border-t border-dashed border-border pt-4">
+                    <dt>
+                        <span class="block text-sm font-medium text-foreground">Total due today</span>
+                        <span class="block text-xs text-muted-foreground" x-text="billingSubtext">Billed {{ $billingCycle }}</span>
+                    </dt>
+                    <dd class="text-right">
+                        <span class="font-display text-2xl font-semibold tracking-tight tabular-nums text-foreground" x-text="formattedPrice">{{ number_format($price, 0) }}</span>
+                        <span class="text-xs text-muted-foreground" x-text="currency">{{ $plan->currency }}</span>
+                    </dd>
+                </div>
+            </dl>
+
+            <div class="flex items-start gap-2 border-t border-border bg-muted/40 px-5 py-3.5 text-xs text-muted-foreground">
+                <x-icon name="shield-check" class="mt-px size-4 shrink-0 text-success" />
+                <span>One-time Mobile Money payment. Nothing renews automatically, so you'll never be charged without approving it on your phone.</span>
+            </div>
+        </aside>
+
+        {{-- ================= Payment column ================= --}}
+        <div class="min-w-0 lg:order-1">
+
+            {{-- Step 1: payment form --}}
+            <div x-show="step === 'input'" class="card">
+                <form @submit.prevent="startPayment">
+                    {{-- Failure / error state --}}
+                    <div x-show="errorMessage" x-cloak class="border-b border-destructive/20 bg-destructive/8 px-5 py-4 sm:px-6" role="alert">
+                        <div class="flex items-start gap-3">
+                            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive"><x-icon name="circle-x" class="size-4" /></span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-foreground">Payment didn't go through</p>
+                                <p class="mt-0.5 text-[13px] text-muted-foreground" x-text="errorMessage"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Duration --}}
+                    <fieldset class="border-b border-border p-5 sm:p-6">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <legend class="text-sm font-medium text-foreground"><span class="mr-2 inline-flex size-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">1</span>Duration</legend>
+                            <span class="text-xs text-muted-foreground" x-text="durationSummary"></span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            @foreach([1 => '1 month', 3 => '3 months', 6 => '6 months', 12 => '12 months'] as $m => $label)
+                                <button type="button"
+                                        @click="setMonths({{ $m }})"
+                                        :aria-pressed="(months === {{ $m }}).toString()"
+                                        :class="months === {{ $m }} ? 'border-foreground bg-card ring-1 ring-foreground text-foreground' : 'border-border bg-card text-muted-foreground hover:border-border-strong hover:text-foreground'"
+                                        class="relative flex h-14 flex-col items-center justify-center rounded-lg border text-[13px] font-medium transition-all">
+                                    <span>{{ $label }}</span>
+                                    @if($m === 12 && $annualSaving > 0)
+                                        <span class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">Save {{ $annualSaving }}%</span>
+                                    @endif
+                                </button>
+                            @endforeach
+                        </div>
+
+                        <div class="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                            <span class="text-[13px] text-muted-foreground"><span class="hidden sm:inline">Or choose exact months</span><span class="sm:hidden">Exact months</span></span>
+                            <div class="flex items-center gap-1">
+                                <button type="button" @click="decrementMonths()" :disabled="months <= 1" class="btn btn-outline btn-icon btn-sm disabled:pointer-events-none disabled:opacity-40" aria-label="Fewer months">
+                                    <x-icon name="minus" />
+                                </button>
+                                <span class="min-w-20 text-center text-sm font-medium tabular-nums text-foreground" x-text="months + (months === 1 ? ' month' : ' months')"></span>
+                                <button type="button" @click="incrementMonths()" :disabled="months >= 36" class="btn btn-outline btn-icon btn-sm disabled:pointer-events-none disabled:opacity-40" aria-label="More months">
+                                    <x-icon name="plus" />
+                                </button>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    {{-- Operator + phone --}}
+                    <fieldset class="p-5 sm:p-6">
+                        <legend class="sr-only">Mobile Money account</legend>
+                        <p class="mb-3 text-sm font-medium text-foreground"><span class="mr-2 inline-flex size-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">2</span>Mobile Money network</p>
+
+                        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {{-- MTN --}}
+                            <button type="button"
+                                    @click="detectedProvider = 'MTN_MOMO_RWA'"
+                                    :aria-pressed="(detectedProvider === 'MTN_MOMO_RWA').toString()"
+                                    :class="detectedProvider === 'MTN_MOMO_RWA' ? 'border-foreground ring-1 ring-foreground' : 'border-border hover:border-border-strong'"
+                                    class="group relative flex items-center gap-3 rounded-xl border bg-card p-3 text-left transition-all">
+                                <span class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-[11px] font-black tracking-tight text-warning ring-1 ring-inset ring-warning/30" aria-hidden="true">MTN</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm font-medium text-foreground">MTN MoMo</span>
+                                    <span class="block text-xs tabular-nums text-muted-foreground">Numbers starting 078 · 079</span>
+                                </span>
+                                <span :class="detectedProvider === 'MTN_MOMO_RWA' ? 'border-foreground bg-foreground text-background' : 'border-border-strong text-transparent'"
+                                      class="flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors">
+                                    <x-icon name="check" class="size-3" stroke-width="3" />
+                                </span>
+                            </button>
+
+                            {{-- Airtel --}}
+                            <button type="button"
+                                    @click="detectedProvider = 'AIRTEL_RWA'"
+                                    :aria-pressed="(detectedProvider === 'AIRTEL_RWA').toString()"
+                                    :class="detectedProvider === 'AIRTEL_RWA' ? 'border-foreground ring-1 ring-foreground' : 'border-border hover:border-border-strong'"
+                                    class="group relative flex items-center gap-3 rounded-xl border bg-card p-3 text-left transition-all">
+                                <span class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-destructive/12 text-xl font-black italic text-destructive ring-1 ring-inset ring-destructive/25" aria-hidden="true">a</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm font-medium text-foreground">Airtel Money</span>
+                                    <span class="block text-xs tabular-nums text-muted-foreground">Numbers starting 072 · 073</span>
+                                </span>
+                                <span :class="detectedProvider === 'AIRTEL_RWA' ? 'border-foreground bg-foreground text-background' : 'border-border-strong text-transparent'"
+                                      class="flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors">
+                                    <x-icon name="check" class="size-3" stroke-width="3" />
+                                </span>
+                            </button>
+                        </div>
+
+                        <label for="checkout-phone" class="label mt-5">Phone number</label>
+                        <div class="flex h-11 items-stretch overflow-hidden rounded-lg border border-border bg-input shadow-xs transition-[border-color,box-shadow] hover:border-border-strong focus-within:border-ring focus-within:ring-4 focus-within:ring-ring/15">
+                            <span class="flex shrink-0 select-none items-center gap-2 border-r border-border bg-muted/50 px-3 text-sm text-foreground">
+                                <span class="text-base leading-none" aria-hidden="true">🇷🇼</span>
+                                <span class="font-medium tabular-nums text-muted-foreground">+250</span>
+                            </span>
+                            <input type="tel"
+                                   id="checkout-phone"
+                                   x-model="phone"
+                                   @input="handlePhoneInput"
+                                   required
+                                   inputmode="numeric"
+                                   autocomplete="tel"
+                                   placeholder="788 000 000"
+                                   class="min-w-0 flex-1 bg-transparent px-3 text-[15px] tracking-wide text-foreground tabular-nums placeholder:text-subtle focus:outline-none">
+                        </div>
+                        <p class="help flex items-center gap-1.5">
+                            <template x-if="detectedProvider">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="size-1.5 rounded-full" :class="detectedProvider === 'MTN_MOMO_RWA' ? 'bg-warning' : 'bg-destructive'"></span>
+                                    <span x-text="detectedProvider === 'MTN_MOMO_RWA' ? 'MTN Mobile Money' : 'Airtel Money'"></span>
+                                    <span class="hidden text-subtle sm:inline">· the payment prompt will be sent to this number</span>
+                                </span>
+                            </template>
+                            <template x-if="!detectedProvider">
+                                <span>We'll detect your network from the number.</span>
+                            </template>
+                        </p>
+
+                        <button type="submit" :disabled="isInitiating" class="btn btn-primary btn-lg mt-6 w-full disabled:opacity-60">
+                            <span x-show="!isInitiating" class="inline-flex items-center gap-2">
+                                <x-icon name="lock" />
+                                <span x-text="'Pay ' + formattedPrice + ' ' + currency">Pay {{ number_format($price, 0) }} {{ $plan->currency }}</span>
+                            </span>
+                            <span x-show="isInitiating" x-cloak class="inline-flex items-center gap-2">
+                                <x-icon name="loader-circle" class="animate-spin" />
+                                Sending prompt to your phone…
+                            </span>
+                        </button>
+
+                        <p class="mt-4 text-center text-xs text-muted-foreground">
+                            <x-icon name="shield-check" class="-mt-0.5 mr-1 inline size-3.5 text-success" />
+                            Processed securely by PawaPay. We never see your PIN.
+                        </p>
+                    </fieldset>
+                </form>
+            </div>
+
+            {{-- Step 2: waiting for approval --}}
+            <div x-show="step === 'waiting'" x-cloak class="card overflow-hidden">
+                <div class="relative px-5 pb-6 pt-10 text-center sm:px-8">
+                    <div class="pointer-events-none absolute inset-0 bg-grid opacity-40 mask-radial"></div>
+
+                    <div class="relative mx-auto flex size-20 items-center justify-center">
+                        <span class="absolute inset-0 animate-ping rounded-full bg-brand/15 [animation-duration:2s]"></span>
+                        <span class="absolute inset-2 rounded-full bg-brand/10"></span>
+                        <span class="relative flex size-14 items-center justify-center rounded-2xl border border-border bg-card text-brand shadow-sm">
+                            <x-icon name="smartphone" class="size-6" />
+                        </span>
+                    </div>
+
+                    <h2 class="relative mt-6 text-xl font-semibold tracking-tight text-foreground">Approve the prompt on your phone</h2>
+                    <p class="relative mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">
+                        We sent a Mobile Money request to <span class="whitespace-nowrap font-medium tabular-nums text-foreground" x-text="formattedDisplayPhone"></span>.
+                        Enter your PIN to confirm <span class="font-medium tabular-nums text-foreground" x-text="formattedPrice + ' ' + currency"></span>.
+                    </p>
+
+                    <div class="relative mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-xs" role="status" aria-live="polite">
+                        <x-icon name="loader-circle" class="size-3.5 animate-spin text-brand" />
+                        <span>Waiting for confirmation</span>
+                        <span class="font-medium tabular-nums text-foreground" x-text="elapsedSeconds + 's'"></span>
+                    </div>
+                </div>
+
+                {{-- Progress steps --}}
+                <ol class="grid border-y border-border bg-muted/30 text-xs sm:grid-cols-3">
+                    <li class="flex items-center gap-2.5 border-b border-border px-5 py-3 sm:border-b-0 sm:border-r">
+                        <span class="flex size-5 items-center justify-center rounded-full bg-success text-background"><x-icon name="check" class="size-3" stroke-width="3" /></span>
+                        <span class="font-medium text-foreground">Prompt sent</span>
+                    </li>
+                    <li class="flex items-center gap-2.5 border-b border-border px-5 py-3 sm:border-b-0 sm:border-r">
+                        <span class="flex size-5 items-center justify-center rounded-full border-2 border-brand"><span class="size-1.5 animate-pulse rounded-full bg-brand"></span></span>
+                        <span class="font-medium text-foreground">Approve with your PIN</span>
+                    </li>
+                    <li class="flex items-center gap-2.5 px-5 py-3">
+                        <span class="flex size-5 items-center justify-center rounded-full border border-border-strong"></span>
+                        <span class="text-muted-foreground">Plan activated</span>
+                    </li>
+                </ol>
+
+                <div class="space-y-4 p-5 sm:p-6">
+                    {{-- Recap --}}
+                    <div class="flex items-center justify-between gap-4 rounded-lg border border-border p-3.5">
+                        <div class="min-w-0">
+                            <p class="text-xs text-muted-foreground">Amount</p>
+                            <p class="text-base font-semibold tabular-nums text-foreground" x-text="formattedPrice + ' ' + currency"></p>
+                            <p class="truncate text-xs text-muted-foreground" x-text="planName + ' plan · ' + durationLabel"></p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-muted-foreground">Paying from</p>
+                            <p class="whitespace-nowrap text-sm font-medium tabular-nums text-foreground" x-text="formattedDisplayPhone"></p>
+                            <span x-show="detectedProvider === 'MTN_MOMO_RWA'" class="badge badge-warning mt-1">MTN MoMo</span>
+                            <span x-show="detectedProvider === 'AIRTEL_RWA'" class="badge badge-danger mt-1">Airtel Money</span>
+                        </div>
+                    </div>
+
+                    {{-- Manual fallback --}}
+                    <div x-data="{ open: false }" class="rounded-lg border border-border">
+                        <button type="button" @click="open = !open" :aria-expanded="open.toString()" class="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-[13px] font-medium text-foreground">
+                            <span class="flex items-center gap-2"><x-icon name="help-circle" class="size-4 text-muted-foreground" /> Didn't get the prompt?</span>
+                            <x-icon name="chevron-down" class="size-4 text-muted-foreground transition-transform" ::class="open && 'rotate-180'" />
+                        </button>
+                        <div x-show="open" x-collapse x-cloak class="border-t border-border px-3.5 py-3">
+                            <ol class="space-y-2 text-[13px] text-muted-foreground">
+                                <li class="flex items-center gap-2.5">
+                                    <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground">1</span>
+                                    <span>Dial <a href="tel:*182*7*1%23" class="font-medium tabular-nums text-foreground underline decoration-border-strong underline-offset-4 hover:decoration-foreground" title="Tap to dial">*182*7*1#</a> on your phone</span>
+                                    <button type="button" @click="copyUssdCode()" class="btn btn-ghost btn-xs ml-auto" :aria-label="ussdCopied ? 'Copied' : 'Copy code'">
+                                        <x-icon name="copy" x-show="!ussdCopied" />
+                                        <x-icon name="check" x-show="ussdCopied" x-cloak class="text-success" />
+                                    </button>
+                                </li>
+                                <li class="flex items-center gap-2.5">
+                                    <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground">2</span>
+                                    Enter your Mobile Money PIN
+                                </li>
+                                <li class="flex items-center gap-2.5">
+                                    <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground">3</span>
+                                    Select the pending payment to confirm
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    {{-- Timeout notice --}}
+                    <div x-show="isTimedOut" x-cloak class="alert alert-warning">
+                        <x-icon name="clock" />
+                        <div class="min-w-0 flex-1">
+                            <p class="font-medium">Still waiting for confirmation</p>
+                            <p class="mt-0.5 text-[13px] text-muted-foreground">If you already entered your PIN, you can safely leave this page. Your plan activates automatically as soon as confirmation arrives.</p>
+                            <a href="{{ route('studio.billing.index') }}" class="btn btn-outline btn-sm mt-3">View billing <x-icon name="arrow-right" /></a>
+                        </div>
+                    </div>
+
+                    <p class="text-center text-[13px] text-muted-foreground">
+                        Wrong number?
+                        <button type="button" @click="cancelWaiting()" class="link">Change phone number</button>
+                    </p>
                 </div>
             </div>
 
-            <!-- Error message if any -->
-            <div x-show="errorMessage" class="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium" x-text="errorMessage"></div>
+            {{-- Step 3: success --}}
+            <div x-show="step === 'success'" x-cloak class="card overflow-hidden">
+                <div class="relative px-5 py-10 text-center sm:px-8">
+                    <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+                    <div class="relative mx-auto flex size-16 items-center justify-center rounded-full bg-success/12 text-success ring-8 ring-success/5 animate-scale-in">
+                        <x-icon name="check" class="size-8" stroke-width="2.5" />
+                    </div>
+                    <h2 class="relative mt-6 text-2xl font-semibold tracking-tight text-foreground">Payment successful</h2>
+                    <p class="relative mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                        You're now on <span class="font-medium text-foreground">{{ $plan->name }}</span> for <span class="font-medium text-foreground" x-text="durationLabel"></span>.
+                        Your new storage and features are active right away.
+                    </p>
 
-            <!-- Submit Button -->
-            <button type="submit"
-                    :disabled="isInitiating"
-                    class="w-full py-3.5 px-6 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50">
-                <span x-show="!isInitiating" x-text="'Pay ' + formattedPrice + ' ' + currency">Pay {{ number_format($price, 0) }} {{ $plan->currency }}</span>
-                <span x-show="isInitiating" class="flex items-center gap-2">
-                    <svg class="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Sending payment prompt to your phone...
-                </span>
-            </button>
-        </form>
-
-        <!-- Trust and Security Footnote (Clean, friendly, no jargon) -->
-        <div class="pt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground text-center">
-            <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            <span>Safe and secure payment via MTN Mobile Money or Airtel Money</span>
-        </div>
-    </div>
-
-    <!-- Step 2: Waiting / Authorization View -->
-    <div x-show="step === 'waiting'" style="display: none;" class="bg-card border border-border rounded-3xl p-5 sm:p-6 shadow-sm space-y-3.5 text-center">
-        <!-- Compact Header: Status Badge + Live Ping + Title -->
-        <div class="space-y-1.5">
-            <div class="flex items-center justify-center gap-2">
-                <div class="relative w-7 h-7 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/30"></span>
-                    <svg class="w-3.5 h-3.5 animate-pulse relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                    </svg>
-                </div>
-                <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                    <span>Awaiting Payment Authorization</span>
+                    <div class="relative mt-8 flex flex-col-reverse items-stretch justify-center gap-2 sm:flex-row sm:items-center">
+                        <a :href="'/studio/billing/receipt/' + paymentUuid" class="btn btn-outline"><x-icon name="receipt" /> View receipt</a>
+                        <template x-if="returnTo">
+                            <a :href="returnToWithStatus" class="btn btn-primary">Return to gallery &amp; resume upload <x-icon name="arrow-right" /></a>
+                        </template>
+                        <template x-if="!returnTo">
+                            <a href="{{ route('studio.dashboard') }}" class="btn btn-primary">Go to dashboard <x-icon name="arrow-right" /></a>
+                        </template>
+                    </div>
                 </div>
             </div>
-
-            <div>
-                <h2 class="text-lg sm:text-xl font-bold tracking-tight text-foreground">Approve the payment on your phone</h2>
-                <p class="text-[11px] text-muted-foreground mt-0.5">
-                    Check your phone for the Mobile Money prompt to authorize the transaction.
-                </p>
-            </div>
-        </div>
-
-        <!-- Streamlined Transaction Summary Capsule (Compact 1-row layout) -->
-        <div class="p-3 sm:p-3.5 rounded-2xl bg-secondary/30 border border-border flex items-center justify-between gap-4 text-left">
-            <div>
-                <div class="text-[11px] text-muted-foreground">Amount to Pay</div>
-                <div class="text-lg sm:text-xl font-black text-primary font-mono leading-tight" x-text="formattedPrice + ' ' + currency"></div>
-                <div class="text-[11px] text-muted-foreground mt-0.5" x-text="planName + ' Plan &bull; ' + durationLabel"></div>
-            </div>
-            <div class="text-right">
-                <div class="text-[11px] text-muted-foreground">Recipient Phone</div>
-                <div class="font-mono font-bold text-foreground text-xs sm:text-sm leading-tight" x-text="formattedDisplayPhone"></div>
-                <div class="pt-0.5">
-                    <span x-show="detectedProvider === 'MTN_MOMO_RWA'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold text-[10px] border border-amber-500/20">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> MTN MoMo
-                    </span>
-                    <span x-show="detectedProvider === 'AIRTEL_RWA'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-700 dark:text-red-300 font-semibold text-[10px] border border-red-500/20">
-                        <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Airtel Money
-                    </span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Compact USSD Manual Approval Guide -->
-        <div class="p-3 sm:p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left space-y-2">
-            <div class="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                </svg>
-                <span>Didn't receive the prompt on your phone?</span>
-            </div>
-
-            <!-- 3-step Quick Manual Guide -->
-            <div class="text-xs text-muted-foreground bg-background/70 rounded-xl p-2.5 border border-border/50 space-y-1.5">
-                <div class="flex items-center gap-2">
-                    <span class="w-4 h-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
-                    <span class="text-foreground">Dial <a href="tel:*182*7*1%23" class="font-mono font-bold text-amber-600 dark:text-amber-400 hover:underline" title="Click to dial">*182*7*1#</a> on your phone</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-4 h-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
-                    <span class="text-foreground">Enter your Mobile Money PIN</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-4 h-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
-                    <span class="text-foreground">Select the pending payment to confirm</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Realtime Status Ticker & Edit Number (Single compact row) -->
-        <div class="flex items-center justify-center flex-wrap gap-2 text-xs text-muted-foreground pt-0.5">
-            <div class="flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 animate-spin text-primary shrink-0" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Waiting for confirmation... (<strong class="font-mono text-foreground" x-text="elapsedSeconds + 's'"></strong>)</span>
-            </div>
-            <span class="text-muted-foreground/40 hidden sm:inline">&bull;</span>
-            <div>
-                Wrong number?
-                <button type="button" @click="cancelWaiting()" class="text-primary hover:underline font-semibold ml-0.5">
-                    Change phone number
-                </button>
-            </div>
-        </div>
-
-        <!-- Graceful Timeout Notice -->
-        <div x-show="isTimedOut" class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-left space-y-1.5">
-            <div class="font-bold text-amber-700 dark:text-amber-300">Still waiting for confirmation</div>
-            <p class="text-muted-foreground leading-relaxed text-[11px]">
-                If you already entered your PIN, you can safely leave this page &mdash; your account will activate automatically as soon as confirmation is received.
-            </p>
-            <div class="pt-0.5">
-                <a :href="billingUrl" class="inline-block px-3 py-1.5 rounded-lg bg-secondary font-bold text-foreground text-xs hover:bg-secondary/80 transition-colors">
-                    View Billing &rarr;
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Step 3: Success Celebration View -->
-    <div x-show="step === 'success'" style="display: none;" class="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 text-center">
-        <div class="w-16 h-16 rounded-full bg-green-500/10 text-green-500 mx-auto flex items-center justify-center text-3xl font-bold">
-            &check;
-        </div>
-
-        <div class="space-y-2">
-            <h2 class="text-2xl font-bold text-foreground">Payment Successful!</h2>
-            <p class="text-xs text-muted-foreground max-w-sm mx-auto">
-                Your account has been upgraded to <strong class="text-foreground">{{ $plan->name }}</strong> for <span class="font-semibold" x-text="durationLabel"></span>. Your new storage quota and features are active immediately.
-            </p>
-        </div>
-
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
-            <a :href="'/studio/billing/receipt/' + paymentUuid" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-secondary text-foreground hover:bg-secondary/80 transition-colors">
-                View Receipt
-            </a>
-            <template x-if="returnTo">
-                <a :href="returnToWithStatus" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm flex items-center justify-center gap-1.5">
-                    <span>Return to Gallery &amp; Resume Upload</span>
-                    <span>&rarr;</span>
-                </a>
-            </template>
-            <template x-if="!returnTo">
-                <a href="{{ route('studio.dashboard') }}" class="w-full sm:w-auto py-2.5 px-5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                    Go to Studio Dashboard &rarr;
-                </a>
-            </template>
         </div>
     </div>
 </div>
@@ -398,9 +467,9 @@ function checkoutFlow(config) {
         },
 
         get durationLabel() {
-            if (this.months === 1) return '1 Month';
-            if (this.months === 12) return '12 Months (1 Year)';
-            return `${this.months} Months`;
+            if (this.months === 1) return '1 month';
+            if (this.months === 12) return '12 months (1 year)';
+            return `${this.months} months`;
         },
 
         get durationSummary() {

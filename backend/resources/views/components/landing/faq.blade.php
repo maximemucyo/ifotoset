@@ -43,55 +43,49 @@ $faqItems = [
 ];
 @endphp
 
-<section id="faq" x-data="{ openIndex: null }" class="py-20 md:py-28 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto overflow-hidden border-t border-border/80">
-    <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
-            Frequently Asked Questions
-        </h2>
-        <p class="text-lg text-muted-foreground">
-            Everything you need to know about the platform, delivery features, and studio plans.
-        </p>
-    </div>
+<section id="faq" x-data="{ openIndex: 0 }" class="relative border-t border-border py-24 sm:py-32">
+    <div class="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16 lg:px-8">
+        <div class="lg:sticky lg:top-28 lg:self-start">
+            <x-landing.section-heading align="left" eyebrow="FAQ" description="Everything you need to know about the platform, delivery features and studio plans.">
+                Questions, <em class="font-serif font-normal italic tracking-normal">answered</em>.
+            </x-landing.section-heading>
+            <div class="mt-8 hidden items-center gap-3 rounded-xl border border-border bg-card p-4 lg:flex" data-reveal>
+                <span class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="life-buoy" /></span>
+                <p class="text-[13.5px] text-muted-foreground">Still unsure? Start on the free plan and explore everything at your own pace.</p>
+            </div>
+        </div>
 
-    <div class="max-w-3xl mx-auto space-y-4">
-        @foreach($faqItems as $idx => $item)
-            <div class="bg-card border border-border rounded-xl overflow-hidden transition-all duration-300">
-                <!-- Accordion Trigger Header -->
-                <button
-                    type="button"
-                    @click="openIndex = (openIndex === {{ $idx }} ? null : {{ $idx }})"
-                    :aria-expanded="openIndex === {{ $idx }}"
-                    class="w-full px-6 py-5 flex items-center justify-between text-left font-bold text-foreground text-sm sm:text-base outline-none focus-visible:bg-secondary/40 hover:bg-secondary/20 transition-colors"
-                >
-                    <span>{{ $item['question'] }}</span>
-                    <svg
-                        class="w-5 h-5 text-muted-foreground transition-transform duration-300"
-                        :class="openIndex === {{ $idx }} ? 'rotate-180 text-primary' : ''"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+        <div class="divide-y divide-border border-y border-border" data-reveal>
+            @foreach($faqItems as $idx => $item)
+                <div>
+                    <h3 class="text-base">
+                        <button
+                            type="button"
+                            id="faq-q-{{ $idx }}"
+                            aria-controls="faq-a-{{ $idx }}"
+                            @click="openIndex = (openIndex === {{ $idx }} ? null : {{ $idx }})"
+                            :aria-expanded="(openIndex === {{ $idx }}).toString()"
+                            class="group flex w-full items-center justify-between gap-6 py-5 text-left font-sans text-[15.5px] font-medium tracking-normal text-foreground transition-colors hover:text-foreground/80"
+                        >
+                            <span>{{ $item['question'] }}</span>
+                            <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-[transform,background-color,color] duration-300"
+                                :class="openIndex === {{ $idx }} ? 'rotate-45 bg-foreground text-background border-foreground' : 'group-hover:border-border-strong'">
+                                <x-icon name="plus" class="size-3.5" />
+                            </span>
+                        </button>
+                    </h3>
+                    <div
+                        id="faq-a-{{ $idx }}"
+                        role="region"
+                        aria-labelledby="faq-q-{{ $idx }}"
+                        x-show="openIndex === {{ $idx }}"
+                        x-collapse
+                        @if($idx !== 0) x-cloak @endif
                     >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-
-                <!-- Accordion Panel Body -->
-                <div
-                    x-show="openIndex === {{ $idx }}"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 -translate-y-2"
-                    x-transition:enter-end="opacity-100 translate-y-0"
-                    x-transition:leave="transition ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0"
-                    x-transition:leave-end="opacity-0 -translate-y-2"
-                    class="border-t border-border/60"
-                    style="display: none;"
-                >
-                    <div class="p-6 text-sm sm:text-base text-muted-foreground leading-relaxed">
-                        {{ $item['answer'] }}
+                        <p class="max-w-2xl pb-6 pr-10 text-[14.5px] leading-relaxed text-muted-foreground">{{ $item['answer'] }}</p>
                     </div>
                 </div>
-            </div>
-        @endforeach
+            @endforeach
+        </div>
     </div>
 </section>

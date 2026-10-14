@@ -154,14 +154,17 @@ class UploadService
         // Generate unique UUID and object path
         $photoUuid = Uuid::uuid7()->toString();
         $basename = pathinfo($filename, PATHINFO_FILENAME);
-        $sanitizedBasename = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $basename);
+        $sanitizedBasename = trim(preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $basename), '.');
+        if ($sanitizedBasename === '') {
+            $sanitizedBasename = $isVideo ? 'video' : 'photo';
+        }
         $sanitizedFilename = $sanitizedBasename . '.' . $extension;
 
         $isProtected = ($gallery->visibility !== 'public' || !empty($gallery->password_hash));
         $prefix = $isProtected ? "protected-galleries/{$gallery->uuid}/" : "galleries/{$gallery->uuid}/";
 
         if ($isVideo) {
-            $objectKey = "{$prefix}videos/{$photoUuid}/original.{$extension}";
+            $objectKey = "{$prefix}videos/{$photoUuid}/{$sanitizedFilename}";
         } else {
             $objectKey = "{$prefix}photos/{$photoUuid}/{$sanitizedFilename}";
         }
@@ -229,11 +232,12 @@ class UploadService
 
         // 2. Database Transaction: Create photo/video record & update upload session status
         return DB::transaction(function () use ($session, $user) {
+            // Keyed by bucket so switching buckets (e.g. local S3 -> Backblaze) doesn't reuse a stale CDN domain
             $defaultDisk = StorageDisk::firstOrCreate([
                 'driver' => 'b2',
+                'bucket' => config('filesystems.disks.b2.bucket', 'ifotoset-media'),
             ], [
                 'uuid' => Uuid::uuid7()->toString(),
-                'bucket' => config('filesystems.disks.b2.bucket', 'ifotoset-media'),
                 'region' => config('filesystems.disks.b2.region', 'us-east-005'),
                 'cdn_domain' => config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com'),
             ]);

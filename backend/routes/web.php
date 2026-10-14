@@ -213,6 +213,7 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
     Route::get('/settings', [StudioSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/profile', [StudioSettingsController::class, 'updateProfile'])->name('settings.profile');
     Route::post('/settings/password', [StudioSettingsController::class, 'updatePassword'])->name('settings.password');
+    Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->name('settings.public-profile');
     Route::post('/settings/notifications', [StudioSettingsController::class, 'updateNotifications'])->name('settings.notifications');
 
     // Trash & Lifecycle

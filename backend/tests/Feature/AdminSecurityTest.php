@@ -90,7 +90,7 @@ class AdminSecurityTest extends TestCase
         $response = $this->actingAs($this->admin)->get('/admin/dashboard');
 
         $response->assertStatus(200);
-        $response->assertSee('Platform Overview');
+        $response->assertSee('Platform overview');
     }
 
     public function test_admin_cannot_demote_themselves(): void

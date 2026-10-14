@@ -10,10 +10,11 @@ RUN apk add --no-cache \
     freetype-dev \
     libwebp-dev \
     libzip-dev \
+    icu-dev \
     ffmpeg
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp
-RUN docker-php-ext-install pdo_mysql bcmath gd exif zip pcntl
+RUN docker-php-ext-install pdo_mysql bcmath gd exif zip pcntl intl opcache
 
 # Install Redis extension
 RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \

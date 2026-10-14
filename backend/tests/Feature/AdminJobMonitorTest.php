@@ -134,7 +134,7 @@ class AdminJobMonitorTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertViewIs('admin.jobs');
-        $response->assertSee('Processing Queue &amp; Exports', false);
+        $response->assertSee('Processing queue', false);
         $response->assertSee('Uploading WebP');
         $response->assertSee('original_sample.jpg');
     }

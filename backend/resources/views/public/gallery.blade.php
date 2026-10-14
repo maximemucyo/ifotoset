@@ -1,5 +1,12 @@
 @php
     $isGranted = $accessDecision->isGranted();
+    $eventDate = $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date) : null;
+    $photoTotal = $isGranted ? $gallery->public_photo_count : 0;
+    $allowPhotoDownloads = (bool) $gallery->allow_photo_downloads;
+    $iconBtn = 'inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-full px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
+    $lbBtn = 'inline-flex size-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
+    $panel = 'w-full max-w-sm animate-scale-in overflow-hidden rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
+    $backdrop = 'fixed inset-0 z-[60] flex hidden items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center';
 @endphp
 
 @extends('layouts.public', [
@@ -9,823 +16,617 @@
     'defaultTheme' => 'light',
 ])
 
+@push('styles')
+<style>
+    @keyframes gallery-hero-in { from { transform: scale(1.08); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+    @keyframes gallery-cue { 0% { transform: translateY(-100%); } 60%, 100% { transform: translateY(220%); } }
+    .gallery-hero-img { animation: gallery-hero-in 2.4s cubic-bezier(.16,1,.3,1) both; }
+    .gallery-cue-line { animation: gallery-cue 2.2s cubic-bezier(.65,0,.35,1) infinite; }
+    #gallery-header[data-state="overlay"] { color: #fff; }
+    #gallery-header[data-state="overlay"] .gallery-header-sub { color: rgb(255 255 255 / .75); }
+    #gallery-header[data-state="overlay"] .gallery-header-btn:hover { background: rgb(255 255 255 / .14); color: #fff; }
+    @media (prefers-reduced-motion: reduce) { .gallery-hero-img, .gallery-cue-line { animation: none; } }
+</style>
+@endpush
+
 @section('content')
 
-<!-- Dedicated Dynamic Sticky Header -->
+{{-- Icons for markup rendered from JS (see resources/js/gallery/modules/icons.js) --}}
+<template id="gallery-icon-sprites">
+    @foreach(['heart', 'share', 'download', 'play', 'check', 'copy'] as $spriteIcon)
+        <span data-icon="{{ $spriteIcon }}"><x-icon :name="$spriteIcon" /></span>
+    @endforeach
+</template>
+
+{{-- Top bar: transparent over the cover, slides away once the sticky toolbar takes over --}}
 <header id="gallery-header"
-        class="fixed top-0 inset-x-0 z-40 transition-all duration-300 transform bg-black/20 text-white backdrop-blur-[2px] border-b border-white/10"
+        data-state="{{ ($isGranted && $coverUrl) ? 'overlay' : 'plain' }}"
+        class="fixed inset-x-0 top-0 z-40 text-foreground transition-[transform,color] duration-500 ease-out"
         style="transform: translateY(0);">
-    <div class="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        <!-- Logo & Title -->
-        <div class="flex items-center gap-3 min-w-0">
-            <a href="{{ app(\App\Services\PublicUrlService::class)->homeUrl(['utm_source' => 'gallery', 'utm_medium' => 'header_logo', 'utm_campaign' => 'powered_by']) }}" class="flex items-center gap-2 shrink-0">
-                <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-7 h-7 object-contain">
-                <span class="text-lg font-bold tracking-tight text-primary">ifoto<span class="text-foreground">set</span></span>
-            </a>
-            <div class="h-4 w-px bg-current opacity-20 shrink-0"></div>
-            <h1 class="font-bold text-base sm:text-lg truncate max-w-[160px] sm:max-w-md">
-                {{ $gallery->title }}
-            </h1>
-        </div>
+    <div class="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" style="padding-top: env(safe-area-inset-top);">
+        <a href="{{ $photographer->public_url }}" class="group flex min-w-0 items-center gap-2.5">
+            <x-ui.avatar :name="$photographer->name" :src="$photographer->avatar_url" size="sm" class="ring-1 ring-white/20" />
+            <span class="min-w-0">
+                <span class="block truncate text-[13px] font-semibold tracking-tight">{{ $photographer->name }}</span>
+                <span class="gallery-header-sub block truncate text-[11px] text-muted-foreground">Photography</span>
+            </span>
+        </a>
 
-        <!-- Photographer info & Theme Toggle -->
-        <div class="flex items-center gap-3 text-xs shrink-0">
-            <a href="{{ $photographer->public_url }}"
-               class="hidden sm:flex items-center gap-1.5 font-medium hover:underline opacity-90 hover:opacity-100">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span>By {{ $photographer->name }}</span>
-            </a>
-
-            @if($gallery->event_date && $isGranted)
-                <span class="hidden md:flex items-center gap-1.5 font-medium opacity-80">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{{ \Carbon\Carbon::parse($gallery->event_date)->format('M d, Y') }}</span>
-                </span>
-            @endif
-
-            <div class="h-4 w-px bg-current opacity-20 hidden sm:block"></div>
-
-            <!-- Theme Toggle -->
-            <button type="button"
-                    onclick="toggleTheme()"
-                    class="p-2 rounded-xl hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                    aria-label="Toggle theme">
-                <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-            </button>
-        </div>
+        <button type="button"
+                x-data
+                @click="$store.theme.toggle()"
+                class="gallery-header-btn inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-muted"
+                aria-label="Toggle theme" title="Toggle theme">
+            <x-icon name="sun" class="hidden size-[18px] dark:block" />
+            <x-icon name="moon" class="block size-[18px] dark:hidden" />
+        </button>
     </div>
 </header>
 
-@if($accessDecision->requiresPassword())
-    <!-- PIN Protection Screen (Zero Hero or Photo Exposure) -->
-    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
-        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-5" x-data="{ password: '', error: '', unlocking: false }">
-            <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-            </div>
-            <div>
-                <h2 class="text-2xl font-bold text-foreground">PIN Protected Gallery</h2>
-                <p class="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    This collection is protected. Please enter the gallery PIN provided by the photographer to access photos.
+@if(! $isGranted)
+    {{-- ===================== Access gates (no cover or photo exposure) ===================== --}}
+    <section class="relative flex min-h-svh items-center justify-center overflow-hidden px-5 pb-16 pt-24">
+        <div class="pointer-events-none absolute inset-0 bg-dots opacity-50 mask-radial"></div>
+        <div class="pointer-events-none absolute left-1/2 top-1/3 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/10 blur-3xl"></div>
+
+        <div class="relative w-full max-w-sm animate-fade-up text-center">
+            @if($accessDecision->requiresPassword())
+                <div class="mx-auto mb-7 flex size-14 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
+                    <x-icon name="lock" class="size-5" />
+                </div>
+                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Private gallery</p>
+                <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gallery->title }}</h1>
+                <p class="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                    {{ $photographer->name }} has protected this collection. Enter the PIN you were given to continue.
                 </p>
-            </div>
 
-            @if($passwordHint)
-                <div class="p-3 rounded-xl bg-secondary/50 border border-border text-xs text-primary font-medium">
-                    Hint: {{ $passwordHint }}
+                <div class="mt-8 text-left" x-data="{ password: '', error: '', unlocking: false }">
+                    <form @submit.prevent="
+                        unlocking = true;
+                        error = '';
+                        fetch(window.location.pathname.replace(/\/+$/, '') + '/unlock', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({ password: password })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            unlocking = false;
+                            if (data.success) {
+                                window.location.reload();
+                            } else {
+                                error = data.message || 'The PIN you entered is incorrect.';
+                            }
+                        })
+                        .catch(() => {
+                            unlocking = false;
+                            error = 'An unexpected error occurred. Please try again.';
+                        })
+                    " class="space-y-3">
+                        <label for="gallery-pin" class="sr-only">Gallery PIN</label>
+                        <input type="password"
+                               id="gallery-pin"
+                               x-model="password"
+                               required
+                               autofocus
+                               autocomplete="off"
+                               placeholder="Enter PIN"
+                               :class="error && 'input-error'"
+                               class="input h-12 rounded-xl text-center font-mono text-lg tracking-[0.4em] placeholder:font-sans placeholder:text-sm placeholder:tracking-normal">
+                        <p x-show="error" x-text="error" x-cloak class="flex items-center justify-center gap-1.5 text-center text-xs font-medium text-destructive"></p>
+
+                        <button type="submit" :disabled="unlocking" class="btn btn-primary btn-lg w-full">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="unlocking" x-cloak />
+                            <span x-text="unlocking ? 'Verifying…' : 'Unlock gallery'">Unlock gallery</span>
+                            <x-icon name="arrow-right" x-show="!unlocking" />
+                        </button>
+                    </form>
+
+                    @if($passwordHint)
+                        <p class="mt-5 flex items-center justify-center gap-2 text-[13px] text-muted-foreground">
+                            <x-icon name="key" class="size-3.5" />
+                            <span>{{ $passwordHint }}</span>
+                        </p>
+                    @endif
                 </div>
-            @endif
-
-            <form @submit.prevent="
-                unlocking = true;
-                error = '';
-                fetch(window.location.pathname.replace(/\/+$/, '') + '/unlock', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ password: password })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    unlocking = false;
-                    if (data.success) {
-                        window.location.reload();
+            @else
+                @php
+                    if ($accessDecision->requiresInvitation()) {
+                        [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['mail', 'Invitation only', 'This gallery is for invited guests', 'Please open the personal invitation link that was emailed to you to view this collection.', 'text-foreground'];
+                    } elseif ($accessDecision->isInvitationInvalid()) {
+                        [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['link', 'Invitation unavailable', 'This link is no longer valid', 'The invitation may have expired or been revoked. Contact the photographer to request a new one.', 'text-warning'];
                     } else {
-                        error = data.message || 'The PIN you entered is incorrect.';
+                        [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['ban', 'Unavailable', 'This gallery is unavailable', $accessDecision->message ?? 'This gallery is currently unavailable due to content moderation.', 'text-destructive'];
                     }
-                })
-                .catch(() => {
-                    unlocking = false;
-                    error = 'An unexpected error occurred. Please try again.';
-                })
-            " class="space-y-4 text-left">
-                <div>
-                    <label class="block text-xs font-semibold text-muted-foreground mb-1.5 text-center">Gallery PIN</label>
-                    <input type="password"
-                           x-model="password"
-                           required
-                           autofocus
-                           placeholder="Enter 4-8 digit PIN"
-                           class="block w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary text-center tracking-widest text-lg font-mono">
-                    <p x-show="error" x-text="error" class="text-xs text-destructive mt-2 text-center" style="display: none;"></p>
+                @endphp
+                <div class="mx-auto mb-7 flex size-14 items-center justify-center rounded-full border border-border bg-card shadow-sm {{ $gateTone }}">
+                    <x-icon :name="$gateIcon" class="size-5" />
                 </div>
-
-                <button type="submit"
-                        :disabled="unlocking"
-                        class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-                    <span x-show="unlocking" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" style="display: none;"></span>
-                    <span x-text="unlocking ? 'Verifying PIN...' : 'Unlock Gallery'">Unlock Gallery</span>
-                </button>
-            </form>
+                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">{{ $gateEyebrow }}</p>
+                <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gateTitle }}</h1>
+                <p class="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{{ $gateText }}</p>
+                <a href="{{ $photographer->public_url }}" class="btn btn-outline mt-8">
+                    <x-icon name="arrow-left" /> Visit {{ $photographer->name }}
+                </a>
+            @endif
         </div>
-    </div>
-@elseif($accessDecision->requiresInvitation())
-    <!-- Invitation Required Screen (Zero Hero or Photo Exposure) -->
-    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
-        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
-            <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center font-bold text-2xl">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-foreground">Invitation Required</h2>
-            <p class="text-xs text-muted-foreground leading-relaxed">
-                This gallery is private and available to invited guests only. Please use the personalized invitation link sent to your email.
-            </p>
-        </div>
-    </div>
-@elseif($accessDecision->isInvitationInvalid())
-    <!-- Invitation Unavailable Screen -->
-    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
-        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
-            <div class="w-14 h-14 rounded-2xl bg-destructive/10 text-destructive mx-auto flex items-center justify-center font-bold text-2xl">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-foreground">Invitation Unavailable</h2>
-            <p class="text-xs text-muted-foreground leading-relaxed">
-                This invitation link is no longer valid or has been revoked. Please contact the photographer for a new invitation.
-            </p>
-        </div>
-    </div>
-@elseif($accessDecision->isDenied())
-    <!-- Gallery Taken Down / Unavailable Screen -->
-    <div class="min-h-screen flex items-center justify-center pt-20 pb-12 px-4 select-none">
-        <div class="bg-card border border-border rounded-2xl p-8 max-w-md w-full text-center shadow-xl space-y-4">
-            <div class="w-14 h-14 rounded-2xl bg-destructive/10 text-destructive mx-auto flex items-center justify-center font-bold text-2xl">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-foreground">Gallery Unavailable</h2>
-            <p class="text-xs text-muted-foreground leading-relaxed">
-                {{ $accessDecision->message ?? 'This gallery is currently unavailable due to content moderation.' }}
-            </p>
-        </div>
-    </div>
+    </section>
 @else
-    <!-- Unlocked: Hero Section -->
+    {{-- ===================== Cover hero ===================== --}}
     @if($coverUrl)
-        <section id="gallery-hero" class="relative w-full h-svh min-h-[90vh] overflow-hidden select-none flex flex-col justify-between">
+        <section id="gallery-hero" data-variant="image" class="relative flex h-svh min-h-[560px] w-full select-none flex-col items-center justify-end overflow-hidden bg-black text-white">
             <img src="{{ $coverUrl }}"
                  alt="{{ $gallery->title }}"
                  fetchpriority="high"
-                 class="absolute inset-0 w-full h-full object-cover object-center">
-            <div class="absolute inset-0 bg-black/40"></div>
-            <div></div>
-            <div class="relative z-10 max-w-4xl mx-auto px-6 text-center text-white space-y-3 drop-shadow-lg">
-                <h2 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight">
+                 decoding="async"
+                 class="gallery-hero-img absolute inset-0 size-full object-cover object-center">
+            <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/5 to-black/65"></div>
+
+            <div class="relative z-10 mx-auto w-full max-w-5xl px-6 pb-[18vh] text-center sm:pb-[16vh]">
+                <p class="animate-fade-up text-[11px] font-medium uppercase tracking-[0.32em] text-white/80" style="animation-delay: .25s">
+                    {{ $photographer->name }}
+                </p>
+                <h1 class="mt-5 animate-fade-up font-serif text-5xl leading-[0.98] tracking-normal text-balance drop-shadow-[0_2px_24px_rgb(0_0_0/0.25)] sm:text-7xl lg:text-8xl" style="animation-delay: .4s">
                     {{ $gallery->title }}
-                </h2>
-                @if($gallery->event_date)
-                    <p class="text-sm sm:text-base text-white/90 font-medium">
-                        {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }}
+                </h1>
+                @if($eventDate)
+                    <p class="mt-5 animate-fade-up text-xs uppercase tracking-[0.28em] text-white/80" style="animation-delay: .55s">
+                        {{ $eventDate->format('F j, Y') }}
+                    </p>
+                @endif
+                <div class="mt-9 animate-fade-up" style="animation-delay: .7s">
+                    <button type="button"
+                            id="btn-scroll-to-gallery"
+                            class="inline-flex h-11 items-center gap-2 rounded-full border border-white/50 px-7 text-[13px] font-medium uppercase tracking-[0.18em] text-white backdrop-blur-[2px] transition-all duration-300 hover:border-white hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-white">
+                        View gallery
+                    </button>
+                </div>
+            </div>
+
+            <button type="button"
+                    onclick="document.getElementById('gallery-action-bar')?.scrollIntoView({ behavior: 'smooth' })"
+                    class="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2 text-white/70 transition-colors hover:text-white"
+                    aria-label="Scroll to photos">
+                <span class="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
+                <span class="relative block h-10 w-px overflow-hidden bg-white/25">
+                    <span class="gallery-cue-line absolute inset-x-0 top-0 block h-1/2 bg-white"></span>
+                </span>
+            </button>
+        </section>
+    @else
+        <section id="gallery-hero" data-variant="plain" class="relative overflow-hidden px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
+            <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+            <div class="relative mx-auto max-w-4xl">
+                <p class="animate-fade-up text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground">{{ $photographer->name }}</p>
+                <h1 class="mt-5 animate-fade-up font-serif text-5xl leading-[0.98] tracking-normal text-balance text-foreground sm:text-7xl lg:text-8xl" style="animation-delay: .1s">
+                    {{ $gallery->title }}
+                </h1>
+                @if($eventDate)
+                    <p class="mt-5 animate-fade-up text-xs uppercase tracking-[0.28em] text-muted-foreground" style="animation-delay: .2s">
+                        {{ $eventDate->format('F j, Y') }}
                     </p>
                 @endif
             </div>
-            <div class="relative z-10 flex flex-col items-center gap-3 pb-12">
-                <button type="button"
-                        id="btn-scroll-to-gallery"
-                        class="px-6 py-3 rounded-full bg-white text-zinc-900 font-bold text-sm shadow-xl hover:bg-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer">
-                    View Gallery
-                </button>
-                <button type="button"
-                        onclick="document.getElementById('gallery-action-bar')?.scrollIntoView({ behavior: 'smooth' })"
-                        class="p-2 rounded-full text-white hover:bg-white/10 transition-all animate-bounce"
-                        aria-label="Scroll to photos">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7" />
-                    </svg>
-                </button>
-            </div>
         </section>
-    @else
-        <section id="gallery-hero" class="bg-card border-b border-border py-16 px-4 text-center">
-            <div class="max-w-3xl mx-auto space-y-3">
-                <h2 class="text-3xl sm:text-5xl font-extrabold text-foreground tracking-tight">
-                    {{ $gallery->title }}
-                </h2>
-                <p class="text-sm text-muted-foreground">
-                    By {{ $photographer->name }} @if($gallery->event_date) &bull; {{ \Carbon\Carbon::parse($gallery->event_date)->format('F j, Y') }} @endif
+    @endif
+
+    {{-- ===================== Sticky toolbar ===================== --}}
+    <div id="gallery-action-bar" class="sticky top-0 z-30 select-none border-b border-border/70 bg-background/85 backdrop-blur-xl backdrop-saturate-150">
+        <div class="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
+            <div class="min-w-0">
+                <h2 class="truncate font-serif text-xl leading-tight tracking-normal text-foreground sm:text-2xl">{{ $gallery->title }}</h2>
+                <p class="truncate text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <span class="tabular-nums">{{ number_format($photoTotal) }}</span> {{ Str::plural('photo', $photoTotal) }}
+                    @if($eventDate)<span class="hidden sm:inline"> · {{ $eventDate->format('M j, Y') }}</span>@endif
                 </p>
             </div>
-        </section>
-    @endif
 
-<!-- Gallery Action Bar (Fixed below banner/big image, non-floating) -->
-<div id="gallery-action-bar" class="border-b border-border bg-card select-none">
-    <div class="w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <!-- Title & Metadata -->
-        <div class="space-y-1">
-            <h2 class="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground uppercase">
-                {{ $gallery->title }}
-            </h2>
-            <div class="flex flex-wrap items-center gap-x-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                <span>By {{ $photographer->name }}</span>
-                @if($gallery->event_date)
-                    <span>&bull;</span>
-                    <span>{{ \Carbon\Carbon::parse($gallery->event_date)->format('M d, Y') }}</span>
-                @endif
-                <span>&bull;</span>
-                <span>{{ $gallery->public_photo_count }} {{ Str::plural('Photo', $gallery->public_photo_count) }}</span>
-            </div>
-        </div>
-
-        <!-- Action Buttons (Sharp edges, matching Next.js) -->
-        <div class="flex items-center gap-2">
-            <!-- Favorites Filter Toggle -->
-            <button type="button"
-                    id="btn-filter-favorites"
-                    aria-label="Filter by favorites"
-                    aria-pressed="false"
-                    title="Filter by favorites"
-                    class="p-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-[44px] min-h-[44px]">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-                <span class="hidden sm:inline">Favorites</span>
-                <span id="favorites-counter" class="text-[11px] font-bold opacity-70">0</span>
-            </button>
-
-            <!-- Download Gallery Options -->
-            @if($gallery->allow_gallery_downloads || $gallery->allow_google_photos)
+            <div class="flex shrink-0 items-center gap-0.5 sm:gap-1">
                 <button type="button"
-                        id="btn-download-options"
-                        aria-label="Download gallery"
-                        title="Download options"
-                        class="p-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-[44px] min-h-[44px]">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    <span class="hidden sm:inline">Download</span>
+                        id="btn-filter-favorites"
+                        aria-label="Filter by favorites"
+                        aria-pressed="false"
+                        title="Show favorites"
+                        class="{{ $iconBtn }} aria-pressed:bg-brand/10 aria-pressed:text-brand">
+                    <x-icon name="heart" class="size-[18px]" />
+                    <span class="hidden lg:inline">Favorites</span>
+                    <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums">0</span>
                 </button>
-            @endif
 
-            <!-- Share Gallery -->
-            <button type="button"
-                    id="btn-share-gallery"
-                    aria-label="Share gallery"
-                    title="Share this gallery"
-                    class="p-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-[44px] min-h-[44px]">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                <span class="hidden sm:inline">Share</span>
-            </button>
+                @if($gallery->allow_gallery_downloads || $gallery->allow_google_photos)
+                    <button type="button"
+                            id="btn-download-options"
+                            aria-label="Download gallery"
+                            title="Download all"
+                            class="{{ $iconBtn }}">
+                        <x-icon name="download" class="size-[18px]" />
+                        <span class="hidden lg:inline">Download</span>
+                    </button>
+                @endif
 
-            <!-- Play Slideshow -->
-            <button type="button"
-                    id="btn-play-slideshow"
-                    aria-label="Play slideshow"
-                    title="Start slideshow"
-                    class="p-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer min-w-[44px] min-h-[44px]">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="hidden sm:inline">Slideshow</span>
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Photo Gallery Grid -->
-<div class="w-full px-1.5 sm:px-3 md:px-4 lg:px-6 py-6 sm:py-8"
-     id="gallery-container"
-     data-slug="{{ $gallery->slug }}"
-     data-username="{{ $photographer->username }}"
-     data-gallery-url="{{ $gallery->public_url }}"
-     data-photos-url="{{ route('subdomain.gallery.photos', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
-     data-export-url="{{ route('subdomain.gallery.export', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
-     data-total-photos="{{ $gallery->public_photo_count }}"
-     data-next-cursor="{{ $nextCursor }}"
-     data-has-more="{{ $hasMore ? 'true' : 'false' }}"
-     data-allow-photo-downloads="{{ $gallery->allow_photo_downloads ? 'true' : 'false' }}"
-     data-allow-gallery-downloads="{{ $gallery->allow_gallery_downloads ? 'true' : 'false' }}"
-     data-allow-google-photos="{{ $gallery->allow_google_photos ? 'true' : 'false' }}"
-     @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
-
-    <!-- Photo Cards Masonry Grid -->
-    <div id="gallery-grid" class="relative w-full">
-        @foreach($photos as $photo)
-            <x-gallery.photo-card :photo="$photo" />
-        @endforeach
-    </div>
-
-    <!-- Instant Pre-paint Masonry Layout (zero layout shift before JS bundle loads) -->
-    <script>
-        (function() {
-            var grid = document.getElementById('gallery-grid');
-            if (!grid) return;
-            var w = grid.clientWidth;
-            if (!w) return;
-            var cols = w < 640 ? 2 : (w < 768 ? 3 : (w < 1024 ? 4 : (w >= 1800 ? 6 : 5)));
-            var gap = w < 768 ? 12 : 6;
-            var colWidth = (w - (cols - 1) * gap) / cols;
-            var colHeights = new Array(cols).fill(0);
-            var cards = grid.querySelectorAll('.photo-card');
-            cards.forEach(function(card) {
-                var minCol = 0;
-                for (var i = 1; i < cols; i++) {
-                    if (colHeights[i] < colHeights[minCol]) minCol = i;
-                }
-                var pw = parseInt(card.dataset.photoWidth || '1920', 10);
-                var ph = parseInt(card.dataset.photoHeight || '1080', 10);
-                var aspect = (pw && ph) ? (pw / ph) : 1.5;
-                var h = colWidth / aspect;
-                var x = minCol * (colWidth + gap);
-                var y = colHeights[minCol];
-                card.style.position = 'absolute';
-                card.style.left = Math.round(x) + 'px';
-                card.style.top = Math.round(y) + 'px';
-                card.style.width = Math.round(colWidth) + 'px';
-                card.style.height = Math.round(h) + 'px';
-                card.style.margin = '0';
-                colHeights[minCol] = y + h + gap;
-            });
-            var maxH = colHeights.length > 0 ? Math.max.apply(null, colHeights) : 0;
-            grid.style.height = Math.max(0, maxH - gap) + 'px';
-        })();
-    </script>
-
-    <!-- Empty Favorites State -->
-    <div id="gallery-empty-favorites" class="hidden my-16 p-12 text-center bg-card border border-border rounded-2xl max-w-md mx-auto space-y-3">
-        <div class="w-14 h-14 rounded-2xl bg-rose-500/10 text-rose-500 mx-auto flex items-center justify-center">
-            <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-            </svg>
-        </div>
-        <h3 class="text-lg font-bold text-foreground">No favorites selected</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-            You haven't marked any photos as favorites yet. Turn off the filter and click the heart icon on any photo to build your personal selection.
-        </p>
-    </div>
-
-    <!-- Empty Gallery State -->
-    @if(count($photos) === 0)
-    <div id="gallery-empty" class="my-16 p-12 text-center bg-card border border-border rounded-2xl max-w-md mx-auto space-y-3">
-        <div class="w-14 h-14 rounded-2xl bg-secondary text-muted-foreground mx-auto flex items-center justify-center">
-            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-        </div>
-        <h3 class="text-lg font-bold text-foreground">No photos yet</h3>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-            This collection is currently empty. Check back soon!
-        </p>
-    </div>
-    @endif
-
-    <!-- Infinite Scroll Sentinel -->
-    <div id="gallery-sentinel" class="py-12 flex justify-center items-center">
-        <div id="gallery-spinner" class="text-xs text-muted-foreground flex items-center gap-2" style="{{ $hasMore ? '' : 'display: none;' }}">
-            <span class="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-            <span>Loading more photos...</span>
-        </div>
-        <button type="button"
-                id="gallery-end"
-                onclick="(document.getElementById('gallery-action-bar') || document.getElementById('gallery-container'))?.scrollIntoView({ behavior: 'smooth' })"
-                class="inline-flex items-center gap-2 px-6 py-3 rounded-none border border-border bg-secondary/40 hover:bg-secondary text-foreground/80 hover:text-foreground text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer hover:-translate-y-0.5 shadow-sm active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
-                aria-label="Back to top">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-            </svg>
-            <span>Back to top</span>
-        </button>
-    </div>
-</div>
-
-
-<!-- ========================================================================= -->
-<!-- FULLSCREEN LIGHTBOX -->
-<!-- ========================================================================= -->
-<div id="lightbox-modal"
-     class="fixed inset-0 z-50 bg-background/98 flex flex-col justify-between select-none touch-none hidden focus:outline-none"
-     role="dialog"
-     aria-modal="true"
-     tabindex="-1">
-
-    <!-- Top Header Bar -->
-    <header class="w-full px-4 py-3 sm:px-6 flex items-center justify-between z-10 shrink-0 bg-background/80 backdrop-blur-sm border-b border-border/40"
-            style="padding-top: calc(0.75rem + env(safe-area-inset-top)); padding-left: calc(1rem + env(safe-area-inset-left)); padding-right: calc(1rem + env(safe-area-inset-right));">
-        <button type="button"
-                class="btn-close-lightbox flex items-center gap-2 text-foreground/80 hover:text-foreground hover:bg-secondary/40 min-h-[44px] px-3.5 py-2 rounded-none font-medium text-xs sm:text-sm transition-colors cursor-pointer"
-                aria-label="Back to Gallery">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            <span class="hidden sm:inline">Gallery</span>
-        </button>
-
-        <div class="flex items-center gap-1 sm:gap-1.5">
-            <!-- Slideshow Button -->
-            <button type="button"
-                    id="lightbox-btn-slideshow"
-                    class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:bg-secondary/60 transition-colors"
-                    aria-label="Play Slideshow">
-                <svg class="icon-play w-5 h-5 fill-current" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                </svg>
-                <svg class="icon-pause w-5 h-5 hidden fill-current" viewBox="0 0 24 24">
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M6.75 5.25a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75zm10.5 0a.75.75 0 01.75.75v12a.75.75 0 01-1.5 0v-12a.75.75 0 01.75-.75z" />
-                </svg>
-            </button>
-
-            <!-- Favorite Button -->
-            <button type="button"
-                    id="lightbox-btn-favorite"
-                    class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:bg-secondary/60 transition-colors"
-                    aria-label="Favorite image">
-                <svg class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-            </button>
-
-            <!-- Share Button -->
-            <button type="button"
-                    id="lightbox-btn-share"
-                    class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:bg-secondary/60 transition-colors"
-                    aria-label="Share photo">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-            </button>
-
-            <!-- Download Button -->
-            <button type="button"
-                    id="lightbox-btn-download"
-                    class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:bg-secondary/60 transition-colors"
-                    aria-label="Download original photo">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-            </button>
-
-            <!-- Zoom Controls -->
-            <div id="lightbox-zoom-controls" class="hidden md:flex items-center gap-1 border-l border-border/60 pl-2 ml-1">
-                <button type="button" id="lightbox-btn-zoom-out" class="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40" aria-label="Zoom out">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
-                    </svg>
+                <button type="button"
+                        id="btn-share-gallery"
+                        aria-label="Share gallery"
+                        title="Share gallery"
+                        class="{{ $iconBtn }}">
+                    <x-icon name="share" class="size-[18px]" />
+                    <span class="hidden lg:inline">Share</span>
                 </button>
-                <span id="lightbox-zoom-val" class="text-xs font-semibold text-muted-foreground w-10 text-center font-mono">100%</span>
-                <button type="button" id="lightbox-btn-zoom-in" class="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40" aria-label="Zoom in">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                </button>
-                <button type="button" id="lightbox-btn-zoom-reset" class="px-2 py-1 rounded-none bg-secondary text-[11px] font-bold text-foreground hover:bg-muted hidden" aria-label="Reset zoom">
-                    Reset
+
+                <button type="button"
+                        id="btn-play-slideshow"
+                        aria-label="Play slideshow"
+                        title="Slideshow"
+                        class="{{ $iconBtn }} {{ $photoTotal === 0 ? 'hidden' : '' }}">
+                    <x-icon name="play" class="size-[18px]" />
+                    <span class="hidden lg:inline">Slideshow</span>
                 </button>
             </div>
-
-            <!-- Close Button -->
-            <button type="button"
-                    class="btn-close-lightbox min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors ml-1"
-                    aria-label="Close Lightbox">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
         </div>
-    </header>
+    </div>
 
-    <!-- Main Viewport -->
-    <div class="lightbox-viewport relative flex-1 min-h-0 w-full flex items-center justify-center overflow-hidden px-0">
-        <!-- Prev Chevron (Desktop only) -->
-        <button type="button"
-                id="lightbox-btn-prev"
-                class="btn-lightbox-prev hidden sm:flex absolute left-3 sm:left-6 p-3 rounded-none bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all z-20 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer items-center justify-center"
-                aria-label="Previous photo">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
-            </svg>
-        </button>
+    {{-- ===================== Photo grid ===================== --}}
+    <div class="w-full px-1 py-1 sm:px-4 sm:py-4 lg:px-10 lg:py-8"
+         id="gallery-container"
+         data-slug="{{ $gallery->slug }}"
+         data-username="{{ $photographer->username }}"
+         data-gallery-url="{{ $gallery->public_url }}"
+         data-photos-url="{{ route('subdomain.gallery.photos', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
+         data-export-url="{{ route('subdomain.gallery.export', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
+         data-total-photos="{{ $photoTotal }}"
+         data-next-cursor="{{ $nextCursor }}"
+         data-has-more="{{ $hasMore ? 'true' : 'false' }}"
+         data-allow-photo-downloads="{{ $allowPhotoDownloads ? 'true' : 'false' }}"
+         data-allow-gallery-downloads="{{ $gallery->allow_gallery_downloads ? 'true' : 'false' }}"
+         data-allow-google-photos="{{ $gallery->allow_google_photos ? 'true' : 'false' }}"
+         @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
-        <!-- Sliding Track containing 3 Slide Slots (prev, current, next) -->
-        <div id="lightbox-track" class="w-full h-full relative flex items-center justify-center overflow-hidden select-none will-change-transform">
-            <!-- Slot 0 -->
-            <div class="lightbox-slide absolute inset-0 w-full h-full flex items-center justify-center p-0 pointer-events-none" data-slot="0">
-                <div class="lightbox-slide-inner relative w-full h-full flex items-center justify-center min-h-0 min-w-0">
-                    <canvas class="lightbox-blurhash-canvas absolute w-full sm:w-auto max-w-full max-h-full object-contain pointer-events-none transition-opacity duration-300"></canvas>
-                    <img src="" alt="" decoding="async" class="lightbox-slide-img w-full sm:w-auto max-w-full max-h-full object-contain rounded-none shadow-2xl select-none pointer-events-none opacity-0 transition-opacity duration-200">
+        <div id="gallery-grid" class="relative w-full">
+            @foreach($photos as $photo)
+                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" />
+            @endforeach
+        </div>
+
+        {{-- Instant pre-paint masonry (mirrors GalleryLayout.getColumnsAndGap) to avoid layout shift before the bundle loads --}}
+        <script>
+            (function () {
+                var grid = document.getElementById('gallery-grid');
+                if (!grid) return;
+                var w = grid.clientWidth;
+                if (!w) return;
+                var cols = w < 640 ? 2 : (w < 1024 ? 3 : (w >= 1700 ? 5 : 4));
+                var gap = w < 640 ? 4 : (w < 1024 ? 8 : 12);
+                var colWidth = (w - (cols - 1) * gap) / cols;
+                var colHeights = new Array(cols).fill(0);
+                grid.querySelectorAll('.photo-card').forEach(function (card) {
+                    var minCol = 0;
+                    for (var i = 1; i < cols; i++) { if (colHeights[i] < colHeights[minCol]) minCol = i; }
+                    var pw = parseInt(card.dataset.photoWidth || '1920', 10);
+                    var ph = parseInt(card.dataset.photoHeight || '1080', 10);
+                    var h = colWidth / ((pw && ph) ? (pw / ph) : 1.5);
+                    var y = colHeights[minCol];
+                    card.style.position = 'absolute';
+                    card.style.left = Math.round(minCol * (colWidth + gap)) + 'px';
+                    card.style.top = Math.round(y) + 'px';
+                    card.style.width = Math.round(colWidth) + 'px';
+                    card.style.height = Math.round(h) + 'px';
+                    card.style.margin = '0';
+                    colHeights[minCol] = y + h + gap;
+                });
+                var maxH = colHeights.length ? Math.max.apply(null, colHeights) : 0;
+                grid.style.height = Math.max(0, maxH - gap) + 'px';
+            })();
+        </script>
+
+        {{-- Favourites filter: nothing selected --}}
+        <div id="gallery-empty-favorites" class="mx-auto my-16 hidden max-w-md px-4 text-center sm:my-24">
+            <div class="mx-auto mb-6 flex size-14 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
+                <x-icon name="heart" class="size-5" />
+            </div>
+            <h3 class="font-serif text-3xl tracking-normal text-foreground">No favorites yet</h3>
+            <p class="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                Tap the heart on any photo to start your selection. Turn off the filter to browse the full gallery.
+            </p>
+        </div>
+
+        @if(count($photos) === 0)
+            <div id="gallery-empty" class="mx-auto my-16 max-w-md px-4 text-center sm:my-28">
+                <div class="mx-auto mb-6 flex size-14 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
+                    <x-icon name="images" class="size-5" />
                 </div>
+                <h3 class="font-serif text-3xl tracking-normal text-foreground">Photos are on their way</h3>
+                <p class="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+                    {{ $photographer->name }} is still preparing this collection. Check back soon.
+                </p>
             </div>
-            <!-- Slot 1 -->
-            <div class="lightbox-slide absolute inset-0 w-full h-full flex items-center justify-center p-0 pointer-events-none" data-slot="1">
-                <div class="lightbox-slide-inner relative w-full h-full flex items-center justify-center min-h-0 min-w-0">
-                    <canvas class="lightbox-blurhash-canvas absolute w-full sm:w-auto max-w-full max-h-full object-contain pointer-events-none transition-opacity duration-300"></canvas>
-                    <img src="" alt="" decoding="async" class="lightbox-slide-img w-full sm:w-auto max-w-full max-h-full object-contain rounded-none shadow-2xl select-none pointer-events-none opacity-0 transition-opacity duration-200">
-                </div>
-            </div>
-            <!-- Slot 2 -->
-            <div class="lightbox-slide absolute inset-0 w-full h-full flex items-center justify-center p-0 pointer-events-none" data-slot="2">
-                <div class="lightbox-slide-inner relative w-full h-full flex items-center justify-center min-h-0 min-w-0">
-                    <canvas class="lightbox-blurhash-canvas absolute w-full sm:w-auto max-w-full max-h-full object-contain pointer-events-none transition-opacity duration-300"></canvas>
-                    <img src="" alt="" decoding="async" class="lightbox-slide-img w-full sm:w-auto max-w-full max-h-full object-contain rounded-none shadow-2xl select-none pointer-events-none opacity-0 transition-opacity duration-200">
-                </div>
-            </div>
-        </div>
+        @endif
 
-        <!-- Next Chevron (Desktop only) -->
-        <button type="button"
-                id="lightbox-btn-next"
-                class="btn-lightbox-next hidden sm:flex absolute right-3 sm:right-6 p-3 rounded-none bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all z-20 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer items-center justify-center"
-                aria-label="Next photo">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
-            </svg>
-        </button>
+        {{-- Infinite scroll sentinel --}}
+        <div id="gallery-sentinel" class="flex items-center justify-center py-14">
+            <div id="gallery-spinner" class="flex items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-muted-foreground {{ $hasMore ? '' : 'hidden' }}">
+                <x-icon name="loader-circle" class="size-4 animate-spin" />
+                <span>Loading</span>
+            </div>
+            <button type="button"
+                    id="gallery-end"
+                    onclick="(document.getElementById('gallery-action-bar') || document.getElementById('gallery-container'))?.scrollIntoView({ behavior: 'smooth' })"
+                    class="group inline-flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
+                    aria-label="Back to top">
+                <span class="flex size-10 items-center justify-center rounded-full border border-border transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:border-border-strong">
+                    <x-icon name="arrow-up" class="size-4" />
+                </span>
+                <span>Back to top</span>
+            </button>
+        </div>
     </div>
 
-    <!-- Bottom Footer Bar -->
-    <footer class="w-full py-2.5 sm:py-3 px-4 z-10 shrink-0 bg-background/80 backdrop-blur-sm border-t border-border/40">
-        <div class="flex items-center justify-between sm:justify-center relative max-w-xl mx-auto">
-            <!-- Mobile Prev Button (Thumb-accessible, does NOT obstruct image) -->
+    {{-- ===================== Lightbox ===================== --}}
+    <div id="lightbox-modal"
+         class="fixed inset-0 z-50 flex hidden touch-none select-none flex-col justify-between bg-background focus:outline-none"
+         role="dialog"
+         aria-modal="true"
+         aria-label="Photo viewer"
+         tabindex="-1">
+
+        <header class="z-10 flex w-full shrink-0 items-center justify-between gap-2 px-2 py-2 sm:px-4"
+                style="padding-top: calc(0.5rem + env(safe-area-inset-top)); padding-left: calc(0.5rem + env(safe-area-inset-left)); padding-right: calc(0.5rem + env(safe-area-inset-right));">
+            <button type="button" class="btn-close-lightbox {{ $lbBtn }} w-auto gap-2 px-3 text-[13px] font-medium" aria-label="Back to gallery">
+                <x-icon name="arrow-left" class="size-[18px]" />
+                <span class="hidden sm:inline">Gallery</span>
+            </button>
+
+            <span id="lightbox-counter-top" class="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 text-xs tabular-nums tracking-[0.16em] text-muted-foreground sm:block" aria-hidden="true"></span>
+
+            <div class="flex items-center gap-0.5">
+                <div id="lightbox-zoom-controls" class="mr-1 hidden items-center gap-0.5 border-r border-border pr-2 md:flex">
+                    <button type="button" id="lightbox-btn-zoom-out" class="{{ $lbBtn }} size-9" aria-label="Zoom out" title="Zoom out">
+                        <x-icon name="minus" class="size-4" />
+                    </button>
+                    <span id="lightbox-zoom-val" class="w-11 text-center text-xs tabular-nums text-muted-foreground">100%</span>
+                    <button type="button" id="lightbox-btn-zoom-in" class="{{ $lbBtn }} size-9" aria-label="Zoom in" title="Zoom in">
+                        <x-icon name="plus" class="size-4" />
+                    </button>
+                    <button type="button" id="lightbox-btn-zoom-reset" class="btn btn-ghost btn-xs hidden" aria-label="Reset zoom">Reset</button>
+                </div>
+
+                <button type="button" id="lightbox-btn-slideshow" class="{{ $lbBtn }}" aria-label="Play Slideshow" title="Slideshow (space)">
+                    <x-icon name="play" class="icon-play size-[18px]" />
+                    <x-icon name="pause" class="icon-pause hidden size-[18px]" />
+                </button>
+                <button type="button" id="lightbox-btn-favorite" class="{{ $lbBtn }} data-[favorited]:text-brand" aria-label="Favorite image" title="Favorite (F)">
+                    <x-icon name="heart" class="size-[18px]" />
+                </button>
+                <button type="button" id="lightbox-btn-share" class="{{ $lbBtn }}" aria-label="Share photo" title="Share">
+                    <x-icon name="share" class="size-[18px]" />
+                </button>
+                @if($allowPhotoDownloads)
+                    <button type="button" id="lightbox-btn-download" class="{{ $lbBtn }}" aria-label="Download original photo" title="Download (D)">
+                        <x-icon name="download" class="size-[18px]" />
+                    </button>
+                @endif
+                <button type="button" class="btn-close-lightbox {{ $lbBtn }}" aria-label="Close Lightbox" title="Close (Esc)">
+                    <x-icon name="x" class="size-5" />
+                </button>
+            </div>
+        </header>
+
+        <div class="lightbox-viewport relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden px-0 sm:px-20">
             <button type="button"
-                    id="lightbox-btn-prev-mobile"
-                    class="btn-lightbox-prev sm:hidden p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                    id="lightbox-btn-prev"
+                    class="btn-lightbox-prev absolute left-2 z-20 hidden size-12 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:left-4 sm:flex"
                     aria-label="Previous photo">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
-                </svg>
+                <x-icon name="chevron-left" class="size-7" stroke-width="1.5" />
             </button>
 
-            <!-- File Details & Counter -->
-            <div class="flex flex-col items-center gap-0.5 px-2 min-w-0 text-center">
-                <span id="lightbox-filename" class="text-xs font-semibold text-foreground/90 truncate max-w-[55vw] sm:max-w-[85vw]"></span>
-                <span id="lightbox-counter" class="text-[11px] font-mono text-muted-foreground"></span>
+            <div id="lightbox-track" class="relative flex size-full select-none items-center justify-center overflow-hidden will-change-transform">
+                @foreach([0, 1, 2] as $slot)
+                    <div class="lightbox-slide pointer-events-none absolute inset-0 flex size-full items-center justify-center p-0 sm:py-2" data-slot="{{ $slot }}">
+                        <div class="lightbox-slide-inner relative flex size-full min-h-0 min-w-0 items-center justify-center">
+                            <canvas class="lightbox-blurhash-canvas pointer-events-none absolute max-h-full w-full max-w-full object-contain transition-opacity duration-300 sm:w-auto"></canvas>
+                            <img src="" alt="" decoding="async" class="lightbox-slide-img pointer-events-none max-h-full w-full max-w-full select-none object-contain opacity-0 transition-opacity duration-300 sm:w-auto">
+                        </div>
+                    </div>
+                @endforeach
             </div>
 
-            <!-- Mobile Next Button (Thumb-accessible, does NOT obstruct image) -->
             <button type="button"
-                    id="lightbox-btn-next-mobile"
-                    class="btn-lightbox-next sm:hidden p-2 rounded-none text-foreground/80 hover:text-foreground hover:bg-secondary/40 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                    id="lightbox-btn-next"
+                    class="btn-lightbox-next absolute right-2 z-20 hidden size-12 items-center justify-center rounded-full text-foreground/60 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring sm:right-4 sm:flex"
                     aria-label="Next photo">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
-                </svg>
+                <x-icon name="chevron-right" class="size-7" stroke-width="1.5" />
             </button>
         </div>
-    </footer>
-</div>
 
-<!-- ========================================================================= -->
-<!-- MODALS (Rendered above lightbox at z-[60]) -->
-<!-- ========================================================================= -->
-
-<!-- 1. Save Your Favorites Email Modal -->
-<div id="modal-save-favorites" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
-    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-foreground flex items-center gap-2">
-                <svg class="w-5 h-5 text-rose-500 fill-current" viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
-                <span>Save Your Favorites</span>
-            </h3>
-            <button type="button" id="btn-close-favorites-modal" class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Close dialog">&times;</button>
-        </div>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-            Please enter your email to save your personal selection. This notifies the photographer of the photos you've chosen.
-        </p>
-        <form id="form-save-favorites" class="space-y-3">
-            <input type="email"
-                   id="input-favorites-email"
-                   required
-                   placeholder="your.email@example.com"
-                   class="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-            <div class="flex gap-2">
-                <button type="button" id="btn-cancel-favorites-modal" class="flex-1 py-2.5 rounded-xl bg-secondary text-foreground text-xs font-semibold hover:bg-secondary/80 transition-colors">
-                    Cancel
+        <footer class="z-10 w-full shrink-0 px-3 py-3" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));">
+            <div class="relative mx-auto flex max-w-xl items-center justify-between sm:justify-center">
+                <button type="button" id="lightbox-btn-prev-mobile" class="btn-lightbox-prev {{ $lbBtn }} sm:hidden" aria-label="Previous photo">
+                    <x-icon name="chevron-left" class="size-5" />
                 </button>
-                <button type="submit" class="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow">
-                    Save & Favorite
+                <div class="flex min-w-0 flex-col items-center gap-0.5 px-2 text-center">
+                    <span id="lightbox-filename" class="max-w-[55vw] truncate text-xs text-muted-foreground sm:max-w-[60vw]"></span>
+                    <span id="lightbox-counter" class="text-[11px] tabular-nums tracking-[0.16em] text-subtle sm:hidden"></span>
+                </div>
+                <button type="button" id="lightbox-btn-next-mobile" class="btn-lightbox-next {{ $lbBtn }} sm:hidden" aria-label="Next photo">
+                    <x-icon name="chevron-right" class="size-5" />
                 </button>
             </div>
-        </form>
+        </footer>
     </div>
-</div>
 
-<!-- 2. Social Share Modal -->
-<div id="modal-social-share" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
-    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
-        <div class="flex items-center justify-between">
-            <h3 id="share-modal-title" class="text-lg font-bold text-foreground">Share Gallery</h3>
-            <button type="button" id="btn-close-share-modal" class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Close dialog">&times;</button>
-        </div>
+    {{-- ===================== Dialogs (above lightbox) ===================== --}}
 
-        <div class="flex gap-2">
-            <input type="text"
-                   id="share-url-input"
-                   readonly
-                   class="flex-1 min-w-0 px-3.5 py-2 bg-secondary/40 border border-border rounded-xl text-xs text-muted-foreground focus:outline-none select-all font-mono">
-            <button type="button"
-                    id="btn-copy-share-link"
-                    class="px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl text-xs hover:bg-primary/90 transition-all shrink-0">
-                Copy Link
-            </button>
-        </div>
-
-        <div class="grid grid-cols-4 gap-2 pt-2 text-center">
-            <!-- WhatsApp -->
-            <a id="share-whatsapp" href="#" target="_blank" rel="noopener noreferrer"
-               class="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
-                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01c6.612.001 11.94 5.34 11.94 11.95 0 6.611-5.328 11.95-11.94 11.95a11.94 11.94 0 01-11.94-11.95c0-2.096.547-4.14 1.588-5.946L.057 24zm6.59-4.846c1.6.95 3.197 1.451 4.887 1.453 5.485 0 9.948-4.463 9.952-9.953.002-2.66-1.025-5.161-2.894-7.03C16.626 1.8 14.127.777 11.468.777c-5.482 0-9.94 4.466-9.944 9.954-.002 1.79.49 3.54 1.428 5.09L1.92 22.18l6.727-1.761c1.586.865 3.323 1.32 5.074 1.322z" />
-                    </svg>
+    {{-- 1. Save favourites: email capture --}}
+    <div id="modal-save-favorites" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="favorites-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex size-10 items-center justify-center rounded-full bg-brand/10 text-brand">
+                    <x-icon name="heart" class="size-[18px]" />
                 </div>
-                <span class="text-[10px] font-medium">WhatsApp</span>
-            </a>
-
-            <!-- Facebook -->
-            <a id="share-facebook" href="#" target="_blank" rel="noopener noreferrer"
-               class="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
-                <div class="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center">
-                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                    </svg>
+                <button type="button" id="btn-close-favorites-modal" class="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
+            </div>
+            <h3 id="favorites-modal-title" class="mt-4 font-serif text-2xl tracking-normal text-foreground">Save your favorites</h3>
+            <p class="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                Enter your email to keep your selection. {{ $photographer->name }} will be able to see the photos you choose.
+            </p>
+            <form id="form-save-favorites" class="mt-5 space-y-3">
+                <label for="input-favorites-email" class="sr-only">Email address</label>
+                <div class="input-group">
+                    <x-icon name="mail" />
+                    <input type="email" id="input-favorites-email" required placeholder="you@example.com" autocomplete="email" class="input">
                 </div>
-                <span class="text-[10px] font-medium">Facebook</span>
-            </a>
-
-            <!-- Email -->
-            <a id="share-email" href="#"
-               class="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
-                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
+                <div class="flex gap-2 pt-1">
+                    <button type="button" id="btn-cancel-favorites-modal" class="btn btn-outline flex-1">Cancel</button>
+                    <button type="submit" class="btn btn-primary flex-1">Save &amp; favorite</button>
                 </div>
-                <span class="text-[10px] font-medium">Email</span>
-            </a>
+            </form>
         </div>
     </div>
-</div>
 
-<!-- 3. Download Options Modal -->
-<div id="modal-download-options" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
-    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-foreground flex items-center gap-2">
-                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Download Options</span>
-            </h3>
-            <button type="button" id="btn-close-download-options" class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Close dialog">&times;</button>
-        </div>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-            Choose how you would like to export or save this collection:
-        </p>
-
-        <div class="space-y-2.5">
-            @if($gallery->allow_gallery_downloads)
-            <button type="button" id="btn-choose-zip-download"
-                    class="w-full text-left p-3.5 rounded-xl border border-border hover:border-primary/50 bg-secondary/20 hover:bg-secondary/40 transition-all flex items-center gap-3 cursor-pointer">
-                <div class="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-foreground">Download ZIP Archive</h4>
-                    <p class="text-[11px] text-muted-foreground">Pack photos into a single downloadable file.</p>
-                </div>
-            </button>
-            @endif
-
-            @if($gallery->allow_google_photos)
-            <button type="button" id="btn-choose-google-sync"
-                    class="w-full text-left p-3.5 rounded-xl border border-border hover:border-primary/50 bg-secondary/20 hover:bg-secondary/40 transition-all flex items-center gap-3 cursor-pointer">
-                <div class="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
-                    </svg>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-foreground">Sync to Google Photos</h4>
-                    <p class="text-[11px] text-muted-foreground">Import photos directly into your Google Photos account.</p>
-                </div>
-            </button>
-            @endif
-        </div>
-    </div>
-</div>
-
-<!-- 4. Google Photos Sync Modal -->
-<div id="modal-google-photos-sync" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
-    <div class="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-foreground flex items-center gap-2">
-                <svg class="w-5 h-5 text-primary fill-current" viewBox="0 0 24 24">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
-                </svg>
-                <span>Save to Google Photos</span>
-            </h3>
-            <button type="button" id="btn-close-google-sync" class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" aria-label="Close dialog">&times;</button>
-        </div>
-        <p class="text-xs text-muted-foreground leading-relaxed">
-            Select which photos from this collection to sync:
-        </p>
-
-        <form id="form-google-photos-sync" class="space-y-4">
-            <div class="space-y-2">
-                <label class="flex items-center gap-3 p-3 rounded-xl border border-border bg-secondary/20 cursor-pointer hover:border-primary/50 transition-colors">
-                    <input type="radio" name="syncTarget" value="all" checked class="text-primary focus:ring-primary">
-                    <div>
-                        <span class="text-sm font-semibold text-foreground block">Entire Gallery</span>
-                        <span class="text-xs text-muted-foreground">All photos in this collection.</span>
-                    </div>
-                </label>
-                <label class="flex items-center gap-3 p-3 rounded-xl border border-border bg-secondary/20 cursor-pointer hover:border-primary/50 transition-colors">
-                    <input type="radio" name="syncTarget" value="favorites" class="text-primary focus:ring-primary">
-                    <div>
-                        <span class="text-sm font-semibold text-foreground block">My Favorites Only</span>
-                        <span class="text-xs text-muted-foreground">Only photos you've favorited.</span>
-                    </div>
-                </label>
+    {{-- 2. Share --}}
+    <div id="modal-social-share" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-center justify-between gap-4">
+                <h3 id="share-modal-title" class="truncate text-base font-semibold text-foreground">Share Gallery</h3>
+                <button type="button" id="btn-close-share-modal" class="btn btn-ghost btn-icon btn-sm -mr-2" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
             </div>
 
-            <button type="submit" class="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-all shadow">
-                Continue to Export
-            </button>
-        </form>
-    </div>
-</div>
+            <div class="mt-4 flex gap-2">
+                <label for="share-url-input" class="sr-only">Share link</label>
+                <input type="text" id="share-url-input" readonly class="input input-sm h-9 min-w-0 flex-1 bg-muted/60 font-mono text-xs text-muted-foreground">
+                <button type="button" id="btn-copy-share-link" class="btn btn-primary btn-sm h-9 shrink-0">Copy link</button>
+            </div>
 
-<!-- 5. iOS Photo Download Notice Modal -->
-<div id="modal-ios-download-notice" class="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true" aria-labelledby="ios-download-modal-title">
-    <div class="bg-card text-card-foreground border border-border/40 rounded-none p-6 max-w-sm w-full shadow-2xl relative">
-        <div class="flex items-center justify-between mb-4">
-            <h3 id="ios-download-modal-title" class="text-base font-bold text-foreground flex items-center gap-2">
-                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Save to Photos</span>
-            </h3>
-            <button type="button" id="btn-close-ios-download-notice" class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors" aria-label="Close dialog">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <p class="text-sm text-foreground/85 leading-relaxed mb-6">
-            A new window with your photo will open. <strong>Press and hold</strong> the photo, then choose <strong>Save to Photos</strong>.
-        </p>
-
-        <div class="flex flex-col gap-2">
-            <button type="button"
-                    id="btn-confirm-ios-download"
-                    class="w-full py-3 px-4 rounded-none bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-all shadow text-center cursor-pointer">
-                Open Photo
-            </button>
-            <button type="button"
-                    id="btn-cancel-ios-download"
-                    class="w-full py-2.5 px-4 rounded-none text-muted-foreground hover:text-foreground hover:bg-secondary/40 font-medium text-xs transition-colors text-center cursor-pointer">
-                Cancel
-            </button>
+            <div class="mt-5 grid grid-cols-3 gap-2">
+                @foreach([['share-whatsapp', 'message-circle', 'WhatsApp', true], ['share-facebook', 'facebook', 'Facebook', true], ['share-email', 'mail', 'Email', false]] as [$shareId, $shareIcon, $shareLabel, $external])
+                    <a id="{{ $shareId }}" href="#" @if($external) target="_blank" rel="noopener noreferrer" @endif
+                       class="group flex flex-col items-center gap-2 rounded-xl border border-border px-2 py-3.5 text-muted-foreground transition-colors hover:border-border-strong hover:bg-muted hover:text-foreground">
+                        <x-icon :name="$shareIcon" class="size-5" />
+                        <span class="text-xs font-medium">{{ $shareLabel }}</span>
+                    </a>
+                @endforeach
+            </div>
         </div>
     </div>
-</div>
+
+    {{-- 3. Download options --}}
+    <div id="modal-download-options" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="download-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-center justify-between gap-4">
+                <h3 id="download-modal-title" class="text-base font-semibold text-foreground">Download gallery</h3>
+                <button type="button" id="btn-close-download-options" class="btn btn-ghost btn-icon btn-sm -mr-2" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
+            </div>
+            <p class="mt-1 text-[13px] text-muted-foreground">Choose how you'd like to save this collection.</p>
+
+            <div class="mt-5 space-y-2">
+                @if($gallery->allow_gallery_downloads)
+                    <button type="button" id="btn-choose-zip-download"
+                            class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
+                        <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+                            <x-icon name="download" class="size-[18px]" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-medium text-foreground">Download as ZIP</span>
+                            <span class="block text-xs text-muted-foreground">Full-resolution files in a single archive.</span>
+                        </span>
+                        <x-icon name="chevron-right" class="text-subtle transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                @endif
+
+                @if($gallery->allow_google_photos)
+                    <button type="button" id="btn-choose-google-sync"
+                            class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
+                        <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+                            <x-icon name="images" class="size-[18px]" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-medium text-foreground">Save to Google Photos</span>
+                            <span class="block text-xs text-muted-foreground">Import straight into your Google account.</span>
+                        </span>
+                        <x-icon name="chevron-right" class="text-subtle transition-transform group-hover:translate-x-0.5" />
+                    </button>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- 4. Google Photos target --}}
+    <div id="modal-google-photos-sync" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="google-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-center justify-between gap-4">
+                <h3 id="google-modal-title" class="text-base font-semibold text-foreground">Save to Google Photos</h3>
+                <button type="button" id="btn-close-google-sync" class="btn btn-ghost btn-icon btn-sm -mr-2" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
+            </div>
+            <p class="mt-1 text-[13px] text-muted-foreground">Which photos would you like to sync?</p>
+
+            <form id="form-google-photos-sync" class="mt-5 space-y-4">
+                <div class="space-y-2">
+                    <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3.5 transition-colors hover:bg-muted/60 has-[:checked]:border-foreground/40 has-[:checked]:bg-muted/60">
+                        <input type="radio" name="syncTarget" value="all" checked class="size-4">
+                        <span>
+                            <span class="block text-sm font-medium text-foreground">Entire gallery</span>
+                            <span class="block text-xs text-muted-foreground">Every photo in this collection.</span>
+                        </span>
+                    </label>
+                    <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3.5 transition-colors hover:bg-muted/60 has-[:checked]:border-foreground/40 has-[:checked]:bg-muted/60">
+                        <input type="radio" name="syncTarget" value="favorites" class="size-4">
+                        <span>
+                            <span class="block text-sm font-medium text-foreground">My favorites only</span>
+                            <span class="block text-xs text-muted-foreground">Just the photos you've hearted.</span>
+                        </span>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary w-full">Continue <x-icon name="arrow-right" /></button>
+            </form>
+        </div>
+    </div>
+
+    {{-- 5. iOS save notice --}}
+    <div id="modal-ios-download-notice" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="ios-download-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
+                    <x-icon name="download" class="size-[18px]" />
+                </div>
+                <button type="button" id="btn-close-ios-download-notice" class="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
+            </div>
+            <h3 id="ios-download-modal-title" class="mt-4 text-base font-semibold text-foreground">Save to Photos</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Your photo will open in a new tab. <span class="font-medium text-foreground">Press and hold</span> it, then choose <span class="font-medium text-foreground">Save to Photos</span>.
+            </p>
+            <div class="mt-6 flex flex-col gap-2">
+                <button type="button" id="btn-confirm-ios-download" class="btn btn-primary w-full">Open photo</button>
+                <button type="button" id="btn-cancel-ios-download" class="btn btn-ghost w-full">Cancel</button>
+            </div>
+        </div>
+    </div>
 @endif
-
-<script>
-function toggleTheme() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-}
-</script>
 
 @endsection
 
 @section('footer')
-<footer class="border-t border-border bg-card/60 backdrop-blur-sm py-8 sm:py-10 mt-auto select-none">
-    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center items-center text-xs text-muted-foreground">
+<footer class="mt-auto select-none border-t border-border/70">
+    <div class="flex w-full flex-col items-center justify-center gap-3 px-4 py-10 text-xs text-muted-foreground sm:flex-row sm:justify-between sm:px-6 lg:px-10">
+        <a href="{{ $photographer->public_url }}" class="font-serif text-lg tracking-normal text-foreground transition-opacity hover:opacity-70">{{ $photographer->name }}</a>
         @if($photographer->isFree())
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-muted-foreground font-medium">Powered by</span>
-                <a href="{{ app(\App\Services\PublicUrlService::class)->homeUrl(['utm_source' => 'gallery', 'utm_medium' => 'footer_logo', 'utm_campaign' => 'powered_by']) }}" class="flex items-center gap-2 shrink-0 hover:opacity-80 transition-opacity">
-                    <img src="{{ asset('logo.png') }}" alt="ifotoset" class="w-7 h-7 object-contain">
-                    <span class="text-lg font-bold tracking-tight text-primary">ifoto<span class="text-foreground">set</span></span>
-                </a>
-            </div>
+            <a href="{{ app(\App\Services\PublicUrlService::class)->homeUrl(['utm_source' => 'gallery', 'utm_medium' => 'footer_logo', 'utm_campaign' => 'powered_by']) }}"
+               class="inline-flex items-center gap-2 transition-opacity hover:opacity-80">
+                <span>Delivered with</span>
+                <x-brand.logo size="sm" />
+            </a>
         @else
             <p>&copy; {{ date('Y') }} {{ $photographer->name }}. All rights reserved.</p>
         @endif
@@ -834,7 +635,9 @@ function toggleTheme() {
 @endsection
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
-    @vite(['resources/js/pages/gallery.js'])
+    @if($isGranted)
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+        @vite(['resources/js/pages/gallery.js'])
+    @endif
 @endpush

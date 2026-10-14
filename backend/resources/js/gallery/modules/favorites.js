@@ -90,17 +90,10 @@ export class GalleryFavorites {
         document.querySelectorAll('.btn-favorite').forEach(btn => {
             const uuid = btn.dataset.uuid;
             const svg = btn.querySelector('svg');
-            if (this.isFavorited(uuid)) {
-                btn.classList.add('text-rose-500');
-                if (svg) {
-                    svg.setAttribute('fill', 'currentColor');
-                }
-            } else {
-                btn.classList.remove('text-rose-500');
-                if (svg) {
-                    svg.setAttribute('fill', 'none');
-                }
-            }
+            const fav = this.isFavorited(uuid);
+            btn.toggleAttribute('data-favorited', fav);
+            btn.setAttribute('aria-pressed', fav ? 'true' : 'false');
+            if (svg) svg.setAttribute('fill', fav ? 'currentColor' : 'none');
         });
 
         // 3. Update header counter if present
@@ -215,17 +208,9 @@ export class GalleryFavorites {
         filterBtn.addEventListener('click', () => {
             this.showFavoritesOnly = !this.showFavoritesOnly;
 
-            if (this.showFavoritesOnly) {
-                filterBtn.classList.add('bg-rose-500/10', 'text-rose-500', 'border-rose-500/30');
-                filterBtn.classList.remove('bg-card', 'text-foreground', 'border-border');
-                const svg = filterBtn.querySelector('svg');
-                if (svg) svg.setAttribute('fill', 'currentColor');
-            } else {
-                filterBtn.classList.remove('bg-rose-500/10', 'text-rose-500', 'border-rose-500/30');
-                filterBtn.classList.add('bg-card', 'text-foreground', 'border-border');
-                const svg = filterBtn.querySelector('svg');
-                if (svg) svg.setAttribute('fill', 'none');
-            }
+            filterBtn.setAttribute('aria-pressed', this.showFavoritesOnly ? 'true' : 'false');
+            const svg = filterBtn.querySelector('svg');
+            if (svg) svg.setAttribute('fill', this.showFavoritesOnly ? 'currentColor' : 'none');
 
             this.notifyFilterChange();
         });

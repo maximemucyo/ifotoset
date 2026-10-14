@@ -34,6 +34,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'is_active',
         'username',
+        'profile_public',
         'phone',
         'location',
         'website',
@@ -53,6 +54,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'uuid' => UuidBinaryCast::class,
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
+        'profile_public' => 'boolean',
         'notification_preferences' => 'array',
         'storage_used_bytes' => 'integer',
         'storage_reserved_bytes' => 'integer',
@@ -167,7 +169,7 @@ class User extends Authenticatable implements MustVerifyEmail
             return null;
         }
         $cdnDomain = config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
-        return "https://{$cdnDomain}/" . ltrim($this->avatar_path, '/');
+        return \App\Support\Cdn::scheme() . "://{$cdnDomain}/" . ltrim($this->avatar_path, '/');
     }
 
     public function isPubliclyIndexable(): bool
@@ -175,6 +177,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $reserved = config('reserved_usernames', []);
         return !$this->trashed()
             && $this->is_active
+            && $this->profile_public !== false
             && !empty($this->username)
             && !in_array(strtolower($this->username), $reserved, true)
             && $this->role !== 'admin'
@@ -185,6 +188,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $reserved = config('reserved_usernames', []);
         return $query->where('is_active', true)
+            ->where('profile_public', true)
             ->whereNotNull('username')
             ->where('username', '!=', '')
             ->whereNotIn('username', $reserved)

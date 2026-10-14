@@ -1,0 +1,13 @@
+{
+  "identities": [
+    {
+      "name": "ifotoset",
+      "credentials": [{ "accessKey": "ifotoset", "secretKey": "ifotoset-secret" }],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    },
+    {
+      "name": "anonymous",
+      "actions": ["Read"]
+    }
+  ]
+}

@@ -1,231 +1,438 @@
-@extends('layouts.app', ['title' => 'Settings - Studio'])
+@extends('layouts.app', ['title' => 'Settings · ifotoset'])
+
+@php
+    $prefs = $user->notification_preferences ?? [];
+    $hasPasswordErrors = $errors->hasAny(['current_password', 'password']);
+    $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : 'profile');
+    $publicUrl = $user->username ? $user->public_url : null;
+    $rootHost = config('app.public_root_host', 'ifotoset.com');
+
+    $sections = [
+        ['id' => 'profile', 'label' => 'Profile', 'icon' => 'user', 'hint' => 'Name, photo and contact'],
+        ['id' => 'public', 'label' => 'Public profile', 'icon' => 'globe', 'hint' => 'Portfolio link and visibility'],
+        ['id' => 'security', 'label' => 'Security', 'icon' => 'shield', 'hint' => 'Password'],
+        ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'bell', 'hint' => 'Email alerts'],
+    ];
+@endphp
+
+@section('breadcrumbs')
+    <span>Account</span>
+    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
+    <span class="font-medium text-foreground">Settings</span>
+@endsection
 
 @section('content')
-<div class="max-w-4xl mx-auto space-y-8" x-data="{ tab: 'profile' }">
-    <div class="pb-4 border-b border-border">
-        <h1 class="text-2xl font-bold tracking-tight text-foreground">Studio Settings</h1>
-        <p class="text-xs text-muted-foreground mt-1">Manage your public photographer profile, security, and account preferences.</p>
-    </div>
+<div x-data="{
+        tab: '{{ $initialTab }}',
+        sections: @js(array_column($sections, 'id')),
+        init() {
+            const h = window.location.hash.replace('#', '');
+            if (this.sections.includes(h)) this.tab = h;
+        },
+        go(id) {
+            this.tab = id;
+            history.replaceState(null, '', '#' + id);
+        }
+     }">
+    <x-ui.page-header title="Settings" description="Manage your photographer profile, sign-in security and the emails we send you." />
 
-    <!-- Tabs -->
-    <div class="flex items-center gap-2 border-b border-border pb-4 text-xs font-medium">
-        <button type="button" @click="tab = 'profile'" :class="tab === 'profile' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'" class="px-4 py-2 rounded-lg transition-colors">
-            Profile Details
-        </button>
-        <button type="button" @click="tab = 'security'" :class="tab === 'security' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'" class="px-4 py-2 rounded-lg transition-colors">
-            Security &amp; Password
-        </button>
-        <button type="button" @click="tab = 'notifications'" :class="tab === 'notifications' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'" class="px-4 py-2 rounded-lg transition-colors">
-            Email Notifications
-        </button>
-        <button type="button" @click="tab = 'plan'" :class="tab === 'plan' ? 'bg-secondary text-foreground font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'" class="px-4 py-2 rounded-lg transition-colors">
-            Subscription &amp; Storage
-        </button>
-    </div>
-
-    <!-- TAB 1: Profile -->
-    <div x-show="tab === 'profile'" class="space-y-6">
-        <div class="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm">
-            <h2 class="text-lg font-bold text-foreground mb-6">Photographer Profile</h2>
-
-            <form method="POST" action="{{ route('studio.settings.profile') }}" class="space-y-6">
-                @csrf
-                @method('PATCH')
-
-                <div class="grid sm:grid-cols-2 gap-6">
-                    <x-ui.input label="Display Name"
-                                name="name"
-                                required
-                                :value="old('name', $user->name)"
-                                :error="$errors->first('name')" />
-
-                    <div>
-                        <label class="block text-sm font-medium text-foreground mb-1.5">Username (Portfolio Slug)</label>
-                        <div class="flex rounded-lg border border-border bg-muted/40 shadow-sm overflow-hidden text-sm">
-                            <span class="inline-flex items-center px-3 text-muted-foreground bg-muted border-r border-border text-xs font-mono">
-                                ifotoset.com/p/
-                            </span>
-                            <input type="text"
-                                   disabled
-                                   value="{{ $user->username }}"
-                                   class="block w-full bg-transparent px-3 py-2 text-muted-foreground font-mono text-xs cursor-not-allowed">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-1.5">
-                    <label for="bio" class="block text-sm font-medium text-foreground">Bio / About You</label>
-                    <textarea name="bio" id="bio" rows="4" class="block w-full rounded-lg border border-border bg-input px-3.5 py-2 text-foreground text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Tell clients about your photography style and experience...">{{ old('bio', $user->bio) }}</textarea>
-                    @if($errors->has('bio'))
-                        <p class="text-xs text-destructive mt-1">{{ $errors->first('bio') }}</p>
-                    @endif
-                </div>
-
-                <div class="grid sm:grid-cols-3 gap-6">
-                    <x-ui.input label="City / Location"
-                                name="location"
-                                placeholder="Kigali, Rwanda"
-                                :value="old('location', $user->location)" />
-
-                    <x-ui.input label="Website URL"
-                                type="url"
-                                name="website"
-                                placeholder="https://myphotos.com"
-                                :value="old('website', $user->website)" />
-
-                    <x-ui.input label="Phone / WhatsApp"
-                                name="phone"
-                                placeholder="+250 788 000 000"
-                                :value="old('phone', $user->phone)" />
-                </div>
-
-                <div class="flex justify-end pt-2">
-                    <x-ui.button type="submit" variant="primary">
-                        Save Profile Changes
-                    </x-ui.button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- TAB 2: Security & Password -->
-    <div x-show="tab === 'security'" class="space-y-6" style="display: none;">
-        <div class="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm">
-            <h2 class="text-lg font-bold text-foreground mb-6">Security &amp; Password</h2>
-
-            <form method="POST" action="{{ route('studio.settings.password') }}" class="space-y-6 max-w-xl">
-                @csrf
-                @method('PUT')
-
-                <x-ui.input label="Current Password"
-                            type="password"
-                            name="current_password"
-                            required
-                            :error="$errors->first('current_password')" />
-
-                <x-ui.input label="New Password"
-                            type="password"
-                            name="password"
-                            required
-                            :error="$errors->first('password')" />
-
-                <x-ui.input label="Confirm New Password"
-                            type="password"
-                            name="password_confirmation"
-                            required />
-
-                <div class="flex justify-end pt-2">
-                    <x-ui.button type="submit" variant="primary">
-                        Update Password
-                    </x-ui.button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- TAB 3: Notifications -->
-    <div x-show="tab === 'notifications'" class="space-y-6" style="display: none;">
-        <div class="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm">
-            <h2 class="text-lg font-bold text-foreground mb-2">Notification Preferences</h2>
-            <p class="text-xs text-muted-foreground mb-6">Choose which activities trigger email notifications to your inbox.</p>
-
-            @php
-                $prefs = $user->notification_preferences ?? [];
-            @endphp
-            <form method="POST" action="{{ route('studio.settings.notifications') }}" class="space-y-4">
-                @csrf
-                @method('PATCH')
-
-                <label class="flex items-start gap-3 p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary/20 transition-colors cursor-pointer">
-                    <input type="checkbox" name="booking_created" value="1" {{ !empty($prefs['booking_created']) ? 'checked' : '' }} class="mt-0.5 rounded border-border text-primary focus:ring-primary w-4 h-4">
-                    <div>
-                        <div class="text-sm font-semibold text-foreground">New Booking Request</div>
-                        <div class="text-xs text-muted-foreground">Receive an email when a client books a session through your portfolio.</div>
-                    </div>
-                </label>
-
-                <label class="flex items-start gap-3 p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary/20 transition-colors cursor-pointer">
-                    <input type="checkbox" name="photo_downloaded" value="1" {{ !empty($prefs['photo_downloaded']) ? 'checked' : '' }} class="mt-0.5 rounded border-border text-primary focus:ring-primary w-4 h-4">
-                    <div>
-                        <div class="text-sm font-semibold text-foreground">Gallery Downloads</div>
-                        <div class="text-xs text-muted-foreground">Get notified when a client downloads high-resolution photos or a full gallery ZIP.</div>
-                    </div>
-                </label>
-
-                <label class="flex items-start gap-3 p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary/20 transition-colors cursor-pointer">
-                    <input type="checkbox" name="photo_favorited" value="1" {{ !empty($prefs['photo_favorited']) ? 'checked' : '' }} class="mt-0.5 rounded border-border text-primary focus:ring-primary w-4 h-4">
-                    <div>
-                        <div class="text-sm font-semibold text-foreground">Photo Favorites</div>
-                        <div class="text-xs text-muted-foreground">Receive an update when clients star or shortlist photos for proofing.</div>
-                    </div>
-                </label>
-
-                <div class="flex justify-end pt-4 border-t border-border">
-                    <x-ui.button type="submit" variant="primary">
-                        Save Preferences
-                    </x-ui.button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- TAB 4: Plan & Storage -->
-    <div x-show="tab === 'plan'" class="space-y-6" style="display: none;">
-        <div class="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-lg font-bold text-foreground">Current Plan &amp; Quota</h2>
-                    <p class="text-xs text-muted-foreground mt-0.5">Your storage tier and platform allowances</p>
-                </div>
-                <x-ui.badge variant="default">
-                    {{ ucfirst($plan->name ?? 'Free Tier') }}
-                </x-ui.badge>
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
+        {{-- ============ Section nav ============ --}}
+        <nav aria-label="Settings sections" class="min-w-0 lg:sticky lg:top-6 lg:self-start">
+            {{-- Mobile: horizontal scroll pills --}}
+            <div class="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 lg:hidden" role="tablist">
+                @foreach($sections as $s)
+                    <button type="button" role="tab" @click="go('{{ $s['id'] }}')"
+                            :aria-selected="(tab === '{{ $s['id'] }}').toString()"
+                            :class="tab === '{{ $s['id'] }}' ? 'bg-card text-foreground shadow-xs ring-1 ring-border' : 'text-muted-foreground hover:text-foreground'"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition">
+                        <x-icon :name="$s['icon']" class="size-3.5" /> {{ $s['label'] }}
+                    </button>
+                @endforeach
             </div>
 
-            <!-- Storage Progress -->
-            <div class="p-4 rounded-xl bg-secondary/30 border border-border space-y-3">
-                <div class="flex items-center justify-between text-xs">
-                    <span class="font-medium text-foreground">Storage Allocation</span>
-                    <span class="font-bold text-primary">{{ round($storage['percentage'] ?? 0) }}% Used</span>
-                </div>
-                <div class="w-full bg-secondary h-2.5 rounded-full overflow-hidden">
-                    <div class="bg-primary h-full rounded-full transition-all duration-500" style="width: {{ min(100, max(2, $storage['percentage'] ?? 0)) }}%"></div>
-                </div>
-                <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{{ round(($storage['used_bytes'] ?? 0) / (1024 * 1024 * 1024), 2) }} GB used</span>
-                    @php
-                        $sLimitBytes = $storage['limit_bytes'] ?? (5 * 1024 * 1024 * 1024);
-                        $sLimitGb = ($sLimitBytes % 1000000000 === 0 && ($sLimitBytes % (1024 * 1024) !== 0))
-                            ? round($sLimitBytes / 1000000000)
-                            : round($sLimitBytes / (1024 * 1024 * 1024));
-                    @endphp
-                    <span>{{ $sLimitGb >= 1000 ? round($sLimitGb / 1000, 1) . ' TB' : $sLimitGb . ' GB' }} available</span>
-                </div>
-            </div>
-
-            <div class="grid sm:grid-cols-3 gap-4 text-xs">
-                <div class="p-3 rounded-xl border border-border bg-card">
-                    <div class="text-muted-foreground">Gallery Limit</div>
-                    <div class="text-base font-bold text-foreground mt-1">{{ $plan->gallery_limit ?? 'Unlimited' }}</div>
-                </div>
-                <div class="p-3 rounded-xl border border-border bg-card">
-                    <div class="text-muted-foreground">High-Res Downloads</div>
-                    <div class="text-base font-bold text-foreground mt-1">Included</div>
-                </div>
-                <div class="p-3 rounded-xl border border-border bg-card">
-                    <div class="text-muted-foreground">Mobile Money Payments</div>
-                    <div class="text-base font-bold text-foreground mt-1">Active</div>
-                </div>
-            </div>
-
-            <div class="pt-2 flex justify-end">
-                <a href="{{ route('studio.billing.index') }}"
-                   class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">
-                    <span>Manage Plans &amp; Upgrade</span>
-                    <span>&rarr;</span>
+            {{-- Desktop: vertical list --}}
+            <div class="hidden space-y-0.5 lg:block" role="tablist" aria-orientation="vertical">
+                @foreach($sections as $s)
+                    <button type="button" role="tab" @click="go('{{ $s['id'] }}')"
+                            :aria-selected="(tab === '{{ $s['id'] }}').toString()"
+                            :class="tab === '{{ $s['id'] }}' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'"
+                            class="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition">
+                        <x-icon :name="$s['icon']" class="size-4" />
+                        <span class="flex-1">{{ $s['label'] }}</span>
+                        <span x-show="tab === '{{ $s['id'] }}'" class="size-1.5 rounded-full bg-brand"></span>
+                    </button>
+                @endforeach
+                <div class="my-3 h-px bg-border"></div>
+                <a href="{{ route('studio.billing.index') }}" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground">
+                    <x-icon name="credit-card" class="size-4" />
+                    <span class="flex-1">Billing &amp; plans</span>
+                    <x-icon name="arrow-up-right" class="size-3.5 opacity-60" />
                 </a>
             </div>
+        </nav>
+
+        <div class="min-w-0 space-y-6">
+
+            {{-- ============ Profile ============ --}}
+            <section x-show="tab === 'profile'" class="card" aria-labelledby="profile-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="profile-heading" class="card-title">Profile</h2>
+                        <p class="card-description">This is how clients see you on galleries, booking pages and emails.</p>
+                    </div>
+                </div>
+
+                {{-- Avatar uploader (uploads directly; independent of the form below) --}}
+                <div class="border-b border-border p-5" x-data="avatarUploader({
+                        current: @js($user->avatar_url),
+                        requestUrl: '{{ url('/api/v1/settings/avatar/request') }}',
+                        confirmUrl: '{{ url('/api/v1/settings/avatar/confirm') }}'
+                     })">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div class="relative size-20 shrink-0">
+                            <template x-if="preview">
+                                <img :src="preview" alt="Profile photo" width="80" height="80" decoding="async" class="size-20 rounded-full object-cover ring-1 ring-border">
+                            </template>
+                            <template x-if="!preview">
+                                <x-ui.avatar :name="$user->name" size="xl" class="!size-20 text-xl" />
+                            </template>
+                            <div x-show="uploading" x-cloak class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white">
+                                <x-icon name="loader-circle" class="size-5 animate-spin" />
+                            </div>
+                            <button type="button" @click="$refs.file.click()" :disabled="uploading"
+                                    class="absolute -bottom-0.5 -right-0.5 flex size-7 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm transition hover:bg-muted"
+                                    aria-label="Change profile photo">
+                                <x-icon name="camera" class="size-3.5" />
+                            </button>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-foreground">Profile photo or logo</p>
+                            <p class="mt-0.5 text-[13px] text-muted-foreground">Square images work best. JPG, PNG or WebP up to 10 MB. We resize it to 400 × 400.</p>
+                            <p x-show="error" x-cloak class="error-text" x-text="error"></p>
+                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                <button type="button" @click="$refs.file.click()" :disabled="uploading" class="btn btn-outline btn-sm">
+                                    <x-icon name="upload" x-show="!uploading" />
+                                    <x-icon name="loader-circle" class="animate-spin" x-show="uploading" x-cloak />
+                                    <span x-text="uploading ? statusText : (preview ? 'Replace photo' : 'Upload photo')">Upload photo</span>
+                                </button>
+                                <span x-show="uploading" x-cloak class="w-24"><span class="progress block"><span :style="`width: ${progress}%`"></span></span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" x-ref="file" accept="image/jpeg,image/png,image/webp" class="sr-only" @change="pick($event)" tabindex="-1" aria-hidden="true">
+                </div>
+
+                <form method="POST" action="{{ route('studio.settings.profile') }}">
+                    @csrf
+                    <div class="card-body space-y-5">
+                        <div class="grid gap-5 sm:grid-cols-2">
+                            <x-ui.input label="Display name" name="name" required autocomplete="name"
+                                        :value="old('name', $user->name)" :error="$errors->first('name')" />
+                            <x-ui.input label="Phone / WhatsApp" name="phone" type="tel" autocomplete="tel" placeholder="+250 788 000 000" icon="phone"
+                                        :value="old('phone', $user->phone)" :error="$errors->first('phone')" />
+                        </div>
+
+                        <div x-data="{ count: {{ mb_strlen((string) old('bio', $user->bio)) }} }">
+                            <div class="mb-1.5 flex items-center justify-between">
+                                <label for="bio" class="label !mb-0">Bio</label>
+                                <span class="text-xs tabular-nums text-muted-foreground"><span x-text="count"></span> / 1000</span>
+                            </div>
+                            <textarea name="bio" id="bio" rows="4" maxlength="1000" @input="count = $event.target.value.length"
+                                      class="textarea {{ $errors->has('bio') ? 'input-error' : '' }}"
+                                      placeholder="Tell clients about your style, experience and the sessions you love shooting.">{{ old('bio', $user->bio) }}</textarea>
+                            @error('bio') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="grid gap-5 sm:grid-cols-2">
+                            <x-ui.input label="Location" name="location" placeholder="Kigali, Rwanda" icon="map-pin"
+                                        :value="old('location', $user->location)" :error="$errors->first('location')" />
+                            <x-ui.input label="Website" type="url" name="website" placeholder="https://yourstudio.com" icon="link"
+                                        :value="old('website', $user->website)" :error="$errors->first('website')" />
+                        </div>
+
+                        <div>
+                            <span class="label">Email</span>
+                            <div class="flex h-10 items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 text-sm">
+                                <span class="truncate text-muted-foreground">{{ $user->email }}</span>
+                                @if($user->hasVerifiedEmail())
+                                    <x-ui.badge variant="success"><x-icon name="check" class="size-3" /> Verified</x-ui.badge>
+                                @else
+                                    <x-ui.badge variant="warning">Unverified</x-ui.badge>
+                                @endif
+                            </div>
+                            <p class="help">Your sign-in email. Contact support to change it.</p>
+                        </div>
+                    </div>
+                    <div class="card-footer flex items-center justify-end gap-3">
+                        <p class="mr-auto hidden text-xs text-muted-foreground sm:block">Shown on your public portfolio.</p>
+                        <button type="submit" class="btn btn-primary">Save profile</button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- ============ Public profile ============ --}}
+            <section x-show="tab === 'public'" x-cloak class="card" aria-labelledby="public-heading">
+                <form method="POST" action="{{ route('studio.settings.public-profile') }}"
+                      x-data="{ username: @js(old('username', $user->username)), original: @js($user->username), isPublic: @js((bool) old('profile_public', $user->profile_public ?? true)) }">
+                    @csrf
+                    <div class="card-header">
+                        <div>
+                            <h2 id="public-heading" class="card-title">Public profile</h2>
+                            <p class="card-description">Your portfolio and booking page, shared with clients.</p>
+                        </div>
+                    </div>
+                    <div class="card-body space-y-6">
+                        <div>
+                            <label for="username" class="label">Portfolio address</label>
+                            <div class="flex h-10 items-stretch overflow-hidden rounded-lg border bg-input text-sm shadow-xs transition focus-within:border-ring focus-within:ring-4 focus-within:ring-ring/15 {{ $errors->has('username') ? 'border-destructive' : 'border-border' }}">
+                                <input type="text" id="username" name="username" required autocomplete="off" spellcheck="false"
+                                       x-model="username" @input="username = $event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50)"
+                                       class="min-w-0 flex-1 bg-transparent px-3 text-foreground outline-none placeholder:text-subtle">
+                                <span class="flex items-center border-l border-border bg-muted px-3 text-[13px] text-muted-foreground">.{{ $rootHost }}</span>
+                            </div>
+                            @error('username')
+                                <p class="error-text">{{ $message }}</p>
+                            @else
+                                <p class="help" x-show="username === original">This is the link clients use to find your portfolio and galleries.</p>
+                                <p class="help !text-warning" x-show="username !== original" x-cloak>
+                                    Changing your address updates every portfolio and gallery link. Links you've already shared will stop working.
+                                </p>
+                            @enderror
+                        </div>
+
+                        @if($publicUrl)
+                            <div class="rounded-xl border border-border p-4">
+                                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="globe" class="size-4" /></span>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-foreground">Portfolio link</p>
+                                            <p class="truncate text-[13px] text-muted-foreground">{{ $publicUrl }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-2">
+                                        <button type="button" class="btn btn-outline btn-sm" @click="$clipboard(@js($publicUrl))"><x-icon name="copy" /> Copy</button>
+                                        <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><x-icon name="external-link" /> Open</a>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        <label class="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border p-4">
+                            <span class="flex min-w-0 items-start gap-3">
+                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+                                      :class="isPublic ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'">
+                                    <x-icon name="eye" class="size-4" x-show="isPublic" />
+                                    <x-icon name="eye-off" class="size-4" x-show="!isPublic" x-cloak />
+                                </span>
+                                <span>
+                                    <span class="block text-sm font-medium text-foreground">Public portfolio</span>
+                                    <span class="mt-0.5 block text-[13px] text-muted-foreground" x-show="isPublic">Anyone with your link can view your portfolio and request a booking. It can appear in search results.</span>
+                                    <span class="mt-0.5 block text-[13px] text-muted-foreground" x-show="!isPublic" x-cloak>Your portfolio page is hidden and removed from search. Shared gallery links keep working.</span>
+                                </span>
+                            </span>
+                            <span class="switch mt-1">
+                                <input type="checkbox" name="profile_public" value="1" class="sr-only" x-model="isPublic">
+                                <span></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="card-footer flex items-center justify-between gap-3">
+                        <p class="text-xs text-muted-foreground">Bio, location and photo come from your <button type="button" class="link" @click="go('profile')">profile</button>.</p>
+                        <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- ============ Security ============ --}}
+            <section x-show="tab === 'security'" x-cloak class="card" aria-labelledby="security-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="security-heading" class="card-title">Password</h2>
+                        <p class="card-description">Use at least 8 characters. Other sessions stay signed in until they expire.</p>
+                    </div>
+                    <span class="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="key" class="size-4" /></span>
+                </div>
+                <form method="POST" action="{{ route('studio.settings.password') }}">
+                    @csrf
+                    <div class="card-body max-w-lg space-y-5">
+                        <x-ui.input label="Current password" type="password" name="current_password" required autocomplete="current-password"
+                                    :error="$errors->first('current_password')" />
+                        <x-ui.input label="New password" type="password" name="password" required autocomplete="new-password"
+                                    :error="$errors->first('password')" />
+                        <x-ui.input label="Confirm new password" type="password" name="password_confirmation" required autocomplete="new-password" />
+                    </div>
+                    <div class="card-footer flex items-center justify-end gap-3">
+                        <a href="{{ route('password.request') }}" class="mr-auto text-[13px] font-medium text-muted-foreground transition hover:text-foreground">Forgot your password?</a>
+                        <button type="submit" class="btn btn-primary">Update password</button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- ============ Notifications ============ --}}
+            <section x-show="tab === 'notifications'" x-cloak class="card" aria-labelledby="notif-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="notif-heading" class="card-title">Email notifications</h2>
+                        <p class="card-description">Choose which activity sends an email to <span class="font-medium text-foreground">{{ $user->email }}</span>.</p>
+                    </div>
+                </div>
+                <form method="POST" action="{{ route('studio.settings.notifications') }}">
+                    @csrf
+                    @php
+                        $notifRows = [
+                            ['name' => 'booking_created', 'icon' => 'calendar-check', 'title' => 'New booking requests', 'desc' => 'When a client books a session through your portfolio.'],
+                            ['name' => 'photo_downloaded', 'icon' => 'download', 'title' => 'Gallery downloads', 'desc' => 'When a client downloads high-resolution photos or a full gallery ZIP.'],
+                            ['name' => 'photo_favorited', 'icon' => 'heart', 'title' => 'Photo favorites', 'desc' => 'When clients favorite or shortlist photos while proofing.'],
+                        ];
+                    @endphp
+                    <div class="divide-y divide-border border-y border-border">
+                        @foreach($notifRows as $row)
+                            <label for="notif-{{ $row['name'] }}" class="flex cursor-pointer items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/40">
+                                <span class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground"><x-icon :name="$row['icon']" class="size-4" /></span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm font-medium text-foreground">{{ $row['title'] }}</span>
+                                    <span class="block text-[13px] text-muted-foreground">{{ $row['desc'] }}</span>
+                                </span>
+                                <span class="switch">
+                                    <input type="checkbox" id="notif-{{ $row['name'] }}" name="{{ $row['name'] }}" value="1" class="sr-only" {{ !empty($prefs[$row['name']]) ? 'checked' : '' }}>
+                                    <span></span>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                    <div class="card-footer flex items-center justify-end">
+                        <button type="submit" class="btn btn-primary">Save preferences</button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- Plan shortcut (mobile + quick glance) --}}
+            <a href="{{ route('studio.billing.index') }}" class="card card-hover flex items-center gap-4 p-4 sm:p-5">
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><x-icon name="crown" class="size-5" /></span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-medium text-foreground">{{ $plan->name ?? 'Free' }} plan</span>
+                    @php
+                        $usedGb = round(($storage['used_bytes'] ?? 0) / (1024 ** 3), 2);
+                        $limitB = $storage['limit_bytes'] ?? null;
+                        $limitGb = $limitB ? $limitB / (1024 ** 3) : null;
+                        $limitLabel = $limitGb ? ($limitGb >= 1000 ? rtrim(rtrim(number_format($limitGb / 1000, 1), '0'), '.') . ' TB' : round($limitGb) . ' GB') : 'Unlimited';
+                    @endphp
+                    <span class="block text-[13px] tabular-nums text-muted-foreground">{{ $usedGb }} GB of {{ $limitLabel }} used · Manage billing and receipts</span>
+                </span>
+                <x-icon name="chevron-right" class="size-4 text-muted-foreground" />
+            </a>
         </div>
     </div>
 </div>
+
+<script>
+function avatarUploader(config) {
+    return {
+        preview: config.current || null,
+        uploading: false,
+        progress: 0,
+        statusText: 'Uploading…',
+        error: null,
+
+        async sha256Hex(file) {
+            const buffer = await file.arrayBuffer();
+            const hash = await crypto.subtle.digest('SHA-256', buffer);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        },
+
+        headers() {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            return {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': token,
+            };
+        },
+
+        async pick(event) {
+            const file = event.target.files && event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            this.error = null;
+
+            if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+                this.error = 'Please choose a JPG, PNG or WebP image.';
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                this.error = 'That image is larger than 10 MB.';
+                return;
+            }
+
+            const previous = this.preview;
+            const localUrl = URL.createObjectURL(file);
+            this.preview = localUrl;
+            this.uploading = true;
+            this.progress = 5;
+            this.statusText = 'Preparing…';
+
+            try {
+                const sha256 = await this.sha256Hex(file);
+                const reqRes = await fetch(config.requestUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: this.headers(),
+                    body: JSON.stringify({ filename: file.name, sha256 }),
+                });
+                const reqData = await reqRes.json().catch(() => ({}));
+                if (!reqRes.ok || !reqData.presigned_url) {
+                    throw new Error(reqData.message || 'Could not start the upload.');
+                }
+
+                this.statusText = 'Uploading…';
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', reqData.presigned_url, true);
+                    xhr.setRequestHeader('Content-Type', file.type);
+                    for (const [k, v] of Object.entries(reqData.headers || {})) {
+                        try { xhr.setRequestHeader(k, v); } catch (_) {}
+                    }
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) this.progress = Math.max(5, Math.round((e.loaded / e.total) * 90));
+                    };
+                    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error('Upload failed (' + xhr.status + ').'));
+                    xhr.onerror = () => reject(new Error('Network error while uploading.'));
+                    xhr.send(file);
+                });
+
+                this.statusText = 'Processing…';
+                this.progress = 95;
+                const confRes = await fetch(config.confirmUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: this.headers(),
+                    body: JSON.stringify({ object_key: reqData.object_key }),
+                });
+                const confData = await confRes.json().catch(() => ({}));
+                if (!confRes.ok) {
+                    throw new Error(confData.message || 'Could not save your photo.');
+                }
+
+                this.progress = 100;
+                if (confData.avatar_url) {
+                    this.preview = confData.avatar_url;
+                    URL.revokeObjectURL(localUrl);
+                }
+                window.toast && window.toast('Profile photo updated', 'success');
+            } catch (e) {
+                this.preview = previous;
+                URL.revokeObjectURL(localUrl);
+                this.error = e.message || 'Upload failed. Please try again.';
+                window.toast && window.toast(this.error, 'error');
+            } finally {
+                this.uploading = false;
+                this.progress = 0;
+            }
+        },
+    };
+}
+</script>
 @endsection

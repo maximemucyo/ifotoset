@@ -1,24 +1,32 @@
-<section class="py-20 md:py-28 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto overflow-hidden border-t border-border/80 pb-28">
-    <div class="relative bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-3xl p-10 md:p-16 text-center shadow-xl overflow-hidden group">
-        <!-- Animated Background Accent Orbs -->
-        <div class="absolute inset-0 opacity-10 pointer-events-none">
-            <div class="absolute -top-12 -right-12 w-64 h-64 bg-background rounded-full mix-blend-screen filter blur-xl group-hover:scale-110 transition-transform duration-700"></div>
-            <div class="absolute -bottom-12 -left-12 w-64 h-64 bg-background rounded-full mix-blend-screen filter blur-xl group-hover:scale-110 transition-transform duration-700"></div>
-        </div>
+@php($img = fn (string $n) => asset("images/marketing/hero-{$n}.webp"))
+<section class="px-4 pb-24 sm:px-6 sm:pb-32 lg:px-8">
+    <div class="noise relative mx-auto max-w-7xl overflow-hidden rounded-3xl border border-border bg-card" data-reveal>
+        <div aria-hidden="true" class="absolute inset-0 bg-grid opacity-50 mask-radial"></div>
+        <div aria-hidden="true" class="absolute -bottom-40 left-1/2 h-80 w-[min(900px,120%)] -translate-x-1/2 rounded-full bg-brand/20 blur-[100px]"></div>
 
-        <div class="relative max-w-2xl mx-auto flex flex-col items-center">
-            <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-6 leading-tight text-balance">
-                Ready to elevate your photography business?
-            </h2>
-            <p class="text-lg sm:text-xl text-primary-foreground/90 mb-10 text-balance leading-relaxed">
-                Start delivering premium galleries, book more clients, and showcase your best work.
-            </p>
-            <a
-                href="{{ route('register') }}"
-                class="px-8 py-4 bg-background text-primary hover:text-accent font-bold rounded-xl transition-all shadow-md hover:shadow-xl hover:scale-[1.03] text-base sm:text-lg"
-            >
-                Get Started Free
-            </a>
+        <div class="relative grid items-center gap-12 px-6 py-16 sm:px-12 sm:py-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:px-16">
+            <div class="text-center lg:text-left">
+                <h2 class="text-[34px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-5xl lg:text-[56px]">
+                    Ready to deliver your <em class="font-serif font-normal italic tracking-normal text-brand">best work</em>?
+                </h2>
+                <p class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-[17px] lg:mx-0">
+                    Set up your studio in minutes. Free to start, no card required, and you can upgrade whenever you're ready.
+                </p>
+                <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+                    @auth
+                        <a href="{{ url('/studio/dashboard') }}" class="btn btn-brand btn-xl">Open your studio <x-icon name="arrow-right" /></a>
+                    @else
+                        <a href="{{ route('register') }}" class="btn btn-brand btn-xl">Create your free studio <x-icon name="arrow-right" /></a>
+                        <a href="{{ route('login') }}" class="btn btn-outline btn-xl">Sign in</a>
+                    @endauth
+                </div>
+            </div>
+
+            <div class="relative mx-auto hidden h-80 w-full max-w-sm sm:block" aria-hidden="true">
+                <img src="{{ $img(9) }}" width="800" height="1000" alt="" loading="lazy" decoding="async" class="absolute left-0 top-6 aspect-[4/5] w-44 -rotate-6 rounded-xl object-cover shadow-xl ring-4 ring-card">
+                <img src="{{ $img(12) }}" width="800" height="1000" alt="" loading="lazy" decoding="async" class="absolute right-0 top-0 aspect-[4/5] w-44 rotate-6 rounded-xl object-cover shadow-xl ring-4 ring-card">
+                <img src="{{ $img(15) }}" width="1200" height="800" alt="" loading="lazy" decoding="async" class="absolute bottom-0 left-1/2 aspect-[3/2] w-56 -translate-x-1/2 rounded-xl object-cover shadow-xl ring-4 ring-card">
+            </div>
         </div>
     </div>
 </section>

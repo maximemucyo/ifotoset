@@ -1,133 +1,118 @@
-<section class="py-20 md:py-28 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto overflow-hidden border-t border-border/80">
-    <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
-            One Platform. Three Powerful Experiences.
-        </h2>
-        <p class="text-lg text-muted-foreground">
-            ifotoset is designed around the way you work, bringing your delivery, marketing, and scheduling workflows into one seamless suite.
-        </p>
-    </div>
+@php($img = fn (string $n) => asset("images/marketing/hero-{$n}.webp"))
 
-    <div class="grid md:grid-cols-3 gap-8">
-        <!-- Client Galleries -->
-        <div class="group bg-card rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between">
-            <div>
-                <!-- Icon & Title -->
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
+<section id="features" class="relative py-24 sm:py-32">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <x-landing.section-heading eyebrow="One platform" description="Three tools that usually live in three different subscriptions, designed to work as one.">
+            Everything after the shutter, <em class="font-serif font-normal italic tracking-normal">handled</em>.
+        </x-landing.section-heading>
+
+        <div class="mt-14 grid gap-5 lg:grid-cols-3">
+            {{-- Galleries --}}
+            <article class="card card-hover group flex flex-col overflow-hidden rounded-2xl" data-reveal>
+                <div class="relative aspect-[5/4] overflow-hidden border-b sm:aspect-[4/3] lg:aspect-[5/4] xl:aspect-[4/3] border-border bg-muted/50">
+                    <div aria-hidden="true" class="absolute inset-0 bg-dots opacity-60 mask-radial"></div>
+                    <div class="absolute left-1/2 top-1/2 h-[68%] -translate-x-1/2 -translate-y-1/2">
+                        <img src="{{ $img(2) }}" width="800" height="1000" alt="" loading="lazy" decoding="async" class="absolute left-1/2 top-1/2 h-full w-auto -translate-x-[95%] -translate-y-1/2 -rotate-[8deg] rounded-lg object-cover shadow-md ring-4 ring-card transition-transform duration-500 group-hover:-translate-x-[105%] group-hover:-rotate-[11deg]" style="aspect-ratio: 4/5">
+                        <img src="{{ $img(13) }}" width="800" height="1000" alt="" loading="lazy" decoding="async" class="absolute left-1/2 top-1/2 h-full w-auto -translate-x-[5%] -translate-y-1/2 rotate-[8deg] rounded-lg object-cover shadow-md ring-4 ring-card transition-transform duration-500 group-hover:translate-x-[5%] group-hover:rotate-[11deg]" style="aspect-ratio: 4/5">
+                        <img src="{{ $img(1) }}" width="1000" height="1250" alt="Couple on a bench at sunset" loading="lazy" decoding="async" class="relative h-full w-auto rounded-lg object-cover shadow-lg ring-4 ring-card" style="aspect-ratio: 4/5">
                     </div>
-                    <h3 class="text-xl font-bold text-foreground">
-                        Client Galleries
-                    </h3>
+                    <span class="absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-popover px-3 py-1 text-[12px] font-medium text-foreground shadow-sm">
+                        <x-icon name="lock" class="size-3.5 text-success" /> Password protected
+                    </span>
                 </div>
-
-                <p class="text-muted-foreground text-sm leading-relaxed mb-6">
-                    Deliver beautiful, private galleries to clients with fast uploads, secure access, downloads, and sharing.
-                </p>
-
-                <!-- Compact Screenshot Preview -->
-                <div class="relative aspect-[16/10] w-full rounded-lg overflow-hidden border border-border/60 mb-6 bg-secondary/20">
-                    <img
-                        src="https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=400&q=80"
-                        alt="Client Galleries preview"
-                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    >
-                </div>
-            </div>
-
-            <div>
-                <a
-                    href="#showcase"
-                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:text-accent transition-colors"
-                >
-                    Learn more
-                    <span class="group-hover:translate-x-1 transition-transform">→</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Portfolio Showcase -->
-        <div class="group bg-card rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between">
-            <div>
-                <!-- Icon & Title -->
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
+                <div class="flex flex-1 flex-col p-6">
+                    <div class="flex items-center gap-2.5">
+                        <span class="inline-flex size-8 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="images" /></span>
+                        <h3 class="text-lg font-semibold tracking-tight">Client galleries</h3>
                     </div>
-                    <h3 class="text-xl font-bold text-foreground">
-                        Portfolio Showcase
-                    </h3>
+                    <p class="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">Deliver full-resolution photos and films in a gallery that feels as considered as your work.</p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-foreground">
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Passwords, expiry and download controls</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Favourites and one-click full downloads</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Email invitations to your clients</li>
+                    </ul>
                 </div>
+            </article>
 
-                <p class="text-muted-foreground text-sm leading-relaxed mb-6">
-                    Turn your best work into a professional online portfolio designed to attract your next client.
-                </p>
-
-                <!-- Compact Screenshot Preview -->
-                <div class="relative aspect-[16/10] w-full rounded-lg overflow-hidden border border-border/60 mb-6 bg-secondary/20">
-                    <img
-                        src="https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=400&q=80"
-                        alt="Portfolio Showcase preview"
-                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    >
-                </div>
-            </div>
-
-            <div>
-                <a
-                    href="#showcase"
-                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:text-accent transition-colors"
-                >
-                    Learn more
-                    <span class="group-hover:translate-x-1 transition-transform">→</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Studio Manager -->
-        <div class="group bg-card rounded-2xl border border-border p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1.5 flex flex-col justify-between">
-            <div>
-                <!-- Icon & Title -->
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
+            {{-- Portfolio --}}
+            <article class="card card-hover group flex flex-col overflow-hidden rounded-2xl" data-reveal style="--reveal-delay: 100ms">
+                <div class="relative aspect-[5/4] overflow-hidden border-b sm:aspect-[4/3] lg:aspect-[5/4] xl:aspect-[4/3] border-border bg-muted/50 p-6 pb-0">
+                    <div class="h-full overflow-hidden rounded-t-xl border border-b-0 border-border bg-card shadow-md transition-transform duration-500 group-hover:-translate-y-1.5">
+                        <div class="flex items-center justify-between px-3.5 py-2.5 text-[10px]">
+                            <span class="font-display text-[11px] font-semibold tracking-tight">Your Studio</span>
+                            <span class="flex gap-2.5 text-muted-foreground"><span>Work</span><span>About</span><span class="text-foreground">Book</span></span>
+                        </div>
+                        <div class="relative mx-2.5 aspect-[16/8] overflow-hidden rounded-md">
+                            <img src="{{ $img(7) }}" width="800" height="1000" alt="Photographer holding a vintage camera" loading="lazy" decoding="async" class="absolute inset-0 size-full object-cover object-[50%_40%]">
+                            <div class="absolute inset-0 bg-black/30"></div>
+                            <p class="absolute bottom-2.5 left-3 font-serif text-xl italic leading-none text-white">Stories, in light.</p>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5 p-2.5">
+                            @foreach([3, 9, 12] as $n)
+                                <img src="{{ $img($n) }}" width="800" height="800" alt="" loading="lazy" decoding="async" class="aspect-square w-full rounded-sm object-cover">
+                            @endforeach
+                        </div>
                     </div>
-                    <h3 class="text-xl font-bold text-foreground">
-                        Studio Manager
-                    </h3>
                 </div>
-
-                <p class="text-muted-foreground text-sm leading-relaxed mb-6">
-                    Manage bookings, clients, packages, pricing, payments, and your business from one workspace.
-                </p>
-
-                <!-- Compact Screenshot Preview -->
-                <div class="relative aspect-[16/10] w-full rounded-lg overflow-hidden border border-border/60 mb-6 bg-secondary/20">
-                    <img
-                        src="https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&q=80"
-                        alt="Studio Manager preview"
-                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    >
+                <div class="flex flex-1 flex-col p-6">
+                    <div class="flex items-center gap-2.5">
+                        <span class="inline-flex size-8 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="globe" /></span>
+                        <h3 class="text-lg font-semibold tracking-tight">Portfolio website</h3>
+                    </div>
+                    <p class="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">A fast, search-friendly site for your best work, with booking built in. No developer needed.</p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-foreground">
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Curated collections from your galleries</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Your own subdomain or custom domain</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> SEO metadata and social previews</li>
+                    </ul>
                 </div>
-            </div>
+            </article>
 
-            <div>
-                <a
-                    href="#showcase"
-                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:text-accent transition-colors"
-                >
-                    Learn more
-                    <span class="group-hover:translate-x-1 transition-transform">→</span>
-                </a>
-            </div>
+            {{-- Studio manager --}}
+            <article class="card card-hover group flex flex-col overflow-hidden rounded-2xl" data-reveal style="--reveal-delay: 200ms">
+                <div class="relative aspect-[5/4] overflow-hidden border-b sm:aspect-[4/3] lg:aspect-[5/4] xl:aspect-[4/3] border-border bg-muted/50 p-6 pb-0">
+                    <div class="h-full space-y-2 rounded-t-xl border border-b-0 border-border bg-card p-3.5 shadow-md transition-transform duration-500 group-hover:-translate-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <p class="text-[11px] font-semibold text-foreground">Upcoming sessions</p>
+                            <span class="text-[10px] text-muted-foreground">This week</span>
+                        </div>
+                        @foreach([
+                            ['day' => 'Tue', 'date' => '14', 'title' => 'Engagement shoot', 'meta' => '10:00 · Outdoor', 'badge' => 'badge-success', 'status' => 'Paid'],
+                            ['day' => 'Thu', 'date' => '16', 'title' => 'Family portraits', 'meta' => '15:30 · Studio', 'badge' => 'badge-warning', 'status' => 'Deposit'],
+                            ['day' => 'Sat', 'date' => '18', 'title' => 'Wedding day', 'meta' => 'All day · Full package', 'badge' => 'badge-info', 'status' => 'Confirmed'],
+                        ] as $row)
+                            <div class="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2">
+                                <div class="flex w-8 shrink-0 flex-col items-center rounded-md bg-muted py-1 leading-none">
+                                    <span class="text-[8.5px] uppercase text-muted-foreground">{{ $row['day'] }}</span>
+                                    <span class="mt-0.5 font-display text-[13px] font-semibold tabular-nums">{{ $row['date'] }}</span>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-[11.5px] font-medium text-foreground">{{ $row['title'] }}</p>
+                                    <p class="truncate text-[10px] text-muted-foreground">{{ $row['meta'] }}</p>
+                                </div>
+                                <span class="badge {{ $row['badge'] }} text-[10px]">{{ $row['status'] }}</span>
+                            </div>
+                        @endforeach
+                        <div class="flex items-center gap-2.5 rounded-lg bg-muted/70 px-2.5 py-2">
+                            <span class="text-[10.5px] text-muted-foreground">Deposits collected</span>
+                            <span class="progress h-1 flex-1"><span style="width: 66%"></span></span>
+                            <span class="text-[10.5px] font-medium tabular-nums">2 of 3</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-1 flex-col p-6">
+                    <div class="flex items-center gap-2.5">
+                        <span class="inline-flex size-8 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="layout-dashboard" /></span>
+                        <h3 class="text-lg font-semibold tracking-tight">Studio manager</h3>
+                    </div>
+                    <p class="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">Bookings, clients, packages and payments in one place, so nothing slips through the cracks.</p>
+                    <ul class="mt-5 space-y-2.5 text-[14px] text-foreground">
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Availability calendar and online booking</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Client records and session history</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Packages with Mobile Money checkout</li>
+                    </ul>
+                </div>
+            </article>
         </div>
     </div>
 </section>

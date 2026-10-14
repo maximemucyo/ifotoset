@@ -1,7 +1,7 @@
 @extends('layouts.admin', ['title' => 'Moderation Preview - ' . $gallery->title])
 
 @section('content')
-<div class="space-y-6" x-data="{
+<div x-data="{
     takedownModalOpen: false,
     takedownReason: '',
     previewOpen: false,
@@ -51,7 +51,7 @@
                     fullscreenWeb: true,
                     playsInline: true,
                     airplay: true,
-                    theme: '#e11d48',
+                    theme: '#f0532a',
                     customType: {
                         m3u8: function (video, url, artInstance) {
                             if (window.Hls && window.Hls.isSupported()) {
@@ -96,160 +96,127 @@
         }
     }
 }">
-    <!-- Admin Moderation Mode Banner -->
-    <div class="rounded-xl border border-primary/30 bg-primary/10 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
+    @php
+        $fmtBytes = function ($b) {
+            $b = (float) $b; $u = ['B', 'KB', 'MB', 'GB', 'TB']; $i = 0;
+            while ($b >= 1024 && $i < 4) { $b /= 1024; $i++; }
+            return ($i === 0 ? (int) $b : number_format($b, 1)) . ' ' . $u[$i];
+        };
+        $isTakenDown = $gallery->isTakenDown();
+    @endphp
+
+    <x-ui.page-header :title="$gallery->title" :back="route('admin.galleries.index')" back-label="All galleries" eyebrow="Moderation preview">
+        <x-slot:meta>
+            <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                @if($isTakenDown)
+                    <span class="badge badge-danger"><x-icon name="ban" /> Taken down</span>
+                @else
+                    <span class="badge badge-success badge-dot">Active</span>
+                @endif
+                @if($gallery->visibility === 'public')
+                    <span class="badge badge-neutral"><x-icon name="globe" /> Public</span>
+                @elseif($gallery->visibility === 'password')
+                    <span class="badge badge-warning"><x-icon name="lock" /> PIN protected</span>
+                @else
+                    <span class="badge badge-neutral"><x-icon name="eye-off" /> Private</span>
+                @endif
+                <span class="font-mono text-xs text-muted-foreground">/g/{{ $gallery->slug }}</span>
             </div>
-            <div>
-                <h2 class="text-sm font-bold text-foreground flex items-center gap-2">
-                    <span>🛡 Admin Moderation Preview</span>
-                    @if($gallery->isTakenDown())
-                        <span class="px-2 py-0.5 rounded bg-destructive text-destructive-foreground text-[10px] font-extrabold uppercase tracking-wider">
-                            Taken Down
-                        </span>
-                    @else
-                        <span class="px-2 py-0.5 rounded bg-green-500/20 text-green-700 dark:text-green-400 text-[10px] font-extrabold uppercase tracking-wider">
-                            Active
-                        </span>
+        </x-slot:meta>
+        <x-slot:actions>
+            @if($photographer->username)
+                <a href="{{ $gallery->public_url }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+                    <x-icon name="external-link" /> Public view
+                </a>
+            @endif
+        </x-slot:actions>
+    </x-ui.page-header>
+
+    <!-- Admin moderation mode notice -->
+    <div class="alert alert-info">
+        <x-icon name="shield-check" />
+        <div>
+            <p class="font-medium">You're viewing this gallery as an administrator.</p>
+            <p class="mt-0.5 text-[13px] text-muted-foreground">Privacy PINs, client invitations and expiry dates are bypassed. Nothing here is visible to the photographer or their clients.</p>
+        </div>
+    </div>
+
+    @if($isTakenDown)
+        <div class="alert alert-danger mt-4">
+            <x-icon name="ban" />
+            <div class="min-w-0">
+                <p class="font-medium">This gallery is currently taken down</p>
+                <p class="mt-1 text-[13px] text-foreground"><span class="text-muted-foreground">Reason:</span> {{ $gallery->takedown_reason ?? 'Content moderation flag.' }}</p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Taken down {{ $gallery->taken_down_at?->format('M j, Y H:i') }}
+                    @if($gallery->takenDownBy)
+                        by {{ $gallery->takenDownBy->name }}
                     @endif
-                </h2>
-                <p class="text-xs text-muted-foreground mt-0.5">
-                    Viewing full gallery content with administrator privileges. Privacy PINs, client invitations, and expiration dates are bypassed.
                 </p>
             </div>
         </div>
+    @endif
 
-        <div class="flex items-center gap-2">
-            <a href="{{ route('admin.galleries.index') }}" class="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-secondary text-xs font-semibold text-foreground transition-colors">
-                &larr; Back to Galleries
+    <!-- Details -->
+    <div class="mt-6 grid gap-4 lg:grid-cols-3">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:col-span-2">
+            <div class="card p-4">
+                <div class="flex items-center gap-2 text-xs text-muted-foreground"><x-icon name="images" class="size-3.5" /> Photos</div>
+                <div class="stat-value mt-2 !text-xl">{{ number_format($gallery->photo_count) }}</div>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 text-xs text-muted-foreground"><x-icon name="hard-drive" class="size-3.5" /> Storage</div>
+                <div class="stat-value mt-2 !text-xl">{{ $fmtBytes($gallery->stats?->total_bytes ?? 0) }}</div>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 text-xs text-muted-foreground"><x-icon name="download" class="size-3.5" /> Downloads</div>
+                <div class="stat-value mt-2 !text-xl">{{ number_format($gallery->stats?->downloads_count ?? 0) }}</div>
+            </div>
+            <div class="card p-4">
+                <div class="flex items-center gap-2 text-xs text-muted-foreground"><x-icon name="heart" class="size-3.5" /> Favorites</div>
+                <div class="stat-value mt-2 !text-xl">{{ number_format($gallery->stats?->favorites_count ?? 0) }}</div>
+            </div>
+        </div>
+        <div class="card flex items-center gap-3 p-4">
+            <x-ui.avatar :name="$photographer->name" :src="$photographer->avatar_url ?? null" size="md" />
+            <div class="min-w-0 flex-1">
+                <p class="truncate text-[13px] font-medium text-foreground">{{ $photographer->name }}</p>
+                <p class="truncate text-xs text-muted-foreground">{{ $photographer->email }}</p>
+                <p class="mt-1 text-[11px] text-subtle">
+                    @if($gallery->event_date)Event {{ $gallery->event_date->format('M j, Y') }} · @endif
+                    Created {{ $gallery->created_at->format('M j, Y') }}
+                </p>
+            </div>
+            <a href="{{ route('admin.users.index', ['search' => $photographer->email]) }}" class="btn btn-ghost btn-icon btn-sm shrink-0" aria-label="Find photographer in users" title="Open in users">
+                <x-icon name="arrow-up-right" />
             </a>
         </div>
     </div>
 
-    <!-- Gallery Details & Controls Card -->
-    <div class="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-border">
-            <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                    <h1 class="text-2xl font-bold tracking-tight text-foreground">{{ $gallery->title }}</h1>
-                    <x-ui.badge :variant="$gallery->visibility === 'public' ? 'default' : ($gallery->visibility === 'password' ? 'warning' : 'muted')">
-                        {{ ucfirst($gallery->visibility) }}
-                    </x-ui.badge>
-                </div>
-                <div class="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span>Photographer: <strong>{{ $photographer->name }}</strong> ({{ $photographer->email }})</span>
-                    <span>&bull;</span>
-                    <span>Slug: <code class="font-mono text-foreground">{{ $gallery->slug }}</code></span>
-                    @if($gallery->event_date)
-                        <span>&bull;</span>
-                        <span>Event Date: {{ $gallery->event_date->format('M j, Y') }}</span>
-                    @endif
-                    <span>&bull;</span>
-                    <span>Created: {{ $gallery->created_at->format('M j, Y') }}</span>
-                </div>
+    <!-- Photos grid -->
+    <section class="mt-8">
+        <div class="mb-4 flex items-end justify-between gap-3">
+            <div>
+                <h2 class="text-[15px] font-semibold text-foreground">Media</h2>
+                <p class="text-xs text-muted-foreground">Click any item to inspect it at full size.</p>
             </div>
-
-            <!-- Moderation Toolbar -->
-            <div class="flex flex-wrap items-center gap-2 shrink-0">
-                <!-- Toggle Visibility -->
-                <form method="POST" action="{{ route('admin.galleries.visibility', $gallery->uuid) }}">
-                    @csrf
-                    @method('PATCH')
-                    <button type="submit" class="px-3.5 py-2 rounded-xl border border-border bg-secondary/50 hover:bg-secondary text-xs font-semibold text-foreground transition-colors cursor-pointer">
-                        {{ $gallery->visibility === 'public' ? 'Make Private' : 'Make Public' }}
-                    </button>
-                </form>
-
-                <!-- Takedown or Restore -->
-                @if($gallery->isTakenDown())
-                    <form method="POST" action="{{ route('admin.galleries.restore', $gallery->uuid) }}" onsubmit="return confirm('Restore this gallery to normal moderation status? Photographer visibility settings will remain unchanged.');">
-                        @csrf
-                        <button type="submit" class="px-3.5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                            Restore Gallery
-                        </button>
-                    </form>
-                @else
-                    <button type="button" @click="takedownModalOpen = true" class="px-3.5 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                        Take Down Gallery
-                    </button>
-                @endif
-
-                @if($photographer->username)
-                    <a href="{{ $gallery->public_url }}" target="_blank" class="px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1">
-                        <span>Public View</span>
-                        <span>&nearr;</span>
-                    </a>
-                @endif
-            </div>
-        </div>
-
-        <!-- Takedown Information Alert if taken down -->
-        @if($gallery->isTakenDown())
-            <div class="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-xs space-y-1">
-                <div class="font-bold text-destructive flex items-center gap-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    Gallery Currently Taken Down
-                </div>
-                <div class="text-foreground">
-                    <strong>Reason:</strong> {{ $gallery->takedown_reason ?? 'Content moderation flag.' }}
-                </div>
-                <div class="text-muted-foreground text-[11px]">
-                    Taken down on {{ $gallery->taken_down_at?->format('M j, Y H:i') }}
-                    @if($gallery->takenDownBy)
-                        by {{ $gallery->takenDownBy->name }}
-                    @endif
-                </div>
-            </div>
-        @endif
-
-        <!-- Stats Bar -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="p-4 rounded-xl bg-secondary/30 border border-border">
-                <div class="text-xs text-muted-foreground font-medium">Photos</div>
-                <div class="text-xl font-bold text-foreground mt-1">{{ $gallery->photo_count }}</div>
-            </div>
-            <div class="p-4 rounded-xl bg-secondary/30 border border-border">
-                <div class="text-xs text-muted-foreground font-medium">Storage Used</div>
-                <div class="text-xl font-bold text-foreground mt-1">{{ round(($gallery->stats?->total_bytes ?? 0) / (1024 * 1024), 1) }} MB</div>
-            </div>
-            <div class="p-4 rounded-xl bg-secondary/30 border border-border">
-                <div class="text-xs text-muted-foreground font-medium">Downloads</div>
-                <div class="text-xl font-bold text-foreground mt-1">{{ $gallery->stats?->downloads_count ?? 0 }}</div>
-            </div>
-            <div class="p-4 rounded-xl bg-secondary/30 border border-border">
-                <div class="text-xs text-muted-foreground font-medium">Favorites</div>
-                <div class="text-xl font-bold text-foreground mt-1">{{ $gallery->stats?->favorites_count ?? 0 }}</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Photos Grid -->
-    <div class="space-y-4">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-bold text-foreground">Gallery Photographs ({{ $photos->total() }})</h3>
-            <span class="text-xs text-muted-foreground">Showing {{ $photos->firstItem() ?? 0 }}-{{ $photos->lastItem() ?? 0 }} of {{ $photos->total() }}</span>
+            <span class="text-xs tabular-nums text-muted-foreground">{{ $photos->firstItem() ?? 0 }}–{{ $photos->lastItem() ?? 0 }} of {{ $photos->total() }}</span>
         </div>
 
         @if($photos->isEmpty())
-            <div class="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground text-sm">
-                No photographs uploaded to this gallery yet.
-            </div>
+            <x-ui.empty-state title="No media in this gallery" description="The photographer hasn't uploaded any photos or videos yet." icon="images" />
         @else
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 xl:grid-cols-6">
                 @foreach($photos as $photo)
                     @php
                         $isVideo = $photo->isVideo();
-                        $videoUrl = $isVideo ? ($photo->getDeliveryUrl() ?? $photo->getUrl()) : null;
+                        $videoUrl = $isVideo ? ($photo->getStreamUrl() ?? $photo->getUrl()) : null;
                         $posterUrl = $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : null;
                         $previewUrl = $isVideo ? ($posterUrl ?? $photo->getUrl('md')) : $photo->getUrl('xl');
                     @endphp
-                    <div class="group relative rounded-xl overflow-hidden bg-muted border border-border aspect-square shadow-sm hover:shadow-md transition-all cursor-pointer select-none"
+                    <button type="button"
+                         class="group relative aspect-square cursor-zoom-in select-none overflow-hidden rounded-lg bg-muted ring-1 ring-border transition hover:ring-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                         aria-label="Inspect {{ $photo->original_filename }}"
                          @click="openPreview({
                              uuid: '{{ $photo->uuid }}',
                              isVideo: {{ $isVideo ? 'true' : 'false' }},
@@ -262,126 +229,154 @@
                          })">
                         <img src="{{ $photo->getUrl('md') }}"
                              alt="{{ $photo->original_filename }}"
-                             loading="lazy"
-                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
+                             loading="lazy" decoding="async"
+                             class="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]">
 
                         @if($isVideo)
-                            <!-- Video Indicator Badge -->
-                            <div class="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white text-[10px] font-semibold flex items-center gap-1">
-                                <svg class="w-3 h-3 text-red-500 fill-current" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                <span>{{ $photo->duration_formatted ?: 'Video' }}</span>
-                            </div>
+                            <span class="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                                <x-icon name="play" class="size-3 fill-current" />
+                                {{ $photo->duration_formatted ?: 'Video' }}
+                            </span>
                         @endif
 
-                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-between text-white text-[10px]">
-                            <div class="truncate font-medium">{{ $photo->original_filename }}</div>
-                            <div class="flex items-center justify-between font-mono">
-                                <span>{{ round($photo->size / 1024) }} KB</span>
-                                <span class="px-2 py-1 rounded bg-white/20 hover:bg-white/40 text-white font-bold transition-colors">
-                                    {{ $isVideo ? 'Play Video ▶' : 'Preview ↗' }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                        <span class="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6 text-left text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                            <span class="min-w-0">
+                                <span class="block truncate font-medium">{{ $photo->original_filename }}</span>
+                                <span class="font-mono text-white/70">{{ round($photo->size / 1024) }} KB</span>
+                            </span>
+                            <x-icon :name="$isVideo ? 'play' : 'zoom-in'" class="size-3.5 shrink-0" />
+                        </span>
+                    </button>
                 @endforeach
             </div>
 
-            <div class="pt-4">
-                {{ $photos->links() }}
-            </div>
+            @if($photos->hasPages())
+                <div class="mt-6">
+                    {{ $photos->links() }}
+                </div>
+            @endif
         @endif
+    </section>
+
+    <!-- Moderation action bar -->
+    <div class="pointer-events-none sticky bottom-4 z-30 mt-8 flex justify-center">
+        <div class="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-2xl border border-border p-2 shadow-lg sm:flex-nowrap sm:rounded-full sm:pl-4">
+            <span class="hidden items-center gap-2 pr-1 text-[13px] text-muted-foreground sm:flex">
+                <x-icon name="shield" class="size-4 {{ $isTakenDown ? 'text-destructive' : 'text-success' }}" />
+                <span class="whitespace-nowrap">{{ $isTakenDown ? 'Taken down' : 'Live' }} · {{ $gallery->visibility === 'password' ? 'PIN' : ucfirst($gallery->visibility) }}</span>
+            </span>
+            <span class="hidden h-5 w-px bg-border sm:block"></span>
+
+            <!-- Toggle visibility -->
+            <form method="POST" action="{{ route('admin.galleries.visibility', $gallery->uuid) }}">
+                @csrf
+                <button type="submit" class="btn btn-ghost btn-sm rounded-full">
+                    <x-icon :name="$gallery->visibility === 'public' ? 'eye-off' : 'eye'" />
+                    {{ $gallery->visibility === 'public' ? 'Make Private' : 'Make Public' }}
+                </button>
+            </form>
+
+            <!-- Takedown or restore -->
+            @if($isTakenDown)
+                <form method="POST" action="{{ route('admin.galleries.restore', $gallery->uuid) }}" onsubmit="return confirm('Restore this gallery to normal moderation status? Photographer visibility settings will remain unchanged.');">
+                    @csrf
+                    <button type="submit" class="btn btn-primary btn-sm rounded-full">
+                        <x-icon name="rotate-ccw" /> Restore gallery
+                    </button>
+                </form>
+            @else
+                <button type="button" @click="takedownModalOpen = true" class="btn btn-danger btn-sm rounded-full">
+                    <x-icon name="ban" /> Take down
+                </button>
+            @endif
+        </div>
     </div>
 
-    <!-- Takedown Modal Dialog -->
+    <!-- Takedown modal -->
     <div x-show="takedownModalOpen"
-         x-transition
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/50 backdrop-blur-sm"
+         class="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+         role="dialog" aria-modal="true"
          style="display: none;">
-        <div @click.away="takedownModalOpen = false" class="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-start justify-between">
-                <div class="flex items-center gap-2 text-destructive font-bold">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    Take Down Gallery
-                </div>
-                <button @click="takedownModalOpen = false" class="text-muted-foreground hover:text-foreground text-sm">&times;</button>
-            </div>
-
-            <p class="text-xs text-muted-foreground">
-                Taking down <strong>{{ $gallery->title }}</strong> will make it unavailable to the public with a moderation notice. The photographer's original privacy configuration will be preserved for future restoration.
-            </p>
-
-            <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}" class="space-y-4">
+        <div x-show="takedownModalOpen" x-transition.opacity class="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+        <div x-show="takedownModalOpen" x-transition @click.away="takedownModalOpen = false" class="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl">
+            <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}">
                 @csrf
-                <div>
-                    <label class="block text-xs font-semibold text-foreground mb-1.5">Specific Moderation Reason <span class="text-destructive">*</span></label>
-                    <textarea name="reason"
-                              x-model="takedownReason"
-                              rows="3"
-                              required
-                              placeholder="e.g. Copyright infringement notice from copyright holder, Terms of Service violation, illegal content..."
-                              class="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"></textarea>
+                <div class="space-y-4 p-5">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex gap-3">
+                            <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive"><x-icon name="ban" class="size-4" /></span>
+                            <div>
+                                <h3 class="text-[15px] font-semibold text-foreground">Take down gallery</h3>
+                                <p class="mt-1 text-[13px] text-muted-foreground">
+                                    <span class="font-medium text-foreground">{{ $gallery->title }}</span> will become unavailable to the public with a moderation notice. The photographer's privacy configuration is preserved for a future restore.
+                                </p>
+                            </div>
+                        </div>
+                        <button type="button" @click="takedownModalOpen = false" class="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1 shrink-0" aria-label="Close"><x-icon name="x" /></button>
+                    </div>
+                    <div>
+                        <label class="label" for="takedown-reason">Moderation reason <span class="text-destructive">*</span></label>
+                        <textarea id="takedown-reason"
+                                  name="reason"
+                                  x-model="takedownReason"
+                                  rows="3"
+                                  required
+                                  placeholder="e.g. Copyright infringement notice, Terms of Service violation, illegal content…"
+                                  class="textarea"></textarea>
+                        <p class="help">Recorded in the admin audit log.</p>
+                    </div>
                 </div>
-
-                <div class="flex items-center justify-end gap-2 pt-2">
-                    <button type="button" @click="takedownModalOpen = false" class="px-4 py-2 rounded-xl border border-border hover:bg-secondary text-xs font-semibold text-foreground">
-                        Cancel
-                    </button>
-                    <button type="submit" :disabled="!takedownReason.trim()" class="px-4 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-bold disabled:opacity-50 transition-all cursor-pointer">
-                        Confirm Takedown
-                    </button>
+                <div class="card-footer">
+                    <button type="button" @click="takedownModalOpen = false" class="btn btn-ghost btn-sm">Cancel</button>
+                    <button type="submit" :disabled="!takedownReason.trim()" class="btn btn-danger btn-sm">Confirm takedown</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Admin Media Preview Modal (Artplayer for Videos, Zoom/Inspect for Photos) -->
+    <!-- Admin media preview (Artplayer for videos, zoom/inspect for photos) -->
     <div x-show="previewOpen"
-         x-transition
+         x-transition.opacity
          @keydown.escape.window="closePreview()"
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md select-none"
+         class="fixed inset-0 z-50 flex select-none items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+         role="dialog" aria-modal="true"
          style="display: none;">
-        <div @click.away="closePreview()" class="relative max-w-5xl w-full flex flex-col items-center max-h-[92vh]">
-            <!-- Header -->
-            <div class="w-full flex items-center justify-between text-white pb-3 px-2 border-b border-white/10 mb-3">
-                <div class="flex items-center gap-3">
-                    <span class="text-xs font-semibold truncate max-w-md" x-text="currentMedia?.filename"></span>
+        <div @click.away="closePreview()" class="relative flex max-h-[92vh] w-full max-w-5xl flex-col items-center">
+            <div class="mb-3 flex w-full items-center justify-between gap-3 border-b border-white/10 px-1 pb-3 text-white">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span class="truncate text-[13px] font-medium" x-text="currentMedia?.filename"></span>
                     <template x-if="currentMedia?.isVideo">
-                        <span class="px-2 py-0.5 rounded bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider">Video</span>
+                        <span class="rounded-md bg-white/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white">Video</span>
                     </template>
                     <template x-if="currentMedia?.duration">
-                        <span class="text-white/60 text-xs font-mono" x-text="currentMedia.duration"></span>
+                        <span class="font-mono text-xs text-white/60" x-text="currentMedia.duration"></span>
                     </template>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button type="button" @click="closePreview()" class="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors" title="Close preview (Esc)">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
+                <button type="button" @click="closePreview()" class="flex size-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white" title="Close preview (Esc)" aria-label="Close preview">
+                    <x-icon name="x" class="size-5" />
+                </button>
             </div>
 
-            <!-- Media Container -->
-            <div class="w-full flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+            <div class="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
                 <template x-if="currentMedia && currentMedia.isVideo">
-                    <div class="w-full flex items-center justify-center">
+                    <div class="flex w-full items-center justify-center">
                         <div id="admin-artplayer-container"
-                             class="w-[85vw] max-w-4xl h-[65vh] max-h-[75vh] rounded-xl shadow-2xl overflow-hidden bg-black flex items-center justify-center select-auto pointer-events-auto">
+                             class="pointer-events-auto flex h-[65vh] max-h-[75vh] w-[85vw] max-w-4xl select-auto items-center justify-center overflow-hidden rounded-xl bg-black shadow-2xl">
                         </div>
                     </div>
                 </template>
                 <template x-if="currentMedia && !currentMedia.isVideo">
                     <img :src="currentMedia?.imageUrl"
                          :alt="currentMedia?.filename"
-                         class="max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl">
+                         class="max-h-[75vh] max-w-full rounded-lg object-contain shadow-2xl">
                 </template>
             </div>
 
-            <!-- Footer Details -->
-            <div class="w-full flex items-center justify-between text-xs text-white/60 pt-3 px-2 border-t border-white/10 mt-3 font-mono">
-                <span x-text="currentMedia?.sizeFormatted"></span>
+            <div class="mt-3 flex w-full items-center justify-between border-t border-white/10 px-1 pt-3 text-xs text-white/60">
+                <span class="font-mono" x-text="currentMedia?.sizeFormatted"></span>
                 <template x-if="currentMedia?.videoUrl || currentMedia?.imageUrl">
-                    <a :href="currentMedia.videoUrl || currentMedia.imageUrl" target="_blank" download class="text-primary hover:underline flex items-center gap-1 font-sans">
-                        <span>Download Original</span>
-                        <span>&darr;</span>
+                    <a :href="currentMedia.videoUrl || currentMedia.imageUrl" target="_blank" download class="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-medium text-white/80 transition hover:bg-white/10 hover:text-white">
+                        <x-icon name="download" class="size-3.5" /> Download original
                     </a>
                 </template>
             </div>

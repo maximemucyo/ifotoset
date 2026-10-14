@@ -1,10 +1,10 @@
-@extends('layouts.guest', ['title' => 'Sign In - ifotoset', 'heading' => 'Sign in to your account', 'subheading' => 'Access your studio, galleries, and bookings.'])
+@extends('layouts.guest', ['title' => 'Sign in · ifotoset', 'heading' => 'Welcome back', 'subheading' => 'Sign in to your studio to manage galleries, bookings and clients.'])
 
 @section('content')
-<form method="POST" action="{{ route('login') }}" class="space-y-5">
+<form method="POST" action="{{ route('login') }}" class="space-y-4" x-data="{ submitting: false }" @submit="submitting = true">
     @csrf
 
-    <x-ui.input label="Email address"
+    <x-ui.input label="Email"
                 type="email"
                 name="email"
                 id="email"
@@ -12,43 +12,37 @@
                 required
                 autofocus
                 autocomplete="email"
-                placeholder="you@example.com"
+                placeholder="you@studio.com"
                 :error="$errors->first('email')" />
 
     <div>
-        <div class="flex items-center justify-between mb-1.5">
-            <label for="password" class="block text-sm font-medium text-foreground">Password</label>
-            <a href="{{ route('password.request') }}" class="text-xs font-medium text-primary hover:underline">
-                Forgot password?
-            </a>
+        <div class="mb-1.5 flex items-center justify-between">
+            <label for="password" class="text-[13px] font-medium text-foreground">Password</label>
+            <a href="{{ route('password.request') }}" class="text-[13px] font-medium text-muted-foreground transition hover:text-foreground">Forgot password?</a>
         </div>
         <x-ui.input type="password"
                     name="password"
                     id="password"
                     required
                     autocomplete="current-password"
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                     :error="$errors->first('password')" />
     </div>
 
-    <div class="flex items-center justify-between">
-        <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="remember" class="rounded border-border text-primary focus:ring-primary h-4 w-4 bg-input">
-            <span class="text-xs font-medium text-muted-foreground">Remember me for 30 days</span>
-        </label>
-    </div>
+    <label class="flex cursor-pointer items-center gap-2.5 py-1">
+        <input type="checkbox" name="remember" class="checkbox" {{ old('remember') ? 'checked' : '' }}>
+        <span class="text-[13px] text-muted-foreground">Keep me signed in for 30 days</span>
+    </label>
 
-    <x-ui.button type="submit" variant="primary" class="w-full">
-        Sign in to Studio
-    </x-ui.button>
+    <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="submitting">
+        <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
+        <span>Sign in</span>
+        <x-icon name="arrow-right" x-show="!submitting" />
+    </button>
 
-    <div class="text-center pt-2">
-        <p class="text-xs text-muted-foreground">
-            Don't have an account?
-            <a href="{{ route('register') }}" class="font-semibold text-primary hover:underline">
-                Create one for free
-            </a>
-        </p>
-    </div>
+    <p class="pt-4 text-center text-[13px] text-muted-foreground">
+        New to ifotoset?
+        <a href="{{ route('register') }}" class="link">Create a free account</a>
+    </p>
 </form>
 @endsection

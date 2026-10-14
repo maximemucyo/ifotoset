@@ -499,7 +499,7 @@ class GalleryZipDownloadTest extends TestCase
         $this->assertEquals($this->user->email, $envelope->replyTo[0]->address);
 
         $rendered = $mailable->render();
-        $this->assertStringContainsString('Your Photos Are Ready', $rendered);
+        $this->assertStringContainsString('Your photos are ready', $rendered);
         $this->assertStringContainsString('Test Gallery', $rendered);
         $this->assertStringContainsString('12 photos', $rendered);
         $this->assertStringContainsString('15 MB', $rendered);

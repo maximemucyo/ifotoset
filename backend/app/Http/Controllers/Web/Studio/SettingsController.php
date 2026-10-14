@@ -48,6 +48,41 @@ class SettingsController extends Controller
     }
 
     /**
+     * Update the public portfolio address (username) and whether the profile is publicly visible.
+     */
+    public function updatePublicProfile(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $request->merge(['username' => strtolower(trim((string) $request->input('username')))]);
+
+        $validated = $request->validate([
+            'username' => [
+                'required',
+                'string',
+                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
+                \Illuminate\Validation\Rule::unique('users', 'username')->ignore($user->id),
+                \Illuminate\Validation\Rule::notIn(config('reserved_usernames', [])),
+            ],
+        ], [
+            'username.regex' => 'Use 3–50 lowercase letters, numbers or hyphens (no hyphen at the start or end).',
+            'username.not_in' => 'That address is reserved. Please choose another.',
+        ]);
+
+        $usernameChanged = $validated['username'] !== $user->username;
+
+        $user->update([
+            'username' => $validated['username'],
+            'profile_public' => $request->boolean('profile_public'),
+        ]);
+
+        return redirect()->to(route('studio.settings.index') . '#public')->with(
+            'success',
+            $usernameChanged ? 'Portfolio address updated. Share your new link with clients.' : 'Public profile settings saved.'
+        );
+    }
+
+    /**
      * Change password using standard Laravel security primitives.
      */
     public function updatePassword(Request $request): RedirectResponse

@@ -1,10 +1,12 @@
 @extends('layouts.public', [
     'title' => 'Export ' . $gallery->title . ' - ' . $photographer->name . ' | ifotoset',
     'description' => "Export photo archive for '{$gallery->title}'.",
+    'hideNav' => true,
+    'hideFooter' => true,
 ])
 
 @section('content')
-<div class="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+<div class="relative flex min-h-svh flex-col"
      x-data="galleryExportManager({
          slug: '{{ $gallery->slug }}',
          galleryUuid: '{{ $gallery->uuid }}',
@@ -13,144 +15,115 @@
          initialTarget: '{{ $target }}',
          csrfToken: '{{ csrf_token() }}'
      })">
-    <div class="bg-card border border-border rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden relative">
-        <!-- Accent Top Bar -->
-        <div class="h-1.5 w-full bg-gradient-to-r from-primary via-blue-500 to-indigo-500"></div>
+    <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
 
-        <div class="p-6 sm:p-8 space-y-6">
-            <!-- Header with Back Button -->
-            <div class="flex items-center gap-3 pb-4 border-b border-border">
-                <a href="{{ route('public.gallery', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
-                   class="p-2 rounded-xl bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground border border-border transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
-                   aria-label="Back to Gallery">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                </a>
-                <div class="min-w-0">
-                    <h1 class="text-xl font-bold tracking-tight text-foreground truncate">Export Gallery</h1>
-                    <p class="text-xs text-muted-foreground truncate">{{ $gallery->title }} &bull; by {{ $photographer->name }}</p>
+    {{-- Top bar --}}
+    <header class="relative z-10 flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
+        <a href="{{ route('public.gallery', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
+           class="btn btn-ghost btn-sm -ml-2" aria-label="Back to Gallery">
+            <x-icon name="arrow-left" /> <span class="max-w-[50vw] truncate">{{ $gallery->title }}</span>
+        </a>
+        <x-ui.theme-toggle />
+    </header>
+
+    <div class="relative z-10 flex flex-1 items-center justify-center px-4 pb-16 pt-4 sm:px-6">
+        <div class="w-full max-w-md animate-fade-up">
+            <div class="mb-8 text-center">
+                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">{{ $photographer->name }}</p>
+                <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gallery->title }}</h1>
+            </div>
+
+            <div class="card overflow-hidden shadow-lg">
+                {{-- Step: email + start --}}
+                <div x-show="!exportId && !downloadUrl" class="p-6 sm:p-8">
+                    <div class="flex items-start gap-3.5">
+                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+                            <template x-if="type === 'zip'"><x-icon name="download" class="size-[18px]" /></template>
+                            <template x-if="type === 'google-photos'"><x-icon name="images" class="size-[18px]" /></template>
+                        </div>
+                        <div class="min-w-0">
+                            <h2 class="text-[15px] font-semibold text-foreground" x-text="type === 'zip' ? 'Download gallery (ZIP)' : 'Export to Google Photos'"></h2>
+                            <p class="mt-1 text-[13px] leading-relaxed text-muted-foreground" x-text="type === 'zip'
+                                ? 'All high-resolution photos bundled into one downloadable archive.'
+                                : 'Sync photos into a private album in your Google Photos account.'"></p>
+                            @if($target === 'favorites')
+                                <span class="badge badge-brand mt-2.5"><x-icon name="heart" /> Favorites only</span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="startExport" class="mt-7 space-y-4">
+                        <div>
+                            <label for="export_email" class="label">Email address</label>
+                            <div class="input-group">
+                                <x-icon name="mail" />
+                                <input type="email" id="export_email" x-model="email" required autocomplete="email" placeholder="you@example.com" class="input h-11">
+                            </div>
+                            <p class="help flex items-start gap-1.5">
+                                <x-icon name="info" class="mt-px size-3.5 shrink-0" />
+                                <span>We'll email you when it's ready. You can wait here or close this page.</span>
+                            </p>
+                        </div>
+
+                        <div x-show="errorMessage" x-cloak class="alert alert-danger"><x-icon name="circle-alert" /> <span x-text="errorMessage"></span></div>
+
+                        <button type="submit" :disabled="submitting" class="btn btn-primary btn-lg w-full">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="submitting" x-cloak />
+                            <span x-text="submitting ? 'Starting…' : (type === 'zip' ? 'Prepare download' : 'Connect Google Photos')"></span>
+                        </button>
+                    </form>
+                </div>
+
+                {{-- Step: progress / result --}}
+                <div x-show="exportId || downloadUrl" x-cloak class="p-6 sm:p-8" aria-live="polite">
+                    <div class="text-center">
+                        <div x-show="['pending', 'processing', 'uploading', 'authenticating'].includes(status)" class="relative mx-auto flex size-16 items-center justify-center">
+                            <svg class="absolute inset-0 size-16 -rotate-90" viewBox="0 0 64 64" aria-hidden="true">
+                                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--border)" stroke-width="3" />
+                                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--brand)" stroke-width="3" stroke-linecap="round"
+                                        stroke-dasharray="175.93" :stroke-dashoffset="175.93 - (175.93 * Math.max(4, percentage) / 100)"
+                                        class="transition-[stroke-dashoffset] duration-500" />
+                            </svg>
+                            <span class="text-sm font-semibold tabular-nums text-foreground" x-text="percentage + '%'"></span>
+                        </div>
+
+                        <div x-show="status === 'completed' || status === 'ready'" class="mx-auto flex size-16 animate-scale-in items-center justify-center rounded-full bg-success/10 text-success">
+                            <x-icon name="check" class="size-7" />
+                        </div>
+
+                        <div x-show="['failed', 'expired', 'cancelled'].includes(status)" class="mx-auto flex size-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                            <x-icon name="x" class="size-7" />
+                        </div>
+
+                        <h2 class="mt-5 text-lg font-semibold text-foreground" x-text="statusDisplayTitle"></h2>
+                        <p class="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground" x-text="statusDisplaySubtitle"></p>
+                    </div>
+
+                    <div x-show="status === 'processing' || status === 'uploading' || status === 'pending'" class="mt-7 space-y-2">
+                        <div class="progress"><span :style="'width: ' + percentage + '%'"></span></div>
+                        <div class="flex justify-between text-xs tabular-nums text-muted-foreground">
+                            <span x-text="percentage + '% complete'"></span>
+                            <span x-text="processedPhotos + ' / ' + totalPhotos + ' photos'"></span>
+                        </div>
+                    </div>
+
+                    <div x-show="(status === 'completed' || status === 'ready') && downloadUrl" class="mt-7">
+                        <a :href="downloadUrl" class="btn btn-primary btn-lg w-full">
+                            <x-icon name="download" /> Download ZIP
+                        </a>
+                    </div>
+
+                    <div x-show="['failed', 'expired', 'cancelled'].includes(status)" class="mt-7">
+                        <button type="button" @click="resetExport" class="btn btn-outline btn-lg w-full">
+                            <x-icon name="rotate-ccw" /> Try again
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Pre-Export / Email Authorization Step -->
-            <div x-show="!exportId && !downloadUrl" class="space-y-6">
-                <!-- Export Type Summary Banner -->
-                <div class="p-4 rounded-xl border border-border/80 bg-secondary/20 flex items-start gap-3.5">
-                    <div class="p-2.5 bg-primary/10 text-primary rounded-xl shrink-0 mt-0.5">
-                        <template x-if="type === 'zip'">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </template>
-                        <template x-if="type === 'google-photos'">
-                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2m-1 12H6v-2h12v2m0-4H6V9h12v2z"/>
-                            </svg>
-                        </template>
-                    </div>
-                    <div class="space-y-1 text-sm">
-                        <h2 class="font-bold text-foreground" x-text="type === 'zip' ? 'Download Gallery Archive (ZIP)' : 'Export to Google Photos'"></h2>
-                        <p class="text-xs text-muted-foreground leading-relaxed" x-text="type === 'zip'
-                            ? 'All ready high-resolution photos will be bundled into a downloadable ZIP archive.'
-                            : 'Sync photos directly into a private album inside your Google Photos account.'"></p>
-                    </div>
-                </div>
-
-                <!-- Email Input Panel (Authoritative Gate) -->
-                <form @submit.prevent="startExport" class="space-y-4">
-                    <div class="p-5 border border-border rounded-xl bg-card space-y-3">
-                        <label for="export_email" class="block text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <span>Email Notification</span>
-                        </label>
-                        <p class="text-xs text-foreground font-medium">
-                            Provide your email so we can notify you when your files are ready:
-                        </p>
-                        <input type="email"
-                               id="export_email"
-                               x-model="email"
-                               required
-                               placeholder="your.email@example.com"
-                               class="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all">
-                        <p class="text-[11px] text-muted-foreground flex items-start gap-1.5 leading-normal">
-                            <svg class="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>You can wait here until your download is ready, or leave the page and we will notify you.</span>
-                        </p>
-                    </div>
-
-                    <div x-show="errorMessage" class="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl font-medium" x-text="errorMessage"></div>
-
-                    <button type="submit"
-                            :disabled="submitting"
-                            class="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-                        <span x-show="submitting" class="inline-block w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></span>
-                        <span x-text="submitting ? 'Starting...' : (type === 'zip' ? 'Prepare Download' : 'Connect Google Photos')"></span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- Active Polling, Progress & Download Step -->
-            <div x-show="exportId || downloadUrl" class="space-y-6" aria-live="polite">
-                <!-- Status Header -->
-                <div class="text-center space-y-3 py-4">
-                    <!-- Pending / Processing Spinner -->
-                    <div x-show="['pending', 'processing', 'uploading', 'authenticating'].includes(status)" class="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
-                        <span class="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                    </div>
-
-                    <!-- Completed Check -->
-                    <div x-show="status === 'completed' || status === 'ready'" class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-500">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-
-                    <!-- Failed / Expired -->
-                    <div x-show="['failed', 'expired', 'cancelled'].includes(status)" class="w-16 h-16 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center mx-auto text-destructive">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </div>
-
-                    <h2 class="text-xl font-bold text-foreground" x-text="statusDisplayTitle"></h2>
-                    <p class="text-xs text-muted-foreground max-w-sm mx-auto" x-text="statusDisplaySubtitle"></p>
-                </div>
-
-                <!-- Progress Bar Container -->
-                <div x-show="status === 'processing' || status === 'uploading' || status === 'pending'" class="space-y-2">
-                    <div class="flex justify-between text-xs font-semibold text-muted-foreground">
-                        <span x-text="percentage + '% Completed'"></span>
-                        <span x-text="processedPhotos + ' / ' + totalPhotos + ' Photos'"></span>
-                    </div>
-                    <div class="w-full h-2.5 rounded-full bg-secondary overflow-hidden">
-                        <div class="h-full bg-primary transition-all duration-300 rounded-full" :style="'width: ' + percentage + '%'"></div>
-                    </div>
-                </div>
-
-                <!-- Action Button for Ready/Completed Archive (Only unlocked with valid downloadUrl) -->
-                <div x-show="(status === 'completed' || status === 'ready') && downloadUrl" class="pt-2">
-                    <a :href="downloadUrl"
-                       class="w-full py-3.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        <span>Download ZIP Archive</span>
-                    </a>
-                </div>
-
-                <!-- Action Button for Error / Retry -->
-                <div x-show="['failed', 'expired', 'cancelled'].includes(status)" class="pt-2">
-                    <button @click="resetExport"
-                            class="w-full py-3 px-4 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-sm transition-all">
-                        Try Again
-                    </button>
-                </div>
-            </div>
+            <p class="mt-6 text-center text-xs text-muted-foreground">
+                <a href="{{ route('public.gallery', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}" class="transition-colors hover:text-foreground">Back to gallery</a>
+            </p>
         </div>
     </div>
 </div>
@@ -188,14 +161,14 @@ document.addEventListener('alpine:init', () => {
 
             get statusDisplayTitle() {
                 switch (this.status) {
-                    case 'pending': return 'Preparing Your Download';
-                    case 'processing': return 'Packaging Photos into ZIP';
+                    case 'pending': return 'Preparing your download';
+                    case 'processing': return 'Packaging your photos';
                     case 'uploading': return 'Exporting to Google Photos';
                     case 'completed':
-                    case 'ready': return 'Your ZIP Archive is Ready';
-                    case 'expired': return 'Download Link Expired';
-                    case 'failed': return 'Packaging Failed';
-                    default: return 'Processing...';
+                    case 'ready': return 'Your download is ready';
+                    case 'expired': return 'Download link expired';
+                    case 'failed': return 'Something went wrong';
+                    default: return 'Processing…';
                 }
             },
 

@@ -15,7 +15,7 @@ class UserResource extends JsonResource
     {
         $storageStats = app(StorageStatisticsService::class)->getStorageStats($this->resource);
         $cdnDomain = config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
-        $avatarUrl = $this->avatar_path ? "https://{$cdnDomain}/" . ltrim($this->avatar_path, '/') : null;
+        $avatarUrl = $this->avatar_path ? \App\Support\Cdn::scheme() . "://{$cdnDomain}/" . ltrim($this->avatar_path, '/') : null;
 
         return [
             'uuid' => $this->uuid,

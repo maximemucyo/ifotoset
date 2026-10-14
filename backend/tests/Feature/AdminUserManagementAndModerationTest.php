@@ -203,7 +203,7 @@ class AdminUserManagementAndModerationTest extends TestCase
         // Explicit admin preview route bypasses privacy and renders moderation mode
         $previewRes = $this->actingAs($this->admin)->get("/admin/galleries/{$gallery->uuid}/preview");
         $previewRes->assertOk();
-        $previewRes->assertSee('Admin Moderation Preview');
+        $previewRes->assertSee('Moderation preview');
         $previewRes->assertSee('Secret VIP Portraits');
     }
 
@@ -233,7 +233,7 @@ class AdminUserManagementAndModerationTest extends TestCase
         // 2. Public gallery view shows unavailable screen
         $galleryUrl = app(\App\Services\PublicUrlService::class)->galleryUrl($this->photographer->username, $gallery->slug);
         $publicRes = $this->get($galleryUrl);
-        $publicRes->assertSee('Gallery Unavailable');
+        $publicRes->assertSee('This gallery is unavailable');
         $publicRes->assertSee('This gallery is currently unavailable due to content moderation.');
 
         // 3. Restore gallery

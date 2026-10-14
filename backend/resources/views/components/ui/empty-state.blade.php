@@ -6,31 +6,31 @@
     'actionClick' => null,
     'icon' => null,
 ])
-
-<div class="text-center py-16 px-6 rounded-2xl border border-dashed border-border bg-card/40 flex flex-col items-center justify-center">
-    <div class="w-12 h-12 rounded-2xl bg-secondary/60 flex items-center justify-center text-primary mb-4">
-        @if($icon)
-            {!! $icon !!}
-        @else
-            <svg class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-            </svg>
-        @endif
-    </div>
-    <h3 class="text-base font-bold text-foreground">{{ $title }}</h3>
-    <p class="text-xs text-muted-foreground mt-1 max-w-sm">{{ $description }}</p>
-    
-    @if($actionLabel)
-        <div class="mt-5">
-            @if($actionUrl)
-                <a href="{{ $actionUrl }}" class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl shadow-sm hover:opacity-90 transition-opacity">
-                    {{ $actionLabel }}
-                </a>
-            @elseif($actionClick)
-                <button type="button" @click="{{ $actionClick }}" class="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl shadow-sm hover:opacity-90 transition-opacity">
-                    {{ $actionLabel }}
-                </button>
+@php
+    $iconName = ($icon && !str_contains($icon, '<')) ? $icon : null;
+    $iconHtml = ($icon && str_contains($icon, '<')) ? $icon : null;
+@endphp
+<div {{ $attributes->merge(['class' => 'relative overflow-hidden rounded-2xl border border-dashed border-border-strong/70 bg-card/50 px-6 py-14 text-center']) }}>
+    <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+    <div class="relative mx-auto flex max-w-sm flex-col items-center">
+        <div class="mb-4 flex size-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm">
+            @if($iconHtml)
+                {!! $iconHtml !!}
+            @else
+                <x-icon :name="$iconName ?? 'inbox'" class="size-5" />
             @endif
         </div>
-    @endif
+        <h3 class="text-[15px] font-semibold text-foreground">{{ $title }}</h3>
+        <p class="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{{ $description }}</p>
+        @if($actionLabel)
+            <div class="mt-5">
+                @if($actionUrl)
+                    <a href="{{ $actionUrl }}" class="btn btn-primary btn-sm"><x-icon name="plus" />{{ $actionLabel }}</a>
+                @elseif($actionClick)
+                    <button type="button" @click="{{ $actionClick }}" class="btn btn-primary btn-sm"><x-icon name="plus" />{{ $actionLabel }}</button>
+                @endif
+            </div>
+        @endif
+        {{ $slot }}
+    </div>
 </div>

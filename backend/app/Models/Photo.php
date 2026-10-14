@@ -42,6 +42,7 @@ class Photo extends Model
         'stored_filename',
         'original_path',
         'delivery_path',
+        'hls_path',
         'poster_path',
         'video_metadata',
         'mime_type',
@@ -75,6 +76,27 @@ class Photo extends Model
     public function gallery(): BelongsTo
     {
         return $this->belongsTo(Gallery::class);
+    }
+
+    /**
+     * CDN domain of this photo's storage disk, memoized per request so rendering
+     * many photos doesn't issue one storage_disks query per photo.
+     */
+    public function diskCdnDomain(): ?string
+    {
+        if ($this->disk_id === null) {
+            return null;
+        }
+        if ($this->relationLoaded('disk')) {
+            return $this->disk?->cdn_domain;
+        }
+
+        static $domains = [];
+        if (!array_key_exists($this->disk_id, $domains)) {
+            $domains[$this->disk_id] = StorageDisk::whereKey($this->disk_id)->value('cdn_domain');
+        }
+
+        return $domains[$this->disk_id];
     }
 
     public function disk(): BelongsTo
@@ -129,7 +151,7 @@ class Photo extends Model
             $this->path,
             ($size && $this->status === \App\Enums\PhotoStatus::Ready->value) ? $size : null,
             $this->filename ?? $this->stored_filename,
-            $this->disk?->cdn_domain
+            $this->diskCdnDomain()
         );
     }
 
@@ -143,7 +165,7 @@ class Photo extends Model
             dirname($this->poster_path),
             $size,
             basename($this->poster_path),
-            $this->disk?->cdn_domain
+            $this->diskCdnDomain()
         );
     }
 
@@ -158,8 +180,21 @@ class Photo extends Model
             dirname($targetPath),
             null,
             basename($targetPath),
-            $this->disk?->cdn_domain
+            $this->diskCdnDomain()
         );
+    }
+
+    /**
+     * URL for in-browser playback: HLS master playlist when available, MP4 delivery otherwise.
+     * Signed when the gallery is protected.
+     */
+    public function getStreamUrl(): ?string
+    {
+        if (!$this->isVideo()) {
+            return null;
+        }
+
+        return app(\App\Services\MediaTokenService::class)->getStreamUrl($this);
     }
 
     public function getDeliveryDownloadUrl(): string

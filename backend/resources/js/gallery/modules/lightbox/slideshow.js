@@ -59,12 +59,12 @@ export class LightboxSlideshow {
         const pauseIcon = this.toggleBtn.querySelector('.icon-pause');
 
         if (this.isPlaying) {
-            this.toggleBtn.classList.add('text-primary', 'bg-primary/10');
+            this.toggleBtn.classList.add('text-foreground', 'bg-muted');
             this.toggleBtn.setAttribute('aria-label', 'Pause Slideshow');
             if (playIcon) playIcon.classList.add('hidden');
             if (pauseIcon) pauseIcon.classList.remove('hidden');
         } else {
-            this.toggleBtn.classList.remove('text-primary', 'bg-primary/10');
+            this.toggleBtn.classList.remove('text-foreground', 'bg-muted');
             this.toggleBtn.setAttribute('aria-label', 'Play Slideshow');
             if (playIcon) playIcon.classList.remove('hidden');
             if (pauseIcon) pauseIcon.classList.add('hidden');

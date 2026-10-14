@@ -1,301 +1,198 @@
-<section id="pricing" x-data="{ billingPeriod: 'yearly' }" class="py-20 md:py-28 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto overflow-hidden border-t border-border/80">
-    <div class="text-center max-w-3xl mx-auto mb-12">
-        <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
-            Simple Pricing. No Surprises.
-        </h2>
-        <p class="text-lg text-muted-foreground">
-            Choose the billing plan that scales with your photography workspace. Start free, upgrade anytime.
-        </p>
+@props(['plans' => collect()])
+@php
+    /*
+     | Marketing copy per plan slug. Prices, storage and video allowances come from
+     | the Plan records; ":storage" and ":video" are replaced with live values.
+     */
+    $copy = [
+        'free' => [
+            'tagline' => 'Learn the platform',
+            'description' => 'Perfect for new photographers starting to establish their presence.',
+            'features' => ['Portfolio website', 'Unlimited galleries', ':storage', ':video', 'Email support'],
+            'cta' => 'Get started free',
+        ],
+        'basic' => [
+            'tagline' => 'Start delivering professionally',
+            'description' => 'For growing photographers who need more storage and video tools.',
+            'features' => ['Portfolio website', 'Unlimited galleries', ':storage', ':video', 'Email support'],
+            'cta' => 'Choose Basic',
+        ],
+        'pro' => [
+            'tagline' => 'Run your photography business',
+            'description' => 'For established photographers running a full-time business.',
+            'features' => ['Everything in Basic', ':storage', ':video', 'Booking manager', 'Secure payments integration', 'Custom domain support', 'Priority support'],
+            'cta' => 'Choose Professional',
+        ],
+        'business' => [
+            'tagline' => 'Scale your studio',
+            'description' => 'For agencies, studios, and teams scaling their operations.',
+            'features' => ['Everything in Professional', ':storage', ':video', 'Multi-user team accounts', 'Dedicated setup & onboarding', 'Priority support'],
+            'cta' => 'Choose Business',
+        ],
+    ];
+
+    $formatStorage = function (?int $bytes): string {
+        $gb = (int) round(($bytes ?? 0) / 1024 ** 3);
+        return $gb >= 1000 ? rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB' : $gb . ' GB';
+    };
+    $formatVideo = function (int $seconds): string {
+        if ($seconds <= 0) {
+            return 'Photo galleries only';
+        }
+        if ($seconds < 3600) {
+            $m = (int) round($seconds / 60);
+            return "Up to {$m} " . ($m === 1 ? 'minute' : 'minutes') . ' of hosted video';
+        }
+        $h = round($seconds / 3600, 1);
+        $h = $h == (int) $h ? (int) $h : $h;
+        return "Up to {$h} " . ($h == 1 ? 'hour' : 'hours') . ' of hosted video';
+    };
+    $money = fn ($amount, $currency) => trim(($currency ?: '') . ' ' . number_format((float) $amount, 0));
+
+    $cards = $plans->map(function ($plan) use ($copy, $formatStorage, $formatVideo, $money) {
+        $c = $copy[$plan->slug] ?? [
+            'tagline' => $plan->name,
+            'description' => null,
+            'features' => [':storage', ':video'],
+            'cta' => 'Choose ' . $plan->name,
+        ];
+        $monthly = (float) $plan->monthly_price;
+        $annual = (float) $plan->annual_price;
+        $free = $monthly <= 0 && $annual <= 0;
+        $annualPerMonth = $annual > 0 ? $annual / 12 : $monthly;
+
+        return [
+            'slug' => $plan->slug,
+            'name' => $plan->name,
+            'free' => $free,
+            'featured' => $plan->slug === 'pro',
+            'tagline' => $c['tagline'],
+            'description' => $c['description'],
+            'cta' => $c['cta'],
+            'currency' => $plan->currency,
+            'monthly' => number_format($monthly, 0),
+            'yearly' => number_format($annualPerMonth, 0),
+            'yearlyNote' => $annual > 0 ? 'Billed annually (' . $money($annual, $plan->currency) . '/year)' : 'Billed monthly',
+            'features' => array_map(fn ($f) => match ($f) {
+                ':storage' => $formatStorage($plan->storage_limit) . ' optimized storage',
+                ':video' => $formatVideo((int) $plan->video_limit_seconds),
+                default => $f,
+            }, $c['features']),
+        ];
+    })->values();
+
+    $maxSaving = $plans->map(function ($plan) {
+        $m = (float) $plan->monthly_price * 12;
+        $a = (float) $plan->annual_price;
+        return $m > 0 && $a > 0 ? (1 - $a / $m) * 100 : 0;
+    })->max() ?? 0;
+    $maxSaving = (int) floor($maxSaving);
+
+    $cols = match (true) {
+        $cards->count() >= 4 => 'md:grid-cols-2 xl:grid-cols-4',
+        $cards->count() === 3 => 'md:grid-cols-3',
+        $cards->count() === 2 => 'md:grid-cols-2 max-w-4xl mx-auto',
+        default => 'max-w-md mx-auto',
+    };
+@endphp
+
+<section id="pricing" x-data="{ billingPeriod: 'yearly' }" class="relative py-24 sm:py-32">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-dots opacity-50 mask-fade-b"></div>
+
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <x-landing.section-heading eyebrow="Pricing" description="Start free and upgrade when your studio grows. No setup fees, no long-term contracts.">
+            Simple pricing. <em class="font-serif font-normal italic tracking-normal">No surprises.</em>
+        </x-landing.section-heading>
+
+        @if($cards->isEmpty())
+            <div class="mx-auto mt-12 max-w-md text-center" data-reveal>
+                <p class="text-muted-foreground">Plans are being updated. You can still start for free today.</p>
+                <a href="{{ route('register') }}" class="btn btn-primary btn-lg mt-6">Start free <x-icon name="arrow-right" /></a>
+            </div>
+        @else
+            {{-- Billing toggle --}}
+            <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row" data-reveal>
+                <div class="relative inline-grid grid-cols-2 rounded-full border border-border bg-muted/70 p-1" role="radiogroup" aria-label="Billing period">
+                    <span aria-hidden="true" class="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-card shadow-sm ring-1 ring-border transition-transform duration-300 ease-out"
+                        :class="billingPeriod === 'yearly' ? 'translate-x-full' : 'translate-x-0'"></span>
+                    <button type="button" role="radio" :aria-checked="(billingPeriod === 'monthly').toString()" @click="billingPeriod = 'monthly'"
+                        class="relative z-10 h-9 rounded-full px-5 text-[13.5px] font-medium transition-colors"
+                        :class="billingPeriod === 'monthly' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">Monthly</button>
+                    <button type="button" role="radio" :aria-checked="(billingPeriod === 'yearly').toString()" @click="billingPeriod = 'yearly'"
+                        class="relative z-10 h-9 rounded-full px-5 text-[13.5px] font-medium transition-colors"
+                        :class="billingPeriod === 'yearly' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">Yearly</button>
+                </div>
+                @if($maxSaving > 0)
+                    <span class="badge badge-brand rounded-full px-2.5 py-1 text-[12px]"><x-icon name="sparkles" /> Save up to {{ $maxSaving }}% yearly</span>
+                @endif
+            </div>
+
+            <div class="mt-12 grid items-stretch gap-5 {{ $cols }}">
+                @foreach($cards as $i => $card)
+                    <div @class([
+                            'relative flex flex-col rounded-2xl border p-7 transition-[border-color,box-shadow] duration-300',
+                            'border-brand/50 bg-card shadow-xl shadow-brand/5 ring-1 ring-brand/40 dark:shadow-black/40' => $card['featured'],
+                            'border-border bg-card shadow-xs hover:border-border-strong hover:shadow-md' => !$card['featured'],
+                        ])
+                        data-reveal style="--reveal-delay: {{ $i * 70 }}ms">
+                        @if($card['featured'])
+                            <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 h-32 rounded-t-2xl bg-gradient-to-b from-brand/10 to-transparent"></div>
+                            <span class="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-brand-foreground shadow-sm">
+                                <x-icon name="star" class="size-3 fill-current" /> Most popular
+                            </span>
+                        @endif
+
+                        <div class="relative">
+                            <h3 class="text-lg font-semibold tracking-tight">{{ $card['name'] }}</h3>
+                            <p class="mt-1 text-[13px] font-medium text-brand">{{ $card['tagline'] }}</p>
+                            @if($card['description'])
+                                <p class="mt-3 min-h-[44px] text-[13.5px] leading-relaxed text-muted-foreground">{{ $card['description'] }}</p>
+                            @endif
+
+                            <div class="mt-6">
+                                <div class="flex items-baseline gap-1.5 whitespace-nowrap">
+                                    <span class="text-[14px] font-medium text-muted-foreground">{{ $card['currency'] }}</span>
+                                    @if($card['free'])
+                                        <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums">{{ $card['monthly'] }}</span>
+                                    @else
+                                        <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums"
+                                            x-text="billingPeriod === 'monthly' ? @js($card['monthly']) : @js($card['yearly'])">{{ $card['yearly'] }}</span>
+                                    @endif
+                                    <span class="text-[13px] text-muted-foreground">/month</span>
+                                </div>
+                                <p class="mt-2 text-[12px] text-muted-foreground">
+                                    @if($card['free'])
+                                        Free forever
+                                    @else
+                                        <span x-text="billingPeriod === 'yearly' ? @js($card['yearlyNote']) : 'Billed monthly'">{{ $card['yearlyNote'] }}</span>
+                                    @endif
+                                </p>
+                            </div>
+
+                            <a href="{{ route('register') }}" @class([
+                                'btn btn-lg mt-6 w-full',
+                                'btn-brand' => $card['featured'],
+                                'btn-outline' => !$card['featured'],
+                            ])>{{ $card['cta'] }}</a>
+                        </div>
+
+                        <ul class="relative mt-7 space-y-3 border-t border-border pt-6">
+                            @foreach($card['features'] as $feature)
+                                <li class="flex items-start gap-2.5 text-[13.5px] leading-snug text-foreground">
+                                    <span class="mt-px inline-flex size-4.5 shrink-0 items-center justify-center rounded-full {{ $card['featured'] ? 'bg-brand/15 text-brand' : 'bg-muted text-foreground' }}">
+                                        <x-icon name="check" class="size-3" stroke-width="3" />
+                                    </span>
+                                    {{ $feature }}
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endforeach
+            </div>
+
+            <p class="mx-auto mt-10 max-w-2xl text-center text-[12.5px] leading-relaxed text-muted-foreground">
+                Prices in {{ $plans->first()->currency }}. Large uploads are transcoded automatically. Storage and video allowances are subject to fair use.
+            </p>
+        @endif
     </div>
-
-    <!-- Billing Period Toggle -->
-    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-16">
-        <div class="relative flex items-center p-1 bg-muted/40 rounded-full border border-border/60 max-w-fit shadow-inner">
-            <button
-                type="button"
-                @click="billingPeriod = 'monthly'"
-                class="relative z-10 px-6 py-2 text-sm font-semibold rounded-full transition-all duration-300 cursor-pointer"
-                :class="billingPeriod === 'monthly' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'"
-            >
-                Billed Monthly
-            </button>
-            <button
-                type="button"
-                @click="billingPeriod = 'yearly'"
-                class="relative z-10 px-6 py-2 text-sm font-semibold rounded-full transition-all duration-300 cursor-pointer"
-                :class="billingPeriod === 'yearly' ? 'bg-primary text-primary-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'"
-            >
-                Billed Yearly
-            </button>
-        </div>
-        <span class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-primary bg-primary/10 border border-primary/20 animate-pulse sm:-translate-y-0">
-            Save up to 18%
-        </span>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-[1440px] mx-auto">
-        <!-- Free Plan -->
-        <div class="relative rounded-2xl p-8 border border-border bg-card hover:border-primary/45 shadow-sm transition-all duration-300 flex flex-col justify-between">
-            <div>
-                <h3 class="text-2xl font-bold text-foreground mb-1">
-                    Free
-                </h3>
-                <p class="text-primary font-semibold text-xs tracking-wide uppercase mb-3">
-                    Learn the platform
-                </p>
-                <p class="text-muted-foreground text-sm mb-6 min-h-[40px]">
-                    Perfect for new photographers starting to establish their presence.
-                </p>
-
-                <div class="mb-6 min-h-[68px]">
-                    <div class="flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold tracking-tight text-primary">
-                            RWF 0
-                        </span>
-                        <span class="text-muted-foreground text-sm font-semibold">
-                            /month
-                        </span>
-                    </div>
-                    <div class="text-muted-foreground text-xs font-medium mt-1.5" x-text="billingPeriod === 'yearly' ? 'Billed Never' : 'Billed monthly'">
-                        Billed Never
-                    </div>
-                </div>
-
-                <ul class="space-y-3.5 mb-8 border-t border-border/60 pt-6">
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Portfolio Website</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Unlimited Galleries</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">2 GB Optimized Storage</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Photo galleries only</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Email Support</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div>
-                <a
-                    href="{{ route('register') }}"
-                    class="block w-full py-3 px-4 rounded-xl font-bold text-center transition-all text-sm bg-secondary text-foreground hover:bg-border"
-                >
-                    Get Started Free
-                </a>
-            </div>
-        </div>
-
-        <!-- Basic Plan -->
-        <div class="relative rounded-2xl p-8 border border-border bg-card hover:border-primary/45 shadow-sm transition-all duration-300 flex flex-col justify-between">
-            <div>
-                <h3 class="text-2xl font-bold text-foreground mb-1">
-                    Basic
-                </h3>
-                <p class="text-primary font-semibold text-xs tracking-wide uppercase mb-3">
-                    Start delivering professionally
-                </p>
-                <p class="text-muted-foreground text-sm mb-6 min-h-[40px]">
-                    For growing photographers who need more storage and video tools.
-                </p>
-
-                <div class="mb-6 min-h-[68px]">
-                    <div class="flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold tracking-tight text-primary" x-text="billingPeriod === 'monthly' ? 'RWF 10,999' : 'RWF 8,999'">
-                            RWF 8,999
-                        </span>
-                        <span class="text-muted-foreground text-sm font-semibold">
-                            /month
-                        </span>
-                    </div>
-                    <div class="text-muted-foreground text-xs font-medium mt-1.5" x-text="billingPeriod === 'yearly' ? 'Billed annually (RWF 107,988/year)' : 'Billed monthly'">
-                        Billed annually (RWF 107,988/year)
-                    </div>
-                </div>
-
-                <ul class="space-y-3.5 mb-8 border-t border-border/60 pt-6">
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Portfolio Website</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Unlimited Galleries</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">50 GB Optimized Storage</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Up to 30 minutes of hosted video</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Email Support</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div>
-                <a
-                    href="{{ route('register') }}"
-                    class="block w-full py-3 px-4 rounded-xl font-bold text-center transition-all text-sm bg-secondary text-foreground hover:bg-border"
-                >
-                    Choose Basic
-                </a>
-            </div>
-        </div>
-
-        <!-- Professional Plan (Highlighted) -->
-        <div class="relative rounded-2xl p-8 border border-primary bg-card xl:scale-105 shadow-xl shadow-primary/5 ring-1 ring-primary z-10 transition-all duration-300 flex flex-col justify-between">
-            <span class="absolute top-0 right-8 -translate-y-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider rounded-full shadow">
-                Most Popular
-            </span>
-
-            <div>
-                <h3 class="text-2xl font-bold text-foreground mb-1">
-                    Professional
-                </h3>
-                <p class="text-primary font-semibold text-xs tracking-wide uppercase mb-3">
-                    Run your photography business
-                </p>
-                <p class="text-muted-foreground text-sm mb-6 min-h-[40px]">
-                    For established photographers running a full-time business.
-                </p>
-
-                <div class="mb-6 min-h-[68px]">
-                    <div class="flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold tracking-tight text-primary" x-text="billingPeriod === 'monthly' ? 'RWF 29,999' : 'RWF 24,999'">
-                            RWF 24,999
-                        </span>
-                        <span class="text-muted-foreground text-sm font-semibold">
-                            /month
-                        </span>
-                    </div>
-                    <div class="text-muted-foreground text-xs font-medium mt-1.5" x-text="billingPeriod === 'yearly' ? 'Billed annually (RWF 299,988/year)' : 'Billed monthly'">
-                        Billed annually (RWF 299,988/year)
-                    </div>
-                </div>
-
-                <ul class="space-y-3.5 mb-8 border-t border-border/60 pt-6">
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Everything in Basic</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">1 TB Optimized Storage</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Up to 5 hours of hosted video</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Booking Manager</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Secure Payments integration</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Custom Domain Support</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Priority Support</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div>
-                <a
-                    href="{{ route('register') }}"
-                    class="block w-full py-3 px-4 rounded-xl font-bold text-center transition-all text-sm bg-primary text-primary-foreground hover:bg-accent shadow-md hover:shadow-lg"
-                >
-                    Choose Professional
-                </a>
-            </div>
-        </div>
-
-        <!-- Business Plan -->
-        <div class="relative rounded-2xl p-8 border border-border bg-card hover:border-primary/45 shadow-sm transition-all duration-300 flex flex-col justify-between">
-            <div>
-                <h3 class="text-2xl font-bold text-foreground mb-1">
-                    Business
-                </h3>
-                <p class="text-primary font-semibold text-xs tracking-wide uppercase mb-3">
-                    Scale your studio
-                </p>
-                <p class="text-muted-foreground text-sm mb-6 min-h-[40px]">
-                    For agencies, studios, and teams scaling their operations.
-                </p>
-
-                <div class="mb-6 min-h-[68px]">
-                    <div class="flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold tracking-tight text-primary" x-text="billingPeriod === 'monthly' ? 'RWF 59,999' : 'RWF 49,999'">
-                            RWF 49,999
-                        </span>
-                        <span class="text-muted-foreground text-sm font-semibold">
-                            /month
-                        </span>
-                    </div>
-                    <div class="text-muted-foreground text-xs font-medium mt-1.5" x-text="billingPeriod === 'yearly' ? 'Billed annually (RWF 599,988/year)' : 'Billed monthly'">
-                        Billed annually (RWF 599,988/year)
-                    </div>
-                </div>
-
-                <ul class="space-y-3.5 mb-8 border-t border-border/60 pt-6">
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Everything in Professional</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">3 TB Optimized Storage</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Up to 15 hours of hosted video</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Multi-user team accounts</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Dedicated setup & onboarding</span>
-                    </li>
-                    <li class="flex items-start gap-3 text-sm text-foreground">
-                        <span class="flex-shrink-0 w-5 h-5 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs font-bold mt-0.5">✓</span>
-                        <span class="leading-tight">Priority Support</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div>
-                <a
-                    href="{{ route('register') }}"
-                    class="block w-full py-3 px-4 rounded-xl font-bold text-center transition-all text-sm bg-secondary text-foreground hover:bg-border"
-                >
-                    Choose Business
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <p class="text-center text-xs text-muted-foreground mt-12 max-w-2xl mx-auto leading-relaxed">
-        * Storage limits and video hosting durations are optimized for premium client delivery. Large uploads are transcoded automatically. Storage and video limits are subject to our <a href="#" class="underline hover:text-primary transition-colors">Fair Use Policy</a>.
-    </p>
 </section>

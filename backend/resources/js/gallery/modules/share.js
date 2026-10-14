@@ -1,3 +1,5 @@
+import { icon } from './icons.js';
+
 /**
  * Gallery Social Sharing Module
  * Supports Web Share API with fallback to social share modal
@@ -38,12 +40,10 @@ export class GalleryShare {
             this.copyBtn.addEventListener('click', () => {
                 this.urlInput.select();
                 navigator.clipboard.writeText(this.urlInput.value).then(() => {
-                    const originalText = this.copyBtn.textContent;
-                    this.copyBtn.textContent = 'Copied!';
-                    this.copyBtn.classList.add('bg-emerald-600', 'text-white');
-                    setTimeout(() => {
-                        this.copyBtn.textContent = originalText;
-                        this.copyBtn.classList.remove('bg-emerald-600', 'text-white');
+                    if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
+                    this.copyBtn.innerHTML = `${icon('check')} Copied`;
+                    this.copyResetTimer = setTimeout(() => {
+                        this.copyBtn.textContent = 'Copy link';
                     }, 2000);
                 }).catch(() => {
                     // Fallback

@@ -1,52 +1,62 @@
-@extends('layouts.app', ['title' => 'Payment Receipt - Studio'])
+@extends('layouts.app', ['title' => 'Receipt · ifotoset'])
 
 @push('styles')
 <style>
 @media print {
-    /* Hide layout chrome and action buttons */
+    /* Always print in the light palette, whatever theme is active on screen */
+    :root, .dark {
+        color-scheme: light;
+        --background: #ffffff;
+        --foreground: #0c0c0e;
+        --card: #ffffff;
+        --card-foreground: #0c0c0e;
+        --muted: #f4f4f2;
+        --muted-foreground: #6b6b72;
+        --subtle: #a1a1a8;
+        --brand: #f0532a;
+        --success: #16a34a;
+        --warning: #d97706;
+        --destructive: #e5383b;
+        --border: #e8e8e5;
+        --border-strong: #d6d6d2;
+    }
+
+    /* Hide app chrome and on-screen actions */
     aside,
     header,
     .no-print,
-    [x-data*="toastNotification"] {
+    [x-data="commandPalette"],
+    [x-data*="toast"] {
         display: none !important;
     }
 
-    body,
     html,
-    .flex.h-full,
-    .flex.flex-1 {
+    body,
+    body > div,
+    body > div > div,
+    body > div > div > div,
+    #main,
+    #main > div {
         background: #ffffff !important;
-        color: #111827 !important;
         height: auto !important;
+        min-height: 0 !important;
+        max-width: none !important;
         overflow: visible !important;
         display: block !important;
         padding: 0 !important;
         margin: 0 !important;
-    }
-
-    main {
-        padding: 0 !important;
-        margin: 0 !important;
-        max-width: 100% !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
     }
 
     #printable-receipt {
-        border: 1px solid #e5e7eb !important;
-        box-shadow: none !important;
-        background: #ffffff !important;
-        color: #111827 !important;
         max-width: 100% !important;
-        width: 100% !important;
-        border-radius: 8px !important;
-        padding: 32px !important;
-        margin: 0 auto !important;
-    }
-
-    #printable-receipt .receipt-logo {
-        width: 32px !important;
-        height: 32px !important;
-        max-width: 32px !important;
-        max-height: 32px !important;
+        margin: 0 !important;
+        border: 1px solid #e8e8e5 !important;
+        border-radius: 12px !important;
+        box-shadow: none !important;
+        break-inside: avoid;
     }
 
     * {
@@ -62,155 +72,156 @@
 </style>
 @endpush
 
+@php
+    $prov = strtolower($payment->provider ?? '');
+    $method = str_contains($prov, 'mtn') ? 'MTN Mobile Money' : (str_contains($prov, 'airtel') ? 'Airtel Money' : 'Mobile Money');
+    $months = $payment->metadata['months'] ?? null;
+    if ($months) {
+        $durationLabel = $months . ' ' . \Illuminate\Support\Str::plural('month', (int) $months);
+    } elseif ($payment->billing_cycle === 'annual') {
+        $durationLabel = '1 year';
+    } else {
+        $durationLabel = '1 month';
+    }
+    $issuedAt = $payment->paid_at ?? $payment->created_at;
+    $receiptNo = 'RCT-' . strtoupper(substr($payment->uuid, 0, 10));
+    $amount = number_format((float) $payment->amount, 0);
+    $statusMap = [
+        'completed' => ['success', 'Paid'],
+        'pending' => ['warning', 'Pending'],
+        'failed' => ['danger', 'Failed'],
+        'verification_failed' => ['danger', 'Failed'],
+    ];
+    [$statusVariant, $statusLabel] = $statusMap[$payment->status] ?? ['neutral', ucfirst(str_replace('_', ' ', (string) $payment->status))];
+    $isPaid = $payment->status === 'completed';
+@endphp
+
+@section('breadcrumbs')
+    <a href="{{ route('studio.billing.index') }}" class="transition hover:text-foreground">Billing &amp; plans</a>
+    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
+    <span class="font-medium text-foreground">Receipt {{ $receiptNo }}</span>
+@endsection
+
 @section('content')
-<div class="max-w-2xl mx-auto space-y-6">
-    <!-- Top Action Bar (Hidden when printing) -->
-    <div class="flex items-center justify-between pb-4 border-b border-border no-print">
-        <a href="{{ route('studio.billing.index') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
-            &larr; Back to Billing
-        </a>
+<div class="mx-auto max-w-3xl">
+    {{-- On-screen actions (hidden when printing) --}}
+    <div class="no-print mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <a href="{{ route('studio.billing.index') }}" class="mb-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition hover:text-foreground">
+                <x-icon name="arrow-left" class="size-3.5" /> Back to billing
+            </a>
+            <h1 class="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">Receipt</h1>
+            <p class="mt-1 text-sm text-muted-foreground">{{ $payment->plan->name ?? 'Subscription' }} plan · {{ $issuedAt->format('M j, Y') }}</p>
+        </div>
         <div class="flex items-center gap-2">
-            <button type="button"
-                    onclick="window.print()"
-                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-border bg-card text-xs font-semibold text-foreground hover:bg-secondary transition-all shadow-sm">
-                <svg class="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                </svg>
-                <span>Print</span>
+            <button type="button" onclick="window.print()" class="btn btn-outline">
+                <x-icon name="file-text" /> Print
             </button>
-            <button type="button"
-                    onclick="window.print()"
-                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                <span>Download PDF</span>
+            <button type="button" onclick="window.print()" class="btn btn-primary">
+                <x-icon name="download" /> Download PDF
             </button>
         </div>
     </div>
 
-    <!-- Clean Printable Receipt Document -->
-    <div class="bg-card border border-border rounded-2xl p-6 sm:p-10 shadow-sm space-y-8 relative" id="printable-receipt">
-        <!-- Receipt Header -->
-        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-border">
-            <!-- Brand -->
-            <div class="space-y-2">
-                <div class="flex items-center gap-2.5">
-                    <img src="{{ asset('logo.png') }}"
-                         alt="ifotoset"
-                         class="receipt-logo w-8 h-8 object-contain shrink-0 drop-shadow-sm"
-                         width="32"
-                         height="32"
-                         style="width: 32px; height: 32px; object-fit: contain;">
-                    <span class="text-2xl font-bold tracking-tight text-foreground">
-                        ifoto<span class="text-primary">set</span>
-                    </span>
-                </div>
-                <div class="text-xs text-muted-foreground leading-relaxed">
-                    <div>Kigali, Rwanda</div>
-                    <div>support@ifotoset.com</div>
-                </div>
+    {{-- Printable document --}}
+    <article id="printable-receipt" class="card overflow-hidden">
+        {{-- Header --}}
+        <div class="flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-10">
+            <div>
+                <x-brand.logo size="md" />
+                <address class="mt-4 text-xs not-italic leading-relaxed text-muted-foreground">
+                    ifotoset<br>
+                    Kigali, Rwanda<br>
+                    support@ifotoset.com
+                </address>
             </div>
-
-            <!-- Receipt Meta -->
-            <div class="text-left sm:text-right space-y-2">
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Paid
-                </div>
-                <div>
-                    <div class="text-xs font-bold uppercase tracking-wider text-muted-foreground">Receipt</div>
-                    <div class="font-mono font-bold text-foreground text-sm mt-0.5">#RCT-{{ strtoupper(substr($payment->uuid, 0, 10)) }}</div>
-                    <div class="text-xs text-muted-foreground mt-0.5">
-                        {{ $payment->paid_at ? $payment->paid_at->format('F j, Y') : $payment->created_at->format('F j, Y') }}
-                    </div>
-                </div>
+            <div class="sm:text-right">
+                <p class="font-display text-2xl font-semibold tracking-tight text-foreground">Receipt</p>
+                <p class="mt-1 text-sm tabular-nums text-muted-foreground">#{{ $receiptNo }}</p>
+                <div class="mt-3"><x-ui.badge :variant="$statusVariant" dot>{{ $statusLabel }}</x-ui.badge></div>
             </div>
         </div>
 
-        <!-- Customer & Payment Details -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
-            <div class="space-y-1">
-                <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Billed To</div>
-                <div class="font-semibold text-foreground text-sm">{{ $user->name }}</div>
-                <div class="text-muted-foreground">{{ $user->email }}</div>
+        {{-- Amount hero --}}
+        <div class="mx-6 flex flex-col gap-1 rounded-xl border border-border bg-muted/40 px-5 py-4 sm:mx-10 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-xs text-muted-foreground">{{ $isPaid ? 'Amount paid' : 'Amount' }}</p>
+                <p class="font-display text-3xl font-semibold tracking-tight tabular-nums text-foreground">{{ $amount }} <span class="text-base font-medium text-muted-foreground">{{ $payment->currency }}</span></p>
             </div>
+            <p class="text-sm text-muted-foreground">
+                {{ $isPaid ? 'Paid on' : 'Created on' }} <span class="font-medium text-foreground">{{ $issuedAt->format('F j, Y') }}</span>
+            </p>
+        </div>
 
-            <div class="space-y-1 sm:text-right">
-                <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Payment Method</div>
-                <div class="font-semibold text-foreground text-sm">
-                    @php
-                        $prov = strtolower($payment->provider ?? '');
-                    @endphp
-                    @if(str_contains($prov, 'mtn'))
-                        MTN Mobile Money
-                    @elseif(str_contains($prov, 'airtel'))
-                        Airtel Money
-                    @else
-                        Mobile Money
+        {{-- Parties & meta --}}
+        <dl class="grid grid-cols-1 gap-6 p-6 text-sm sm:grid-cols-3 sm:p-10">
+            <div>
+                <dt class="eyebrow !text-[11px]">Billed to</dt>
+                <dd class="mt-2">
+                    <span class="block font-medium text-foreground">{{ $user->name }}</span>
+                    <span class="block text-muted-foreground">{{ $user->email }}</span>
+                </dd>
+            </div>
+            <div>
+                <dt class="eyebrow !text-[11px]">Payment method</dt>
+                <dd class="mt-2">
+                    <span class="block font-medium text-foreground">{{ $method }}</span>
+                    @if($payment->phone_number)
+                        <span class="block tabular-nums text-muted-foreground">+{{ $payment->phone_number }}</span>
                     @endif
-                </div>
-                @if($payment->phone_number)
-                    <div class="font-mono text-muted-foreground">+{{ $payment->phone_number }}</div>
-                @endif
+                </dd>
             </div>
-        </div>
+            <div>
+                <dt class="eyebrow !text-[11px]">Date</dt>
+                <dd class="mt-2">
+                    <span class="block font-medium tabular-nums text-foreground">{{ $issuedAt->format('M j, Y') }}</span>
+                    <span class="block tabular-nums text-muted-foreground">{{ $issuedAt->format('H:i T') }}</span>
+                </dd>
+            </div>
+        </dl>
 
-        <!-- Line Items -->
-        <div class="border border-border rounded-xl overflow-hidden">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-secondary/40 text-muted-foreground font-semibold uppercase tracking-wider text-[11px] border-b border-border">
-                    <tr>
-                        <th class="px-5 py-3">Description</th>
-                        <th class="px-5 py-3">Duration</th>
-                        <th class="px-5 py-3 text-right">Amount</th>
+        {{-- Line items --}}
+        <div class="px-6 sm:px-10">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="border-b border-border text-xs text-muted-foreground">
+                        <th class="pb-3 font-medium">Description</th>
+                        <th class="hidden pb-3 font-medium sm:table-cell">Period</th>
+                        <th class="pb-3 text-right font-medium">Amount</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-border">
-                    <tr>
-                        <td class="px-5 py-4">
-                            <div class="font-semibold text-foreground text-sm">{{ $payment->plan->name ?? 'Subscription' }} Plan</div>
+                <tbody>
+                    <tr class="border-b border-border">
+                        <td class="py-4 pr-4">
+                            <span class="block font-medium text-foreground">{{ $payment->plan->name ?? 'Subscription' }} plan</span>
+                            <span class="block text-xs text-muted-foreground sm:hidden">{{ ucfirst($durationLabel) }}</span>
+                            <span class="hidden text-xs text-muted-foreground sm:block">ifotoset photographer subscription</span>
                         </td>
-                        <td class="px-5 py-4 text-muted-foreground whitespace-nowrap">
-                            @if(isset($payment->metadata['months']))
-                                {{ $payment->metadata['months'] }} {{ \Illuminate\Support\Str::plural('Month', $payment->metadata['months']) }}
-                            @elseif($payment->billing_cycle === 'annual')
-                                1 Year
-                            @else
-                                1 Month
-                            @endif
-                        </td>
-                        <td class="px-5 py-4 text-right font-mono font-semibold text-foreground text-sm whitespace-nowrap">
-                            {{ number_format($payment->amount, 0) }} {{ $payment->currency }}
-                        </td>
+                        <td class="hidden whitespace-nowrap py-4 pr-4 text-muted-foreground sm:table-cell">{{ ucfirst($durationLabel) }}</td>
+                        <td class="whitespace-nowrap py-4 text-right font-medium tabular-nums text-foreground">{{ $amount }} {{ $payment->currency }}</td>
                     </tr>
                 </tbody>
             </table>
-        </div>
 
-        <!-- Totals -->
-        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pt-2">
-            <div class="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                Thank you for your business. For any questions regarding this receipt, contact <a href="mailto:support@ifotoset.com" class="text-foreground hover:underline">support@ifotoset.com</a>.
-            </div>
-
-            <div class="w-full sm:w-60 space-y-2 text-xs">
+            <div class="ml-auto mt-4 w-full max-w-xs space-y-2 text-sm">
                 <div class="flex justify-between text-muted-foreground">
                     <span>Subtotal</span>
-                    <span class="font-mono font-medium text-foreground">{{ number_format($payment->amount, 0) }} {{ $payment->currency }}</span>
+                    <span class="tabular-nums text-foreground">{{ $amount }} {{ $payment->currency }}</span>
                 </div>
-                <div class="flex justify-between items-baseline pt-2 border-t border-border">
-                    <span class="font-bold text-foreground text-sm">Total Paid</span>
-                    <span class="font-mono text-lg font-bold text-foreground">{{ number_format($payment->amount, 0) }} {{ $payment->currency }}</span>
+                <div class="flex items-baseline justify-between border-t border-border pt-3">
+                    <span class="font-medium text-foreground">{{ $isPaid ? 'Total paid' : 'Total' }}</span>
+                    <span class="font-display text-lg font-semibold tabular-nums text-foreground">{{ $amount }} {{ $payment->currency }}</span>
                 </div>
             </div>
         </div>
 
-        <!-- Footer Reference -->
-        <div class="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
-            <div>Transaction Reference: <span class="font-mono">{{ $payment->provider_transaction_id ?? $payment->uuid }}</span></div>
-            <div>ifotoset.com</div>
+        {{-- Footer --}}
+        <div class="mt-10 flex flex-col gap-2 border-t border-border bg-muted/40 px-6 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-10">
+            <p>Reference <span class="break-all font-mono text-foreground">{{ $payment->provider_transaction_id ?? $payment->uuid }}</span></p>
+            <p>Questions? <a href="mailto:support@ifotoset.com" class="link">support@ifotoset.com</a></p>
         </div>
-    </div>
+    </article>
+
+    <p class="no-print mt-4 text-center text-xs text-muted-foreground">Tip: choose “Save as PDF” in the print dialog to download a copy.</p>
 </div>
 @endsection

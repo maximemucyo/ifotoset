@@ -170,7 +170,7 @@ class GalleryCountAndSubdomainTest extends TestCase
         $publicGalleryUrl = $this->urlService->galleryUrl('maximemucyo', 'binance-at-kiyovu');
         $publicResponse = $this->get($publicGalleryUrl);
         $publicResponse->assertStatus(200);
-        $publicResponse->assertSee('79 Photos');
+        $publicResponse->assertSeeText('79 photos');
         $publicResponse->assertSee('data-total-photos="79"', false);
         $publicResponse->assertSee('data-gallery-url="' . $publicGalleryUrl . '"', false);
     }

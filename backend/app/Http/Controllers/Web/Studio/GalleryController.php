@@ -30,17 +30,44 @@ class GalleryController extends Controller
         $user = $request->user();
 
         $query = Gallery::where('user_id', $user->id)
-            ->with(['coverPhoto', 'stats'])
-            ->orderBy('created_at', 'desc');
+            ->with(['coverPhoto', 'stats']);
 
-        if ($request->has('visibility') && $request->visibility !== 'all') {
-            $query->where('visibility', $request->visibility);
+        $visibility = $request->string('visibility')->toString();
+        if (in_array($visibility, ['public', 'private', 'password'], true)) {
+            $query->where('visibility', $visibility);
         }
 
-        $galleries = $query->paginate(12);
+        $search = trim($request->string('q')->toString());
+        if ($search !== '') {
+            $term = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+            $query->where(fn ($q) => $q->where('title', 'like', $term)->orWhere('client_name', 'like', $term));
+        }
+
+        $sort = $request->string('sort')->toString();
+        match ($sort) {
+            'oldest'  => $query->orderBy('created_at', 'asc'),
+            'updated' => $query->orderBy('updated_at', 'desc'),
+            'title'   => $query->orderBy('title', 'asc'),
+            'event'   => $query->orderByRaw('event_date IS NULL')->orderBy('event_date', 'desc'),
+            default   => $query->orderBy('created_at', 'desc'),
+        };
+
+        $galleries = $query->paginate(12)->withQueryString();
+
+        // All galleries belong to this user: avoid lazy-loading the owner for `public_url`.
+        $galleries->getCollection()->each->setRelation('user', $user);
+
+        $visibilityCounts = Gallery::where('user_id', $user->id)
+            ->selectRaw('visibility, COUNT(*) as aggregate')
+            ->groupBy('visibility')
+            ->pluck('aggregate', 'visibility')
+            ->map(fn ($c) => (int) $c)
+            ->all();
 
         return view('studio.galleries.index', [
             'galleries' => $galleries,
+            'visibilityCounts' => $visibilityCounts,
+            'totalCount' => array_sum($visibilityCounts),
         ]);
     }
 
@@ -142,7 +169,7 @@ class GalleryController extends Controller
                 'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
                 'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
                 'original_url' => $photo->getOriginalDownloadUrl(),
-                'delivery_url' => $isVideo ? $photo->getDeliveryUrl() : null,
+                'delivery_url' => $isVideo ? $photo->getStreamUrl() : null,
                 'size' => $photo->size,
                 'width' => $photo->width,
                 'height' => $photo->height,
@@ -202,7 +229,7 @@ class GalleryController extends Controller
                 'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
                 'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
                 'original_url' => $photo->getOriginalDownloadUrl(),
-                'delivery_url' => $isVideo ? $photo->getDeliveryUrl() : null,
+                'delivery_url' => $isVideo ? $photo->getStreamUrl() : null,
                 'size' => $photo->size,
                 'width' => $photo->width,
                 'height' => $photo->height,

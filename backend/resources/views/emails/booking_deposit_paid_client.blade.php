@@ -1,28 +1,27 @@
-<x-email.layout title="Booking Deposit Receipt">
-    <x-email.heading 
-        title="Deposit Payment Confirmed" 
-        subtitle="Your booking deposit payment has been received successfully." 
+<x-email.layout title="Booking Deposit Receipt" :preheader="'Receipt: ' . number_format((float)$payment->amount) . ' ' . $payment->currency . ' deposit for ' . $booking->title . '. Your booking is confirmed.'">
+    <x-email.heading
+        eyebrow="Receipt"
+        title="Deposit payment confirmed"
+        subtitle="Your booking deposit payment has been received successfully."
     />
 
-    <p style="font-size: 15px; color: #44403c; line-height: 1.6; margin: 0 0 20px;">
-        Hi {{ $client->name }},
-    </p>
+    <x-email.text>Hi {{ $client->name }},</x-email.text>
 
-    <p style="font-size: 15px; color: #44403c; line-height: 1.6; margin: 0 0 20px;">
-        Thank you! We have received your deposit payment of <strong>{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for your booking with {{ $photographer->name }}. Your booking is now officially confirmed.
-    </p>
+    <x-email.text>
+        Thank you! We've received your deposit of <strong class="em-h" style="color: #111113; font-weight: 600;">{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for your booking with {{ $photographer->name }}. Your booking is now officially confirmed.
+    </x-email.text>
 
-    <x-email.card title="Payment & Session Summary">
+    <x-email.card title="Payment & session summary">
         <x-email.detail-row label="Session" :value="$booking->title" />
         <x-email.detail-row label="Photographer" :value="$photographer->name" />
-        <x-email.detail-row label="Date & Time" :value="$booking->starts_at->format('l, F j, Y \a\t g:i A')" />
-        <x-email.detail-row label="Deposit Paid" :value="number_format((float)$payment->amount) . ' ' . $payment->currency" />
-        <x-email.detail-row label="Payment Method" :value="$payment->provider" />
+        <x-email.detail-row label="Date & time" :value="$booking->starts_at->format('l, F j, Y \a\t g:i A')" />
+        <x-email.detail-row label="Deposit paid" :value="number_format((float)$payment->amount) . ' ' . $payment->currency" />
+        <x-email.detail-row label="Payment method" :value="$payment->provider" />
         <x-email.detail-row label="Reference ID" :value="$payment->pawapay_deposit_id ?? $payment->uuid" />
         <x-email.detail-row label="Status" value="Confirmed" />
     </x-email.card>
 
-    <p style="font-size: 14px; color: #78716c; line-height: 1.6; margin: 0 0 24px;">
-        Please keep this receipt for your records. If you have any inquiries, feel free to contact {{ $photographer->name }} at <a href="mailto:{{ $photographer->email }}">{{ $photographer->email }}</a>.
-    </p>
+    <x-email.text muted spacing="0">
+        Please keep this receipt for your records. If you have any questions, contact {{ $photographer->name }} at <x-email.link :href="'mailto:' . $photographer->email">{{ $photographer->email }}</x-email.link>.
+    </x-email.text>
 </x-email.layout>

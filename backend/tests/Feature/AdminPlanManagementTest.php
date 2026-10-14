@@ -70,7 +70,7 @@ class AdminPlanManagementTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('admin.plans.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('Payment Plans &amp; Storage Quotas', false);
+        $response->assertSee('Plans &amp; pricing', false);
         $response->assertSee('Basic');
         $response->assertSee('Professional');
         $response->assertSee('Business');

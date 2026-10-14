@@ -28,6 +28,14 @@ class AdminDashboardQuery
             ->take(6)
             ->get();
 
+        $recentPayments = Payment::with(['user', 'plan'])
+            ->orderBy('created_at', 'desc')
+            ->take(6)
+            ->get();
+
+        $newUsers30d = User::where('created_at', '>=', now()->subDays(30))->count();
+        $takenDownGalleries = Gallery::where('moderation_status', 'taken_down')->count();
+
         $queueSummary = [
             'processing'   => \App\Models\MediaJob::where('status', 'processing')->count(),
             'queued'       => \App\Models\MediaJob::where('status', 'queued')->count(),
@@ -44,6 +52,9 @@ class AdminDashboardQuery
             'recentUsers'       => $recentUsers,
             'recentGalleries'   => $recentGalleries,
             'queueSummary'      => $queueSummary,
+            'recentPayments'    => $recentPayments,
+            'newUsers30d'       => $newUsers30d,
+            'takenDownGalleries' => $takenDownGalleries,
         ];
     }
 }

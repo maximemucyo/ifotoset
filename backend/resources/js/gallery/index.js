@@ -79,7 +79,7 @@ export function bootstrapGallery() {
     initGalleryHeader();
 
     // 2. Initialize Layout (Masonry packing - zero whitespace gaps)
-    const layout = new GalleryLayout({ gap: 6 });
+    const layout = new GalleryLayout({ gap: 12 });
 
     // 3. Initialize Favorites Manager
     const favorites = new GalleryFavorites({
@@ -110,7 +110,8 @@ export function bootstrapGallery() {
     const pagination = new GalleryPagination({
         photosUrl,
         initialNextCursor: nextCursor,
-        initialHasMore: hasMore
+        initialHasMore: hasMore,
+        allowDownloads: allowPhotoDownloads
     });
 
     // 7. Initialize Lightbox Controller

@@ -1,30 +1,32 @@
-@extends('layouts.guest', ['title' => 'Verify Your Email - ifotoset', 'heading' => 'Verify your email address', 'subheading' => 'Before accessing your studio, please check your email for a verification link.'])
+@extends('layouts.guest', ['title' => 'Verify your email · ifotoset', 'icon' => 'mail', 'heading' => 'Check your inbox', 'subheading' => 'We sent a verification link to ' . (auth()->user()->email ?? 'your email') . '. Click it to activate your studio.'])
 
 @section('content')
-<div class="space-y-5 text-sm text-foreground">
-    <p class="text-muted-foreground leading-relaxed">
-        Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you? If you didn't receive the email, we will gladly send you another.
-    </p>
-
+<div class="space-y-5">
     @if (session('status') == 'verification-link-sent' || session('success'))
-        <div class="p-3 bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-300 text-xs rounded-lg font-medium">
-            A new verification link has been sent to the email address you provided during registration.
+        <div class="alert alert-success">
+            <x-icon name="circle-check" />
+            <span>A fresh verification link is on its way to your inbox.</span>
         </div>
     @endif
 
-    <div class="pt-2 flex items-center justify-between gap-4">
-        <form method="POST" action="{{ route('verification.send') }}">
-            @csrf
-            <x-ui.button type="submit" variant="primary">
-                Resend Verification Email
-            </x-ui.button>
-        </form>
+    <div class="surface-muted space-y-2 p-4 text-[13px] text-muted-foreground">
+        <p class="flex items-start gap-2"><x-icon name="info" class="mt-0.5 size-4 shrink-0" /> Can’t find it? Check your spam or promotions folder. The link expires in 60 minutes.</p>
+    </div>
 
+    <form method="POST" action="{{ route('verification.send') }}" x-data="{ submitting: false }" @submit="submitting = true">
+        @csrf
+        <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="submitting">
+            <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
+            <x-icon name="send" x-show="!submitting" />
+            Resend verification email
+        </button>
+    </form>
+
+    <div class="flex items-center justify-between border-t border-border pt-5 text-[13px]">
+        <a href="{{ route('studio.dashboard') }}" class="font-medium text-muted-foreground transition hover:text-foreground">Continue to studio</a>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
-            <button type="submit" class="text-xs text-muted-foreground hover:text-foreground underline">
-                Log Out
-            </button>
+            <button type="submit" class="font-medium text-muted-foreground transition hover:text-foreground">Sign out</button>
         </form>
     </div>
 </div>

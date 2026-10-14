@@ -40,6 +40,7 @@ export class GalleryLightbox {
 
         this.filenameEl = document.getElementById('lightbox-filename');
         this.counterEl = document.getElementById('lightbox-counter');
+        this.counterTopEl = document.getElementById('lightbox-counter-top');
         this.favoriteBtn = document.getElementById('lightbox-btn-favorite');
         this.shareBtn = document.getElementById('lightbox-btn-share');
         this.downloadBtn = document.getElementById('lightbox-btn-download');
@@ -334,7 +335,7 @@ export class GalleryLightbox {
                                 fullscreenWeb: true,
                                 playsInline: true,
                                 airplay: true,
-                                theme: '#e11d48',
+                                theme: '#f0532a',
                                 customType: {
                                     m3u8: function (video, url, artInstance) {
                                         if (window.Hls && window.Hls.isSupported()) {
@@ -460,12 +461,12 @@ export class GalleryLightbox {
     }
 
     updateCounter() {
-        if (this.counterEl) {
-            const total = Number.isFinite(this.totalPhotos) && this.totalPhotos > 0
-                ? this.totalPhotos
-                : this.photos.length;
-            this.counterEl.textContent = `${this.currentIndex + 1} / ${total}`;
-        }
+        const total = Number.isFinite(this.totalPhotos) && this.totalPhotos > 0
+            ? this.totalPhotos
+            : this.photos.length;
+        const text = `${this.currentIndex + 1} / ${total}`;
+        if (this.counterEl) this.counterEl.textContent = text;
+        if (this.counterTopEl) this.counterTopEl.textContent = text;
     }
 
     setDragOffset(deltaX) {
@@ -541,13 +542,9 @@ export class GalleryLightbox {
         const svg = this.favoriteBtn.querySelector('svg');
         const isFav = currentPhoto && this.favoritesManager?.isFavorited(currentPhoto.uuid);
 
-        if (isFav) {
-            this.favoriteBtn.classList.add('text-rose-500', 'bg-rose-500/10');
-            if (svg) svg.setAttribute('fill', 'currentColor');
-        } else {
-            this.favoriteBtn.classList.remove('text-rose-500', 'bg-rose-500/10');
-            if (svg) svg.setAttribute('fill', 'none');
-        }
+        this.favoriteBtn.toggleAttribute('data-favorited', Boolean(isFav));
+        this.favoriteBtn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
+        if (svg) svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
     }
 
     handleKeyDown(e) {
