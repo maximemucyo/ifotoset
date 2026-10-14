@@ -72,8 +72,10 @@ class StorageKeyResolver
         $galleryPrefix = "galleries/{$galleryUuid}";
 
         $objects = [];
+        $protectedPrefix = "protected-galleries/{$galleryUuid}";
         $prefixes = [
             "{$galleryPrefix}/downloads",
+            "{$protectedPrefix}/downloads",
         ];
 
         // Retrieve all photos including soft-deleted ones
@@ -87,6 +89,7 @@ class StorageKeyResolver
         }
 
         $prefixes[] = $galleryPrefix;
+        $prefixes[] = $protectedPrefix;
 
         return [
             'objects' => array_values(array_unique($objects)),

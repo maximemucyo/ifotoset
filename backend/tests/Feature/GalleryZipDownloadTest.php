@@ -523,6 +523,36 @@ class GalleryZipDownloadTest extends TestCase
         $this->assertStringStartsWith('https://cdn.ifotoset.com/galleries/', $url);
         $this->assertStringContainsString('filename=Wedding-Photos.zip', $url);
         $this->assertStringNotContainsString('s3.eu-central-003.backblazeb2.com', $url);
+
+        // The edge worker only serves downloads carrying a valid token
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        $this->assertTrue(app(\App\Services\MediaTokenService::class)->validateToken(
+            "galleries/{$this->gallery->uuid}/downloads/photos-123.zip",
+            (int) $query['exp'],
+            $query['sig']
+        ));
+    }
+
+    public function test_protected_gallery_zip_is_stored_under_protected_prefix(): void
+    {
+        Storage::fake('b2');
+
+        $this->gallery->update(['visibility' => 'private']);
+        $photo = $this->createPhoto();
+        Storage::disk('b2')->put("{$photo->path}/{$photo->filename}", 'image bytes');
+
+        $download = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'pending',
+            'photo_snapshot_hash' => 'abc123',
+        ]);
+
+        (new GenerateGalleryZipJob($this->gallery->id, $download->id))->handle(app(\App\Services\StorageService::class));
+
+        $download->refresh();
+        $this->assertEquals('ready', $download->status);
+        $this->assertEquals("protected-galleries/{$this->gallery->uuid}/downloads/photos-abc123.zip", $download->storage_path);
+        Storage::disk('b2')->assertExists($download->storage_path);
     }
 }
 

@@ -84,9 +84,17 @@ class MediaTokenService
      */
     public function signUrl(string $path, int $ttlHours = 2, ?string $domain = null): string
     {
+        return $this->signUrlUntil($path, now()->addHours($ttlHours), $domain);
+    }
+
+    /**
+     * Generate an HMAC signed URL that expires at the given moment.
+     */
+    public function signUrlUntil(string $path, \DateTimeInterface $expiresAt, ?string $domain = null): string
+    {
         $domain = $domain ?: $this->cdnDomain;
         $cleanPath = ltrim($path, '/');
-        $exp = now()->addHours($ttlHours)->timestamp;
+        $exp = $expiresAt->getTimestamp();
         $sig = hash_hmac('sha256', "{$cleanPath}:{$exp}", $this->cdnSecret);
 
         return \App\Support\Cdn::scheme() . "://{$domain}/{$cleanPath}?exp={$exp}&sig={$sig}";

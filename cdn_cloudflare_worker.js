@@ -30,6 +30,10 @@ async function handle(request, event) {
 
     // Authorization & Referer check: protected galleries require valid token; public gallery assets verify allowed context
     const url = new URL(request.url);
+    if (!isSafePath(url.pathname)) {
+        return new Response('Bad Request', { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    }
+
     const pathToken = extractPathToken(url.pathname);
     const authResult = pathToken
         ? await verifyMediaToken(pathToken.dir + '/', pathToken.exp, pathToken.sig)
@@ -102,7 +106,7 @@ async function proxyAndCache(request, event, objectPathOverride = null) {
     const cacheKey = new Request(cacheKeyUrl.toString(), request);
     const cache = (typeof caches !== 'undefined' && caches.default) ? caches.default : null;
 
-    const isDownload = url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download');
+    const isDownload = isDownloadRequest(url);
 
     // 1. Check Cloudflare Edge Cache (bypass for private downloads)
     let cachedRes = null;
@@ -208,11 +212,8 @@ async function proxyAndCache(request, event, objectPathOverride = null) {
 
 function corsHeaders(origin) {
     let allowOrigin = 'https://ifotoset.com';
-    if (origin) {
-        const o = origin.toLowerCase();
-        if (o.includes('ifotoset.com') || o.includes('localhost') || o.includes('127.0.0.1') || o.includes('192.168.')) {
-            allowOrigin = origin;
-        }
+    if (origin && isTrustedHost(hostOf(origin))) {
+        allowOrigin = origin;
     }
 
     return new Headers({
@@ -224,43 +225,56 @@ function corsHeaders(origin) {
     });
 }
 
-// Function to check if the referer is allowed (matching agasoba-media-proxy pattern)
-function getRefererHost(req) {
-    const r = req.headers.get('Referer');
-    if (!r) return null;
+// Rejects traversal and smuggled separators before any auth or storage lookup.
+function isSafePath(pathname) {
+    if (/%2f|%5c|%00/i.test(pathname)) return false;
+
+    let decoded;
     try {
-        return new URL(r.includes('://') ? r : `http://${r}`).hostname.toLowerCase();
+        decoded = decodeURIComponent(pathname);
+    } catch {
+        return false;
+    }
+
+    if (decoded.includes('\\') || decoded.includes('//')) return false;
+    const segments = decoded.split('/');
+    return !segments.includes('..') && !segments.includes('.');
+}
+
+function isDownloadRequest(url) {
+    return url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download');
+}
+
+function hostOf(value) {
+    if (!value) return null;
+    try {
+        return new URL(value.includes('://') ? value : `http://${value}`).hostname.toLowerCase();
     } catch {
         return null;
     }
 }
 
+function isTrustedHost(host) {
+    if (!host) return false;
+    if (host === 'ifotoset.com' || host.endsWith('.ifotoset.com')) return true;
+    if (host === 'localhost' || host.endsWith('.localhost')) return true;
+    return host === '127.0.0.1' || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
 function isAllowedReferer(req) {
-    const r = (req.headers.get('Referer') || '').toLowerCase();
-    const o = (req.headers.get('Origin') || '').toLowerCase();
-
-    // 1. String inclusion for ifotoset domains & local environments
-    if (r.includes('ifotoset.com') || o.includes('ifotoset.com')) return true;
-    if (r.includes('localhost') || o.includes('localhost')) return true;
-    if (r.includes('127.0.0.1') || o.includes('127.0.0.1')) return true;
-    if (r.includes('192.168.') || o.includes('192.168.')) return true;
-
-    // 2. Structured hostname check fallback
-    const host = getRefererHost(req);
-    if (host) {
-        if (host === 'ifotoset.com' || host.endsWith('.ifotoset.com')) return true;
-        if (host === 'localhost' || host.endsWith('.localhost')) return true;
-        if (host === '127.0.0.1' || host.startsWith('192.168.')) return true;
+    // 1. Exact hostname match on Referer or Origin (substring matches are spoofable, e.g. evil.com/?ifotoset.com)
+    if (isTrustedHost(hostOf(req.headers.get('Referer'))) || isTrustedHost(hostOf(req.headers.get('Origin')))) {
+        return true;
     }
 
-    // 3. Block direct browser navigation (when URL is pasted directly into address bar)
+    // 2. Block direct browser navigation (when URL is pasted directly into address bar)
     const secDest = req.headers.get('Sec-Fetch-Dest');
     const secMode = req.headers.get('Sec-Fetch-Mode');
     if (secMode === 'navigate' || secDest === 'document') {
         return false;
     }
 
-    // 4. Allow embedded image, video, and audio elements
+    // 3. Allow embedded image, video, and audio elements
     if (secDest === 'image' || secDest === 'video' || secDest === 'audio') {
         return true;
     }
@@ -269,23 +283,20 @@ function isAllowedReferer(req) {
 }
 
 async function isAllowedRequest(request, url) {
-    // Explicit downloads, ZIP archives, and custom filename deliveries are allowed directly
-    if (url.pathname.includes('/downloads/') || url.pathname.endsWith('.zip') || url.searchParams.has('filename') || url.searchParams.has('download')) {
-        return true;
-    }
+    const exp = url.searchParams.get('exp');
+    const sig = url.searchParams.get('sig');
+    const objectPath = decodeURIComponent(url.pathname);
 
-    // 1. Protected Galleries: Strictly require valid, unexpired HMAC signed token
-    if (url.pathname.startsWith('/protected-galleries/')) {
-        const exp = url.searchParams.get('exp');
-        const sig = url.searchParams.get('sig');
-        return await verifyMediaToken(url.pathname, exp, sig);
+    // 1. Protected media and every download (ZIPs, ?filename=, ?download) require a valid, unexpired signed token.
+    //    The backend signs all CDN download URLs (StorageService::generatePresignedDownloadUrl).
+    if (url.pathname.startsWith('/protected-') || isDownloadRequest(url)) {
+        return await verifyMediaToken(objectPath, exp, sig);
     }
 
     // 2. Public Galleries: Enforce referer check (allow signed token bypass if present)
     if (url.pathname.startsWith('/galleries/')) {
-        if (url.searchParams.has('sig') && url.searchParams.has('exp')) {
-            const isValid = await verifyMediaToken(url.pathname, url.searchParams.get('exp'), url.searchParams.get('sig'));
-            if (isValid) return true;
+        if (exp && sig && await verifyMediaToken(objectPath, exp, sig)) {
+            return true;
         }
         return isAllowedReferer(request);
     }

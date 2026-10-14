@@ -49,10 +49,11 @@ class StorageService
         $utf8Filename = rawurlencode($filename);
         $contentDisposition = "attachment; filename=\"{$asciiFilename}\"; filename*=UTF-8''{$utf8Filename}";
 
-        // If CDN domain is available, return a clean, branded CDN download URL with attachment filename
+        // If CDN domain is available, return a signed, branded CDN download URL with attachment filename.
+        // The edge worker only serves downloads that carry a valid token.
         if (!empty($this->cdnDomain) && config('filesystems.disks.b2.use_cdn_downloads', true)) {
-            $cleanKey = ltrim($objectKey, '/');
-            return \App\Support\Cdn::scheme() . "://{$this->cdnDomain}/{$cleanKey}?filename={$utf8Filename}";
+            $signedUrl = app(MediaTokenService::class)->signUrlUntil($objectKey, $expiresAt, $this->cdnDomain);
+            return "{$signedUrl}&filename={$utf8Filename}";
         }
 
         try {
