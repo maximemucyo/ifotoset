@@ -192,7 +192,7 @@ class GalleryController extends Controller
             'gallery' => $gallery,
             'photos' => $paginated,
             'totalPhotosCount' => $gallery->photos()->count(),
-            'initialPhotosJson' => $initialPhotosData->toJson(),
+            'initialPhotosJson' => $initialPhotosData->toJson(JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT),
             'initialNextCursor' => $paginated->nextCursor()?->encode(),
             'initialHasMore' => $paginated->hasMorePages(),
             'userStorage' => $userStorage,

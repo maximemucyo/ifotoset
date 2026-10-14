@@ -37,6 +37,6 @@
 
 @if($structuredData)
 <script type="application/ld+json">
-{!! is_array($structuredData) ? json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $structuredData !!}
+{!! is_array($structuredData) ? json_encode($structuredData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $structuredData !!}
 </script>
 @endif

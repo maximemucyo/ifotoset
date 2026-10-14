@@ -110,6 +110,17 @@ class SeoArchitectureTest extends TestCase
         $response->assertSee('Kigali, Rwanda');
     }
 
+    public function test_photographer_bio_cannot_break_out_of_structured_data_script(): void
+    {
+        $this->photographer->update(['bio' => '</script><script>alert(1)</script>']);
+
+        $response = $this->get($this->urlService->photographer($this->photographer));
+        $response->assertStatus(200);
+
+        $response->assertDontSee('<script>alert(1)</script>', false);
+        $response->assertSee('\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E', false);
+    }
+
     public function test_public_gallery_renders_canonical_and_index_robots(): void
     {
         $url = $this->urlService->gallery($this->publicGallery);
