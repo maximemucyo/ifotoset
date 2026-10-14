@@ -49,7 +49,18 @@
     };
     $money = fn ($amount, $currency) => trim(($currency ?: '') . ' ' . number_format((float) $amount, 0));
 
-    $cards = $plans->map(function ($plan) use ($copy, $formatStorage, $formatVideo, $money) {
+    // Whole months saved by paying yearly (e.g. annual = 10x monthly -> 2), or null when it isn't a clean number.
+    $monthsFree = function ($plan): ?int {
+        $m = (float) $plan->monthly_price;
+        $a = (float) $plan->annual_price;
+        if ($m <= 0 || $a <= 0 || $a >= $m * 12) {
+            return null;
+        }
+        $months = 12 - $a / $m;
+        return abs($months - round($months)) < 0.01 ? (int) round($months) : null;
+    };
+
+    $cards = $plans->map(function ($plan) use ($copy, $formatStorage, $formatVideo, $money, $monthsFree) {
         $c = $copy[$plan->slug] ?? [
             'tagline' => $plan->name,
             'description' => null,
@@ -59,7 +70,12 @@
         $monthly = (float) $plan->monthly_price;
         $annual = (float) $plan->annual_price;
         $free = $monthly <= 0 && $annual <= 0;
-        $annualPerMonth = $annual > 0 ? $annual / 12 : $monthly;
+        $hasAnnual = $annual > 0;
+        $fullYear = $monthly * 12;
+        $months = $monthsFree($plan);
+        $saving = $hasAnnual && $fullYear > $annual ? (int) round((1 - $annual / $fullYear) * 100) : 0;
+        $perMonth = $hasAnnual ? $annual / 12 : $monthly;
+        $perMonthNote = '≈ ' . $money($perMonth, $plan->currency) . '/mo';
 
         return [
             'slug' => $plan->slug,
@@ -71,8 +87,17 @@
             'cta' => $c['cta'],
             'currency' => $plan->currency,
             'monthly' => number_format($monthly, 0),
-            'yearly' => number_format($annualPerMonth, 0),
-            'yearlyNote' => $annual > 0 ? 'Billed annually (' . $money($annual, $plan->currency) . '/year)' : 'Billed monthly',
+            'hasAnnual' => $hasAnnual,
+            // Yearly view leads with the real annual total; plans without an annual price stay monthly.
+            'yearly' => number_format($hasAnnual ? $annual : $monthly, 0),
+            'yearlyUnit' => $hasAnnual ? '/year' : '/month',
+            'yearlyCompare' => $saving > 0 ? $money($fullYear, $plan->currency) : null,
+            'yearlyNote' => match (true) {
+                $months !== null => $perMonthNote . ' · ' . $months . ' ' . ($months === 1 ? 'month' : 'months') . ' free',
+                $saving > 0 => $perMonthNote . ' · Save ' . $saving . '%',
+                $hasAnnual => 'Billed annually',
+                default => 'Billed monthly',
+            },
             'features' => array_map(fn ($f) => match ($f) {
                 ':storage' => $formatStorage($plan->storage_limit) . ' optimized storage',
                 ':video' => $formatVideo((int) $plan->video_limit_seconds),
@@ -86,7 +111,16 @@
         $a = (float) $plan->annual_price;
         return $m > 0 && $a > 0 ? (1 - $a / $m) * 100 : 0;
     })->max() ?? 0;
-    $maxSaving = (int) floor($maxSaving);
+    $maxSaving = (int) round($maxSaving);
+
+    // "Get 2 months free" reads better than a percentage when every paid plan offers the same whole months.
+    $paidMonthsFree = $plans->filter(fn ($p) => (float) $p->annual_price > 0)->map($monthsFree)->unique()->values();
+    $savingBadge = match (true) {
+        $paidMonthsFree->count() === 1 && $paidMonthsFree->first() !== null
+            => 'Get ' . $paidMonthsFree->first() . ' ' . ($paidMonthsFree->first() === 1 ? 'month' : 'months') . ' free yearly',
+        $maxSaving > 0 => 'Save up to ' . $maxSaving . '% yearly',
+        default => null,
+    };
 
     $cols = match (true) {
         $cards->count() >= 4 => 'md:grid-cols-2 xl:grid-cols-4',
@@ -122,8 +156,8 @@
                         class="relative z-10 h-9 rounded-full px-5 text-[13.5px] font-medium transition-colors"
                         :class="billingPeriod === 'yearly' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">Yearly</button>
                 </div>
-                @if($maxSaving > 0)
-                    <span class="badge badge-brand rounded-full px-2.5 py-1 text-[12px]"><x-icon name="sparkles" /> Save up to {{ $maxSaving }}% yearly</span>
+                @if($savingBadge)
+                    <span class="badge badge-brand rounded-full px-2.5 py-1 text-[12px]"><x-icon name="sparkles" /> {{ $savingBadge }}</span>
                 @endif
             </div>
 
@@ -150,15 +184,22 @@
                             @endif
 
                             <div class="mt-6">
-                                <div class="flex items-baseline gap-1.5 whitespace-nowrap">
+                                {{-- Always rendered so every card's price block has the same height. --}}
+                                <p class="h-5 text-[13px] tabular-nums text-muted-foreground line-through decoration-muted-foreground/60"
+                                    @if($card['yearlyCompare']) :class="billingPeriod === 'yearly' ? 'visible' : 'invisible'" @else aria-hidden="true" @endif>
+                                    {{ $card['yearlyCompare'] ?? '' }}
+                                </p>
+                                <div class="mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
                                     <span class="text-[14px] font-medium text-muted-foreground">{{ $card['currency'] }}</span>
                                     @if($card['free'])
                                         <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums">{{ $card['monthly'] }}</span>
+                                        <span class="text-[13px] text-muted-foreground">/month</span>
                                     @else
                                         <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums"
                                             x-text="billingPeriod === 'monthly' ? @js($card['monthly']) : @js($card['yearly'])">{{ $card['yearly'] }}</span>
+                                        <span class="text-[13px] text-muted-foreground"
+                                            x-text="billingPeriod === 'monthly' ? '/month' : @js($card['yearlyUnit'])">{{ $card['yearlyUnit'] }}</span>
                                     @endif
-                                    <span class="text-[13px] text-muted-foreground">/month</span>
                                 </div>
                                 <p class="mt-2 text-[12px] text-muted-foreground">
                                     @if($card['free'])
