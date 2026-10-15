@@ -46,7 +46,10 @@
         </div>
 
         <div class="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 text-[13px] text-muted-foreground sm:flex-row">
-            <p>&copy; {{ date('Y') }} ifotoset. All rights reserved.</p>
+            <p>&copy; {{ date('Y') }} ifotoset. All rights reserved.
+                <a href="{{ route('legal.terms') }}" class="ml-3 transition-colors hover:text-foreground">Terms</a>
+                <a href="{{ route('legal.privacy') }}" class="ml-3 transition-colors hover:text-foreground">Privacy</a>
+            </p>
             <p class="inline-flex items-center gap-1.5"><x-icon name="camera" class="size-3.5" /> Made for photographers</p>
         </div>
     </div>

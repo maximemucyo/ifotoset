@@ -12,6 +12,7 @@ backend/vendor/
 node_modules/
 backend/.env
 backend/.env.*
+!backend/.env.example
 backend/storage/*.key
 backend/public/storage
 backend/bootstrap/cache/

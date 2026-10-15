@@ -307,4 +307,60 @@ class PlatformHardeningTest extends TestCase
         // Unknown state goes home
         $this->get('/google-photos/callback?state=nope&code=abc')->assertRedirect(route('home'));
     }
+
+    // --- 3.8 Account lifecycle ---
+
+    public function test_user_can_export_their_data(): void
+    {
+        $response = $this->actingAs($this->user)->get(route('studio.settings.export'));
+
+        $response->assertOk();
+        $data = json_decode($response->streamedContent(), true);
+        $this->assertSame('alexmorgan', $data['profile']['username']);
+        $this->assertSame('wedding-collection', $data['galleries'][0]['slug']);
+    }
+
+    public function test_account_deletion_requires_password_and_confirmation(): void
+    {
+        $this->actingAs($this->user)->delete(route('studio.settings.account.destroy'), [
+            'delete_password' => 'wrong',
+            'confirm' => 'DELETE',
+        ])->assertSessionHasErrors('delete_password');
+
+        $this->assertNotSoftDeleted($this->user);
+    }
+
+    public function test_deleted_account_goes_offline_then_is_purged_after_grace_period(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('b2');
+
+        $this->actingAs($this->user)->delete(route('studio.settings.account.destroy'), [
+            'delete_password' => 'password123',
+            'confirm' => 'DELETE',
+        ])->assertRedirect(route('home'));
+
+        $this->assertGuest();
+        $this->assertSoftDeleted($this->user);
+
+        $urls = app(\App\Services\PublicUrlService::class);
+        $this->get($urls->galleryUrl('alexmorgan', 'wedding-collection'))->assertNotFound();
+
+        // Inside the grace period nothing is erased
+        $this->artisan('users:purge-deleted')->assertSuccessful();
+        $this->assertDatabaseHas('galleries', ['id' => $this->gallery->id]);
+
+        $this->travel(31)->days();
+        $this->artisan('users:purge-deleted')->assertSuccessful();
+
+        $this->assertDatabaseMissing('galleries', ['id' => $this->gallery->id]);
+        $purged = User::withTrashed()->find($this->user->id);
+        $this->assertNotNull($purged->purged_at);
+        $this->assertSame("deleted-{$this->user->id}@deleted.invalid", $purged->email);
+    }
+
+    public function test_legal_pages_render(): void
+    {
+        $this->get('/terms')->assertOk()->assertSee('Terms of Service');
+        $this->get('/privacy')->assertOk()->assertSee('Privacy Policy');
+    }
 }

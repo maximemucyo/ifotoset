@@ -12,8 +12,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        if (app()->environment('production')) {
-            // In production, only seed plans and features safely using updateOrCreate/firstOrCreate
+        // Only a local machine or the test suite may wipe data. Anything else
+        // (production, staging, a mistyped APP_ENV) gets the idempotent seeders only.
+        if (!app()->environment('local', 'testing')) {
             $this->call([
                 PlanSeeder::class,
                 FeatureSeeder::class,

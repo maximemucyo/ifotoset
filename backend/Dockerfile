@@ -1,3 +1,5 @@
+# Local development image only (php artisan serve, docker-compose).
+# Production runs on the aaPanel host; see deploy.sh.
 FROM php:8.4-cli-alpine
 
 # Install system dependencies and PHP extensions

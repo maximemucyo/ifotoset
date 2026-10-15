@@ -96,7 +96,7 @@
     </button>
 
     <p class="text-center text-xs leading-relaxed text-muted-foreground">
-        By creating an account you agree to our Terms of Service and Privacy Policy.
+        By creating an account you agree to our <a href="{{ route('legal.terms') }}" class="link">Terms of Service</a> and <a href="{{ route('legal.privacy') }}" class="link">Privacy Policy</a>.
     </p>
 
     <p class="border-t border-border pt-5 text-center text-[13px] text-muted-foreground">

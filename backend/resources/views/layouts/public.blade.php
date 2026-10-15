@@ -44,6 +44,8 @@
                 <div class="flex items-center gap-5">
                     <a href="{{ url('/') }}" class="transition hover:text-foreground">Home</a>
                     <a href="{{ url('/') }}#pricing" class="transition hover:text-foreground">Pricing</a>
+                    <a href="{{ route('legal.terms') }}" class="transition hover:text-foreground">Terms</a>
+                    <a href="{{ route('legal.privacy') }}" class="transition hover:text-foreground">Privacy</a>
                     <a href="{{ route('login') }}" class="transition hover:text-foreground">Sign in</a>
                 </div>
             </div>

@@ -10,46 +10,47 @@ This platform is a **Laravel 11 (PHP 8.3)** full-stack application (Blade, Tailw
 
 ```
 ifotoset/
-├── frontend/             # Next.js 16 App Router (React 19, Tailwind v4, TanStack Query, Zod)
-│   ├── app/              # Frontend pages (login, signup, galleries, settings)
-│   └── lib/              # API client wrapper, Sanctum auth, and TanStack hooks
-├── backend/              # Laravel 11 REST API Framework
+├── backend/                  # Laravel 11 app (Blade + Tailwind v4 + Alpine.js, built with Vite)
 │   ├── app/
-│   │   ├── Enums/        # PHP 8.3 Backed Enums (PaymentStatus, PhotoStatus, etc.)
-│   │   ├── Casts/        # Custom Eloquent Casts (UuidBinaryCast)
-│   │   ├── Services/     # UploadService, StorageService, PawaPayGateway
-│   │   └── Http/Controllers/Api/V1/
-│   │       ├── Auth/     # Granular Auth Controllers (Login, Register, Logout)
-│   │       └── Callback/ # Webhook callback handlers
-│   └── database/         # Unified database migrations and default plan seeds
-├── docker/               # Local docker files
-└── docker-compose.yml    # Development stack orchestration (MySQL, Redis, Mailpit)
+│   │   ├── Actions/          # Billing, studio and admin use cases
+│   │   ├── Enums/            # Backed enums (PhotoStatus, NotificationPreference, …)
+│   │   ├── Http/Controllers/
+│   │   │   ├── Web/          # Public site, studio, admin, auth
+│   │   │   └── Api/V1/       # Small JSON API used by gallery JavaScript + PawaPay webhook
+│   │   ├── Jobs/             # Photo/video processing, ZIP exports, Google Photos sync
+│   │   └── Services/         # UploadService, StorageService, PawaPayGateway
+│   ├── database/             # Migrations and idempotent plan seeders
+│   └── resources/views/      # Blade views (see DESIGN-SYSTEM.md)
+├── cdn_cloudflare_worker.js  # Cloudflare Worker in front of Backblaze B2 (credentials are Worker secrets)
+├── deploy.sh                 # Production deploy steps run by the push-to-main webhook
+├── ecosystem.config.js       # pm2: queue workers, video worker, scheduler
+├── docker/                   # Local docker files
+└── docker-compose.yml        # Development stack (MySQL, Redis, Mailpit, S3 stand-in)
 ```
 
 ---
 
 ## 2. Key Architecture Features
 
-* **Stateful SPA Authentication**: Cookie-based session auth with Laravel Sanctum using HttpOnly cookies and CSRF protection.
+* **Session authentication**: Laravel web sessions with CSRF protection; the gallery page's JSON calls use Sanctum's stateful API on photographer subdomains.
 * **UUIDv7 Binary Indexing**: Uses Ordered UUIDv7 mapped to `BINARY(16)` fields internally to prevent MySQL index fragmentation.
-* **Direct Browser Uploads**: Next.js browser client calculates SHA-256 and streams uploads directly to Backblaze B2 via presigned URLs.
+* **Direct Browser Uploads**: The studio uploader calculates SHA-256 and streams uploads directly to Backblaze B2 via presigned URLs (type allowlisted, Content-Type signed).
 * **Zero-Bandwidth Verification**: Laravel verifies uploads using 0-byte S3 `HeadObject` metadata requests, preserving application server network bandwidth.
-* **Asynchronous Media Queues**: Chained Redis jobs execute WebP thumbnail generation, EXIF extraction, and BlurHash calculation.
-* **Mobile Money Payment Integration**: Standardized `PaymentGateway` abstraction for **PawaPay** supporting Rwandese/East-African mobile money (MTN, Airtel, etc.) with idempotency, callback replay logs, and status polling.
+* **Asynchronous Media Queues**: Redis jobs execute WebP thumbnail generation, EXIF extraction, BlurHash calculation and HLS video packaging.
+* **Mobile Money Payment Integration**: `PaymentGateway` abstraction for **PawaPay** (MTN, Airtel, …); callbacks are re-verified against the provider before a payment is finalised.
 
 ---
 
 ## 3. Getting Started (Local Development)
 
 The web UI is a Laravel full-stack app (Blade + Tailwind v4 + Alpine.js, built with Vite).
-The legacy `frontend/` Next.js app is no longer used.
 
 ### Prerequisites
 * Docker (OrbStack or Docker Desktop)
 * Node.js 20+ on the host (for Vite)
 
 ### Step 1: Environment
-Create `backend/.env` (see the keys referenced in `backend/config/*`). For local development, point
+Copy `backend/.env.example` to `backend/.env`. For local development, point
 storage at the bundled S3-compatible service and mail at Mailpit:
 
 ```dotenv
@@ -98,3 +99,11 @@ Demo logins: `studio@ifotoset.com` / `demo123` (photographer), `admin@ifotoset.c
 
 ### Design system
 See `backend/resources/views/DESIGN-SYSTEM.md` for tokens, component classes, Blade components and layout conventions.
+
+---
+
+## 4. Production
+
+* Push to `main` deploys automatically (see `deploy.sh`). Back up the database first.
+* The scheduler must run: pm2 runs `ifotoset-scheduler` (`php artisan schedule:work`) from `ecosystem.config.js`. Do not also add a `schedule:run` cron.
+* Tests: `docker compose exec -T backend php artisan test`.

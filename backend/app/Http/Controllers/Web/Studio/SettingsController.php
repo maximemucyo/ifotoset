@@ -122,4 +122,89 @@ class SettingsController extends Controller
 
         return back()->with('success', 'Notification preferences saved successfully.');
     }
+
+    /**
+     * Download everything the account holds as one JSON file.
+     */
+    public function exportData(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $user = $request->user();
+
+        $payload = [
+            'exported_at' => now()->toIso8601String(),
+            'profile' => $user->only([
+                'name', 'username', 'email', 'phone', 'location', 'website', 'bio',
+                'timezone', 'profile_public', 'notification_preferences', 'created_at',
+            ]),
+            'plan' => $user->plan?->only(['name', 'slug']),
+            'galleries' => $user->galleries()->withCount('photos')->orderBy('id')->get()->map(fn ($gallery) => [
+                'title' => $gallery->title,
+                'slug' => $gallery->slug,
+                'visibility' => $gallery->visibility,
+                'event_date' => $gallery->event_date,
+                'photo_count' => $gallery->photos_count,
+                'public_url' => $gallery->public_url,
+                'photos' => $gallery->photos()->orderBy('id')->pluck('original_filename'),
+                'created_at' => $gallery->created_at,
+            ]),
+            'clients' => $user->clients()->orderBy('id')->get()
+                ->map(fn ($client) => $client->only(['name', 'email', 'phone', 'company_name', 'location', 'notes', 'created_at'])),
+            'packages' => $user->packages()->orderBy('id')->get()
+                ->map(fn ($package) => $package->only(['name', 'description', 'price', 'currency', 'duration_minutes', 'deliverables'])),
+            'bookings' => $user->bookings()->with(['client:id,name,email', 'package:id,name'])->orderBy('id')->get()
+                ->map(fn ($booking) => [
+                    'title' => $booking->title,
+                    'status' => $booking->status,
+                    'starts_at' => $booking->starts_at,
+                    'ends_at' => $booking->ends_at,
+                    'client' => $booking->client?->only(['name', 'email']),
+                    'package' => $booking->package?->name,
+                    'price' => $booking->price,
+                    'currency' => $booking->currency,
+                    'notes' => $booking->notes,
+                ]),
+            'payments' => \App\Models\Payment::where('user_id', $user->id)->orderBy('id')->get()
+                ->map(fn ($payment) => $payment->only(['amount', 'currency', 'status', 'purpose', 'billing_cycle', 'created_at'])),
+            'note' => 'Photo files are not included. Download them per gallery with the ZIP export.',
+        ];
+
+        $filename = 'ifotoset-data-' . $user->username . '-' . now()->format('Y-m-d') . '.json';
+
+        return response()->streamDownload(
+            fn () => print json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            $filename,
+            ['Content-Type' => 'application/json']
+        );
+    }
+
+    /**
+     * Close the account. Content is erased after a grace period by
+     * users:purge-deleted, so an accidental deletion can still be undone by support.
+     */
+    public function destroyAccount(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'delete_password' => ['required', 'current_password'],
+            'confirm' => ['required', 'in:DELETE'],
+        ], [
+            'delete_password.current_password' => 'The password is incorrect.',
+            'confirm.in' => 'Type DELETE to confirm.',
+        ]);
+
+        $user = $request->user();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
+            \App\Models\Subscription::where('user_id', $user->id)
+                ->where('status', \App\Enums\SubscriptionStatus::Active->value)
+                ->update(['status' => \App\Enums\SubscriptionStatus::Canceled->value]);
+
+            $user->delete();
+        });
+
+        \Illuminate\Support\Facades\Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('home')->with('success', 'Your account has been deleted.');
+    }
 }

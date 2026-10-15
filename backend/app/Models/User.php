@@ -53,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'uuid' => UuidBinaryCast::class,
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
+        'purged_at' => 'datetime',
         'profile_public' => 'boolean',
         'notification_preferences' => 'array',
         'storage_used_bytes' => 'integer',

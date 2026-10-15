@@ -15,6 +15,7 @@ Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping()
 Schedule::command('bookings:send-reminders')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('uploads:reconcile-reservations')->daily()->withoutOverlapping()->onOneServer();
 Schedule::command('media:reconcile-statistics')->daily()->withoutOverlapping()->onOneServer();
+Schedule::command('users:purge-deleted')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
 
 Artisan::command('b2:sync-cors', function () {
     $keyId = config('filesystems.disks.b2.key');

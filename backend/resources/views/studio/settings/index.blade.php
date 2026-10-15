@@ -1,7 +1,7 @@
 @extends('layouts.app', ['title' => 'Settings · ifotoset'])
 
 @php
-    $hasPasswordErrors = $errors->hasAny(['current_password', 'password']);
+    $hasPasswordErrors = $errors->hasAny(['current_password', 'password', 'delete_password', 'confirm']);
     $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : 'profile');
     $publicUrl = $user->username ? $user->public_url : null;
     $rootHost = config('app.public_root_host', 'ifotoset.com');
@@ -265,6 +265,42 @@
                     <div class="card-footer flex items-center justify-end gap-3">
                         <a href="{{ route('password.request') }}" class="mr-auto text-[13px] font-medium text-muted-foreground transition hover:text-foreground">Forgot your password?</a>
                         <button type="submit" class="btn btn-primary">Update password</button>
+                    </div>
+                </form>
+            </section>
+
+            <section x-show="tab === 'security'" x-cloak class="card mt-6" aria-labelledby="data-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="data-heading" class="card-title">Your data</h2>
+                        <p class="card-description">Download your profile, galleries, clients, bookings and payments as a JSON file.</p>
+                    </div>
+                    <span class="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="database" class="size-4" /></span>
+                </div>
+                <div class="card-footer flex justify-end">
+                    <a href="{{ route('studio.settings.export') }}" class="btn btn-outline"><x-icon name="download" /> Download my data</a>
+                </div>
+            </section>
+
+            <section x-show="tab === 'security'" x-cloak class="card mt-6 border-destructive/40" aria-labelledby="delete-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="delete-heading" class="card-title text-destructive">Delete account</h2>
+                        <p class="card-description">Your public site goes offline immediately. Galleries, photos and client data are permanently erased after 30 days.</p>
+                    </div>
+                    <span class="flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive"><x-icon name="trash-2" class="size-4" /></span>
+                </div>
+                <form method="POST" action="{{ route('studio.settings.account.destroy') }}">
+                    @csrf
+                    @method('DELETE')
+                    <div class="card-body max-w-lg space-y-5">
+                        <x-ui.input label="Password" type="password" name="delete_password" required autocomplete="current-password"
+                                    :error="$errors->first('delete_password')" />
+                        <x-ui.input label="Type DELETE to confirm" name="confirm" required autocomplete="off"
+                                    :error="$errors->first('confirm')" />
+                    </div>
+                    <div class="card-footer flex justify-end">
+                        <button type="submit" class="btn btn-danger">Delete my account</button>
                     </div>
                 </form>
             </section>

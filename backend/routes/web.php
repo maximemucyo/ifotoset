@@ -72,6 +72,8 @@ Route::domain('{username}.' . $rootHost)
 
 // Public Landing Page & Scalable XML Sitemaps
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::view('/terms', 'legal.terms')->name('legal.terms');
+Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
 Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 'index'])->name('sitemap');
 Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapController::class, 'section'])->name('sitemap.section');
 
@@ -219,6 +221,8 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.
     Route::post('/settings/password', [StudioSettingsController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->name('settings.public-profile');
     Route::post('/settings/notifications', [StudioSettingsController::class, 'updateNotifications'])->name('settings.notifications');
+    Route::get('/settings/export', [StudioSettingsController::class, 'exportData'])->middleware('throttle:5,1')->name('settings.export');
+    Route::delete('/settings/account', [StudioSettingsController::class, 'destroyAccount'])->middleware('throttle:5,1')->name('settings.account.destroy');
 
     // Trash & Lifecycle
     Route::get('/trash', [StudioTrashController::class, 'index'])->name('trash.index');
