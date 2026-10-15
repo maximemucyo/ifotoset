@@ -68,7 +68,7 @@ class SeoArchitectureTest extends TestCase
             'user_id' => $this->photographer->id,
             'title' => 'Private VIP Session',
             'slug' => 'private-vip-session',
-            'visibility' => 'public',
+            'visibility' => 'password',
             'password_hash' => Hash::make('1234'),
             'show_on_profile' => false,
         ]);

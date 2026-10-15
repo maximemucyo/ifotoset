@@ -178,7 +178,7 @@ class SeoMetadata
     /**
      * Factory for public gallery SEO.
      */
-    public static function forGallery(Gallery $gallery, ?string $coverUrl = null): self
+    public static function forGallery(Gallery $gallery, ?string $coverUrl = null, bool $accessGranted = false): self
     {
         $urlService = app(PublicUrlService::class);
         $canonical = $urlService->gallery($gallery);
@@ -191,7 +191,9 @@ class SeoMetadata
             ? 'index, follow, max-image-preview:large'
             : 'noindex, nofollow';
 
-        if ($isIndexable) {
+        // Visitors who unlocked a PIN/private gallery see its real title; it stays noindex, and link-preview
+        // crawlers never unlock it, so shared previews keep the generic wording.
+        if ($isIndexable || $accessGranted) {
             $title = "{$gallery->title} - {$photographerName} | ifotoset";
             $description = "View photo collection '{$gallery->title}' photographed by {$photographerName}.";
         } else {

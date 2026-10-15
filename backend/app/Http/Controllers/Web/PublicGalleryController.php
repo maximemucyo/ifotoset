@@ -120,7 +120,7 @@ class PublicGalleryController extends Controller
             'accessDecision' => $decision,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
-            'seo' => \App\Support\Seo\SeoMetadata::forGallery($gallery, $coverUrl),
+            'seo' => \App\Support\Seo\SeoMetadata::forGallery($gallery, $coverUrl, $decision->isGranted()),
         ]);
     }
 

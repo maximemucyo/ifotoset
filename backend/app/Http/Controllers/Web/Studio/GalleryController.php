@@ -120,7 +120,7 @@ class GalleryController extends Controller
             'event_date' => $validated['event_date'] ?? null,
             'visibility' => $validated['visibility'],
             'show_on_profile' => $showOnProfile,
-            'password_hash' => !empty($validated['password']) ? Hash::make($validated['password']) : null,
+            'password_hash' => ($validated['visibility'] === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads', true),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
             'version' => 1,

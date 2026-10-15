@@ -245,7 +245,9 @@ class GalleryCountAndSubdomainTest extends TestCase
         // Follow-up request in same session renders photos
         $unlockedResponse = $this->get($galleryUrl);
         $unlockedResponse->assertStatus(200);
-        $unlockedResponse->assertDontSee('Password Protected Gallery');
+        $unlockedResponse->assertDontSee('PIN Protected Gallery');
+        $unlockedResponse->assertSee('<title>Private Event - ', false);
+        $unlockedResponse->assertSee('<meta name="robots" content="noindex, nofollow">', false);
     }
 
     public function test_apex_302_redirects_to_canonical_subdomain_preserving_query(): void
