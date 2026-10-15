@@ -42,6 +42,21 @@ class Gallery extends Model
         'featured_order',
     ];
 
+    protected static function booted(): void
+    {
+        // Privacy decides the storage prefix (and so whether the CDN demands a token): move media when it flips.
+        static::updated(function (Gallery $gallery) {
+            if (!$gallery->wasChanged(['visibility', 'password_hash'])) {
+                return;
+            }
+
+            $wasProtected = $gallery->getOriginal('visibility') !== 'public' || !empty($gallery->getOriginal('password_hash'));
+            if ($wasProtected !== $gallery->hasProtectedMedia()) {
+                \App\Jobs\RelocateGalleryMediaJob::dispatch($gallery->id)->afterCommit();
+            }
+        });
+    }
+
     protected $casts = [
         'uuid' => UuidBinaryCast::class,
         'event_date' => 'date',
@@ -142,6 +157,21 @@ class Gallery extends Model
             })
             ->where('show_on_profile', true)
             ->whereHas('user', fn ($q) => $q->publiclyIndexable());
+    }
+
+    /**
+     * PIN-protected and private galleries keep their media under the token-only `protected-galleries/` prefix.
+     */
+    public function hasProtectedMedia(): bool
+    {
+        return $this->visibility !== 'public' || !empty($this->password_hash);
+    }
+
+    public function mediaPrefix(?bool $protected = null): string
+    {
+        $protected ??= $this->hasProtectedMedia();
+
+        return ($protected ? 'protected-galleries/' : 'galleries/') . $this->uuid;
     }
 
     public function user(): BelongsTo

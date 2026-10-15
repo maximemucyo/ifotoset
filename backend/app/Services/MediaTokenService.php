@@ -69,14 +69,33 @@ class MediaTokenService
      */
     public function signDirectoryUrl(string $path, int $ttlHours = 4, ?string $domain = null): string
     {
+        return $this->signDirectoryUrlUntil($path, now()->addHours($ttlHours), $domain);
+    }
+
+    /**
+     * Directory-scoped path token (see signDirectoryUrl) expiring at the given moment.
+     */
+    public function signDirectoryUrlUntil(string $path, \DateTimeInterface $expiresAt, ?string $domain = null): string
+    {
         $domain = $domain ?: $this->cdnDomain;
         $cleanPath = ltrim($path, '/');
         $dir = dirname($cleanPath);
         $file = basename($cleanPath);
-        $exp = now()->addHours($ttlHours)->timestamp;
+        $exp = $expiresAt->getTimestamp();
         $sig = hash_hmac('sha256', "{$dir}/:{$exp}", $this->cdnSecret);
 
         return \App\Support\Cdn::scheme() . "://{$domain}/{$dir}/_t/{$exp}/{$sig}/{$file}";
+    }
+
+    /**
+     * Expiry snapped to a fixed window so a page's media URLs stay identical (and browser-cacheable)
+     * for $windowHours, while every token remains valid for at least $windowHours after it is issued.
+     */
+    public function windowedExpiry(int $windowHours = 6): \DateTimeInterface
+    {
+        $window = $windowHours * 3600;
+
+        return \Illuminate\Support\Carbon::createFromTimestamp((intdiv(now()->timestamp, $window) + 2) * $window);
     }
 
     /**

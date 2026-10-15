@@ -182,9 +182,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
 
             // Versioned B2 storage destination
             $snapshotHash = $download->photo_snapshot_hash;
-            $isProtected = ($gallery->visibility !== 'public' || !empty($gallery->password_hash));
-            $zipPrefix = $isProtected ? 'protected-galleries' : 'galleries';
-            $b2ZipPath = "{$zipPrefix}/{$gallery->uuid}/downloads/photos-{$snapshotHash}.zip";
+            $b2ZipPath = $gallery->mediaPrefix() . "/downloads/photos-{$snapshotHash}.zip";
 
             // Upload the ZIP to B2
             Storage::disk('b2')->put($b2ZipPath, fopen($tempZipPath, 'r'));

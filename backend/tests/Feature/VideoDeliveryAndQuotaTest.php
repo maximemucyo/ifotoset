@@ -183,6 +183,7 @@ class VideoDeliveryAndQuotaTest extends TestCase
 
     public function test_protected_gallery_hls_stream_url_carries_directory_token_in_path(): void
     {
+        \Illuminate\Support\Facades\Storage::fake('b2');
         $this->basicGallery->update(['visibility' => 'private']);
         $dir = "protected-galleries/{$this->basicGallery->uuid}/videos/abc";
 

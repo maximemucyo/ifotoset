@@ -197,10 +197,19 @@ class StorageService
 
         if ($size) {
             $baseName = $filename ? pathinfo($filename, PATHINFO_FILENAME) : 'original';
-            return \App\Support\Cdn::scheme() . "://{$domain}/{$baseDir}{$baseName}_{$size}.webp";
+            $file = "{$baseName}_{$size}.webp";
+        } else {
+            $file = $filename ?? 'original.jpg';
         }
 
-        $file = $filename ?? 'original.jpg';
+        // Media of PIN/private galleries is only served by the edge worker with a valid token.
+        // A directory-scoped token covers the original and every variant of the photo.
+        if (str_starts_with($baseDir, 'protected-galleries/')) {
+            $tokens = app(MediaTokenService::class);
+
+            return $tokens->signDirectoryUrlUntil("{$baseDir}{$file}", $tokens->windowedExpiry(), $domain);
+        }
+
         return \App\Support\Cdn::scheme() . "://{$domain}/{$baseDir}{$file}";
     }
 }

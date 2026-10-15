@@ -168,8 +168,7 @@ class UploadService
         }
         $sanitizedFilename = $sanitizedBasename . '.' . $extension;
 
-        $isProtected = ($gallery->visibility !== 'public' || !empty($gallery->password_hash));
-        $prefix = $isProtected ? "protected-galleries/{$gallery->uuid}/" : "galleries/{$gallery->uuid}/";
+        $prefix = $gallery->mediaPrefix() . '/';
 
         if ($isVideo) {
             $objectKey = "{$prefix}videos/{$photoUuid}/{$sanitizedFilename}";
