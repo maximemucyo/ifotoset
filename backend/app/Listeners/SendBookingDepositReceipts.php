@@ -45,9 +45,8 @@ class SendBookingDepositReceipts implements ShouldQueue
             if ($clientReceipt) {
                 try {
                     Mail::to($client->email)->send(
-                        new BookingDepositPaidClientMail($booking, $payment)
+                        (new BookingDepositPaidClientMail($booking, $payment))->forReceipt($clientReceipt->id)
                     );
-                    $clientReceipt->update(['sent_at' => now()]);
                 } catch (\Throwable $e) {
                     Log::error("Failed sending deposit receipt to client [{$client->email}]: " . $e->getMessage());
                 }
@@ -74,9 +73,8 @@ class SendBookingDepositReceipts implements ShouldQueue
                 if ($photographerReceipt) {
                     try {
                         Mail::to($photographer->email)->send(
-                            new BookingDepositPaidPhotographerMail($booking, $payment)
+                            (new BookingDepositPaidPhotographerMail($booking, $payment))->forReceipt($photographerReceipt->id)
                         );
-                        $photographerReceipt->update(['sent_at' => now()]);
                     } catch (\Throwable $e) {
                         Log::error("Failed sending deposit notification to photographer [{$photographer->email}]: " . $e->getMessage());
                     }

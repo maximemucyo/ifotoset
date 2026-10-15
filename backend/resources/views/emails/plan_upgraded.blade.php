@@ -8,7 +8,7 @@
     <x-email.text>Hi {{ $user->name }},</x-email.text>
 
     <x-email.text>
-        Thank you for your payment. Your ifotoset account has been upgraded to the <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $plan->name }}</strong>. All upgraded features and expanded limits are active immediately.
+        Thank you for your payment. Your ifotoset account has been upgraded to the <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $plan->name }}</strong>. All upgraded features and expanded limits are active immediately.
     </x-email.text>
 
     <x-email.card title="Receipt & plan details">

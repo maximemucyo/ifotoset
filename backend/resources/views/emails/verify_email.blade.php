@@ -14,8 +14,8 @@
     <x-email.button :url="$verificationUrl" label="Verify email address" />
 
     <x-email.card>
-        <p class="em-muted" style="margin: 0; font-size: 13px; color: #6b6b72; line-height: 1.55;">
-            This verification link expires in <strong class="em-h" style="color: #111113;">{{ $expireMinutes }} minutes</strong>. If you did not create an account on ifotoset, you can safely ignore this email.
+        <p class="em-muted" style="margin: 0; font-size: 13px; color: #6e6159; line-height: 1.55;">
+            This verification link expires in <strong class="em-h" style="color: #17110e;">{{ $expireMinutes }} minutes</strong>. If you did not create an account on ifotoset, you can safely ignore this email.
         </p>
     </x-email.card>
 </x-email.layout>

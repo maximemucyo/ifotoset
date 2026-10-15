@@ -20,6 +20,9 @@ class StorageQuotaAlertJob implements ShouldQueue
 
     public int $tries = 3;
 
+    /** Seconds between retries, so a mail-provider blip doesn't burn every attempt at once */
+    public array $backoff = [60, 300, 900];
+
     public function __construct(
         public readonly int $userId,
         public readonly int $threshold, // 75 or 100

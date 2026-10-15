@@ -5,7 +5,7 @@
         'success' => ['#f0fdf4', '#bbf7d0', '#166534', 'em-callout-success'],
         'danger'  => ['#fef2f2', '#fecaca', '#991b1b', 'em-callout-danger'],
         'warning' => ['#fffbeb', '#fde68a', '#92400e', 'em-callout-warning'],
-        'neutral' => ['#f7f7f5', '#e8e8e5', '#3f3f46', 'em-panel em-p'],
+        'neutral' => ['#f7efe9', '#eee3db', '#3f3f46', 'em-panel em-p'],
     ];
     [$bg, $border, $color, $class] = $styles[$variant] ?? $styles['neutral'];
 @endphp

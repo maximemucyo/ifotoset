@@ -22,11 +22,11 @@
 
     @if($threshold >= 100)
         <x-email.text>
-            Your account has reached its <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $limitFormatted }}</strong> storage quota. Existing galleries and photos remain safe and accessible to your clients, but new uploads are blocked until your quota is expanded or space is freed.
+            Your account has reached its <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $limitFormatted }}</strong> storage quota. Existing galleries and photos remain safe and accessible to your clients, but new uploads are blocked until your quota is expanded or space is freed.
         </x-email.text>
     @else
         <x-email.text>
-            You're currently storing <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $usedFormatted }}</strong> of your <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $limitFormatted }}</strong> quota ({{ $percentUsed }}%). To make sure upcoming shoots and client deliveries aren't interrupted, consider upgrading your plan.
+            You're currently storing <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $usedFormatted }}</strong> of your <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $limitFormatted }}</strong> quota ({{ $percentUsed }}%). To make sure upcoming shoots and client deliveries aren't interrupted, consider upgrading your plan.
         </x-email.text>
     @endif
 
@@ -35,10 +35,10 @@
         {{-- Usage meter --}}
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 2px 0 14px;">
             <tr>
-                <td class="em-track" bgcolor="#e8e8e5" style="background-color: #e8e8e5; border-radius: 999px; height: 6px; line-height: 6px; font-size: 0;">
+                <td class="em-track" bgcolor="#eee3db" style="background-color: #eee3db; border-radius: 999px; height: 6px; line-height: 6px; font-size: 0;">
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="{{ $barPercent }}%">
                         <tr>
-                            <td class="{{ $threshold >= 100 ? 'em-fill-accent' : 'em-fill' }}" bgcolor="{{ $threshold >= 100 ? '#f0532a' : '#111113' }}" style="background-color: {{ $threshold >= 100 ? '#f0532a' : '#111113' }}; border-radius: 999px; height: 6px; line-height: 6px; font-size: 0;">&nbsp;</td>
+                            <td class="{{ $threshold >= 100 ? 'em-fill-accent' : 'em-fill' }}" bgcolor="{{ $threshold >= 100 ? '#f0532a' : '#17110e' }}" style="background-color: {{ $threshold >= 100 ? '#f0532a' : '#17110e' }}; border-radius: 999px; height: 6px; line-height: 6px; font-size: 0;">&nbsp;</td>
                         </tr>
                     </table>
                 </td>
@@ -54,8 +54,8 @@
 
     @if($threshold >= 100)
         <x-email.callout>
-            <strong class="em-h" style="color: #111113;">Prefer not to upgrade right now?</strong><br>
-            <span class="em-muted" style="color: #6b6b72; font-size: 13px;">
+            <strong class="em-h" style="color: #17110e;">Prefer not to upgrade right now?</strong><br>
+            <span class="em-muted" style="color: #6e6159; font-size: 13px;">
                 Free up space by permanently emptying deleted items in your
                 <x-email.link :href="$trashUrl">Trash</x-email.link>
                 or removing unused photos in your

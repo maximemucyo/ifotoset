@@ -75,6 +75,7 @@ class FinalizePawaPayPayment
                         'provider_transaction_id' => $statusData->providerTransactionId,
                         'failure_reason' => "PawaPay completed amount ({$statusData->amount} {$statusData->currency}) differs from expected ({$payment->amount} {$payment->currency}).",
                     ]);
+                    DB::afterCommit(fn () => event(new \App\Events\PaymentFailed($payment, amountMismatch: true)));
                     Log::critical("SECURITY ALERT: PawaPay paid amount/currency mismatch for Payment ID: {$payment->id}", [
                         'expected_amount' => $payment->amount,
                         'expected_currency' => $payment->currency,
@@ -112,12 +113,19 @@ class FinalizePawaPayPayment
 
                 Log::info("Payment {$payment->id} successfully completed for user {$payment->user_id}");
             } elseif ($statusData->isFailed()) {
+                // Only announce the first transition to failed (callbacks and reconcile can repeat)
+                $alreadyFailed = $payment->status === 'failed';
+
                 $payment->update([
                     'status' => 'failed',
                     'provider_status' => $statusData->status,
                     'provider_transaction_id' => $statusData->providerTransactionId,
                     'failure_reason' => $statusData->failureReason ?? 'Transaction failed or rejected by provider',
                 ]);
+
+                if (!$alreadyFailed) {
+                    DB::afterCommit(fn () => event(new \App\Events\PaymentFailed($payment)));
+                }
 
                 Log::warning("Payment {$payment->id} marked failed: {$statusData->failureReason}");
             } elseif ($statusData->isPending()) {

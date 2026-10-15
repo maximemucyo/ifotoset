@@ -8,7 +8,7 @@
     <x-email.text>Hi {{ $admin->name }},</x-email.text>
 
     <x-email.text>
-        Enter this 6-digit code in your administrative settings to confirm <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $newEmail }}</strong> as your new login email.
+        Enter this 6-digit code in your administrative settings to confirm <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $newEmail }}</strong> as your new login email.
     </x-email.text>
 
     <x-email.code :code="$code" />

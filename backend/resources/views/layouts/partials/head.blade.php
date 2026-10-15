@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#131316" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
 <link rel="icon" href="{{ asset('favicon-64.png') }}" type="image/png" sizes="64x64">
-<link rel="apple-touch-icon" href="{{ asset('logo.png') }}">
+<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="manifest" href="{{ asset('site.webmanifest') }}">
 @include('layouts.partials.theme-script')
 <x-google-tag />

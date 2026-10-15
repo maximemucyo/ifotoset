@@ -222,4 +222,25 @@ class UploadGooglePhotosChunkJob implements ShouldQueue
             }
         }
     }
+
+    /**
+     * Runs when the job is out of attempts: count this chunk as failed so the
+     * sync can still complete instead of staying "uploading" forever.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        DB::transaction(function () {
+            $sync = GooglePhotoSync::whereKey($this->syncId)->lockForUpdate()->first();
+            if (!$sync || in_array($sync->status, ['completed', 'completed_with_errors', 'failed'], true)) {
+                return;
+            }
+
+            $sync->failed_photos += count($this->photoIds);
+            if ($sync->processed_photos + $sync->failed_photos >= $sync->total_photos) {
+                $sync->status = $sync->processed_photos > 0 ? 'completed_with_errors' : 'failed';
+                $sync->completed_at = now();
+            }
+            $sync->save();
+        });
+    }
 }

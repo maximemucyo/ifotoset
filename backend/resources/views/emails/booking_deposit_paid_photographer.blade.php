@@ -8,7 +8,7 @@
     <x-email.text>Hi {{ $photographer->name }},</x-email.text>
 
     <x-email.text>
-        Good news! <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $client->name }}</strong> paid the booking deposit of <strong class="em-h" style="color: #111113; font-weight: 600;">{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $booking->title }}</strong>. The booking is now marked as confirmed.
+        Good news! <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $client->name }}</strong> paid the booking deposit of <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $booking->title }}</strong>. The booking is now marked as confirmed.
     </x-email.text>
 
     <x-email.card title="Deposit & booking details">

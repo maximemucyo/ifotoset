@@ -62,7 +62,11 @@ class PasswordResetController extends Controller
             function ($user, $password) {
                 $user->forceFill([
                     'password' => Hash::make($password),
+                    // Invalidate "remember me" cookies issued with the old password
+                    'remember_token' => \Illuminate\Support\Str::random(60),
                 ])->save();
+
+                event(new \Illuminate\Auth\Events\PasswordReset($user));
             }
         );
 

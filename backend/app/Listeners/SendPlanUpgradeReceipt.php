@@ -46,9 +46,8 @@ class SendPlanUpgradeReceipt implements ShouldQueue
 
         try {
             Mail::to($user->email)->send(
-                new PlanUpgradedMail($user, $payment, $plan)
+                (new PlanUpgradedMail($user, $payment, $plan))->forReceipt($receipt->id)
             );
-            $receipt->update(['sent_at' => now()]);
         } catch (\Throwable $e) {
             Log::error("Failed sending subscription upgrade receipt to [{$user->email}]: " . $e->getMessage());
         }

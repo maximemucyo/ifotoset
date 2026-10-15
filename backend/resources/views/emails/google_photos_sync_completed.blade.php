@@ -9,7 +9,7 @@
     />
 
     <x-email.text>
-        We've finished exporting photos from the gallery <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $sync->gallery->title }}</strong> to your Google Photos library.
+        We've finished exporting photos from the gallery <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $sync->gallery->title }}</strong> to your Google Photos library.
     </x-email.text>
 
     <x-email.card :title="$sync->gallery->title">

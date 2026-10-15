@@ -52,8 +52,6 @@
             .em-accent { color: #ff6a3d !important; }
             .em-btn { background-color: #f5f5f4 !important; }
             .em-btn-a { color: #0c0c0e !important; }
-            .em-mark { background-color: #f5f5f4 !important; }
-            .em-ring { border-color: #111113 !important; }
             .em-track { background-color: #26262b !important; }
             .em-fill { background-color: #f5f5f4 !important; }
             .em-fill-accent { background-color: #ff6a3d !important; }
@@ -69,16 +67,16 @@
         [data-ogsb] .em-panel { background-color: #18181b !important; }
     </style>
 </head>
-<body class="em-bg" style="margin: 0; padding: 0; width: 100%; background-color: #fbfbfa; color: #111113; font-family: {{ $font }};">
+<body class="em-bg" style="margin: 0; padding: 0; width: 100%; background-color: #fdf8f4; color: #17110e; font-family: {{ $font }};">
     @if($preheader)
         {{-- Preheader: inbox preview text, hidden in the email body --}}
-        <div style="display: none; font-size: 1px; color: #fbfbfa; line-height: 1px; max-height: 0; max-width: 0; opacity: 0; overflow: hidden; mso-hide: all;">
+        <div style="display: none; font-size: 1px; color: #fdf8f4; line-height: 1px; max-height: 0; max-width: 0; opacity: 0; overflow: hidden; mso-hide: all;">
             {{ $preheader }}
             {!! str_repeat('&#847; &zwnj; &nbsp; ', 40) !!}
         </div>
     @endif
 
-    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="em-bg" style="background-color: #fbfbfa;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="em-bg" style="background-color: #fdf8f4;">
         <tr>
             <td align="center" class="em-outer" style="padding: 40px 16px 48px;">
                 <!--[if mso]><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" align="center"><tr><td><![endif]-->
@@ -89,12 +87,11 @@
                             <a href="{{ $homeUrl }}" target="_blank" style="text-decoration: none; display: inline-block;">
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                                     <tr>
-                                        <td width="28" height="28" align="center" valign="middle" bgcolor="#111113" class="em-mark" style="width: 28px; height: 28px; background-color: #111113; border-radius: 8px; line-height: 0; font-size: 0;">
-                                            <div class="em-ring" style="width: 12px; height: 12px; border: 2px solid #ffffff; border-radius: 50%; margin: 0 auto; line-height: 0; font-size: 0;">
-                                                <div style="width: 6px; height: 6px; margin: 3px; background-color: #f0532a; border-radius: 50%; line-height: 0; font-size: 0;">&nbsp;</div>
-                                            </div>
+                                        <td width="28" height="28" valign="middle" style="width: 28px; height: 28px; line-height: 0; font-size: 0;">
+                                            {{-- PNG, not WebP: several email clients cannot show WebP --}}
+                                            <img src="{{ asset('images/email/logo.png') }}" width="28" height="28" alt="" style="display: block; width: 28px; height: 28px; border: 0;">
                                         </td>
-                                        <td class="em-h" style="padding-left: 10px; font-family: {{ $font }}; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: #111113; line-height: 28px;">
+                                        <td class="em-h" style="padding-left: 10px; font-family: {{ $font }}; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: #17110e; line-height: 28px;">
                                             ifotoset
                                         </td>
                                     </tr>
@@ -105,7 +102,7 @@
 
                     {{-- Card --}}
                     <tr>
-                        <td class="em-card mobile-padding" bgcolor="#ffffff" style="background-color: #ffffff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 40px 40px 36px; font-family: {{ $font }}; color: #111113;">
+                        <td class="em-card mobile-padding" bgcolor="#ffffff" style="background-color: #ffffff; border: 1px solid #eee3db; border-radius: 12px; padding: 40px 40px 36px; font-family: {{ $font }}; color: #17110e;">
                             {{ $slot }}
                         </td>
                     </tr>

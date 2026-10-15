@@ -254,4 +254,18 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             }
         }
     }
+
+    /**
+     * Runs when the job is out of attempts, including timeout kills that skip the catch block.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        \App\Models\GalleryDownload::whereKey($this->downloadId)
+            ->whereIn('status', ['pending', 'processing'])
+            ->update([
+                'status' => 'failed',
+                'error' => $exception?->getMessage() ?: 'ZIP generation timed out.',
+                'completed_at' => now(),
+            ]);
+    }
 }

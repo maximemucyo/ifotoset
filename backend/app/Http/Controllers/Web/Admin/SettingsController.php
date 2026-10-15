@@ -179,6 +179,8 @@ class SettingsController extends Controller
                 'password' => \Illuminate\Support\Facades\Hash::make($validated['password']),
             ]);
 
+            \Illuminate\Support\Facades\DB::afterCommit(fn () => event(new \Illuminate\Auth\Events\PasswordReset($admin)));
+
             AdminAuditLog::record(
                 $admin,
                 'admin.password_updated',

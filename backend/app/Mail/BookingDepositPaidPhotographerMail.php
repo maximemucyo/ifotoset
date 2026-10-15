@@ -15,6 +15,18 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
+    /**
+     * PaymentReceipt row this email fulfils; MarkPaymentReceiptSent stamps it on delivery.
+     */
+    public ?int $receiptId = null;
+
+    public function forReceipt(int $receiptId): static
+    {
+        $this->receiptId = $receiptId;
+
+        return $this;
+    }
+
     public function __construct(
         public Booking $booking,
         public Payment $payment

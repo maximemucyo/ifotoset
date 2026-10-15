@@ -8,11 +8,11 @@
                     {{ $eyebrow }}
                 </p>
             @endif
-            <h1 class="em-h em-h1" style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: #111113; line-height: 1.3;">
+            <h1 class="em-h em-h1" style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: #17110e; line-height: 1.3;">
                 {{ $title }}
             </h1>
             @if($subtitle)
-                <p class="em-muted" style="margin: 8px 0 0; font-size: 15px; color: #6b6b72; line-height: 1.55;">
+                <p class="em-muted" style="margin: 8px 0 0; font-size: 15px; color: #6e6159; line-height: 1.55;">
                     {{ $subtitle }}
                 </p>
             @endif

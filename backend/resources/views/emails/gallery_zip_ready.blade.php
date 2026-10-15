@@ -8,7 +8,7 @@
     <x-email.text>Hi there,</x-email.text>
 
     <x-email.text>
-        The photo archive you requested from <strong class="em-h" style="color: #111113; font-weight: 600;">{{ $download->gallery->user->name }}</strong> is packaged and ready. Click the button below to start your download.
+        The photo archive you requested from <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $download->gallery->user->name }}</strong> is packaged and ready. Click the button below to start your download.
     </x-email.text>
 
     <x-email.card title="Download details">

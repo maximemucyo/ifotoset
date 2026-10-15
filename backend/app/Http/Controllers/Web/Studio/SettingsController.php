@@ -98,6 +98,8 @@ class SettingsController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
+        event(new \Illuminate\Auth\Events\PasswordReset($user));
+
         $request->session()->regenerate();
 
         return back()->with('success', 'Password updated successfully.');

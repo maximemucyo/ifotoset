@@ -10,8 +10,8 @@
     />
 
     <x-email.card>
-        <p class="em-h" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111113; line-height: 1.4;">{{ $gallery->title }}</p>
-        <p class="em-muted" style="margin: 4px 0 0; font-size: 14px; color: #6b6b72; line-height: 1.5;">Shared by {{ $photographerName }}</p>
+        <p class="em-h" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #17110e; line-height: 1.4;">{{ $gallery->title }}</p>
+        <p class="em-muted" style="margin: 4px 0 0; font-size: 14px; color: #6e6159; line-height: 1.5;">Shared by {{ $photographerName }}</p>
     </x-email.card>
 
     <x-email.text>

@@ -75,4 +75,7 @@ return [
         'name' => env('MAIL_NOTIFICATIONS_NAME', 'ifotoset Notifications'),
     ],
 
+    // Operational alerts (failed jobs, failed payments, signups). Empty = every active admin user.
+    'admin_alerts' => array_values(array_filter(array_map('trim', explode(',', (string) env('ADMIN_ALERT_EMAILS', ''))))),
+
 ];

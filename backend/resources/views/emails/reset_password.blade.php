@@ -13,10 +13,10 @@
     <x-email.button :url="$resetUrl" label="Reset password" />
 
     <x-email.card>
-        <p class="em-muted" style="margin: 0 0 6px; font-size: 13px; color: #6b6b72; line-height: 1.55;">
-            This password reset link expires in <strong class="em-h" style="color: #111113;">{{ $expireMinutes }} minutes</strong>.
+        <p class="em-muted" style="margin: 0 0 6px; font-size: 13px; color: #6e6159; line-height: 1.55;">
+            This password reset link expires in <strong class="em-h" style="color: #17110e;">{{ $expireMinutes }} minutes</strong>.
         </p>
-        <p class="em-muted" style="margin: 0; font-size: 13px; color: #6b6b72; line-height: 1.55;">
+        <p class="em-muted" style="margin: 0; font-size: 13px; color: #6e6159; line-height: 1.55;">
             If you did not request a password reset, no further action is required and your account remains secure.
         </p>
     </x-email.card>

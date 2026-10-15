@@ -54,6 +54,11 @@ class ExpireSubscriptions
                 if (!$hasOtherActive && $freePlan) {
                     $user->forceFill(['plan_id' => $freePlan->id])->save();
                     StorageStatisticsService::clearCache($user->id);
+
+                    if ($user->email && $user->is_active) {
+                        DB::afterCommit(fn () => \Illuminate\Support\Facades\Mail::to($user->email)
+                            ->queue(new \App\Mail\SubscriptionExpiredMail($sub)));
+                    }
                     Log::info("User ID {$user->id} reverted to Free plan due to expired subscription ID {$sub->id}");
                 }
 

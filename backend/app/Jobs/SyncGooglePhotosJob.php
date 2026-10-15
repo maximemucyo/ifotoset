@@ -151,4 +151,17 @@ class SyncGooglePhotosJob implements ShouldQueue
             }
         }
     }
+
+    /**
+     * Runs when the job is out of attempts, including timeout kills that skip the catch block.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        GooglePhotoSync::whereKey($this->syncId)
+            ->whereIn('status', ['pending', 'processing', 'uploading'])
+            ->update([
+                'status' => 'failed',
+                'error' => $exception?->getMessage() ?: 'Google Photos sync timed out.',
+            ]);
+    }
 }

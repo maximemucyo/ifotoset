@@ -676,4 +676,32 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
 
         return "{$remoteDir}/{$masterName}";
     }
+
+    /**
+     * Runs when the job is out of attempts, including timeout kills that skip the catch block.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        $photo = $this->photo->fresh();
+        if (!$photo || $photo->status !== PhotoStatus::Processing->value) {
+            return; // Already settled by the catch block
+        }
+
+        $photo->update([
+            'status' => PhotoStatus::Failed->value,
+            'processing_error' => mb_substr($exception?->getMessage() ?: 'Video processing timed out.', 0, 250),
+        ]);
+
+        MediaJob::where('photo_id', $photo->id)
+            ->whereNotIn('status', [MediaJobStatus::Completed->value, MediaJobStatus::Failed->value])
+            ->update(['status' => MediaJobStatus::Failed->value, 'error' => $exception?->getMessage() ?: 'Timed out']);
+
+        if ($this->reservedDurationSeconds > 0 && $photo->gallery) {
+            DB::table('users')
+                ->where('id', $photo->gallery->user_id)
+                ->update([
+                    'video_seconds_reserved' => DB::raw("CASE WHEN video_seconds_reserved >= {$this->reservedDurationSeconds} THEN video_seconds_reserved - {$this->reservedDurationSeconds} ELSE 0 END"),
+                ]);
+        }
+    }
 }

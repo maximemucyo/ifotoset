@@ -8,7 +8,7 @@
     <x-email.text>Hi {{ $client->name }},</x-email.text>
 
     <x-email.text>
-        Thank you! We've received your deposit of <strong class="em-h" style="color: #111113; font-weight: 600;">{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for your booking with {{ $photographer->name }}. Your booking is now officially confirmed.
+        Thank you! We've received your deposit of <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ number_format((float)$payment->amount) }} {{ $payment->currency }}</strong> for your booking with {{ $photographer->name }}. Your booking is now officially confirmed.
     </x-email.text>
 
     <x-email.card title="Payment & session summary">
