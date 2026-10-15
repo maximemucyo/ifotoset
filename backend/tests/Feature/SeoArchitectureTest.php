@@ -40,7 +40,8 @@ class SeoArchitectureTest extends TestCase
             'team_limit' => 5,
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Kigali Visuals',

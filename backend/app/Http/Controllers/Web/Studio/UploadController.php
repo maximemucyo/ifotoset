@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1;
+namespace App\Http\Controllers\Web\Studio;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\V1\PhotoResource;
+use App\Http\Resources\PhotoResource;
 use App\Models\Gallery;
 use App\Services\UploadService;
 use Exception;
@@ -40,6 +40,14 @@ class UploadController extends Controller
             'mime_type' => ['required', 'string', 'max:100'],
             'sha256' => ['required', 'string', 'size:64'],
         ]);
+
+        if (\App\Support\MediaTypes::forGalleryUpload($validated['filename'], $validated['mime_type']) === null) {
+            return response()->json([
+                'code' => 'UNSUPPORTED_FILE_TYPE',
+                'message' => 'Only JPEG, PNG, WebP and AVIF photos, or MP4, MOV and WebM videos can be uploaded.',
+                'errors' => ['filename' => ['This file type is not supported.']],
+            ], 422);
+        }
 
         $idempotencyKey = $request->header('Idempotency-Key') ?? md5($validated['gallery_id'] . $validated['filename'] . $validated['sha256']);
 

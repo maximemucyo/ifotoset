@@ -7,19 +7,22 @@
 
 @section('content')
 <div class="relative flex min-h-svh flex-col"
-     x-data="galleryExportManager({
-         slug: '{{ $gallery->slug }}',
-         galleryUuid: '{{ $gallery->uuid }}',
-         username: '{{ $photographer->username }}',
-         initialType: '{{ $type }}',
-         initialTarget: '{{ $target }}',
-         csrfToken: '{{ csrf_token() }}'
-     })">
+     x-data="galleryExportManager(@js([
+         'slug' => $gallery->slug,
+         'galleryUuid' => $gallery->uuid,
+         'username' => $photographer->username,
+         'apiBase' => '/api/v1/public/galleries/' . rawurlencode(strtolower($photographer->username)) . '/' . rawurlencode($gallery->slug),
+         'initialType' => $type,
+         'initialTarget' => $target,
+         'syncUuid' => $syncUuid,
+         'initialError' => $errorMessage,
+         'csrfToken' => csrf_token(),
+     ]))">
     <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
 
     {{-- Top bar --}}
     <header class="relative z-10 flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
-        <a href="{{ route('public.gallery', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
+        <a href="{{ $gallery->public_url }}"
            class="btn btn-ghost btn-sm -ml-2" aria-label="Back to Gallery">
             <x-icon name="arrow-left" /> <span class="max-w-[50vw] truncate">{{ $gallery->title }}</span>
         </a>
@@ -113,6 +116,12 @@
                         </a>
                     </div>
 
+                    <div x-show="type === 'google-photos' && status === 'completed' && albumUrl" class="mt-7">
+                        <a :href="albumUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg w-full">
+                            <x-icon name="images" /> Open in Google Photos
+                        </a>
+                    </div>
+
                     <div x-show="['failed', 'expired', 'cancelled'].includes(status)" class="mt-7">
                         <button type="button" @click="resetExport" class="btn btn-outline btn-lg w-full">
                             <x-icon name="rotate-ccw" /> Try again
@@ -122,7 +131,7 @@
             </div>
 
             <p class="mt-6 text-center text-xs text-muted-foreground">
-                <a href="{{ route('public.gallery', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}" class="transition-colors hover:text-foreground">Back to gallery</a>
+                <a href="{{ $gallery->public_url }}" class="transition-colors hover:text-foreground">Back to gallery</a>
             </p>
         </div>
     </div>
@@ -145,6 +154,7 @@ document.addEventListener('alpine:init', () => {
             slug: config.slug,
             galleryUuid: config.galleryUuid,
             username: config.username,
+            apiBase: config.apiBase,
             type: config.initialType || 'zip',
             target: config.initialTarget || 'all',
             csrfToken: config.csrfToken,
@@ -156,8 +166,19 @@ document.addEventListener('alpine:init', () => {
             processedPhotos: 0,
             totalPhotos: 0,
             downloadUrl: '',
-            errorMessage: '',
+            errorMessage: config.initialError || '',
+            albumUrl: '',
             pollTimer: null,
+
+            init() {
+                // Returning from Google's consent screen with a started sync
+                if (config.syncUuid) {
+                    this.type = 'google-photos';
+                    this.exportId = config.syncUuid;
+                    this.status = 'pending';
+                    this.startPolling();
+                }
+            },
 
             get statusDisplayTitle() {
                 switch (this.status) {
@@ -165,7 +186,7 @@ document.addEventListener('alpine:init', () => {
                     case 'processing': return 'Packaging your photos';
                     case 'uploading': return 'Exporting to Google Photos';
                     case 'completed':
-                    case 'ready': return 'Your download is ready';
+                    case 'ready': return this.type === 'google-photos' ? 'Your photos are in Google Photos' : 'Your download is ready';
                     case 'expired': return 'Download link expired';
                     case 'failed': return 'Something went wrong';
                     default: return 'Processing…';
@@ -177,7 +198,7 @@ document.addEventListener('alpine:init', () => {
                     case 'pending': return 'You can wait here, or leave the page and we will notify you by email.';
                     case 'processing': return 'You can wait here until your download is ready, or leave the page and we will notify you.';
                     case 'completed':
-                    case 'ready': return 'Click below to download your files.';
+                    case 'ready': return this.type === 'google-photos' ? 'The album has been added to your Google Photos library.' : 'Click below to download your files.';
                     case 'expired': return 'Download links expire after 24 hours. Please request a new one.';
                     case 'failed': return this.errorMessage || 'Something went wrong while preparing your files. Please try again.';
                     default: return 'Please wait while your files are being prepared.';
@@ -195,7 +216,7 @@ document.addEventListener('alpine:init', () => {
 
                 try {
                     if (this.type === 'zip') {
-                        const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip`, {
+                        const response = await fetch(`${this.apiBase}/download-zip`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -239,7 +260,7 @@ document.addEventListener('alpine:init', () => {
                         const favoritesKey = 'photos_export_favorites_' + this.slug;
                         const favoriteUuids = this.target === 'favorites' ? JSON.parse(sessionStorage.getItem(favoritesKey) || '[]') : null;
 
-                        const response = await fetch(`/api/v1/public/galleries/${this.slug}/google-photos/authorize`, {
+                        const response = await fetch(`${this.apiBase}/google-photos/authorize`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -297,8 +318,12 @@ document.addEventListener('alpine:init', () => {
             async checkStatus() {
                 if (!this.exportId) return;
 
+                const url = this.type === 'google-photos'
+                    ? `${this.apiBase}/google-photos/syncs/${this.exportId}/status`
+                    : `${this.apiBase}/download-zip/${this.exportId}`;
+
                 try {
-                    const response = await fetch(`/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}`, {
+                    const response = await fetch(url, {
                         headers: { 'Accept': 'application/json' }
                     });
 
@@ -315,10 +340,23 @@ document.addEventListener('alpine:init', () => {
                     const data = await response.json();
                     const rawStatus = data.status;
 
-                    if (rawStatus === 'ready' || rawStatus === 'ready_with_errors') {
+                    if (this.type === 'google-photos') {
+                        if (rawStatus === 'completed' || rawStatus === 'completed_with_errors') {
+                            this.status = 'completed';
+                            this.percentage = 100;
+                            this.albumUrl = data.album_url || '';
+                            this.stopPolling();
+                        } else if (rawStatus === 'failed' || rawStatus === 'cancelled') {
+                            this.status = 'failed';
+                            this.errorMessage = data.error || '';
+                            this.stopPolling();
+                        } else {
+                            this.status = rawStatus === 'pending' ? 'pending' : 'uploading';
+                        }
+                    } else if (rawStatus === 'ready' || rawStatus === 'ready_with_errors') {
                         this.status = 'ready';
                         this.percentage = 100;
-                        this.downloadUrl = data.download_url || `/api/v1/public/galleries/${this.slug}/download-zip/${this.exportId}/download`;
+                        this.downloadUrl = data.download_url || `${this.apiBase}/download-zip/${this.exportId}/download`;
                         this.stopPolling();
                     } else if (rawStatus === 'failed' || rawStatus === 'empty') {
                         this.status = 'failed';
@@ -339,6 +377,7 @@ document.addEventListener('alpine:init', () => {
                 this.stopPolling();
                 this.exportId = null;
                 this.downloadUrl = '';
+                this.albumUrl = '';
                 this.status = 'pending';
                 this.percentage = 0;
                 this.errorMessage = '';

@@ -35,8 +35,13 @@ class UploadService
         string $idempotencyKey,
         ?int $declaredDurationSeconds = null
     ): array {
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $isVideo = str_starts_with(strtolower($mimeType), 'video/') || in_array($extension, ['mp4', 'mov', 'webm']);
+        $contentType = \App\Support\MediaTypes::forGalleryUpload($filename, $mimeType);
+        if ($contentType === null) {
+            throw new \InvalidArgumentException('This file type is not supported.');
+        }
+
+        $extension = \App\Support\MediaTypes::extension($filename);
+        $isVideo = \App\Support\MediaTypes::isVideoExtension($extension);
 
         // Video plan & quota enforcement
         $videoReservation = 0;
@@ -78,10 +83,12 @@ class UploadService
 
         if ($existingSession) {
             $base64Sha256 = base64_encode(hex2bin($existingSession->expected_sha256));
+            $existingContentType = \App\Support\MediaTypes::forGalleryUpload($existingSession->object_key);
             $presignedUrl = $this->storageService->generatePresignedUploadUrl(
                 $existingSession->object_key,
                 $base64Sha256,
-                $existingSession->expires_at
+                $existingSession->expires_at,
+                $existingContentType
             );
 
             return [
@@ -92,6 +99,7 @@ class UploadService
                 'upload_url' => $presignedUrl,
                 'headers' => [
                     'x-amz-checksum-sha256' => $base64Sha256,
+                    'Content-Type' => $existingContentType,
                 ],
                 'expires_at' => $existingSession->expires_at->toIso8601String(),
             ];
@@ -190,7 +198,8 @@ class UploadService
         $presignedUrl = $this->storageService->generatePresignedUploadUrl(
             $objectKey,
             $base64Sha256,
-            $expiresAt
+            $expiresAt,
+            $contentType
         );
 
         return [
@@ -201,6 +210,7 @@ class UploadService
             'upload_url' => $presignedUrl,
             'headers' => [
                 'x-amz-checksum-sha256' => $base64Sha256,
+                'Content-Type' => $contentType,
             ],
             'expires_at' => $expiresAt->toIso8601String(),
         ];

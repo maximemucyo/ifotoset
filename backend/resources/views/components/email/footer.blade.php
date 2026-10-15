@@ -1,6 +1,6 @@
 @props(['note' => null])
 @php
-    $homeUrl = config('app.frontend_url', config('app.url'));
+    $homeUrl = config('app.url');
     $font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 @endphp
 <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">

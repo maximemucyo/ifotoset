@@ -52,7 +52,8 @@ class StudioBillingFlowTest extends TestCase
             'team_limit' => 1,
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'name' => 'Admin Boss',
             'email' => 'boss@ifotoset.com',
@@ -62,7 +63,8 @@ class StudioBillingFlowTest extends TestCase
         $this->admin->role = 'admin';
         $this->admin->save();
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'name' => 'Studio Shooter',
             'email' => 'shooter@ifotoset.com',
@@ -300,7 +302,7 @@ class StudioBillingFlowTest extends TestCase
         $response->assertSee(route('studio.billing.index'));
 
         // 2. User on Paid plan (Pro)
-        $this->user->update(['plan_id' => $this->proPlan->id]);
+        $this->user->forceFill(['plan_id' => $this->proPlan->id])->save();
         $this->user->refresh();
         \App\Services\StorageStatisticsService::clearCache($this->user->id);
         $paidResponse = $this->actingAs($this->user)->get('/studio/dashboard');

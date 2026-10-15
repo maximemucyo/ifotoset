@@ -34,63 +34,17 @@ class AppServiceProvider extends ServiceProvider
         \App\Models\Photo::observe(\App\Observers\PhotoObserver::class);
         \App\Models\Gallery::observe(\App\Observers\GalleryObserver::class);
 
-        // Bind queue lifecycle events to QueueJobTracker
-        \Illuminate\Support\Facades\Queue::before(function (\Illuminate\Queue\Events\JobProcessing $event) {
-            \App\Listeners\QueueJobTracker::handleProcessing($event);
-        });
-        \Illuminate\Support\Facades\Queue::after(function (\Illuminate\Queue\Events\JobProcessed $event) {
-            \App\Listeners\QueueJobTracker::handleProcessed($event);
-        });
-        \Illuminate\Support\Facades\Queue::failing(function (\Illuminate\Queue\Events\JobFailed $event) {
-            \App\Listeners\QueueJobTracker::handleFailed($event);
-        });
-
-        // Bind payment completed event to UpdateUserPlan listener
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\PaymentCompleted::class,
-            [\App\Listeners\UpdateUserPlan::class, 'handle']
-        );
-
-        // Domain Event Listeners (transaction-safe, afterCommit=true)
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\BookingCreated::class,
-            [\App\Listeners\SendBookingNotifications::class, 'handle']
-        );
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\BookingStatusChanged::class,
-            [\App\Listeners\SendBookingStatusNotification::class, 'handle']
-        );
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\BookingDepositPaid::class,
-            [\App\Listeners\SendBookingDepositReceipts::class, 'handle']
-        );
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\SubscriptionPaymentSucceeded::class,
-            [\App\Listeners\SendPlanUpgradeReceipt::class, 'handle']
-        );
-        \Illuminate\Support\Facades\Event::listen(
-            \App\Events\StorageRecalculatedEvent::class,
-            [\App\Listeners\CheckStorageQuotaThresholdsListener::class, 'handle']
-        );
+        // Event listeners (including QueueJobTracker's handle* methods) are
+        // registered by Laravel's listener auto-discovery. Registering them
+        // here as well would run every listener twice.
 
         // Define access Gate for administrative panels
         \Illuminate\Support\Facades\Gate::define('access-admin', function (\App\Models\User $user) {
             return $user->role === 'admin';
         });
 
-        // Custom URL generator for password resets
         \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function (\App\Models\User $user, string $token) {
-            $frontendUrl = config('app.frontend_url');
-            if (empty($frontendUrl)) {
-                throw new \RuntimeException('FRONTEND_URL is not configured.');
-            }
-            
-            $query = http_build_query([
-                'token' => $token,
-                'email' => $user->email,
-            ]);
-
-            return rtrim($frontendUrl, '/') . '/reset-password?' . $query;
+            return route('password.reset', ['token' => $token, 'email' => $user->email]);
         });
 
         // Automatically clear admin dashboard cache on model changes

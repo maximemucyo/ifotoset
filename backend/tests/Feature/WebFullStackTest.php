@@ -39,7 +39,8 @@ class WebFullStackTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Alex Morgan',
@@ -49,7 +50,8 @@ class WebFullStackTest extends TestCase
             'role' => 'user',
         ]);
 
-        $this->otherPhotographer = User::create([
+        $this->otherPhotographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Sara Lee',
@@ -59,7 +61,8 @@ class WebFullStackTest extends TestCase
             'role' => 'user',
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Super Admin',
@@ -211,7 +214,7 @@ class WebFullStackTest extends TestCase
             ->assertJsonPath('data.0.filename', 'Lion_Portrait.JPG');
 
         // 5. Shortlink redirect
-        $shortlink = $this->get('/g/serengeti-safari-collection');
+        $shortlink = $this->get('/g/alexmorgan/serengeti-safari-collection');
         $shortlink->assertRedirect($galleryUrl);
     }
 
@@ -418,7 +421,8 @@ class WebFullStackTest extends TestCase
 
     public function test_concurrent_booking_deterministic_locking(): void
     {
-        $response = $this->post("/p/alexmorgan/book", [
+        $bookUrl = app(\App\Services\PublicUrlService::class)->photographerUrl('alexmorgan') . '/book';
+        $response = $this->post($bookUrl, [
             'client_name' => 'Alice Walker',
             'client_email' => 'alice@example.com',
             'package_id' => $this->package->uuid,

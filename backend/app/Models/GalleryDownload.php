@@ -51,4 +51,20 @@ class GalleryDownload extends Model
     {
         return $this->completed_at ? $this->completed_at->copy()->addHours(24) : null;
     }
+
+    /**
+     * Public link that streams this ZIP. The raw per-download token, when
+     * known, lets the link work outside the visitor's session (e.g. email).
+     */
+    public function downloadUrl(?string $rawToken = null): string
+    {
+        $gallery = $this->gallery()->with('user')->first();
+
+        return route('api.public.gallery.zip.file', array_filter([
+            'username' => strtolower($gallery->user->username),
+            'slug' => $gallery->slug,
+            'id' => $this->id,
+            'token' => $rawToken,
+        ]));
+    }
 }

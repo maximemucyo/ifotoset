@@ -57,7 +57,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
         protected Photo $photo,
         protected int $reservedDurationSeconds = 0
     ) {
-        $this->queue = config('media.queue', 'media');
+        $this->queue = config('media.queue');
     }
 
     public function getPhoto(): Photo
@@ -455,7 +455,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
         $escapedVideo = escapeshellarg($videoPath);
         $escapedPoster = escapeshellarg($posterJpg);
 
-        $threads = (int) config('media.ffmpeg_threads', env('MEDIA_FFMPEG_THREADS', 2));
+        $threads = (int) config('media.ffmpeg_threads');
         $cmd = "ffmpeg -y -ss {$targetTime} -i {$escapedVideo} -frames:v 1 -q:v 2 -threads {$threads} {$escapedPoster} 2>&1";
         shell_exec($cmd);
 
@@ -530,7 +530,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
     {
         $escapedInput = escapeshellarg($inputPath);
         $escapedOutput = escapeshellarg($outputPath);
-        $threads = (int) config('media.ffmpeg_threads', env('MEDIA_FFMPEG_THREADS', 2));
+        $threads = (int) config('media.ffmpeg_threads');
 
         $videoCodec = $probeData['video_codec'] ?? '';
         $audioCodec = $probeData['audio_codec'] ?? '';
@@ -596,7 +596,7 @@ class ProcessVideoJob implements ShouldQueue, ShouldBeUnique
         $isLandscape = $width >= $height;
         $hasAudio = !in_array($probeData['audio_codec'] ?? 'none', ['none', ''], true);
         $count = count($renditions);
-        $threads = (int) config('media.ffmpeg_threads', env('MEDIA_FFMPEG_THREADS', 2));
+        $threads = (int) config('media.ffmpeg_threads');
         $segment = self::HLS_SEGMENT_SECONDS;
 
         $splitOutputs = '';

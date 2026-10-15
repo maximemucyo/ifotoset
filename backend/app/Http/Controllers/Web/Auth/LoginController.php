@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -20,6 +22,11 @@ class LoginController extends Controller
     }
 
     /**
+     * Failed attempts allowed per email + IP before the login is locked for a minute.
+     */
+    private const MAX_ATTEMPTS = 5;
+
+    /**
      * Handle an authentication attempt.
      */
     public function login(Request $request): RedirectResponse
@@ -29,7 +36,18 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        $throttleKey = Str::transliterate(Str::lower($credentials['email']) . '|' . $request->ip());
+
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'email' => __('auth.throttle', ['seconds' => $seconds, 'minutes' => ceil($seconds / 60)]),
+            ])->status(429);
+        }
+
+        if (Auth::attempt([...$credentials, 'is_active' => true], $request->boolean('remember'))) {
+            RateLimiter::clear($throttleKey);
             $request->session()->regenerate();
 
             if (Auth::user()->isAdmin()) {
@@ -37,6 +55,17 @@ class LoginController extends Controller
             }
 
             return redirect()->intended(route('studio.dashboard'));
+        }
+
+        RateLimiter::hit($throttleKey);
+
+        // Correct password on a suspended account: say so instead of a generic failure
+        $provider = Auth::getProvider();
+        $user = $provider->retrieveByCredentials(['email' => $credentials['email']]);
+        if ($user && !$user->is_active && $provider->validateCredentials($user, $credentials)) {
+            throw ValidationException::withMessages([
+                'email' => __('This account has been suspended. Please contact support.'),
+            ]);
         }
 
         throw ValidationException::withMessages([

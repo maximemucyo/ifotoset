@@ -30,8 +30,7 @@ class SendBookingNotifications implements ShouldQueue
         }
 
         // 1. Photographer Notification: Respects notification preference
-        $prefs = $photographer->notification_preferences ?? [];
-        $photographerPrefers = $prefs['new_bookings'] ?? true;
+        $photographerPrefers = \App\Enums\NotificationPreference::NewBookings->enabledFor($photographer);
 
         if ($photographerPrefers && !empty($photographer->email)) {
             try {

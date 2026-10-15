@@ -56,8 +56,7 @@ class SendBookingDepositReceipts implements ShouldQueue
 
         // 2. Photographer Deposit Notification (Idempotent & respects preference)
         if ($photographer && !empty($photographer->email)) {
-            $prefs = $photographer->notification_preferences ?? [];
-            $photographerPrefers = $prefs['payment_received'] ?? true;
+            $photographerPrefers = \App\Enums\NotificationPreference::PaymentReceived->enabledFor($photographer);
 
             if ($photographerPrefers) {
                 $photographerReceipt = null;

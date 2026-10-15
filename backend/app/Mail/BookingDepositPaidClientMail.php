@@ -27,7 +27,7 @@ class BookingDepositPaidClientMail extends Mailable implements ShouldQueue
 
         return new Envelope(
             from: new Address(
-                config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com')),
+                config('mail.notifications.address'),
                 $photographer->name . ' via ifotoset'
             ),
             replyTo: [

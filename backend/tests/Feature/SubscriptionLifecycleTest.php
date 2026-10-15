@@ -52,7 +52,8 @@ class SubscriptionLifecycleTest extends TestCase
             'team_limit' => 1,
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'name' => 'Admin User',
             'email' => 'admin@test.com',
@@ -61,7 +62,8 @@ class SubscriptionLifecycleTest extends TestCase
             'role' => 'admin',
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'name' => 'Photographer User',
             'email' => 'photo@test.com',
@@ -130,7 +132,7 @@ class SubscriptionLifecycleTest extends TestCase
             'starts_at' => now()->subDays(31),
             'ends_at' => now()->subDay(),
         ]);
-        $this->user->update(['plan_id' => $this->proPlan->id]);
+        $this->user->forceFill(['plan_id' => $this->proPlan->id])->save();
 
         $action = app(ExpireSubscriptions::class);
         $count = $action->execute();

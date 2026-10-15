@@ -32,7 +32,6 @@ class StorageQuotaAlertMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        $frontendUrl = rtrim(config('app.frontend_url', config('app.url')), '/');
 
         return new Content(
             view: 'emails.storage_quota_alert',
@@ -44,9 +43,9 @@ class StorageQuotaAlertMail extends Mailable implements ShouldQueue
                 'percentUsed' => $this->limitBytes > 0 ? min(100, round(($this->usedBytes / $this->limitBytes) * 100)) : 100,
                 'usedFormatted' => $this->formatBytes($this->usedBytes),
                 'limitFormatted' => $this->formatBytes($this->limitBytes),
-                'upgradeUrl' => "{$frontendUrl}/studio/billing",
-                'galleriesUrl' => "{$frontendUrl}/studio/galleries",
-                'trashUrl' => "{$frontendUrl}/studio/trash",
+                'upgradeUrl' => route('studio.billing.index'),
+                'galleriesUrl' => route('studio.galleries.index'),
+                'trashUrl' => route('studio.trash.index'),
             ]
         );
     }

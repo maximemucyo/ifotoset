@@ -34,7 +34,7 @@ class GalleryZipReadyMail extends Mailable implements ShouldQueue
         $gallery = $this->download->gallery;
         $photographer = $gallery->user;
         
-        $fromAddress = config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com'));
+        $fromAddress = config('mail.notifications.address');
         $fromName = $photographer->name . ' via ifotoset';
 
         return new Envelope(

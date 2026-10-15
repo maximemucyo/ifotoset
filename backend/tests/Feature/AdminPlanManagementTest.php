@@ -27,7 +27,8 @@ class AdminPlanManagementTest extends TestCase
 
         $this->basicPlan = Plan::where('slug', 'basic')->firstOrFail();
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => Plan::where('slug', 'free')->first()->id,
             'name' => 'Regular User',
@@ -37,7 +38,8 @@ class AdminPlanManagementTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->basicPlan->id,
             'name' => 'Admin User',

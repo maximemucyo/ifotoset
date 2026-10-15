@@ -15,29 +15,28 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->web(append: [
             \App\Http\Middleware\HandleImpersonationState::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
         $middleware->alias([
             'verified.api' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'impersonation.prevent_admin' => \App\Http\Middleware\PreventAdminDuringImpersonation::class,
+            'active' => \App\Http\Middleware\EnsureUserIsActive::class,
         ]);
-        $middleware->trustProxies(at: '*');
+        $middleware->replace(
+            \Illuminate\Http\Middleware\TrustProxies::class,
+            \App\Http\Middleware\TrustProxies::class
+        );
 
         // Exempt public endpoints from CSRF verification
         $middleware->validateCsrfTokens(except: [
             'api/v1/callbacks/*',
-            'api/v1/public/booking/*',
-            'api/v1/public/bookings/*/payments',
-            'api/v1/public/galleries/*/unlock',
-            'api/v1/public/galleries/*/download',
-            'api/v1/public/galleries/*/favorite',
-            'api/v1/public/photographers/*/reviews',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Illuminate\Routing\Exceptions\InvalidSignatureException $e, \Illuminate\Http\Request $request) {
             if ($request->routeIs('verification.verify')) {
-                return redirect(config('app.frontend_url') . '/login?verified=0&error=invalid');
+                return redirect()->route('login')->with('error', 'This verification link is invalid or has expired.');
             }
         });
     })->create();

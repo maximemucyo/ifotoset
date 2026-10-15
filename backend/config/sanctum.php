@@ -3,11 +3,14 @@
 use Laravel\Sanctum\Sanctum;
 
 return [
+    // Photographer subdomains call the public gallery API from the browser and
+    // need the session (PIN / invitation access), so they count as stateful.
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
+        '%s%s,%s,*.%s',
+        'localhost,127.0.0.1,127.0.0.1:8000,::1',
         Sanctum::currentApplicationUrlWithPort(),
-        env('FRONTEND_URL') ? ','.parse_url(env('FRONTEND_URL'), PHP_URL_HOST) : ''
+        env('PUBLIC_ROOT_HOST', env('ROOT_DOMAIN', 'ifotoset.com')),
+        env('PUBLIC_ROOT_HOST', env('ROOT_DOMAIN', 'ifotoset.com'))
     ))),
 
     'guard' => ['web'],

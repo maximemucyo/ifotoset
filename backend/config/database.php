@@ -16,9 +16,8 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
-            'database' => ((($_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? env('APP_ENV')) === 'testing') || (($_ENV['DB_DATABASE'] ?? getenv('DB_DATABASE')) === 'ifotoset_testing'))
-                ? env('DB_TEST_DATABASE', 'ifotoset_testing')
-                : env('DB_DATABASE', 'ifotoset'),
+            // phpunit.xml forces DB_DATABASE=ifotoset_testing for the test suite
+            'database' => env('DB_DATABASE', 'ifotoset'),
             'username' => env('DB_USERNAME', 'ifotoset_user'),
             'password' => env('DB_PASSWORD', 'secret'),
             'unix_socket' => env('DB_SOCKET', ''),

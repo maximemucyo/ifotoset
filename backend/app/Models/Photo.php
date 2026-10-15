@@ -33,7 +33,6 @@ class Photo extends Model
     protected $fillable = [
         'uuid',
         'gallery_id',
-        'album_id',
         'disk_id',
         'media_type',
         'path',

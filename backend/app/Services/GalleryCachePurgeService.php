@@ -24,8 +24,8 @@ class GalleryCachePurgeService
         }
 
         // 2. Cloudflare / Edge Cache Invalidation (if configured)
-        $zoneId = config('services.cloudflare.zone_id') ?? env('CLOUDFLARE_ZONE_ID');
-        $apiToken = config('services.cloudflare.api_token') ?? env('CLOUDFLARE_API_TOKEN');
+        $zoneId = config('services.cloudflare.zone_id');
+        $apiToken = config('services.cloudflare.api_token');
 
         if ($zoneId && $apiToken) {
             try {

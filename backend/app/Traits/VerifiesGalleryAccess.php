@@ -62,14 +62,6 @@ trait VerifiesGalleryAccess
                 }
             }
 
-            // Check for stateless token in header or query
-            $token = $request->header('X-Gallery-Token') ?: $request->query('token');
-            $expectedToken = hash_hmac('sha256', $gallery->uuid, config('app.key'));
-
-            if ($token && hash_equals($expectedToken, $token)) {
-                return GalleryAccessDecision::granted();
-            }
-
             return GalleryAccessDecision::passwordRequired($gallery->password_hint);
         }
 

@@ -43,7 +43,8 @@ class GalleryCountAndSubdomainTest extends TestCase
             'cdn_domain' => 'cdn.ifotoset.com',
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Maxime Mucyo',

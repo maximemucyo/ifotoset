@@ -39,7 +39,8 @@ class StorageReservationTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->plan->id,
             'name' => 'Reservation Tester',

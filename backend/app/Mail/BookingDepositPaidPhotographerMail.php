@@ -22,7 +22,7 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        $fromAddress = config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com'));
+        $fromAddress = config('mail.notifications.address');
 
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset'),
@@ -32,7 +32,6 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        $frontendUrl = rtrim(config('app.frontend_url', config('app.url')), '/');
 
         return new Content(
             view: 'emails.booking_deposit_paid_photographer',
@@ -41,7 +40,7 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
                 'payment' => $this->payment,
                 'photographer' => $this->booking->user,
                 'client' => $this->booking->client,
-                'dashboardUrl' => "{$frontendUrl}/studio/bookings",
+                'dashboardUrl' => route('studio.bookings.index'),
             ],
         );
     }

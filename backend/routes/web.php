@@ -26,7 +26,7 @@ use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
 use App\Http\Controllers\Web\Studio\TrashController as StudioTrashController;
-use App\Http\Controllers\Api\V1\UploadController;
+use App\Http\Controllers\Web\Studio\UploadController;
 use App\Models\Gallery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -66,7 +66,7 @@ Route::domain('{username}.' . $rootHost)
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
 
-        Route::post('/book', [PublicPhotographerController::class, 'book'])->name('subdomain.photographer.book');
+        Route::post('/book', [PublicPhotographerController::class, 'book'])->middleware('throttle:5,1')->name('subdomain.photographer.book');
         Route::get('/', [PublicPhotographerController::class, 'show'])->name('subdomain.photographer');
     });
 
@@ -78,20 +78,20 @@ Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapControll
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login']);
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:20,1');
 
     Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register']);
+    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:5,1');
 
     Route::get('/forgot-password', [PasswordResetController::class, 'showLinkRequestForm'])->name('password.request');
-    Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail'])->middleware('throttle:5,1')->name('password.email');
 
     Route::get('/reset-password/{token?}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
-    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->name('password.update');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1')->name('password.update');
 });
 
 // Authenticated Logout & Email Verification
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
     Route::post('/auth/impersonation/leave', [\App\Http\Controllers\Web\Auth\ImpersonationController::class, 'leave'])->name('impersonation.leave');
 
@@ -117,7 +117,6 @@ Route::get('/p/{username}', function (Request $request, string $username) {
     return redirect($query ? "{$target}?{$query}" : $target, 301);
 })->name('public.photographer');
 
-Route::post('/p/{username}/book', [PublicPhotographerController::class, 'book'])->name('public.photographer.book');
 
 Route::get('/p/{username}/{slug}', function (Request $request, string $username, string $slug) {
     $target = app(\App\Services\PublicUrlService::class)->gallery($username, $slug);
@@ -130,13 +129,18 @@ Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryControll
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->name('public.gallery.export');
 Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
 
-// Shortlink Redirect (/g/{slug} -> canonical subdomain URL via 301)
-Route::get('/g/{slug}', function (Request $request, string $slug) {
-    $gallery = Gallery::where('slug', $slug)->with('user')->firstOrFail();
+// Shortlink Redirect (/g/{username}/{slug} -> canonical subdomain URL via 301)
+Route::get('/g/{username}/{slug}', function (Request $request, string $username, string $slug) {
+    $gallery = app(\App\Queries\GalleryQuery::class)->findForUser($username, $slug);
     $target = app(\App\Services\PublicUrlService::class)->gallery($gallery);
     $query = $request->getQueryString();
     return redirect($query ? "{$target}?{$query}" : $target, 301);
 });
+
+// Google Photos OAuth redirect target (export to Google Photos)
+Route::get('/google-photos/callback', [\App\Http\Controllers\Api\V1\GooglePhotosController::class, 'handleCallback'])
+    ->middleware('throttle:15,1')
+    ->name('google-photos.callback');
 
 // Convenience Root Redirects
 Route::middleware('auth')->group(function () {
@@ -145,7 +149,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Studio Portal Routes (Authenticated Photographers & Media Houses)
-Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () {
+Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.')->group(function () {
     Route::get('/dashboard', [StudioDashboardController::class, 'index'])->name('dashboard');
 
     // Galleries CRUD & Photo Management
@@ -224,7 +228,7 @@ Route::middleware(['auth'])->prefix('studio')->as('studio.')->group(function () 
 });
 
 // Admin Panel Routes (Superadmin Only - Guarded by AdminMiddleware & Impersonation Prevention)
-Route::middleware(['auth', 'admin', 'impersonation.prevent_admin'])->prefix('admin')->as('admin.')->group(function () {
+Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->prefix('admin')->as('admin.')->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
     // User Directory & Role/Status/Lifecycle Management

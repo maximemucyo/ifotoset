@@ -17,9 +17,10 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes, HasBinaryUuid;
 
+    // role, plan_id and is_active are deliberately not fillable: set them
+    // explicitly (forceFill / attribute assignment) in the admin and billing actions.
     protected $fillable = [
         'uuid',
-        'plan_id',
         'name',
         'email',
         'password',
@@ -31,8 +32,6 @@ class User extends Authenticatable implements MustVerifyEmail
         'storage_warning_75_active',
         'storage_warning_100_active',
         'storage_warning_generation',
-        'role',
-        'is_active',
         'username',
         'profile_public',
         'phone',

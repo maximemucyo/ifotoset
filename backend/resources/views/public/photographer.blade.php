@@ -218,8 +218,13 @@
                 </div>
 
                 <div class="lg:col-span-7">
-                    <form method="POST" action="{{ route('public.photographer.book', ['username' => $photographer->username]) }}" class="card p-6 sm:p-8">
+                    <form method="POST" action="{{ route('subdomain.photographer.book', ['username' => $photographer->username]) }}" class="card p-6 sm:p-8">
                         @csrf
+                        {{-- Honeypot for bots; hidden from people and assistive tech --}}
+                        <div class="hidden" aria-hidden="true">
+                            <label for="booking_website">Website</label>
+                            <input type="text" id="booking_website" name="website" tabindex="-1" autocomplete="off">
+                        </div>
 
                         @if(session('success'))
                             <div class="alert alert-success mb-6"><x-icon name="circle-check" /> <span>{{ session('success') }}</span></div>

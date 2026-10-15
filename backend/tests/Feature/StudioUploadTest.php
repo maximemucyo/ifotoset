@@ -40,7 +40,8 @@ class StudioUploadTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Alex Morgan',
@@ -50,7 +51,8 @@ class StudioUploadTest extends TestCase
             'role' => 'user',
         ]);
 
-        $this->otherPhotographer = User::create([
+        $this->otherPhotographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Sara Lee',

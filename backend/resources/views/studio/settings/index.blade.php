@@ -1,7 +1,6 @@
 @extends('layouts.app', ['title' => 'Settings · ifotoset'])
 
 @php
-    $prefs = $user->notification_preferences ?? [];
     $hasPasswordErrors = $errors->hasAny(['current_password', 'password']);
     $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : 'profile');
     $publicUrl = $user->username ? $user->public_url : null;
@@ -281,11 +280,10 @@
                 <form method="POST" action="{{ route('studio.settings.notifications') }}">
                     @csrf
                     @php
-                        $notifRows = [
-                            ['name' => 'booking_created', 'icon' => 'calendar-check', 'title' => 'New booking requests', 'desc' => 'When a client books a session through your portfolio.'],
-                            ['name' => 'photo_downloaded', 'icon' => 'download', 'title' => 'Gallery downloads', 'desc' => 'When a client downloads high-resolution photos or a full gallery ZIP.'],
-                            ['name' => 'photo_favorited', 'icon' => 'heart', 'title' => 'Photo favorites', 'desc' => 'When clients favorite or shortlist photos while proofing.'],
-                        ];
+                        $notifValues = \App\Enums\NotificationPreference::resolvedFor($user);
+                        $notifRows = collect(\App\Enums\NotificationPreference::cases())->map(fn ($p) => [
+                            'name' => $p->value, 'icon' => $p->icon(), 'title' => $p->title(), 'desc' => $p->description(),
+                        ]);
                     @endphp
                     <div class="divide-y divide-border border-y border-border">
                         @foreach($notifRows as $row)
@@ -296,7 +294,7 @@
                                     <span class="block text-[13px] text-muted-foreground">{{ $row['desc'] }}</span>
                                 </span>
                                 <span class="switch">
-                                    <input type="checkbox" id="notif-{{ $row['name'] }}" name="{{ $row['name'] }}" value="1" class="sr-only" {{ !empty($prefs[$row['name']]) ? 'checked' : '' }}>
+                                    <input type="checkbox" id="notif-{{ $row['name'] }}" name="{{ $row['name'] }}" value="1" class="sr-only" {{ $notifValues[$row['name']] ? 'checked' : '' }}>
                                     <span></span>
                                 </span>
                             </label>
@@ -391,7 +389,7 @@ function avatarUploader(config) {
                 await new Promise((resolve, reject) => {
                     const xhr = new XMLHttpRequest();
                     xhr.open('PUT', reqData.presigned_url, true);
-                    xhr.setRequestHeader('Content-Type', file.type);
+                    if (!(reqData.headers || {})['Content-Type']) xhr.setRequestHeader('Content-Type', file.type);
                     for (const [k, v] of Object.entries(reqData.headers || {})) {
                         try { xhr.setRequestHeader(k, v); } catch (_) {}
                     }

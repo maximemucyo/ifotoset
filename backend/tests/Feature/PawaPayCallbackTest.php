@@ -52,7 +52,8 @@ class PawaPayCallbackTest extends TestCase
             'team_limit' => 1,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'name' => 'Callback Tester',
             'email' => 'callback@test.com',

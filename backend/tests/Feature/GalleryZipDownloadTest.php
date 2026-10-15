@@ -27,8 +27,6 @@ class GalleryZipDownloadTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        Config::set('app.frontend_url', 'https://test-frontend.ifotoset.com');
         Config::set('app.key', 'base64:zZ6kS/fXvF3OpeX+oI4/W+D7K4N+4V8i3L9O+8U0E3A='); // fixed app key for testing expected token
 
         // Setup user/plan
@@ -43,7 +41,8 @@ class GalleryZipDownloadTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Test Photographer',
@@ -112,7 +111,7 @@ class GalleryZipDownloadTest extends TestCase
         // Place mock zip file in storage
         Storage::disk('b2')->put('galleries/test/photos.zip', 'zip content');
 
-        $response = $this->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$download->id}/download?token=valid-token");
+        $response = $this->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$download->id}/download?token=valid-token");
 
         // Should redirect (302) to presigned URL
         $response->assertStatus(302);
@@ -143,7 +142,7 @@ class GalleryZipDownloadTest extends TestCase
             'download_token_hash' => hash('sha256', 'valid-token'),
         ]);
 
-        $response = $this->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$download->id}/download?token=invalid-token");
+        $response = $this->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$download->id}/download?token=invalid-token");
 
         // Should redirect back to export page with unauthorized error and without token in redirect URL
         $response->assertStatus(302);
@@ -177,14 +176,17 @@ class GalleryZipDownloadTest extends TestCase
         Storage::disk('b2')->put('galleries/test/photos.zip', 'zip content');
 
         // Access without token query parameter and without password session
-        $response = $this->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$download->id}/download");
+        $response = $this->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$download->id}/download");
         $response->assertStatus(302);
         $response->assertRedirectContains('error=unauthorized');
 
-        // Access with proper X-Gallery-Token in header
-        $validToken = hash_hmac('sha256', $this->gallery->uuid, config('app.key'));
-        $response = $this->withHeaders(['X-Gallery-Token' => $validToken])
-            ->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$download->id}/download");
+        // Access with an unlocked gallery session
+        $response = $this->withHeader('Referer', app(\App\Services\PublicUrlService::class)->galleryUrl('testphoto', $this->gallery->slug))
+            ->withSession(["gallery_unlocked_{$this->gallery->id}" => [
+                'unlocked' => true,
+                'hash_checksum' => md5($this->gallery->fresh()->password_hash),
+            ]])
+            ->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$download->id}/download");
 
         $response->assertStatus(302);
         $this->assertStringContainsString('backblazeb2.com', $response->headers->get('Location'));
@@ -213,7 +215,7 @@ class GalleryZipDownloadTest extends TestCase
         Storage::disk('b2')->put('galleries/test/photosB.zip', 'zip content');
 
         // Access ZIP B using ZIP A's token
-        $response = $this->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$downloadB->id}/download?token=token-a");
+        $response = $this->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$downloadB->id}/download?token=token-a");
         $response->assertStatus(302);
         $response->assertRedirectContains('error=unauthorized');
     }
@@ -232,7 +234,7 @@ class GalleryZipDownloadTest extends TestCase
 
         Storage::disk('b2')->put('galleries/test/photos.zip', 'zip content');
 
-        $response = $this->get("/api/v1/public/galleries/{$this->gallery->slug}/download-zip/{$download->id}/download?token=token");
+        $response = $this->get("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip/{$download->id}/download?token=token");
         $response->assertStatus(302);
         $response->assertRedirectContains('error=expired');
 
@@ -268,70 +270,13 @@ class GalleryZipDownloadTest extends TestCase
         Storage::disk('b2')->assertMissing('galleries/test/expired.zip');
     }
 
-    public function test_gallery_analytics_endpoint_returns_correct_data(): void
-    {
-        // Add activity logs
-        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
-            [
-                'gallery_id' => $this->gallery->id,
-                'event' => 'gallery_viewed',
-                'visitor_session_id' => 'session-1',
-                'properties' => json_encode([]),
-                'created_at' => now(),
-            ],
-            [
-                'gallery_id' => $this->gallery->id,
-                'event' => 'photo_downloaded',
-                'visitor_session_id' => 'session-1',
-                'properties' => json_encode(['email' => 'visitor@example.com']),
-                'created_at' => now(),
-            ],
-            [
-                'gallery_id' => $this->gallery->id,
-                'event' => 'photo_favorited',
-                'visitor_session_id' => 'session-2',
-                'properties' => json_encode(['email' => 'visitor@example.com']),
-                'created_at' => now(),
-            ],
-        ]);
-
-        // Unauthorized request should fail
-        $response = $this->getJson("/api/v1/galleries/{$this->gallery->uuid}/analytics");
-        $response->assertStatus(401);
-
-        // Authorized request
-        $response = $this->actingAs($this->user)
-            ->getJson("/api/v1/galleries/{$this->gallery->uuid}/analytics");
-
-        $response->assertStatus(200);
-        $response->assertJsonStructure([
-            'overview' => ['views', 'downloads', 'favorites', 'visitors'],
-            'visitors',
-            'recent_activity',
-        ]);
-
-        $data = $response->json();
-        $this->assertEquals(1, $data['overview']['views']);
-        $this->assertEquals(1, $data['overview']['downloads']);
-        $this->assertEquals(1, $data['overview']['favorites']);
-        $this->assertEquals(2, $data['overview']['visitors']);
-
-        // Check visitor collection has grouped email with activity count
-        $this->assertCount(2, $data['visitors']); // 'visitor@example.com' and null/anonymous
-        
-        $visitorItem = collect($data['visitors'])->firstWhere('email', 'visitor@example.com');
-        $this->assertNotNull($visitorItem);
-        $this->assertEquals(1, $visitorItem['downloads']);
-        $this->assertEquals(1, $visitorItem['favorites']);
-    }
-
     public function test_missing_email_is_rejected_with_422_even_if_zip_is_ready(): void
     {
         Storage::fake('b2');
 
         $this->createPhoto();
 
-        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", []);
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", []);
 
         $response->assertStatus(422);
         $response->assertJsonFragment(['code' => 'EMAIL_REQUIRED']);
@@ -344,7 +289,7 @@ class GalleryZipDownloadTest extends TestCase
 
         $this->createPhoto();
 
-        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
             'email' => 'not-an-email',
         ]);
 
@@ -359,7 +304,7 @@ class GalleryZipDownloadTest extends TestCase
 
         $this->createPhoto();
 
-        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
             'email' => '  VISITOR@Example.COM  ',
             'notify_when_ready' => true,
         ]);
@@ -398,7 +343,7 @@ class GalleryZipDownloadTest extends TestCase
             'email' => null, // created before visitor entered email
         ]);
 
-        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
             'email' => 'visitor@example.com',
         ]);
 
@@ -421,7 +366,7 @@ class GalleryZipDownloadTest extends TestCase
         $this->createPhoto();
 
         // Case A: notify=true fallback when notify_when_ready is absent
-        $responseA = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+        $responseA = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
             'email' => 'case_a@example.com',
             'notify' => true,
         ]);
@@ -434,7 +379,7 @@ class GalleryZipDownloadTest extends TestCase
         // Case B: notify_when_ready=false explicitly supplied while notify=true; explicit false wins
         GalleryDownload::where('gallery_id', $this->gallery->id)->delete();
 
-        $responseB = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", [
+        $responseB = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
             'email' => 'case_b@example.com',
             'notify_when_ready' => false,
             'notify' => true,
@@ -467,7 +412,7 @@ class GalleryZipDownloadTest extends TestCase
         ]);
 
         // Client has stored email in localStorage, but sends request with no email parameter
-        $response = $this->postJson("/api/v1/public/galleries/{$this->gallery->slug}/download-zip", []);
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", []);
 
         // Server must not trust client-side state alone; requires email to be submitted and validated
         $response->assertStatus(422);

@@ -218,11 +218,7 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
                         'notification_sent_at' => now(),
                     ]);
 
-                    $queryParams = [];
-                    if ($this->downloadToken) {
-                        $queryParams['token'] = $this->downloadToken;
-                    }
-                    $downloadUrl = url("/api/v1/public/galleries/{$gallery->slug}/download-zip/{$lockedDownload->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
+                    $downloadUrl = $lockedDownload->downloadUrl($this->downloadToken);
                     $email = $lockedDownload->email;
 
                     // Queue email after commit

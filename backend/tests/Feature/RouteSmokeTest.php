@@ -29,7 +29,8 @@ class RouteSmokeTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Photographer Kigali',
@@ -39,7 +40,8 @@ class RouteSmokeTest extends TestCase
             'role' => 'user',
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Admin User',

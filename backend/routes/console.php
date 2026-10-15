@@ -1,13 +1,20 @@
 <?php
 
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment('Inspiration is everywhere.');
 })->purpose('Display an inspiring quote');
 
-\Illuminate\Support\Facades\Schedule::command('ifotoset:purge-expired-trash')->daily();
-\Illuminate\Support\Facades\Schedule::command('gallery:cleanup-expired-zips')->hourly();
+Schedule::command('ifotoset:purge-expired-trash')->daily()->withoutOverlapping()->onOneServer();
+Schedule::command('gallery:cleanup-expired-zips')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('subscriptions:send-expiry-reminders')->dailyAt('09:00')->withoutOverlapping()->onOneServer();
+Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping()->onOneServer();
+Schedule::command('bookings:send-reminders')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('uploads:reconcile-reservations')->daily()->withoutOverlapping()->onOneServer();
+Schedule::command('media:reconcile-statistics')->daily()->withoutOverlapping()->onOneServer();
 
 Artisan::command('b2:sync-cors', function () {
     $keyId = config('filesystems.disks.b2.key');

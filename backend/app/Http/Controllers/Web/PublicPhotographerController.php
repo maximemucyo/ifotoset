@@ -19,7 +19,7 @@ class PublicPhotographerController extends Controller
     public function show(string $username): View
     {
         $photographer = User::where('username', strtolower($username))
-            ->whereNull('deleted_at')
+            ->where('is_active', true)
             ->firstOrFail();
 
         // Hidden profiles are only visible to their owner (e.g. to preview before going public)
@@ -27,7 +27,7 @@ class PublicPhotographerController extends Controller
 
         $galleries = $photographer->galleries()
             ->shownOnProfile()
-            ->with(['coverPhoto', 'stats'])
+            ->with(['coverPhoto', 'stats', 'user:id,username'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -49,7 +49,14 @@ class PublicPhotographerController extends Controller
      */
     public function book(Request $request, string $username, CreateBookingAction $createBookingAction): RedirectResponse
     {
-        $photographer = User::where('username', strtolower($username))->firstOrFail();
+        $photographer = User::where('username', strtolower($username))
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        // Honeypot: real visitors never see or fill this field
+        if (filled($request->input('website'))) {
+            return back()->with('success', 'Thank you! Your booking request has been submitted successfully. The photographer will review and confirm shortly.');
+        }
 
         $validated = $request->validate([
             'client_name' => ['required', 'string', 'max:255'],
@@ -82,8 +89,13 @@ class PublicPhotographerController extends Controller
             ]);
 
             return back()->with('success', 'Thank you! Your booking request has been submitted successfully. The photographer will review and confirm shortly.');
-        } catch (\Exception $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+        } catch (\App\Exceptions\BookingOverlapException $e) {
+            return back()->withInput()->with('error', 'That time is already booked. Please choose another time.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return back()->withInput()->with('error', 'Please choose one of the available packages.');
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->withInput()->with('error', 'We could not submit your booking. Please try again.');
         }
     }
 }

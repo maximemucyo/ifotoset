@@ -188,6 +188,21 @@ async function proxyAndCache(request, event, objectPathOverride = null) {
     }
     outHeaders.set('Vary', 'Origin, Accept');
 
+    // Never let the browser sniff or render stored objects as documents:
+    // anything that is not media (or a ZIP/HLS asset) is forced to download.
+    outHeaders.set('X-Content-Type-Options', 'nosniff');
+    const servedType = (outHeaders.get('Content-Type') || '').toLowerCase();
+    const isMediaType = /^(image|video|audio)\//.test(servedType)
+        || servedType.startsWith('application/vnd.apple.mpegurl')
+        || servedType.startsWith('application/zip')
+        || servedType.startsWith('application/x-mpegurl');
+    if (!isMediaType && !outHeaders.has('Content-Disposition')) {
+        outHeaders.set('Content-Disposition', 'attachment');
+    }
+    if (!isMediaType) {
+        outHeaders.set('Content-Type', 'application/octet-stream');
+    }
+
     // Strip internal S3 headers
     const headersToRemove = ['via', 'x-cache', 'x-amz-cf-id', 'x-amz-cf-pop', 'x-amz-request-id', 'x-amz-version-id'];
     headersToRemove.forEach(h => outHeaders.delete(h));

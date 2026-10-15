@@ -37,7 +37,8 @@ class StudioIsolationTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->userA = User::create([
+        $this->userA = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Studio A Kigali',
@@ -46,7 +47,8 @@ class StudioIsolationTest extends TestCase
             'password' => Hash::make('password123'),
         ]);
 
-        $this->userB = User::create([
+        $this->userB = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Studio B Gisenyi',

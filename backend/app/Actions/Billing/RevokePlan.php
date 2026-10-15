@@ -35,7 +35,7 @@ class RevokePlan
                 ]);
 
             // Revert user to free plan
-            $user->update(['plan_id' => $freePlan->id]);
+            $user->forceFill(['plan_id' => $freePlan->id])->save();
 
             StorageStatisticsService::clearCache($user->id);
 

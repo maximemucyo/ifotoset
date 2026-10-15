@@ -52,7 +52,7 @@ class ExpireSubscriptions
                     ->exists();
 
                 if (!$hasOtherActive && $freePlan) {
-                    $user->update(['plan_id' => $freePlan->id]);
+                    $user->forceFill(['plan_id' => $freePlan->id])->save();
                     StorageStatisticsService::clearCache($user->id);
                     Log::info("User ID {$user->id} reverted to Free plan due to expired subscription ID {$sub->id}");
                 }

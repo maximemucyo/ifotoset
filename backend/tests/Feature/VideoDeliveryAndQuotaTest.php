@@ -70,7 +70,8 @@ class VideoDeliveryAndQuotaTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->freeUser = User::create([
+        $this->freeUser = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->freePlan->id,
             'name' => 'Free User',
@@ -93,7 +94,8 @@ class VideoDeliveryAndQuotaTest extends TestCase
             'visibility' => 'public',
         ]);
 
-        $this->basicUser = User::create([
+        $this->basicUser = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->basicPlan->id,
             'name' => 'Basic User',

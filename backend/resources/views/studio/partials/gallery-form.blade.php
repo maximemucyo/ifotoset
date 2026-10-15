@@ -124,7 +124,7 @@
                                 name="password"
                                 icon="key"
                                 autocomplete="new-password"
-                                :placeholder="$isEdit && $gallery->password_hash ? 'Leave blank to keep the current PIN' : 'Choose a 4–8 character PIN'"
+                                :placeholder="$isEdit && $gallery->password_hash ? 'Leave blank to keep the current PIN' : 'Choose a PIN of at least 6 characters'"
                                 :hint="$isEdit && $gallery->password_hash ? 'A PIN is already set. Enter a new one only to change it.' : 'Share this PIN with your client together with the gallery link.'"
                                 :error="$errors->first('password')" />
                 </div>

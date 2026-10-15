@@ -20,13 +20,14 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => array_filter(
-        explode(',', env('ALLOWED_ORIGINS', 'https://ifotoset.com,https://www.ifotoset.com,http://localhost:3000'))
+        explode(',', env('ALLOWED_ORIGINS', 'https://ifotoset.com,https://www.ifotoset.com'))
     ),
 
-    'allowed_origins_patterns' => [
-        '#^https?://([^/]+\.)?ifotoset\.com$#',
-        '#^https?://([^/]+\.)?localhost(:[0-9]+)?$#',
-    ],
+    // HTTPS photographer subdomains only; the CDN host never sends credentialed requests
+    'allowed_origins_patterns' => array_filter([
+        '#^https://(?!cdn\.)([a-z0-9-]+\.)?ifotoset\.com$#',
+        env('APP_ENV') === 'local' ? '#^https?://([^/]+\.)?localhost(:[0-9]+)?$#' : null,
+    ]),
 
     'allowed_headers' => ['*'],
 

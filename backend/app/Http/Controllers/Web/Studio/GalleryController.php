@@ -91,7 +91,7 @@ class GalleryController extends Controller
             'client_name' => ['nullable', 'string', 'max:255'],
             'event_date' => ['nullable', 'date'],
             'visibility' => ['required', 'string', 'in:public,private,password'],
-            'password' => ['nullable', 'string', 'required_if:visibility,password'],
+            'password' => ['nullable', 'string', 'min:6', 'max:64', 'required_if:visibility,password'],
             'show_on_profile' => ['nullable', 'boolean'],
             'allow_photo_downloads' => ['nullable', 'boolean'],
             'allow_gallery_downloads' => ['nullable', 'boolean'],
@@ -99,6 +99,7 @@ class GalleryController extends Controller
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
             'password.required_if' => 'A PIN is required when setting privacy to PIN Protected.',
+            'password.min' => 'The PIN must be at least 6 characters.',
         ]);
 
         $baseSlug = Str::slug($validated['title']);
@@ -339,6 +340,8 @@ class GalleryController extends Controller
             'password' => [
                 'nullable',
                 'string',
+                'min:6',
+                'max:64',
                 Rule::requiredIf(fn() => $request->input('visibility') === 'password' && empty($gallery->password_hash)),
             ],
             'show_on_profile' => ['nullable', 'boolean'],
@@ -348,6 +351,7 @@ class GalleryController extends Controller
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
             'password.required' => 'A PIN is required when setting privacy to PIN Protected.',
+            'password.min' => 'The PIN must be at least 6 characters.',
         ]);
 
         $showOnProfile = ($validated['visibility'] === 'public') && $request->boolean('show_on_profile');

@@ -21,6 +21,13 @@ class UploadAvatarAction
      */
     public function requestUpload(User $user, string $filename, string $sha256): array
     {
+        $contentType = \App\Support\MediaTypes::forAvatar($filename);
+        if ($contentType === null) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'filename' => 'Avatars must be JPEG, PNG or WebP images.',
+            ]);
+        }
+
         $sanitizedFilename = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $filename);
         $objectKey = "avatars/{$user->uuid}/" . time() . "_{$sanitizedFilename}";
         $expiresAt = now()->addMinutes(15);
@@ -29,7 +36,8 @@ class UploadAvatarAction
         $presignedUrl = $this->storageService->generatePresignedUploadUrl(
             $objectKey,
             $base64Sha256,
-            $expiresAt
+            $expiresAt,
+            $contentType
         );
 
         return [
@@ -37,6 +45,7 @@ class UploadAvatarAction
             'presigned_url' => $presignedUrl,
             'headers' => [
                 'x-amz-checksum-sha256' => $base64Sha256,
+                'Content-Type' => $contentType,
             ],
             'expires_at' => $expiresAt->toIso8601String(),
         ];

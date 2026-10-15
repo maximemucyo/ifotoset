@@ -1280,7 +1280,10 @@ window.studioGalleryManager = function(inlineConfig) {
                     const xhr = new XMLHttpRequest();
                     task.xhr = xhr;
                     xhr.open('PUT', presignedUrl, true);
-                    xhr.setRequestHeader('Content-Type', item.file.type || 'image/jpeg');
+                    // The server signs Content-Type into the URL; send exactly its value
+                    if (!extraHeaders || !extraHeaders['Content-Type']) {
+                        xhr.setRequestHeader('Content-Type', item.file.type || 'image/jpeg');
+                    }
 
                     if (extraHeaders) {
                         for (const [k, v] of Object.entries(extraHeaders)) {

@@ -36,7 +36,8 @@ class AdminAccountSecurityTest extends TestCase
             'team_limit' => 5,
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->plan->id,
             'name' => 'Super Admin',

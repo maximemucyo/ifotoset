@@ -70,9 +70,7 @@ class ApplySubscriptionEntitlement
         }
 
         // Synchronize user plan entitlement
-        $user->update([
-            'plan_id' => $plan->id,
-        ]);
+        $user->forceFill(['plan_id' => $plan->id])->save();
 
         // Invalidate storage quota cache
         StorageStatisticsService::clearCache($user->id);

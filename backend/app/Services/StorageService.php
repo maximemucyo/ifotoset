@@ -17,17 +17,23 @@ class StorageService
     /**
      * Generates an S3 presigned upload URL with SHA-256 checksum header enforcement.
      */
-    public function generatePresignedUploadUrl(string $objectKey, string $base64Sha256, DateTimeInterface $expiresAt): string
+    public function generatePresignedUploadUrl(string $objectKey, string $base64Sha256, DateTimeInterface $expiresAt, ?string $contentType = null): string
     {
         // AWS S3 Flysystem driver presigned URL generation
         $client = $this->presignClient();
         $bucket = config('filesystems.disks.b2.bucket', 'ifotoset-media');
 
-        $cmd = $client->getCommand('PutObject', [
+        $params = [
             'Bucket' => $bucket,
             'Key' => $objectKey,
             'ChecksumSHA256' => $base64Sha256,
-        ]);
+        ];
+        // Signed, so the browser must PUT with exactly this Content-Type
+        if ($contentType) {
+            $params['ContentType'] = $contentType;
+        }
+
+        $cmd = $client->getCommand('PutObject', $params);
 
         $request = $client->createPresignedRequest($cmd, $expiresAt);
 

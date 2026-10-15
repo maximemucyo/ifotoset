@@ -7,6 +7,8 @@ export class GalleryFavorites {
     constructor(config) {
         this.slug = config.slug;
         this.username = config.username;
+        // Same-origin path: the session cookie is host-only on the photographer subdomain
+        this.apiBase = `/api/v1/public/galleries/${encodeURIComponent(this.username)}/${encodeURIComponent(this.slug)}`;
         this.csrfToken = config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content;
         this.storageKey = `gallery_favorites_${this.slug}`;
         this.identityKey = `visitor_identity_${this.slug}`;
@@ -138,7 +140,7 @@ export class GalleryFavorites {
 
         // Idempotent server synchronization
         try {
-            await fetch(`/api/v1/public/galleries/${this.slug}/favorite`, {
+            await fetch(`${this.apiBase}/favorite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

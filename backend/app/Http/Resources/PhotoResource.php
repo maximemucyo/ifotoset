@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Resources\V1;
+namespace App\Http\Resources;
 
 use App\Services\StorageService;
 use Illuminate\Http\Request;

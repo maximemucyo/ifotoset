@@ -39,7 +39,8 @@ class StudioTrashManagementTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Primary Photographer',
@@ -48,7 +49,8 @@ class StudioTrashManagementTest extends TestCase
             'password' => Hash::make('secret123'),
         ]);
 
-        $this->otherUser = User::create([
+        $this->otherUser = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Other Photographer',

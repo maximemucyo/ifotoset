@@ -31,7 +31,6 @@ class PlanUpgradedMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        $frontendUrl = rtrim(config('app.frontend_url', config('app.url')), '/');
 
         return new Content(
             view: 'emails.plan_upgraded',
@@ -39,7 +38,7 @@ class PlanUpgradedMail extends Mailable implements ShouldQueue
                 'user' => $this->user,
                 'payment' => $this->payment,
                 'plan' => $this->plan,
-                'dashboardUrl' => "{$frontendUrl}/studio/dashboard",
+                'dashboardUrl' => route('studio.dashboard'),
             ],
         );
     }

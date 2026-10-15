@@ -33,7 +33,7 @@ class AssignPlan
                 ->update(['status' => 'replaced']);
 
             if ($newPlan->slug === 'free') {
-                $user->update(['plan_id' => $newPlan->id]);
+                $user->forceFill(['plan_id' => $newPlan->id])->save();
             } else {
                 $days = ($billingCycle === 'annual') ? 365 : 30;
                 $startsAt = now();
@@ -51,7 +51,7 @@ class AssignPlan
                     'ends_at' => $endsAt,
                 ]);
 
-                $user->update(['plan_id' => $newPlan->id]);
+                $user->forceFill(['plan_id' => $newPlan->id])->save();
             }
 
             StorageStatisticsService::clearCache($user->id);

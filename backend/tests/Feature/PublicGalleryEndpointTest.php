@@ -48,7 +48,8 @@ class PublicGalleryEndpointTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'John Doe',
@@ -78,43 +79,112 @@ class PublicGalleryEndpointTest extends TestCase
         ]);
     }
 
+    private function galleryUrl(Gallery $gallery, ?User $owner = null): string
+    {
+        return app(\App\Services\PublicUrlService::class)
+            ->galleryUrl(($owner ?? $this->user)->username, $gallery->slug);
+    }
+
     public function test_can_view_public_gallery(): void
     {
-        $response = $this->getJson('/api/v1/public/galleries/' . $this->publicGallery->slug);
-
-        $response->assertStatus(200)
-            ->assertJsonPath('data.title', 'Summer Vacation 2026')
-            ->assertJsonPath('data.slug', 'summer-vacation-2026')
-            ->assertJsonPath('data.access_granted', true);
+        $this->get($this->galleryUrl($this->publicGallery))
+            ->assertStatus(200)
+            ->assertSee('Summer Vacation 2026');
     }
 
     public function test_private_gallery_indicates_password_required(): void
     {
-        $response = $this->getJson('/api/v1/public/galleries/' . $this->privateGallery->slug);
-
-        $response->assertStatus(200)
-            ->assertJsonPath('data.access_granted', false)
-            ->assertJsonPath('data.requires_password', true);
+        $this->getJson($this->galleryUrl($this->privateGallery) . '/photos')
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'PASSWORD_REQUIRED');
     }
 
     public function test_private_gallery_unlock_with_correct_password(): void
     {
-        $response = $this->postJson('/api/v1/public/galleries/' . $this->privateGallery->slug . '/unlock', [
-            'password' => 'secretpass',
-        ]);
+        $this->postJson($this->galleryUrl($this->privateGallery) . '/unlock', ['password' => 'secretpass'])
+            ->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonMissingPath('token');
 
-        $response->assertStatus(200)
-            ->assertJsonStructure(['token', 'message']);
+        // The session now grants access
+        $this->getJson($this->galleryUrl($this->privateGallery) . '/photos')->assertStatus(200);
     }
 
     public function test_private_gallery_unlock_fails_with_wrong_password(): void
     {
-        $response = $this->postJson('/api/v1/public/galleries/' . $this->privateGallery->slug . '/unlock', [
-            'password' => 'wrongpass',
+        $this->postJson($this->galleryUrl($this->privateGallery) . '/unlock', ['password' => 'wrongpass'])
+            ->assertStatus(401)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_unlock_is_limited_per_gallery_across_ips(): void
+    {
+        $url = $this->galleryUrl($this->privateGallery) . '/unlock';
+
+        for ($i = 0; $i < 30; $i++) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.{$i}"])
+                ->postJson($url, ['password' => 'wrong-' . $i]);
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.1.1'])
+            ->postJson($url, ['password' => 'secretpass'])
+            ->assertStatus(429);
+    }
+
+    public function test_same_slug_for_two_photographers_resolves_to_each_owner(): void
+    {
+        $other = User::forceCreate([
+            'email_verified_at' => now(),
+            'uuid' => Uuid::uuid7()->toString(),
+            'plan_id' => $this->user->plan_id,
+            'name' => 'Jane Roe',
+            'username' => 'janeroe',
+            'email' => 'jane@example.com',
+            'password' => Hash::make('password123'),
         ]);
 
-        $response->assertStatus(401)
-            ->assertJsonPath('code', 'INVALID_PASSWORD');
+        $otherGallery = Gallery::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'user_id' => $other->id,
+            'title' => 'Jane Summer Shoot',
+            'slug' => $this->publicGallery->slug,
+            'visibility' => 'public',
+            'status' => 'published',
+            'allow_photo_downloads' => true,
+        ]);
+
+        $this->createTestPhoto(['original_filename' => 'JOHN.JPG']);
+        $this->createTestPhoto(['gallery_id' => $otherGallery->id, 'original_filename' => 'JANE.JPG']);
+
+        $this->get($this->galleryUrl($this->publicGallery))->assertOk()->assertSee('Summer Vacation 2026');
+        $this->get($this->galleryUrl($otherGallery, $other))->assertOk()->assertSee('Jane Summer Shoot');
+
+        $this->getJson($this->galleryUrl($this->publicGallery) . '/photos')
+            ->assertOk()->assertJsonPath('data.0.filename', 'JOHN.JPG');
+        $this->getJson($this->galleryUrl($otherGallery, $other) . '/photos')
+            ->assertOk()->assertJsonPath('data.0.filename', 'JANE.JPG');
+
+        // API endpoints are scoped by username too
+        $this->postJson("/api/v1/public/galleries/janeroe/{$otherGallery->slug}/favorite", [])
+            ->assertStatus(422);
+        $this->postJson("/api/v1/public/galleries/nobody/{$otherGallery->slug}/favorite", [])
+            ->assertStatus(404);
+    }
+
+    public function test_suspended_photographer_galleries_and_profile_are_hidden(): void
+    {
+        $this->user->forceFill(['is_active' => false])->save();
+
+        $this->get($this->galleryUrl($this->publicGallery))->assertNotFound();
+        $this->get(app(\App\Services\PublicUrlService::class)->photographerUrl($this->user->username))->assertNotFound();
+    }
+
+    public function test_deleted_gallery_returns_410(): void
+    {
+        $url = $this->galleryUrl($this->publicGallery);
+        $this->publicGallery->delete();
+
+        $this->get($url)->assertStatus(410);
     }
 
     protected function createTestPhoto(array $attributes = []): Photo
@@ -147,7 +217,7 @@ class PublicGalleryEndpointTest extends TestCase
             ]);
         }
 
-        $response = $this->getJson('/api/v1/public/galleries/' . $this->publicGallery->slug . '/photos');
+        $response = $this->getJson($this->galleryUrl($this->publicGallery) . '/photos');
 
         $response->assertStatus(200)
             ->assertJsonCount(3, 'data');

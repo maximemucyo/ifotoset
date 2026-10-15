@@ -20,7 +20,7 @@ class VerificationController extends Controller
         $user = User::findOrFail($id);
 
         if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-            return redirect(config('app.frontend_url') . '/login?verified=0&error=invalid');
+            return redirect()->route('login')->with('error', 'This verification link is invalid.');
         }
 
         if (! $user->hasVerifiedEmail()) {
@@ -28,7 +28,7 @@ class VerificationController extends Controller
             event(new Verified($user));
         }
 
-        return redirect(config('app.frontend_url') . '/studio/dashboard?verified=1');
+        return redirect()->route('studio.dashboard')->with('status', 'Your email address has been verified.');
     }
 
     /**

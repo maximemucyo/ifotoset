@@ -1,6 +1,6 @@
 @props(['title' => 'ifotoset', 'preheader' => null, 'footerNote' => null])
 @php
-    $homeUrl = config('app.frontend_url', config('app.url'));
+    $homeUrl = config('app.url');
     $font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 @endphp
 <!DOCTYPE html>

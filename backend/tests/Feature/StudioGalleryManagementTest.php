@@ -45,7 +45,8 @@ class StudioGalleryManagementTest extends TestCase
             'team_limit' => 5,
         ]);
 
-        $this->user = User::create([
+        $this->user = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Alice Photographer',
@@ -54,7 +55,8 @@ class StudioGalleryManagementTest extends TestCase
             'password' => Hash::make('secret123'),
         ]);
 
-        $this->otherUser = User::create([
+        $this->otherUser = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Bob Photographer',

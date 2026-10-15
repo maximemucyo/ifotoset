@@ -41,7 +41,6 @@ return [
         App\Providers\AppServiceProvider::class,
     ],
 
-    'frontend_url' => env('FRONTEND_URL'),
     'public_protocol' => env('PROTOCOL', 'https'),
     'public_root_domain' => env('ROOT_DOMAIN', 'ifotoset.com'),
     'public_root_host' => env('PUBLIC_ROOT_HOST') ?: (function () {

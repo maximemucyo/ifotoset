@@ -22,8 +22,6 @@ class PasswordResetTest extends TestCase
             \Illuminate\Support\Facades\Redis::flushall();
         } catch (\Throwable $e) {
         }
-        // Configure frontend URL for testing
-        Config::set('app.frontend_url', 'https://test-frontend.ifotoset.com');
     }
 
     protected function createUser(array $attributes = [])
@@ -39,7 +37,8 @@ class PasswordResetTest extends TestCase
             'team_limit' => 0,
         ]);
 
-        return User::create(array_merge([
+        return User::forceCreate(array_merge([
+            'email_verified_at' => now(),
             'uuid' => \Ramsey\Uuid\Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Test User',
@@ -56,14 +55,12 @@ class PasswordResetTest extends TestCase
         Notification::fake();
         $user = $this->createUser(['email' => 'user@example.com']);
 
-        $response = $this->postJson('/api/v1/auth/forgot-password', [
+        $response = $this->post('/forgot-password', [
             'email' => 'user@example.com',
         ]);
 
-        $response->assertStatus(200);
-        $response->assertJson([
-            'message' => 'If an account exists for that email, a password reset link has been sent.',
-        ]);
+        $response->assertRedirect();
+        $response->assertSessionHas('status', 'If an account exists for that email, a password reset link has been sent.');
 
         Notification::assertSentTo($user, QueuedResetPassword::class);
     }
@@ -75,14 +72,12 @@ class PasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $response = $this->postJson('/api/v1/auth/forgot-password', [
+        $response = $this->post('/forgot-password', [
             'email' => 'nonexistent@example.com',
         ]);
 
-        $response->assertStatus(200);
-        $response->assertJson([
-            'message' => 'If an account exists for that email, a password reset link has been sent.',
-        ]);
+        $response->assertRedirect();
+        $response->assertSessionHas('status', 'If an account exists for that email, a password reset link has been sent.');
 
         Notification::assertNothingSent();
     }
@@ -100,26 +95,21 @@ class PasswordResetTest extends TestCase
         $mailMessage = $notification->toMail($user);
         $actionUrl = $mailMessage->actionUrl;
 
-        $this->assertStringContainsString('https://test-frontend.ifotoset.com/reset-password', $actionUrl);
-        $this->assertStringContainsString('token=' . urlencode($token), $actionUrl);
+        $this->assertStringStartsWith(url('/reset-password/' . $token), $actionUrl);
         $this->assertStringContainsString('email=' . urlencode('user@example.com'), $actionUrl);
     }
 
     /**
-     * Test that missing FRONTEND_URL throws RuntimeException.
+     * The reset link must point at the Laravel reset form, not an external frontend.
      */
-    public function test_missing_frontend_url_throws_runtime_exception(): void
+    public function test_reset_url_uses_laravel_route(): void
     {
-        Config::set('app.frontend_url', null);
-
         $user = $this->createUser(['email' => 'user@example.com']);
         $token = Password::createToken($user);
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('FRONTEND_URL is not configured.');
+        $actionUrl = (new QueuedResetPassword($token))->toMail($user)->actionUrl;
 
-        $notification = new QueuedResetPassword($token);
-        $notification->toMail($user);
+        $this->assertSame(route('password.reset', ['token' => $token, 'email' => 'user@example.com']), $actionUrl);
     }
 
     /**
@@ -130,17 +120,14 @@ class PasswordResetTest extends TestCase
         $user = $this->createUser(['email' => 'user@example.com']);
         $token = Password::createToken($user);
 
-        $response = $this->postJson('/api/v1/auth/reset-password', [
+        $response = $this->post('/reset-password', [
             'token' => $token,
             'email' => 'user@example.com',
             'password' => 'newpassword123',
             'password_confirmation' => 'newpassword123',
         ]);
 
-        $response->assertStatus(200);
-        $response->assertJson([
-            'message' => 'Your password has been reset.',
-        ]);
+        $response->assertRedirect('/login');
 
         // Verify password changed
         $this->assertTrue(Hash::check('newpassword123', $user->fresh()->password));
@@ -153,18 +140,14 @@ class PasswordResetTest extends TestCase
     {
         $user = $this->createUser(['email' => 'user@example.com']);
 
-        $response = $this->postJson('/api/v1/auth/reset-password', [
+        $response = $this->post('/reset-password', [
             'token' => 'invalid-token',
             'email' => 'user@example.com',
             'password' => 'newpassword123',
             'password_confirmation' => 'newpassword123',
         ]);
 
-        $response->assertStatus(422);
-        $response->assertJson([
-            'code' => 'INVALID_TOKEN_OR_EMAIL',
-            'message' => 'This password reset link is invalid or has expired.',
-        ]);
+        $response->assertSessionHasErrors('email');
 
         // Verify password did not change
         $this->assertTrue(Hash::check('password123', $user->fresh()->password));
@@ -182,14 +165,14 @@ class PasswordResetTest extends TestCase
 
         // Hit the endpoint 5 times (limit is 5 requests per minute)
         for ($i = 0; $i < 5; $i++) {
-            $response = $this->postJson('/api/v1/auth/forgot-password', [
+            $response = $this->post('/forgot-password', [
                 'email' => 'user@example.com',
             ]);
-            $response->assertStatus(200);
+            $response->assertRedirect();
         }
 
         // 6th request should be throttled
-        $response = $this->postJson('/api/v1/auth/forgot-password', [
+        $response = $this->post('/forgot-password', [
             'email' => 'user@example.com',
         ]);
         $response->assertStatus(429);

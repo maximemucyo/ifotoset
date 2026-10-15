@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -31,11 +32,7 @@ class PublicGalleryController extends Controller
      */
     public function show(Request $request, string $username, string $slug): View|RedirectResponse
     {
-        $gallery = $this->galleryQuery->findBySlug($slug);
-
-        if (strtolower($gallery->user->username) !== strtolower($username)) {
-            abort(404);
-        }
+        $gallery = $this->resolveGallery($username, $slug);
 
         $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
@@ -132,15 +129,25 @@ class PublicGalleryController extends Controller
     }
 
     /**
+     * Resolve a gallery for an HTML page: 410 Gone when it was deleted, so
+     * search engines drop it, and 404 when it never existed.
+     */
+    private function resolveGallery(string $username, string $slug): Gallery
+    {
+        try {
+            return $this->galleryQuery->findForUser($username, $slug);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            abort_if($this->galleryQuery->findTrashedForUser($username, $slug), 410);
+            throw $e;
+        }
+    }
+
+    /**
      * Lean cursor-paginated JSON stream for subsequent photo batches & favorites filter.
      */
     public function photos(Request $request, string $username, string $slug): JsonResponse
     {
-        $gallery = $this->galleryQuery->findBySlug($slug);
-
-        if (strtolower($gallery->user->username) !== strtolower($username)) {
-            return response()->json(['code' => 'NOT_FOUND', 'message' => 'Gallery not found.'], 404);
-        }
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $accessError = $this->verifyGalleryAccess($gallery, $request);
         if ($accessError) {
@@ -214,11 +221,7 @@ class PublicGalleryController extends Controller
      */
     public function export(Request $request, string $username, string $slug): View|\Illuminate\Http\RedirectResponse
     {
-        $gallery = $this->galleryQuery->findBySlug($slug);
-
-        if (strtolower($gallery->user->username) !== strtolower($username)) {
-            abort(404);
-        }
+        $gallery = $this->resolveGallery($username, $slug);
 
         $accessError = $this->verifyGalleryAccess($gallery, $request);
         if ($accessError) {
@@ -228,11 +231,24 @@ class PublicGalleryController extends Controller
         $type = $request->query('type', 'zip');
         $target = $request->query('target', 'all');
 
+        $errorMessage = match ((string) $request->query('error')) {
+            'not_found', 'unavailable' => 'That download is no longer available. Please request a new one.',
+            'expired' => 'That download link has expired. Please request a new one.',
+            'unauthorized' => 'You do not have access to that download.',
+            'denied' => 'Google Photos access was not granted.',
+            'used', 'token' => 'We could not connect to Google Photos. Please try again.',
+            default => null,
+        };
+
+        $syncUuid = $request->query('sync');
+
         return view('public.export', [
             'gallery' => $gallery,
             'photographer' => $gallery->user,
             'type' => in_array($type, ['zip', 'google-photos']) ? $type : 'zip',
             'target' => in_array($target, ['all', 'favorites']) ? $target : 'all',
+            'syncUuid' => is_string($syncUuid) && \Illuminate\Support\Str::isUuid($syncUuid) ? $syncUuid : null,
+            'errorMessage' => $errorMessage,
         ]);
     }
 
@@ -245,10 +261,19 @@ class PublicGalleryController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $gallery = $this->galleryQuery->findBySlug($slug);
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         if (empty($gallery->password_hash)) {
             return response()->json(['success' => true]);
+        }
+
+        // Per-gallery limit on top of the per-IP route throttle, so rotating IPs can't brute-force a PIN
+        $limiterKey = "gallery-unlock:{$gallery->id}";
+        if (RateLimiter::tooManyAttempts($limiterKey, 30)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many attempts. Please try again in a few minutes.',
+            ], 429);
         }
 
         if (Hash::check($request->password, $gallery->password_hash)) {
@@ -258,14 +283,13 @@ class PublicGalleryController extends Controller
                 'hash_checksum' => md5($gallery->password_hash),
             ]);
 
-            $token = hash_hmac('sha256', $gallery->uuid, config('app.key'));
-
             return response()->json([
                 'success' => true,
-                'token' => $token,
                 'message' => 'Gallery unlocked successfully.',
             ]);
         }
+
+        RateLimiter::hit($limiterKey, 600);
 
         return response()->json([
             'success' => false,
@@ -279,11 +303,7 @@ class PublicGalleryController extends Controller
      */
     public function downloadPhoto(Request $request, string $username, string $slug, string $uuid)
     {
-        $gallery = $this->galleryQuery->findBySlug($slug);
-
-        if (!$gallery || strtolower($gallery->user->username) !== strtolower($username)) {
-            abort(404, 'Gallery not found.');
-        }
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         // 1. Reuse existing gallery access verification (public / password / token)
         $accessError = $this->verifyGalleryAccess($gallery, $request);

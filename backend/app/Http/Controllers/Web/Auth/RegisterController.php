@@ -59,7 +59,7 @@ class RegisterController extends Controller
             'team_limit' => 0,
         ]);
 
-        $user = User::create([
+        $user = User::forceCreate([
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $freePlan->id,
             'name' => $validated['name'],

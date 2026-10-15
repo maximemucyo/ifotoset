@@ -120,7 +120,7 @@
                 @else
                     <span class="badge badge-neutral"><x-icon name="eye-off" /> Private</span>
                 @endif
-                <span class="font-mono text-xs text-muted-foreground">/g/{{ $gallery->slug }}</span>
+                <span class="font-mono text-xs text-muted-foreground">/g/{{ $gallery->user?->username }}/{{ $gallery->slug }}</span>
             </div>
         </x-slot:meta>
         <x-slot:actions>

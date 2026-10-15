@@ -9,6 +9,8 @@ export class GalleryDownloads {
     constructor(config) {
         this.slug = config.slug;
         this.username = config.username;
+        // Same-origin path: the session cookie is host-only on the photographer subdomain
+        this.apiBase = `/api/v1/public/galleries/${encodeURIComponent(this.username)}/${encodeURIComponent(this.slug)}`;
         this.galleryUrl = config.galleryUrl || null;
         this.exportUrl = config.exportUrl || null;
         this.allowPhotoDownloads = config.allowPhotoDownloads ?? true;
@@ -210,7 +212,7 @@ export class GalleryDownloads {
             const rawIdentity = localStorage.getItem(`visitor_identity_${this.slug}`);
             const email = rawIdentity ? JSON.parse(rawIdentity).email : null;
 
-            fetch(`/api/v1/public/galleries/${this.slug}/download`, {
+            fetch(`${this.apiBase}/download`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -36,7 +36,8 @@ class AdminUserManagementAndModerationTest extends TestCase
             'team_limit' => 1,
         ]);
 
-        $this->admin = User::create([
+        $this->admin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->plan->id,
             'name' => 'Super Admin',
@@ -48,7 +49,8 @@ class AdminUserManagementAndModerationTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->photographer = User::create([
+        $this->photographer = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->plan->id,
             'name' => 'Jane Photographer',
@@ -157,7 +159,8 @@ class AdminUserManagementAndModerationTest extends TestCase
     public function test_impersonation_lifecycle_and_security_restrictions(): void
     {
         // 1. Cannot impersonate another admin
-        $otherAdmin = User::create([
+        $otherAdmin = User::forceCreate([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $this->plan->id,
             'name' => 'Other Admin',

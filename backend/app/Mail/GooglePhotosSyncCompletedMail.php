@@ -30,7 +30,7 @@ class GooglePhotosSyncCompletedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         $statusText = $this->sync->failed_photos > 0 ? "finished with errors" : "completed";
-        $fromAddress = config('mail.notifications.address', env('MAIL_NOTIFICATIONS_ADDRESS', 'notifications@ifotoset.com'));
+        $fromAddress = config('mail.notifications.address');
 
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset Notifications'),

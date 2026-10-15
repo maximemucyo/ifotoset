@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Actions\CreateBookingAction;
-use App\Actions\UpdateBookingAction;
 use App\Events\BookingCreated;
 use App\Events\BookingDepositPaid;
 use App\Events\BookingStatusChanged;
@@ -49,7 +48,6 @@ class EmailSystemTest extends TestCase
             \Illuminate\Support\Facades\Redis::flushall();
         } catch (\Throwable $e) {
         }
-        Config::set('app.frontend_url', 'http://localhost:3000');
     }
 
     protected function createPhotographer(array $attributes = []): User
@@ -68,7 +66,8 @@ class EmailSystemTest extends TestCase
             'team_limit' => 3,
         ]);
 
-        return User::create(array_merge([
+        return User::forceCreate(array_merge([
+            'email_verified_at' => now(),
             'uuid' => Uuid::uuid7()->toString(),
             'plan_id' => $plan->id,
             'name' => 'Photographer User',
@@ -114,18 +113,19 @@ class EmailSystemTest extends TestCase
     {
         Notification::fake();
 
-        $response = $this->postJson('/api/v1/auth/register', [
+        $email = 'john' . rand(100, 999) . '@example.com';
+        $response = $this->post('/register', [
             'name' => 'John Doe',
             'username' => 'johndoe' . rand(100, 999),
-            'email' => 'john' . rand(100, 999) . '@example.com',
+            'email' => $email,
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
         ]);
 
-        $response->assertStatus(201);
+        $response->assertRedirect();
 
         Notification::assertSentTo(
-            User::where('email', $response->json('data.user.email'))->first(),
+            User::where('email', $email)->first(),
             QueuedVerifyEmail::class
         );
     }
@@ -156,14 +156,12 @@ class EmailSystemTest extends TestCase
         $user = $this->createPhotographer();
 
         // Existing email
-        $res1 = $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email]);
-        $res1->assertStatus(200)
-             ->assertJson(['message' => 'If an account exists for that email, a password reset link has been sent.']);
+        $res1 = $this->post('/forgot-password', ['email' => $user->email]);
+        $res1->assertSessionHas('status', 'If an account exists for that email, a password reset link has been sent.');
 
         // Non-existing email
-        $res2 = $this->postJson('/api/v1/auth/forgot-password', ['email' => 'nobody@nonexistent.test']);
-        $res2->assertStatus(200)
-             ->assertJson(['message' => 'If an account exists for that email, a password reset link has been sent.']);
+        $res2 = $this->post('/forgot-password', ['email' => 'nobody@nonexistent.test']);
+        $res2->assertSessionHas('status', 'If an account exists for that email, a password reset link has been sent.');
     }
 
     public function test_password_reset_email_renders_branded_template(): void

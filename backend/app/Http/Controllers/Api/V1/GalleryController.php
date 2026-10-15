@@ -2,384 +2,34 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\Visibility;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\V1\GalleryResource;
-use App\Models\Gallery;
-use App\Models\GalleryStats;
-use Exception;
+use App\Queries\GalleryQuery;
+use App\Services\GalleryZipDownloadService;
+use App\Traits\VerifiesGalleryAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use App\Services\GalleryZipDownloadService;
-use App\Queries\GalleryQuery;
-use App\Queries\GalleryPhotoQuery;
-use App\Traits\VerifiesGalleryAccess;
 
+/**
+ * Public gallery endpoints used by the gallery page JavaScript
+ * (download telemetry, favorites, ZIP exports).
+ */
 class GalleryController extends Controller
 {
     use VerifiesGalleryAccess;
 
     public function __construct(
-        protected GalleryQuery $galleryQuery,
-        protected GalleryPhotoQuery $photoQuery
+        protected GalleryQuery $galleryQuery
     ) {}
-    /**
-     * List authenticated photographer's galleries.
-     * GET /api/v1/galleries
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $galleries = Gallery::where('user_id', $request->user()->id)
-            ->with(['stats', 'coverPhoto'])
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->integer('per_page', 20));
 
-        return GalleryResource::collection($galleries)->response();
-    }
-
-    /**
-     * Create a new gallery with per-user unique slug handling.
-     * POST /api/v1/galleries
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255'],
-            'client_name' => ['nullable', 'string', 'max:255'],
-            'event_date' => ['nullable', 'date'],
-            'visibility' => ['nullable', 'string', 'in:public,private'],
-            'allow_photo_downloads' => ['nullable', 'boolean'],
-            'allow_gallery_downloads' => ['nullable', 'boolean'],
-            'allow_google_photos' => ['nullable', 'boolean'],
-            'password' => ['nullable', 'string', 'min:6'],
-            'password_hint' => ['nullable', 'string', 'max:255'],
-            'expires_at' => ['nullable', 'date', 'after:now'],
-            'invite_emails' => ['nullable', 'array'],
-            'invite_emails.*' => ['required', 'email:rfc,dns', 'distinct'],
-            'access_method' => ['nullable', 'string', 'in:password,invite'],
-        ]);
-
-        $user = $request->user();
-
-        // Ensure slug is unique for this specific photographer
-        $slug = $validated['slug'];
-        $count = Gallery::where('user_id', $user->id)->where('slug', $slug)->count();
-        if ($count > 0) {
-            $slug = "{$slug}-" . time();
-        }
-
-        $isPrivate = ($validated['visibility'] ?? null) === 'private';
-        $accessMethod = $validated['access_method'] ?? null;
-
-        $gallery = null;
-        $invitationDataList = [];
-
-        \Illuminate\Support\Facades\DB::transaction(function () use (&$gallery, &$invitationDataList, $user, $validated, $slug, $isPrivate, $accessMethod) {
-            $gallery = Gallery::create([
-                'user_id' => $user->id,
-                'title' => $validated['title'],
-                'slug' => $slug,
-                'client_name' => $validated['client_name'] ?? null,
-                'event_date' => $validated['event_date'] ?? null,
-                'visibility' => $validated['visibility'] ?? Visibility::Public->value,
-                'allow_photo_downloads' => $validated['allow_photo_downloads'] ?? true,
-                'allow_gallery_downloads' => $validated['allow_gallery_downloads'] ?? true,
-                'allow_google_photos' => $validated['allow_google_photos'] ?? true,
-                'password_hash' => ($isPrivate && $accessMethod === 'password' && !empty($validated['password'])) ? bcrypt($validated['password']) : null,
-                'password_hint' => ($isPrivate && $accessMethod === 'password') ? ($validated['password_hint'] ?? null) : null,
-                'expires_at' => $validated['expires_at'] ?? null,
-                'version' => 1,
-            ]);
-
-            // Create materialized stats row if not already created by observer
-            GalleryStats::firstOrCreate(['gallery_id' => $gallery->id]);
-
-            // If private and access method is invite, create invitations
-            if ($isPrivate && $accessMethod === 'invite' && !empty($validated['invite_emails'])) {
-                foreach ($validated['invite_emails'] as $email) {
-                    $rawToken = bin2hex(random_bytes(32));
-                    $hashedToken = hash('sha256', $rawToken);
-
-                    $invitation = \App\Models\GalleryInvitation::create([
-                        'gallery_id' => $gallery->id,
-                        'email' => strtolower(trim($email)),
-                        'token' => $hashedToken,
-                        'invited_by' => $user->id,
-                        'expires_at' => $gallery->expires_at,
-                    ]);
-
-                    $invitationDataList[] = [
-                        'raw_token' => $rawToken,
-                        'email' => strtolower(trim($email)),
-                    ];
-                }
-            }
-        });
-
-        // Dispatch queued emails after transaction commits
-        if (!empty($invitationDataList) && $gallery) {
-            $publicUrlService = app(\App\Services\PublicUrlService::class);
-            foreach ($invitationDataList as $data) {
-                try {
-                    $inviteUrl = $publicUrlService->galleryUrl($user->username, $gallery->slug) . "?invite={$data['raw_token']}";
-                    \Illuminate\Support\Facades\Mail::to($data['email'])->queue(
-                        new \App\Mail\GalleryInvitation($gallery, $inviteUrl, $user->name)
-                    );
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning(
-                        'Gallery invitation email failed to queue',
-                        [
-                            'gallery_id' => $gallery->id,
-                            'recipient' => $data['email'],
-                            'error' => $e->getMessage(),
-                        ]
-                    );
-                }
-            }
-        }
-
-        return (new GalleryResource($gallery->load('stats')))
-            ->response()
-            ->setStatusCode(201);
-    }
-
-    /**
-     * Display gallery details.
-     * GET /api/v1/galleries/{uuid}
-     */
-    public function show(Request $request, string $uuid): JsonResponse
-    {
-        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
-
-        $this->authorize('view', $gallery);
-
-        $gallery->load(['stats', 'coverPhoto', 'invitations']);
-
-        return (new GalleryResource($gallery))->response();
-    }
-
-    /**
-     * Display public gallery details (slug-based).
-     * GET /api/v1/public/galleries/{slug}
-     */
-    public function showPublic(Request $request, string $slug): GalleryResource
-    {
-        $gallery = $this->galleryQuery->findBySlug($slug);
-
-        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
-        
-        if ($errorResponse) {
-            $errData = $errorResponse->getData(true);
-            $gallery->access_granted = false;
-            $gallery->error_code = $errData['code'] ?? 'ACCESS_DENIED';
-            $gallery->error_message = $errData['message'] ?? 'Access denied.';
-            $gallery->requires_password = $errData['requires_password'] ?? false;
-            $gallery->password_hint = $errData['password_hint'] ?? null;
-            $gallery->requires_invitation = $errData['requires_invitation'] ?? false;
-        } else {
-            $gallery->access_granted = true;
-
-            \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
-                'gallery_id' => $gallery->id,
-                'event' => 'gallery_viewed',
-                'visitor_session_id' => $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId(),
-                'source' => $request->query('source') ?: $request->query('utm_source') ?: 'direct',
-                'referrer' => $request->header('referer'),
-                'campaign' => $request->query('utm_campaign'),
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'created_at' => now(),
-            ]);
-        }
-
-        return new GalleryResource($gallery);
-    }
-
-    /**
-     * Get paginated photos of a public gallery.
-     * GET /api/v1/public/galleries/{slug}/photos
-     */
-    public function publicPhotos(Request $request, string $slug): JsonResponse
-    {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
-
-        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
-        if ($errorResponse) {
-            return $errorResponse;
-        }
-
-        $perPage = $request->integer('per_page', 60);
-        $photos = $this->photoQuery->getPaginatedForGallery($gallery, $perPage);
-
-        return response()->json([
-            'data' => \App\Http\Resources\V1\PhotoResource::collection($photos->items()),
-            'next_cursor' => $photos->nextCursor() ? $photos->nextCursor()->encode() : null,
-            'has_more' => $photos->hasMorePages(),
-        ]);
-    }
-
-    /**
-     * Get paginated photos of a gallery (private/studio dashboard).
-     * GET /api/v1/galleries/{uuid}/photos
-     */
-    public function photos(Request $request, string $uuid): JsonResponse
-    {
-        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
-
-        $this->authorize('view', $gallery);
-
-        $perPage = $request->integer('per_page', 60);
-        $perPage = max(1, min(100, $perPage));
-
-        $photos = $gallery->photos()
-            ->orderBy('sort_date', 'asc')
-            ->orderBy('sort_order', 'asc')
-            ->orderBy('id', 'asc')
-            ->cursorPaginate($perPage);
-
-        return response()->json([
-            'data' => \App\Http\Resources\V1\PhotoResource::collection($photos->items()),
-            'next_cursor' => $photos->nextCursor() ? $photos->nextCursor()->encode() : null,
-            'has_more' => $photos->hasMorePages(),
-        ]);
-    }
-
-
-
-    /**
-     * Unlock a password-protected public gallery.
-     * POST /api/v1/public/galleries/{slug}/unlock
-     */
-    public function unlockPublic(Request $request, string $slug): JsonResponse
-    {
-        $request->validate([
-            'password' => ['required', 'string'],
-        ]);
-
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
-
-        if (empty($gallery->password_hash)) {
-            return response()->json([
-                'code' => 'NOT_PASSWORD_PROTECTED',
-                'message' => 'This gallery does not require a password.',
-            ], 400);
-        }
-
-        if ($gallery->expires_at && $gallery->expires_at->isPast()) {
-            return response()->json([
-                'code' => 'GALLERY_EXPIRED',
-                'message' => 'This gallery has expired.',
-            ], 403);
-        }
-
-        if (\Illuminate\Support\Facades\Hash::check($request->password, $gallery->password_hash)) {
-            if ($request->hasSession()) {
-                $request->session()->put("gallery_unlocked_{$gallery->id}", [
-                    'unlocked' => true,
-                    'hash_checksum' => md5($gallery->password_hash),
-                ]);
-            }
-
-            $token = hash_hmac('sha256', $gallery->uuid, config('app.key'));
-            return response()->json([
-                'token' => $token,
-                'message' => 'Gallery unlocked successfully.',
-            ]);
-        }
-
-        return response()->json([
-            'code' => 'INVALID_PASSWORD',
-            'message' => 'The password you entered is incorrect.',
-        ], 401);
-    }
-
-    /**
-     * Update gallery with optimistic locking version protection.
-     * PATCH /api/v1/galleries/{uuid}
-     */
-    public function update(Request $request, string $uuid): JsonResponse
-    {
-        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
-
-        $this->authorize('update', $gallery);
-
-        $validated = $request->validate([
-            'title' => ['sometimes', 'string', 'max:255'],
-            'client_name' => ['nullable', 'string', 'max:255'],
-            'visibility' => ['sometimes', 'string', 'in:public,private'],
-            'allow_photo_downloads' => ['sometimes', 'boolean'],
-            'allow_gallery_downloads' => ['sometimes', 'boolean'],
-            'allow_google_photos' => ['sometimes', 'boolean'],
-            'cover_photo_uuid' => ['nullable', 'string'],
-            'clear_cover' => ['nullable', 'boolean'],
-            'version' => ['required', 'integer'],
-        ]);
-
-        // Optimistic locking check
-        if ((int) $validated['version'] !== $gallery->version) {
-            return response()->json([
-                'code' => 'CONCURRENCY_CONFLICT',
-                'message' => 'The gallery was updated in another session. Please reload before saving changes.',
-            ], 409);
-        }
-
-        $coverService = app(\App\Services\GalleryCoverService::class);
-
-        if (!empty($validated['clear_cover'])) {
-            $coverService->clearExplicitCover($gallery);
-        } elseif (array_key_exists('cover_photo_uuid', $validated)) {
-            $coverPhotoUuid = $validated['cover_photo_uuid'];
-            if (empty($coverPhotoUuid)) {
-                $coverService->clearExplicitCover($gallery);
-            } else {
-                $photo = \App\Models\Photo::where('gallery_id', $gallery->id)
-                    ->where('uuid', $coverPhotoUuid)
-                    ->whereNull('deleted_at')
-                    ->first();
-                if (!$photo) {
-                    return response()->json([
-                        'code' => 'INVALID_COVER_PHOTO',
-                        'message' => 'The selected photo does not exist in this gallery.',
-                    ], 422);
-                }
-                $coverService->setExplicitCover($gallery, $photo);
-            }
-        }
-
-        $updateData = collect($validated)->except(['cover_photo_uuid', 'clear_cover', 'version'])->toArray();
-
-        $gallery->update([
-            ...$updateData,
-            'version' => $gallery->version + 1,
-        ]);
-
-        return (new GalleryResource($gallery->load(['stats', 'coverPhoto'])))->response();
-    }
-
-    /**
-     * Soft-delete a gallery.
-     * DELETE /api/v1/galleries/{uuid}
-     */
-    public function destroy(Request $request, string $uuid): JsonResponse
-    {
-        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
-
-        $this->authorize('delete', $gallery);
-
-        $gallery->delete();
-
-        return response()->json(null, 204);
-    }
 
     /**
      * Record download analytics for a public gallery.
-     * POST /api/v1/public/galleries/{slug}/download
+     * POST /api/v1/public/galleries/{username}/{slug}/download
      */
-    public function recordDownload(Request $request, string $slug): JsonResponse
+    public function recordDownload(Request $request, string $username, string $slug): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -426,11 +76,11 @@ class GalleryController extends Controller
 
     /**
      * Increment or decrement favorites count for a public gallery.
-     * POST /api/v1/public/galleries/{slug}/favorite
+     * POST /api/v1/public/galleries/{username}/{slug}/favorite
      */
-    public function toggleFavorite(Request $request, string $slug): JsonResponse
+    public function toggleFavorite(Request $request, string $username, string $slug): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -486,15 +136,15 @@ class GalleryController extends Controller
 
     /**
      * Download the entire gallery packaged as a ZIP file.
-     * GET /api/v1/public/galleries/{slug}/download-zip
+     * GET /api/v1/public/galleries/{username}/{slug}/download-zip
      */
     /**
      * Trigger background ZIP generation.
      * POST /public/galleries/{slug}/download-zip
      */
-    public function triggerZipDownload(Request $request, string $slug): JsonResponse
+    public function triggerZipDownload(Request $request, string $username, string $slug): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -586,11 +236,7 @@ class GalleryController extends Controller
                         $lockedDownload = \App\Models\GalleryDownload::where('id', $download->id)->lockForUpdate()->first();
                         if ($lockedDownload && is_null($lockedDownload->notification_sent_at)) {
                             $lockedDownload->update(['notification_sent_at' => now()]);
-                            $queryParams = [];
-                            if ($rawToken) {
-                                $queryParams['token'] = $rawToken;
-                            }
-                            $mailUrl = url("/api/v1/public/galleries/{$lockedDownload->gallery->slug}/download-zip/{$lockedDownload->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
+                            $mailUrl = $lockedDownload->downloadUrl($rawToken);
                             \Illuminate\Support\Facades\DB::afterCommit(function () use ($lockedDownload, $mailUrl, $email) {
                                 \Illuminate\Support\Facades\Mail::to($email)->queue(
                                     new \App\Mail\GalleryZipReadyMail($lockedDownload, $mailUrl)
@@ -617,18 +263,21 @@ class GalleryController extends Controller
                 ]);
 
                 $queryParams = [];
+                // Only the per-download token goes in the link; gallery access
+                // otherwise comes from the visitor's session.
                 if ($rawToken) {
                     $queryParams['token'] = $rawToken;
-                } elseif ($request->query('token')) {
-                    $queryParams['token'] = $request->query('token');
-                } elseif ($request->header('X-Gallery-Token')) {
-                    $queryParams['token'] = $request->header('X-Gallery-Token');
                 }
                 if ($request->query('invite')) {
                     $queryParams['invite'] = $request->query('invite');
                 }
 
-                $downloadUrl = url("/api/v1/public/galleries/{$slug}/download-zip/{$download->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
+                $downloadUrl = route('api.public.gallery.zip.file', [
+                    'username' => strtolower($gallery->user->username),
+                    'slug' => $gallery->slug,
+                    'id' => $download->id,
+                    ...$queryParams,
+                ]);
 
                 return response()->json([
                     'status' => 'ready',
@@ -683,9 +332,9 @@ class GalleryController extends Controller
      * Retrieve status of a ZIP generation.
      * GET /public/galleries/{slug}/download-zip/{id}
      */
-    public function getZipDownloadStatus(Request $request, string $slug, int $id): JsonResponse
+    public function getZipDownloadStatus(Request $request, string $username, string $slug, int $id): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -721,13 +370,13 @@ class GalleryController extends Controller
             if ($request->query('invite')) {
                 $queryParams['invite'] = $request->query('invite');
             }
-            if ($request->query('token')) {
-                $queryParams['token'] = $request->query('token');
-            } elseif ($request->header('X-Gallery-Token')) {
-                $queryParams['token'] = $request->header('X-Gallery-Token');
-            }
 
-            $downloadUrl = url("/api/v1/public/galleries/{$slug}/download-zip/{$download->id}/download") . (empty($queryParams) ? '' : '?' . http_build_query($queryParams));
+            $downloadUrl = route('api.public.gallery.zip.file', [
+                    'username' => strtolower($gallery->user->username),
+                    'slug' => $gallery->slug,
+                    'id' => $download->id,
+                    ...$queryParams,
+                ]);
         }
 
         return response()->json([
@@ -752,12 +401,14 @@ class GalleryController extends Controller
      * and redirect (302) to the B2 signed url.
      * GET /public/galleries/{slug}/download-zip/{id}/download
      */
-    public function downloadZipFile(Request $request, string $slug, int $id)
+    public function downloadZipFile(Request $request, string $username, string $slug, int $id)
     {
-        $gallery = Gallery::with('user')->where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
         
-        $frontendUrl = config('app.frontend_url') ?: 'https://ifotoset.com';
-        $exportUrl = rtrim($frontendUrl, '/') . '/p/' . rawurlencode(strtolower($gallery->user->username)) . '/' . rawurlencode($gallery->slug) . '/export';
+        $exportUrl = route('public.gallery.export', [
+            'username' => strtolower($gallery->user->username),
+            'slug' => $gallery->slug,
+        ]);
 
         $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
             ->where('id', $id)
@@ -839,86 +490,4 @@ class GalleryController extends Controller
             'Referrer-Policy' => 'no-referrer',
         ]);
     }
-
-    /**
-     * Get analytics and visitor logs for a specific gallery.
-     * GET /api/v1/galleries/{uuid}/analytics
-     */
-    public function analytics(Request $request, string $uuid): JsonResponse
-    {
-        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
-        $this->authorize('view', $gallery);
-
-        // 1. Overview stats
-        $uniqueVisitors = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->whereNotNull('visitor_session_id')
-            ->distinct()
-            ->count('visitor_session_id');
-
-        $totalViews = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->where('event', 'gallery_viewed')
-            ->count();
-
-        $totalDownloads = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->whereIn('event', ['photo_downloaded', 'gallery_zip_file_downloaded'])
-            ->count();
-
-        $totalFavorites = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->where('event', 'photo_favorited')
-            ->count();
-
-        // 2. Visitor Activity & Emails
-        $visitors = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->select(
-                \Illuminate\Support\Facades\DB::raw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.email')) as email"),
-                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN event = 'photo_downloaded' OR event = 'gallery_zip_file_downloaded' THEN 1 ELSE 0 END) as downloads_count"),
-                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN event = 'photo_favorited' THEN 1 ELSE 0 END) as favorites_count"),
-                \Illuminate\Support\Facades\DB::raw("MAX(created_at) as last_active_at")
-            )
-            ->groupBy(\Illuminate\Support\Facades\DB::raw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.email'))"))
-            ->orderBy('last_active_at', 'desc')
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'email' => ($row->email === 'null' || !$row->email) ? null : $row->email,
-                    'downloads' => (int) $row->downloads_count,
-                    'favorites' => (int) $row->favorites_count,
-                    'last_active' => $row->last_active_at,
-                ];
-            });
-
-        // 3. Recent Activity logs
-        $recentActivity = \Illuminate\Support\Facades\DB::table('activity_logs')
-            ->where('gallery_id', $gallery->id)
-            ->select('event', 'properties', 'created_at')
-            ->orderBy('created_at', 'desc')
-            ->take(30)
-            ->get()
-            ->map(function ($row) {
-                $properties = json_decode($row->properties, true) ?: [];
-                return [
-                    'event' => $row->event,
-                    'email' => $properties['email'] ?? null,
-                    'photo_uuid' => $properties['photo_uuid'] ?? null,
-                    'created_at' => $row->created_at,
-                ];
-            });
-
-        return response()->json([
-            'overview' => [
-                'views' => $totalViews,
-                'downloads' => $totalDownloads,
-                'favorites' => $totalFavorites,
-                'visitors' => $uniqueVisitors,
-            ],
-            'visitors' => $visitors,
-            'recent_activity' => $recentActivity,
-        ]);
-    }
 }
-?>

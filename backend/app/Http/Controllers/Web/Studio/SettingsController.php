@@ -110,13 +110,15 @@ class SettingsController extends Controller
     {
         $user = $request->user();
 
-        $prefs = [
-            'booking_created'  => $request->boolean('booking_created'),
-            'photo_downloaded' => $request->boolean('photo_downloaded'),
-            'photo_favorited'  => $request->boolean('photo_favorited'),
-        ];
+        $submitted = [];
+        foreach (\App\Enums\NotificationPreference::cases() as $preference) {
+            $submitted[$preference->value] = $request->boolean($preference->value);
+        }
 
-        $user->update(['notification_preferences' => $prefs]);
+        // Merge so keys this form doesn't show are never erased
+        $user->update([
+            'notification_preferences' => array_merge($user->notification_preferences ?? [], $submitted),
+        ]);
 
         return back()->with('success', 'Notification preferences saved successfully.');
     }

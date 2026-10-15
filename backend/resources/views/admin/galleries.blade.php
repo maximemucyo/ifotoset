@@ -88,7 +88,7 @@
                                     </span>
                                     <span class="min-w-0">
                                         <span class="block truncate text-[13px] font-medium text-foreground group-hover:underline group-hover:underline-offset-4">{{ $gallery->title }}</span>
-                                        <span class="block truncate font-mono text-[11px] text-muted-foreground">/g/{{ $gallery->slug }}</span>
+                                        <span class="block truncate font-mono text-[11px] text-muted-foreground">/g/{{ $gallery->user?->username }}/{{ $gallery->slug }}</span>
                                     </span>
                                 </a>
                             </td>

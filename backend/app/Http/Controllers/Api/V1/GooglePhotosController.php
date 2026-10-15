@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Gallery;
 use App\Models\GooglePhotoAuthorization;
 use App\Models\GooglePhotoSync;
 use App\Models\GooglePhotoCredential;
 use App\Models\Photo;
+use App\Queries\GalleryQuery;
 use App\Traits\VerifiesGalleryAccess;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -18,13 +19,26 @@ class GooglePhotosController extends Controller
 {
     use VerifiesGalleryAccess;
 
+    public function __construct(
+        protected GalleryQuery $galleryQuery
+    ) {}
+
+    /**
+     * OAuth redirect target registered with Google. Defaults to this app's
+     * own callback route so no separate frontend is needed.
+     */
+    public static function redirectUri(): string
+    {
+        return config('services.google.redirect_uri') ?: route('google-photos.callback');
+    }
+
     /**
      * Generate Google Photos authorization url.
-     * POST /api/v1/public/galleries/{slug}/google-photos/authorize
+     * POST /api/v1/public/galleries/{username}/{slug}/google-photos/authorize
      */
-    public function authorizePhotos(Request $request, string $slug): JsonResponse
+    public function authorizePhotos(Request $request, string $username, string $slug): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -51,7 +65,13 @@ class GooglePhotosController extends Controller
         }
 
         // Validate selected photos if provided
-        $photoUuids = $request->input('photo_uuids');
+        $photoUuids = $request->input('photo_uuids') ?: $request->input('favorite_uuids');
+        if ($photoUuids !== null && !is_array($photoUuids)) {
+            return response()->json([
+                'code' => 'INVALID_SELECTION',
+                'message' => 'The photo selection is invalid.',
+            ], 422);
+        }
         if ($photoUuids) {
             $validPhotos = Photo::where('gallery_id', $gallery->id)
                 ->where('is_hidden', false)
@@ -90,7 +110,7 @@ class GooglePhotosController extends Controller
         ]);
 
         $clientId = config('services.google.client_id');
-        $redirectUri = config('services.google.redirect_uri');
+        $redirectUri = self::redirectUri();
 
         $authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
             'client_id' => $clientId,
@@ -109,72 +129,66 @@ class GooglePhotosController extends Controller
     }
 
     /**
-     * Swap code and trigger background sync.
-     * POST /api/v1/public/google-photos/callback
+     * Google redirects the visitor here after consent. Swap the code for
+     * tokens, start the background sync, and send the visitor back to the
+     * gallery export page to follow progress.
+     * GET /google-photos/callback
      */
-    public function handleCallback(Request $request): JsonResponse
+    public function handleCallback(Request $request): RedirectResponse
     {
-        $request->validate([
-            'code' => ['required', 'string'],
-            'state' => ['required', 'string'],
+        $state = (string) $request->query('state');
+        $auth = $state !== '' ? GooglePhotoAuthorization::where('state', $state)->first() : null;
+
+        if (!$auth || !$auth->gallery) {
+            return redirect()->route('home');
+        }
+
+        $gallery = $auth->gallery()->with('user')->first();
+        $exportUrl = fn (array $query) => route('public.gallery.export', [
+            'username' => strtolower($gallery->user->username),
+            'slug' => $gallery->slug,
+            'type' => 'google-photos',
+            ...$query,
         ]);
 
-        // Find state session
-        $auth = GooglePhotoAuthorization::where('state', $request->state)->first();
-
-        if (!$auth) {
-            return response()->json([
-                'code' => 'INVALID_STATE',
-                'message' => 'Authorization session not found.',
-            ], 400);
+        if ($request->filled('error') || !$request->filled('code')) {
+            return redirect()->to($exportUrl(['error' => 'denied']));
         }
 
         if ($auth->expires_at->isPast()) {
-            return response()->json([
-                'code' => 'EXPIRED_SESSION',
-                'message' => 'The authorization session has expired.',
-            ], 400);
+            return redirect()->to($exportUrl(['error' => 'expired']));
         }
 
-        if ($auth->consumed_at) {
-            return response()->json([
-                'code' => 'REPLAY_ATTEMPT',
-                'message' => 'This authorization session has already been used.',
-            ], 400);
+        // Single-use enforcement, atomic so a replayed callback cannot start a second sync
+        $claimed = GooglePhotoAuthorization::where('id', $auth->id)
+            ->whereNull('consumed_at')
+            ->update(['consumed_at' => now()]);
+
+        if (!$claimed) {
+            return redirect()->to($exportUrl(['error' => 'used']));
         }
 
-        // Single-use enforcement
-        $auth->update(['consumed_at' => now()]);
-
-        $gallery = $auth->gallery;
-        
-        // Swapping code for tokens
         $tokenResponse = Http::asForm()->post('https://oauth2.googleapis.com/token', [
             'client_id' => config('services.google.client_id'),
             'client_secret' => config('services.google.client_secret'),
-            'redirect_uri' => config('services.google.redirect_uri'),
-            'code' => $request->code,
+            'redirect_uri' => self::redirectUri(),
+            'code' => $request->query('code'),
             'grant_type' => 'authorization_code',
         ]);
 
-        if ($tokenResponse->failed()) {
-            return response()->json([
-                'code' => 'TOKEN_EXCHANGE_FAILED',
-                'message' => 'Failed to retrieve access token from Google.',
-            ], 400);
+        if ($tokenResponse->failed() || empty($tokenResponse->json('access_token'))) {
+            return redirect()->to($exportUrl(['error' => 'token']));
         }
 
         $tokens = $tokenResponse->json();
 
-        // Create persistence-backed Google Photo Sync record
         $sync = GooglePhotoSync::create([
             'gallery_id' => $gallery->id,
             'status' => 'pending',
             'email' => $auth->email,
-            'notify_when_ready' => (bool)$auth->notify_when_ready,
+            'notify_when_ready' => (bool) $auth->notify_when_ready,
         ]);
 
-        // Secure credential persistence
         GooglePhotoCredential::create([
             'sync_id' => $sync->id,
             'access_token' => $tokens['access_token'],
@@ -185,20 +199,16 @@ class GooglePhotosController extends Controller
         // Dispatch background parent job passing ONLY the sync primary id
         \App\Jobs\SyncGooglePhotosJob::dispatch($sync->id, $auth->photo_uuids);
 
-        return response()->json([
-            'status' => 'processing',
-            'sync_uuid' => $sync->uuid,
-            'gallery_slug' => $gallery->slug,
-        ]);
+        return redirect()->to($exportUrl(['sync' => $sync->uuid]));
     }
 
     /**
      * Get Google Photos sync progress.
-     * GET /api/v1/public/galleries/{slug}/google-photos/syncs/{uuid}/status
+     * GET /api/v1/public/galleries/{username}/{slug}/google-photos/syncs/{uuid}/status
      */
-    public function syncStatus(Request $request, string $slug, string $uuid): JsonResponse
+    public function syncStatus(Request $request, string $username, string $slug, string $uuid): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
@@ -238,11 +248,11 @@ class GooglePhotosController extends Controller
 
     /**
      * Update notification subscription for a sync.
-     * POST /api/v1/public/galleries/{slug}/google-photos/syncs/{uuid}/notify
+     * POST /api/v1/public/galleries/{username}/{slug}/google-photos/syncs/{uuid}/notify
      */
-    public function updateSyncNotification(Request $request, string $slug, string $uuid): JsonResponse
+    public function updateSyncNotification(Request $request, string $username, string $slug, string $uuid): JsonResponse
     {
-        $gallery = Gallery::where('slug', $slug)->firstOrFail();
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
 
         $errorResponse = $this->verifyGalleryAccess($gallery, $request);
         if ($errorResponse) {
