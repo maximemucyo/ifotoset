@@ -23,18 +23,8 @@ module.exports = {
       autorestart: true,
       watch: false
     }
-    {
-      // Runs routes/console.php schedules (subscription expiry, payment reconcile, reminders...).
-      // Use this OR a `* * * * * php artisan schedule:run` cron, never both.
-      name: 'ifotoset-scheduler',
-      cwd: './backend',
-      script: '/www/server/php/84/bin/php',
-      args: 'artisan schedule:work',
-      exec_mode: 'fork',
-      instances: 1,
-      max_memory_restart: '200M',
-      autorestart: true,
-      watch: false
-    }
+    // The scheduler (routes/console.php) runs from root's crontab, not pm2:
+    //   * * * * * /www/server/php/84/bin/php /www/wwwroot/ifotoset.com/backend/artisan schedule:run
+    // Never add a `schedule:work` app here as well, or every scheduled job runs twice.
   ]
 };

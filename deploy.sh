@@ -42,6 +42,10 @@ npm run build
 
 # "$PHP" artisan up
 
+# This script and the pm2 workers run as root, but PHP-FPM runs as www. Root-owned
+# compiled views, caches or log files make web requests fail with file_put_contents errors.
+chown -R www:www storage bootstrap/cache
+
 cd "$APP_DIR"
 pm2 startOrRestart ecosystem.config.js
 # The legacy Next.js app was removed from ecosystem.config.js; make sure it is gone.

@@ -366,7 +366,7 @@ class PublicGalleryController extends Controller
         }
 
         // Check if running on local storage disk or mocked storage without S3 credentials
-        if (config('filesystems.default') === 'local' || !config('filesystems.disks.b2.key')) {
+        if (!config('filesystems.disks.b2.key')) {
             if (Storage::disk('b2')->exists($storagePath)) {
                 return Storage::disk('b2')->download($storagePath, $filename);
             }
