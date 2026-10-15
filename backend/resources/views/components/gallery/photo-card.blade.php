@@ -2,6 +2,8 @@
     'photo',
     'allowDownloads' => true,
     'eager' => false,
+    // "{gallery title} – photo by {photographer}" when the photo has no title or caption
+    'altFallback' => '',
 ])
 
 @php
@@ -19,7 +21,7 @@
 @endphp
 
 {{-- Markup mirrored in resources/js/gallery/modules/pagination.js (createCardElement). Keep both in sync. --}}
-<div class="photo-card group relative cursor-pointer select-none overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+<div class="photo-card group relative cursor-pointer select-none overflow-hidden bg-muted"
      style="aspect-ratio: {{ $w }} / {{ $h }};"
      data-photo-uuid="{{ $photo->uuid }}"
      data-photo-filename="{{ $photo->original_filename }}"
@@ -34,10 +36,12 @@
      data-photo-width="{{ $w }}"
      data-photo-height="{{ $h }}"
      data-is-video="{{ $isVideo ? 'true' : 'false' }}"
-     data-video-duration="{{ $photo->duration_formatted }}"
-     tabindex="0"
-     role="button"
-     aria-label="View {{ $isVideo ? 'video' : 'photo' }} {{ $photo->original_filename }}">
+     data-video-duration="{{ $photo->duration_formatted }}">
+
+    {{-- The whole image is one real button; the actions below are siblings, never nested inside it --}}
+    <button type="button"
+            class="photo-card-open absolute inset-0 z-[1] size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+            aria-label="View {{ $isVideo ? 'video' : 'photo' }} {{ $photo->original_filename }}"></button>
 
     {{-- Blurhash placeholder --}}
     <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-700"></canvas>
@@ -45,13 +49,13 @@
     {{-- Image (poster for video) --}}
     <img src="{{ $thumbnailUrl }}"
          @if($srcset) srcset="{{ $srcset }}" sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, (max-width: 1699px) 25vw, 20vw" @endif
-         alt="{{ $photo->title ?? $photo->caption ?? '' }}"
+         alt="{{ $photo->title ?: ($photo->caption ?: $altFallback) }}"
          loading="{{ $eager ? 'eager' : 'lazy' }}"
          @if($eager) fetchpriority="high" @endif
          decoding="async"
          width="{{ $w }}"
          height="{{ $h }}"
-         class="pointer-events-none relative z-[1] size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]"
+         class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]"
          onload="this.classList.remove('opacity-0'); if (this.previousElementSibling) this.previousElementSibling.classList.add('opacity-0');">
 
     @if($isVideo)
@@ -68,8 +72,8 @@
     </div>
 
     {{-- Hover actions --}}
-    <div class="absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
-        <div class="flex items-center gap-0.5">
+    <div class="pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+        <div class="pointer-events-auto flex items-center gap-0.5">
             <button type="button"
                     class="btn-favorite grid size-9 place-items-center rounded-full text-white/90 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
                     data-uuid="{{ $photo->uuid }}"

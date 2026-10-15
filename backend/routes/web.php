@@ -8,7 +8,6 @@ use App\Http\Controllers\Web\Admin\ModerationController as AdminModerationContro
 use App\Http\Controllers\Web\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Web\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Web\Admin\SettingsController as AdminSettingsController;
-use App\Http\Controllers\Web\Admin\SupportController as AdminSupportController;
 use App\Http\Controllers\Web\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\PasswordResetController;
@@ -60,9 +59,9 @@ Route::domain('www.' . $rootHost)->group(function () {
 Route::domain('{username}.' . $rootHost)
     ->where(['username' => '(?!(?:' . $escapedReserved . ')(?:\.|$))[a-zA-Z0-9_\-]+'])
     ->group(function () {
-        Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->name('subdomain.gallery.photo.download');
-        Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('subdomain.gallery.photos');
-        Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->name('subdomain.gallery.export');
+        Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('subdomain.gallery.photo.download');
+        Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
+        Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
 
@@ -126,9 +125,9 @@ Route::get('/p/{username}/{slug}', function (Request $request, string $username,
     return redirect($query ? "{$target}?{$query}" : $target, 301);
 })->name('public.gallery');
 
-Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->name('public.gallery.photos');
-Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->name('public.gallery.photo.download');
-Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->name('public.gallery.export');
+Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('public.gallery.photos');
+Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('public.gallery.photo.download');
+Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('public.gallery.export');
 Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
 
 // Shortlink Redirect (/g/{username}/{slug} -> canonical subdomain URL via 301)
@@ -237,7 +236,6 @@ Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->p
 
     // User Directory & Role/Status/Lifecycle Management
     Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
-    Route::get('/users-legacy', [AdminUserController::class, 'index'])->name('users');
     Route::get('/users/{id}/details', [AdminUserController::class, 'details'])->name('users.details');
     Route::post('/users/{id}/status', [AdminUserController::class, 'toggleStatus'])->name('users.status');
     Route::post('/users/{id}/role', [AdminUserController::class, 'changeRole'])->name('users.role');
@@ -254,7 +252,6 @@ Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->p
 
     // Galleries Overview & Moderation Controls
     Route::get('/galleries', [AdminGalleryController::class, 'index'])->name('galleries.index');
-    Route::get('/galleries-legacy', [AdminGalleryController::class, 'index'])->name('galleries');
     Route::get('/galleries/{uuid}/preview', [AdminGalleryController::class, 'preview'])->name('galleries.preview');
     Route::post('/galleries/{uuid}/visibility', [AdminGalleryController::class, 'toggleVisibility'])->name('galleries.visibility');
     Route::post('/galleries/{uuid}/takedown', [AdminGalleryController::class, 'takeDown'])->name('galleries.takedown');
@@ -285,7 +282,6 @@ Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->p
     Route::post('/moderation/{uuid}', [AdminModerationController::class, 'moderate'])->name('moderation.action');
 
     // Customer Service & Support Desk
-    Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
 
     // Platform Configuration & Encrypted SMTP
     Route::get('/settings', [AdminSettingsController::class, 'index'])->name('settings.index');

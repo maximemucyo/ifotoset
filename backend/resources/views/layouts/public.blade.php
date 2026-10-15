@@ -8,6 +8,7 @@
     @stack('styles')
 </head>
 <body class="flex min-h-full flex-col bg-background text-foreground antialiased">
+    <x-ui.skip-link />
     <x-admin.impersonation-banner />
 
     @if(!($hideNav ?? false))
@@ -27,7 +28,7 @@
         </header>
     @endif
 
-    <main class="flex-1">
+    <main id="main" class="flex-1" tabindex="-1">
         {{ $slot ?? '' }}
         @yield('content')
     </main>

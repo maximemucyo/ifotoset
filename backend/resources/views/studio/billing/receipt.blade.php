@@ -6,19 +6,22 @@
     /* Always print in the light palette, whatever theme is active on screen */
     :root, .dark {
         color-scheme: light;
+        /* Light tokens from resources/css/app.css (paper stays white) */
         --background: #ffffff;
-        --foreground: #0c0c0e;
+        --foreground: #17110e;
         --card: #ffffff;
-        --card-foreground: #0c0c0e;
-        --muted: #f4f4f2;
-        --muted-foreground: #6b6b72;
-        --subtle: #a1a1a8;
+        --card-foreground: #17110e;
+        --muted: #f7efe9;
+        --muted-foreground: #6e6159;
+        --subtle: #73645a;
         --brand: #f0532a;
+        --brand-foreground: #ffffff;
+        --brand-strong: #cc4019;
         --success: #16a34a;
         --warning: #d97706;
         --destructive: #e5383b;
-        --border: #e8e8e5;
-        --border-strong: #d6d6d2;
+        --border: #eee3db;
+        --border-strong: #dfcfc4;
     }
 
     /* Hide app chrome and on-screen actions */

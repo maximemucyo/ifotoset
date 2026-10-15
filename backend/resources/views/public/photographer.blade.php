@@ -4,8 +4,11 @@
 ])
 
 @php
-    $covers = $galleries->map(fn ($g) => $g->getCoverUrl('lg'))->filter()->values();
-    $heroCover = $covers->first();
+    $covers = $galleries
+        ->map(fn ($g) => ($src = $g->getCoverUrl('lg')) ? ['src' => $src, 'srcset' => $g->getCoverSrcset()] : null)
+        ->filter()
+        ->values();
+    $heroCover = $covers->first()['src'] ?? null;
     $websiteHost = $photographer->website ? (parse_url($photographer->website, PHP_URL_HOST) ?? $photographer->website) : null;
     $hasPackages = $packages->isNotEmpty();
     $selectedPackage = old('package_id');
@@ -83,13 +86,13 @@
                 <div class="relative animate-fade-in lg:col-span-6" style="animation-delay: .15s">
                     <div class="grid grid-cols-6 gap-3">
                         <div class="{{ $covers->count() > 1 ? 'col-span-4' : 'col-span-6' }} overflow-hidden rounded-2xl bg-muted">
-                            <img src="{{ $covers[0] }}" alt="Work by {{ $photographer->name }}" fetchpriority="high" decoding="async" class="aspect-[4/5] size-full object-cover">
+                            <img src="{{ $covers[0]['src'] }}" @if($covers[0]['srcset']) srcset="{{ $covers[0]['srcset'] }}" sizes="(min-width: 1024px) 33vw, 66vw" @endif alt="Work by {{ $photographer->name }}" fetchpriority="high" decoding="async" class="aspect-[4/5] size-full object-cover">
                         </div>
                         @if($covers->count() > 1)
                             <div class="col-span-2 flex flex-col gap-3 pt-10">
                                 @foreach($covers->slice(1, 2) as $c)
                                     <div class="overflow-hidden rounded-2xl bg-muted">
-                                        <img src="{{ $c }}" alt="" decoding="async" class="aspect-[3/4] size-full object-cover">
+                                        <img src="{{ $c['src'] }}" @if($c['srcset']) srcset="{{ $c['srcset'] }}" sizes="(min-width: 1024px) 17vw, 33vw" @endif alt="" loading="lazy" decoding="async" class="aspect-[3/4] size-full object-cover">
                                     </div>
                                 @endforeach
                             </div>
@@ -123,7 +126,8 @@
                         <a href="{{ $gallery->public_url }}" class="group block" data-reveal style="--reveal-delay: {{ ($loop->index % 3) * 80 }}ms">
                             <div class="relative aspect-[4/5] overflow-hidden rounded-xl bg-muted">
                                 @if($cover)
-                                    <img src="{{ $cover }}" alt="{{ $gallery->title }}" loading="lazy" decoding="async"
+                                    @php($coverSrcset = $gallery->getCoverSrcset())
+                                    <img src="{{ $cover }}" @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" @endif alt="{{ $gallery->title }}" loading="lazy" decoding="async"
                                          class="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]">
                                     <div class="absolute inset-0 bg-black/0 transition-colors duration-500 group-hover:bg-black/15"></div>
                                 @else

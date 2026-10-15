@@ -10,6 +10,7 @@ import { GalleryPagination } from './modules/pagination.js';
 import { GalleryLightbox } from './modules/lightbox/index.js';
 import { GalleryLayout } from './modules/layout.js';
 import { renderBlurHashToCanvas } from './modules/blurhash.js';
+import { initDialogFocus } from './modules/dialogFocus.js';
 
 export function bootstrapGallery() {
     const container = document.getElementById('gallery-container');
@@ -212,15 +213,7 @@ export function bootstrapGallery() {
             }
         });
 
-        grid.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                const card = e.target.closest('.photo-card');
-                if (card) {
-                    e.preventDefault();
-                    lightbox.openByUuid(card.dataset.photoUuid);
-                }
-            }
-        });
+        // Keyboard activation comes from the native .photo-card-open button (Enter/Space fire click)
     }
 
     // Smooth Scroll CTA Button (scrolls to Action Bar directly below the banner)
@@ -233,6 +226,9 @@ export function bootstrapGallery() {
             }
         });
     }
+
+    // Focus trap + focus return for the modals and the lightbox
+    initDialogFocus();
 
     // Check URL for ?photo=UUID deep-linking
     lightbox.deepLink?.checkInitialUrl(initialDeepLinkedPhoto);

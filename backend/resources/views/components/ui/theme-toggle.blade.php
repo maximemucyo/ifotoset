@@ -1,8 +1,8 @@
 @props(['variant' => 'icon'])
 @if($variant === 'segmented')
-    <div {{ $attributes->merge(['class' => 'tabs']) }} x-data role="radiogroup" aria-label="Theme">
+    <div {{ $attributes->merge(['class' => 'tabs']) }} x-data role="group" aria-label="Theme">
         @foreach(['light' => 'sun', 'dark' => 'moon', 'system' => 'monitor'] as $mode => $icon)
-            <button type="button" class="tab px-2" :aria-selected="$store.theme.mode === '{{ $mode }}'" @click="$store.theme.set('{{ $mode }}')" title="{{ ucfirst($mode) }}" aria-label="{{ ucfirst($mode) }} theme">
+            <button type="button" class="tab px-2" :aria-pressed="($store.theme.mode === '{{ $mode }}').toString()" :class="$store.theme.mode === '{{ $mode }}' && 'is-active'" @click="$store.theme.set('{{ $mode }}')" title="{{ ucfirst($mode) }}" aria-label="{{ ucfirst($mode) }} theme">
                 <x-icon :name="$icon" />
             </button>
         @endforeach

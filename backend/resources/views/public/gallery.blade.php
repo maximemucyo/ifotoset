@@ -313,9 +313,10 @@
          data-allow-google-photos="{{ $gallery->allow_google_photos ? 'true' : 'false' }}"
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
-        <div id="gallery-grid" class="relative w-full">
+        @php($photoAltFallback = $gallery->title . ' – photo by ' . $photographer->name)
+        <div id="gallery-grid" class="relative w-full" data-alt-fallback="{{ $photoAltFallback }}">
             @foreach($photos as $photo)
-                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :eager="! $coverUrl && $loop->index < 6" />
+                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :eager="! $coverUrl && $loop->index < 6" :alt-fallback="$photoAltFallback" />
             @endforeach
         </div>
 
@@ -675,8 +676,6 @@
 
 @push('scripts')
     @if($isGranted)
-        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-        <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
         @vite(['resources/js/pages/gallery.js'])
     @endif
 @endpush

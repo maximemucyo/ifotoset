@@ -8,6 +8,7 @@
     @stack('styles')
 </head>
 <body class="h-full bg-sidebar text-foreground antialiased">
+    <x-ui.skip-link />
     @include('layouts.partials.shell', [
         'context' => 'admin',
         'homeRoute' => 'admin.dashboard',
@@ -17,10 +18,9 @@
                 ['label' => 'Analytics', 'route' => 'admin.analytics.index', 'icon' => 'chart-column'],
             ]],
             ['label' => 'Platform', 'items' => [
-                ['label' => 'Users', 'route' => 'admin.users.index', 'icon' => 'users', 'match' => ['admin.users.*', 'admin.users']],
-                ['label' => 'Galleries', 'route' => 'admin.galleries.index', 'icon' => 'images', 'match' => ['admin.galleries.*', 'admin.galleries']],
+                ['label' => 'Users', 'route' => 'admin.users.index', 'icon' => 'users', 'match' => ['admin.users.*']],
+                ['label' => 'Galleries', 'route' => 'admin.galleries.index', 'icon' => 'images', 'match' => ['admin.galleries.*']],
                 ['label' => 'Moderation', 'route' => 'admin.moderation.index', 'icon' => 'shield-check'],
-                ['label' => 'Support', 'route' => 'admin.support.index', 'icon' => 'life-buoy'],
             ]],
             ['label' => 'Revenue', 'items' => [
                 ['label' => 'Payments', 'route' => 'admin.payments.index', 'icon' => 'wallet'],

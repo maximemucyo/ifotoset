@@ -1,4 +1,4 @@
-@extends('layouts.public', ['title' => 'Something went wrong · ifotoset'])
+@extends('layouts.public', ['title' => 'Something went wrong · ifotoset', 'robots' => 'noindex, nofollow'])
 
 @section('content')
 <x-errors.page code="500" icon="triangle-alert" title="Something went wrong" message="We hit an unexpected error while processing your request. Please try again in a moment.">

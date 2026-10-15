@@ -649,7 +649,7 @@
                                 <span class="absolute -left-9 top-2.5 flex size-[26px] items-center justify-center rounded-full font-mono text-[11px] font-semibold ring-4 ring-popover"
                                       :class="{
                                           'bg-success text-white': stage.status === 'completed',
-                                          'bg-brand text-brand-foreground': stage.status === 'current',
+                                          'bg-brand-strong text-brand-foreground': stage.status === 'current',
                                           'bg-destructive text-white': stage.status === 'failed',
                                           'border border-border bg-muted text-muted-foreground': stage.status === 'pending' || stage.status === 'queued'
                                       }">

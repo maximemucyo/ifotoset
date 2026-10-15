@@ -115,7 +115,12 @@ class Gallery extends Model
             return false;
         }
 
-        if (!$this->user || !$this->user->is_active || empty($this->user->username)) {
+        // Unlisted client galleries (not shown on the profile) stay out of search
+        if (!$this->show_on_profile) {
+            return false;
+        }
+
+        if (!$this->user || !$this->user->isPubliclyIndexable()) {
             return false;
         }
 
@@ -135,11 +140,8 @@ class Gallery extends Model
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
             })
-            ->whereHas('user', function ($q) {
-                $q->where('is_active', true)
-                  ->whereNotNull('username')
-                  ->where('username', '!=', '');
-            });
+            ->where('show_on_profile', true)
+            ->whereHas('user', fn ($q) => $q->publiclyIndexable());
     }
 
     public function user(): BelongsTo
@@ -188,6 +190,17 @@ class Gallery extends Model
     {
         if ($this->coverPhoto && !$this->coverPhoto->is_hidden) {
             return $this->coverPhoto->getUrl($size);
+        }
+        return null;
+    }
+
+    /**
+     * Responsive srcset for the cover photo (null when there is no usable cover).
+     */
+    public function getCoverSrcset(array $sizes = ['md', 'lg', 'xl']): ?string
+    {
+        if ($this->coverPhoto && !$this->coverPhoto->is_hidden) {
+            return $this->coverPhoto->getSrcset($sizes);
         }
         return null;
     }

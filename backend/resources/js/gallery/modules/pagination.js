@@ -19,6 +19,8 @@ export class GalleryPagination {
         this.emptyFavorites = document.getElementById('gallery-empty-favorites');
 
         this.photosUrl = config.photosUrl;
+        // "{gallery title} – photo by {photographer}", same as photo-card.blade.php
+        this.altFallback = this.grid?.dataset.altFallback || '';
         this.allowDownloads = config.allowDownloads ?? true;
         this.nextCursor = config.initialNextCursor || null;
         this.hasMore = Boolean(config.initialHasMore && this.nextCursor);
@@ -176,7 +178,7 @@ export class GalleryPagination {
         const btnClass = 'grid size-9 place-items-center rounded-full text-white/90 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white';
 
         const card = document.createElement('div');
-        card.className = 'photo-card group relative cursor-pointer select-none overflow-hidden bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+        card.className = 'photo-card group relative cursor-pointer select-none overflow-hidden bg-muted';
         card.style.aspectRatio = `${w} / ${h}`;
         card.dataset.photoUuid = photo.uuid;
         card.dataset.photoFilename = photo.filename || '';
@@ -192,20 +194,20 @@ export class GalleryPagination {
         card.dataset.photoHeight = h;
         card.dataset.isVideo = isVideo ? 'true' : 'false';
         card.dataset.videoDuration = photo.duration || '';
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('role', 'button');
-        card.setAttribute('aria-label', `View ${isVideo ? 'video' : 'photo'} ${photo.filename || ''}`);
 
         card.innerHTML = `
+            <button type="button"
+                    class="photo-card-open absolute inset-0 z-[1] size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                    aria-label="View ${isVideo ? 'video' : 'photo'} ${filename}"></button>
             <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-700"></canvas>
             <img src="${escapeHtml(photo.thumbnail)}"
                  ${photo.srcset ? `srcset="${escapeHtml(photo.srcset)}" sizes="${CARD_SIZES}"` : ''}
-                 alt=""
+                 alt="${escapeHtml(photo.title || photo.caption || this.altFallback)}"
                  loading="lazy"
                  decoding="async"
                  width="${w}"
                  height="${h}"
-                 class="pointer-events-none relative z-[1] size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]">
+                 class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]">
             ${isVideo ? `
             <div class="video-duration-badge pointer-events-none absolute bottom-2.5 left-2.5 z-[3] inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
                 ${icon('play', 'size-3 shrink-0 fill-current')}
@@ -215,8 +217,8 @@ export class GalleryPagination {
                  data-badge-uuid="${uuid}">
                 ${icon('heart', 'size-[18px] shrink-0 fill-current')}
             </div>
-            <div class="absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
-                <div class="flex items-center gap-0.5">
+            <div class="pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+                <div class="pointer-events-auto flex items-center gap-0.5">
                     <button type="button" class="btn-favorite ${btnClass}" data-uuid="${uuid}" aria-label="Favorite photo ${filename}" title="Favorite">
                         ${icon('heart', 'size-[18px] shrink-0')}
                     </button>

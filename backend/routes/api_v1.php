@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Route;
 // Public gallery endpoints (gallery page + export page). Slugs are only
 // unique per photographer, so every path carries the username.
 Route::prefix('public/galleries/{username}/{slug}')
+    ->middleware('noindex')
     ->name('api.public.gallery.')
     ->group(function () {
         Route::post('/download', [GalleryController::class, 'recordDownload'])->middleware('throttle:60,1')->name('download');

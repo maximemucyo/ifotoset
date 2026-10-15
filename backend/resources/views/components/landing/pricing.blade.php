@@ -171,7 +171,7 @@
                         data-reveal style="--reveal-delay: {{ $i * 70 }}ms">
                         @if($card['featured'])
                             <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 h-32 rounded-t-2xl bg-gradient-to-b from-brand/10 to-transparent"></div>
-                            <span class="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-brand-foreground shadow-sm">
+                            <span class="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-brand-strong px-2.5 py-1 text-[11px] font-semibold text-brand-foreground shadow-sm">
                                 <x-icon name="star" class="size-3 fill-current" /> Most popular
                             </span>
                         @endif

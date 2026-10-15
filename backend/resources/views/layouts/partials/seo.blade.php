@@ -6,7 +6,8 @@
     $robots = $seo?->robots ?? ($robots ?? 'index, follow, max-image-preview:large');
     $ogTitle = $seo?->ogTitle ?? $title;
     $ogDescription = $seo?->ogDescription ?? $description;
-    $ogImage = $seo?->ogImage ?? ($ogImage ?? null);
+    $ogImage = $seo?->ogImage ?? ($ogImage ?? null) ?? \App\Support\Seo\SeoMetadata::defaultImage();
+    $ogImageIsDefault = $ogImage === \App\Support\Seo\SeoMetadata::defaultImage();
     $ogType = $seo?->ogType ?? 'website';
     $twitterCard = $seo?->twitterCard ?? 'summary_large_image';
     $structuredData = $seo?->structuredData ?? ($structuredData ?? null);
@@ -23,17 +24,18 @@
 <meta property="og:description" content="{{ $ogDescription }}">
 <meta property="og:url" content="{{ $canonical }}">
 <meta property="og:type" content="{{ $ogType }}">
-@if($ogImage)
 <meta property="og:image" content="{{ $ogImage }}">
+<meta property="og:image:alt" content="{{ $ogTitle }}">
+@if($ogImageIsDefault)
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 @endif
 
 <!-- Twitter Cards -->
 <meta name="twitter:card" content="{{ $twitterCard }}">
 <meta name="twitter:title" content="{{ $ogTitle }}">
 <meta name="twitter:description" content="{{ $ogDescription }}">
-@if($ogImage)
 <meta name="twitter:image" content="{{ $ogImage }}">
-@endif
 
 @if($structuredData)
 <script type="application/ld+json">

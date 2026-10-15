@@ -363,4 +363,80 @@ class PlatformHardeningTest extends TestCase
         $this->get('/terms')->assertOk()->assertSee('Terms of Service');
         $this->get('/privacy')->assertOk()->assertSee('Privacy Policy');
     }
+
+    // --- Phase 5 / 6 ---
+
+    public function test_sitemap_excludes_unlisted_galleries_and_hidden_profiles(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->user->forceFill(['profile_public' => true])->save();
+        $this->gallery->update(['show_on_profile' => true]);
+
+        Gallery::create([
+            'uuid' => Uuid::uuid7()->toString(), 'user_id' => $this->user->id, 'title' => 'Client Proofs',
+            'slug' => 'client-proofs', 'visibility' => 'public', 'show_on_profile' => false,
+        ]);
+
+        $xml = $this->get('/sitemaps/galleries.xml')->assertOk()->getContent();
+        $this->assertStringContainsString('wedding-collection', $xml);
+        $this->assertStringNotContainsString('client-proofs', $xml);
+
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->user->forceFill(['profile_public' => false])->save();
+        $xml = $this->get('/sitemaps/galleries.xml')->assertOk()->getContent();
+        $this->assertStringNotContainsString('wedding-collection', $xml);
+    }
+
+    public function test_sitemap_index_lists_every_section(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush();
+
+        $xml = $this->get('/sitemap.xml')->assertOk()->getContent();
+        foreach (['static.xml', 'photographers.xml', 'galleries.xml'] as $section) {
+            $this->assertStringContainsString($section, $xml);
+        }
+    }
+
+    public function test_gallery_json_and_export_are_not_indexed(): void
+    {
+        $url = app(\App\Services\PublicUrlService::class)->galleryUrl('alexmorgan', 'wedding-collection');
+
+        $this->getJson($url . '/photos')->assertOk()->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->get($url . '/export')->assertOk()->assertSee('noindex, nofollow', false);
+    }
+
+    public function test_pages_without_an_image_use_the_default_og_image(): void
+    {
+        $this->get(app(\App\Services\PublicUrlService::class)->photographerUrl('alexmorgan'))
+            ->assertOk()
+            ->assertSee(asset('og-default.jpg'), false)
+            ->assertSee('ProfessionalService', false);
+    }
+
+    public function test_photo_cards_do_not_nest_buttons_inside_a_button(): void
+    {
+        \App\Models\Photo::create([
+            'uuid' => Uuid::uuid7()->toString(), 'gallery_id' => $this->gallery->id,
+            'disk_id' => \App\Models\StorageDisk::firstOrCreate(['driver' => 'b2'], ['uuid' => Uuid::uuid7()->toString(), 'bucket' => 'ifotoset-media', 'region' => 'us-east-005', 'cdn_domain' => 'cdn.ifotoset.com'])->id,
+            'path' => 'galleries/test', 'filename' => 'a.jpg', 'original_filename' => 'a.jpg', 'stored_filename' => 'a.jpg',
+            'mime_type' => 'image/jpeg', 'size' => 10, 'width' => 100, 'height' => 100, 'checksum' => hash('sha256', 'a'), 'status' => 'ready',
+        ]);
+
+        $html = $this->get(app(\App\Services\PublicUrlService::class)->galleryUrl('alexmorgan', 'wedding-collection'))
+            ->assertOk()->getContent();
+
+        $this->assertStringContainsString('photo-card-open', $html);
+        $this->assertStringNotContainsString('role="button"', $html);
+        $this->assertStringContainsString('alt="Wedding Collection – photo by Alexmorgan"', $html);
+    }
+
+    public function test_throttled_requests_get_the_styled_429_page(): void
+    {
+        $bookUrl = app(\App\Services\PublicUrlService::class)->photographerUrl('alexmorgan') . '/book';
+        for ($i = 0; $i < 5; $i++) {
+            $this->post($bookUrl, ['website' => 'x']);
+        }
+
+        $this->post($bookUrl, ['website' => 'x'])->assertStatus(429)->assertSee('Slow down a little');
+    }
 }

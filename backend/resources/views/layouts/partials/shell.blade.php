@@ -110,7 +110,7 @@
                             <x-icon :name="$item['icon']" />
                             <span class="flex-1 truncate">{{ $item['label'] }}</span>
                             @if(!empty($item['badge']))
-                                <span class="rounded-md bg-brand px-1.5 text-[10px] font-semibold leading-4 text-brand-foreground">{{ $item['badge'] }}</span>
+                                <span class="rounded-md bg-brand-strong px-1.5 text-[10px] font-semibold leading-4 text-brand-foreground">{{ $item['badge'] }}</span>
                             @endif
                         </a>
                     @endforeach

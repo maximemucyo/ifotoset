@@ -37,6 +37,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
@@ -88,17 +89,20 @@
   --popover: #ffffff;
   --popover-foreground: #17110e;
   /* Primary actions carry the brand in light mode (ink-black CTAs felt flat on a light page) */
-  --primary: #ea4a1f;
+  /* #cc4019 keeps white button text above WCAG AA (4.87:1); #ea4a1f was 3.82 */
+  --primary: #cc4019;
   --primary-foreground: #ffffff;
   --secondary: #f8efe8;
   --secondary-foreground: #2a1d16;
   --muted: #f7efe9;
   --muted-foreground: #6e6159;
-  --subtle: #a8998f;
+  --subtle: #73645a; /* >= 4.5:1 on background, muted and card */
   --accent: #fde9df;
   --accent-foreground: #17110e;
   --brand: #f0532a;
   --brand-foreground: #ffffff;
+  /* Background for text set on the brand colour (white on #f0532a is only 3.5:1) */
+  --brand-strong: #cc4019;
   --brand-soft: #ffece3;
   --destructive: #e5383b;
   --destructive-foreground: #ffffff;
@@ -140,7 +144,9 @@
   --accent: #2a2a30;
   --accent-foreground: #fafaf9;
   --brand: #ff6a3d;
-  --brand-foreground: #ffffff;
+  /* Dark text on the bright dark-mode orange (6.9:1; white was 2.85:1) */
+  --brand-foreground: #0c0c0e;
+  --brand-strong: #ff6a3d;
   --brand-soft: #3a1b11;
   --destructive: #f05252;
   --destructive-foreground: #ffffff;
@@ -279,7 +285,7 @@
     filter: brightness(1.06);
   }
   .btn-brand {
-    @apply bg-brand text-brand-foreground hover:brightness-[1.06];
+    @apply bg-brand-strong text-brand-foreground hover:brightness-[1.06];
     box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.22), 0 1px 2px 0 rgb(240 83 42 / 0.3), 0 4px 12px -4px rgb(240 83 42 / 0.45);
   }
   .btn-secondary {
@@ -464,6 +470,16 @@
     @apply inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-all hover:text-foreground;
   }
   .tab svg { @apply size-3.5; }
+
+  /* Initials avatar: per-name hue, softened for dark mode so it doesn't glare */
+  .avatar-initials {
+    background: hsl(var(--avatar-hue) 70% 92%);
+    color: hsl(var(--avatar-hue) 45% 30%);
+  }
+  .dark .avatar-initials {
+    background: hsl(var(--avatar-hue) 30% 22%);
+    color: hsl(var(--avatar-hue) 70% 84%);
+  }
   .tab[aria-selected='true'],
   .tab.is-active {
     @apply bg-card text-foreground shadow-sm ring-1 ring-border;

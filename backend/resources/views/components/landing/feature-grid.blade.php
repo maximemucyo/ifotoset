@@ -61,7 +61,7 @@
                         @php($state = in_array($day, [6, 13, 20]) ? 'booked' : (in_array($day, [3, 4, 7, 10, 14, 17, 19, 21]) ? 'off' : 'open'))
                         <span @class([
                             'flex h-9 items-center justify-center rounded-md text-[12px] tabular-nums',
-                            'bg-brand font-semibold text-brand-foreground' => $state === 'booked',
+                            'bg-brand-strong font-semibold text-brand-foreground' => $state === 'booked',
                             'text-subtle line-through decoration-subtle/50' => $state === 'off',
                             'border border-border bg-muted/50 text-foreground' => $state === 'open',
                         ])>{{ $day }}</span>

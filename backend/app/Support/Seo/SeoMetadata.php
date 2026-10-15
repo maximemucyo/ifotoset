@@ -67,7 +67,7 @@ class SeoMetadata
                     'url' => $canonical,
                     'logo' => [
                         '@type' => 'ImageObject',
-                        'url' => url('/logo.png'),
+                        'url' => url('/icon-512.png'),
                     ],
                 ],
                 [
@@ -77,14 +77,15 @@ class SeoMetadata
                     'name' => 'ifotoset',
                     'publisher' => ['@id' => $canonical . '#organization'],
                 ],
-                [
+                array_filter([
                     '@type' => 'SoftwareApplication',
                     'name' => 'ifotoset',
                     'applicationCategory' => 'MultimediaApplication',
                     'operatingSystem' => 'Web',
                     'url' => $canonical,
                     'description' => $description,
-                ],
+                    'offers' => self::planOffers(),
+                ]),
             ],
         ];
 
@@ -95,7 +96,7 @@ class SeoMetadata
             robots: 'index, follow, max-image-preview:large',
             ogTitle: $title,
             ogDescription: $description,
-            ogImage: url('/logo.png'),
+            ogImage: self::defaultImage(),
             ogType: 'website',
             twitterCard: 'summary_large_image',
             structuredData: $structuredData,
@@ -113,32 +114,52 @@ class SeoMetadata
         $locationText = $photographer->location ? " in {$photographer->location}" : '';
         $title = "{$photographer->name}{$locationText} - Photography Portfolio | ifotoset";
         $description = !empty($photographer->bio)
-            ? strip_tags($photographer->bio)
+            ? \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($photographer->bio))), 155)
             : "View photography collections, client galleries, and book photo sessions with {$photographer->name}{$locationText}.";
 
         $robots = $photographer->isPubliclyIndexable()
             ? 'index, follow, max-image-preview:large'
             : 'noindex, nofollow';
 
+        $person = array_filter([
+            '@type' => 'Person',
+            '@id' => $canonical . '#person',
+            'name' => $photographer->name,
+            'identifier' => $photographer->username,
+            'url' => $canonical,
+            'image' => $photographer->avatar_url,
+            'description' => $photographer->bio ? strip_tags($photographer->bio) : null,
+            'homeLocation' => $photographer->location ? ['@type' => 'Place', 'name' => $photographer->location] : null,
+            'sameAs' => $photographer->website ? [$photographer->website] : null,
+        ]);
+
+        $offers = collect($packages)->map(fn ($package) => array_filter([
+            '@type' => 'Offer',
+            'name' => $package->name,
+            'description' => $package->description ? strip_tags($package->description) : null,
+            'price' => $package->price !== null ? (string) $package->price : null,
+            'priceCurrency' => $package->currency,
+        ]))->values()->all();
+
+        $service = array_filter([
+            '@type' => 'ProfessionalService',
+            '@id' => $canonical . '#service',
+            'name' => "{$photographer->name} Photography",
+            'url' => $canonical,
+            'image' => $photographer->avatar_url,
+            'founder' => ['@id' => $canonical . '#person'],
+            'areaServed' => $photographer->location ?: null,
+            'makesOffer' => $offers ?: null,
+        ]);
+
         $structuredData = [
             '@context' => 'https://schema.org',
-            '@type' => 'ProfilePage',
-            'mainEntity' => [
-                '@type' => 'Person',
-                'name' => $photographer->name,
-                'identifier' => $photographer->username,
-                'url' => $canonical,
-                'image' => $photographer->avatar_url,
-                'description' => $photographer->bio,
+            '@graph' => [
+                ['@type' => 'ProfilePage', 'url' => $canonical, 'mainEntity' => ['@id' => $canonical . '#person']],
+                $person,
+                $service,
             ],
         ];
-
-        if ($photographer->location) {
-            $structuredData['mainEntity']['homeLocation'] = [
-                '@type' => 'Place',
-                'name' => $photographer->location,
-            ];
-        }
 
         return new self(
             title: $title,
@@ -147,7 +168,7 @@ class SeoMetadata
             robots: $robots,
             ogTitle: "{$photographer->name} - Photography Portfolio",
             ogDescription: $description,
-            ogImage: $photographer->avatar_url,
+            ogImage: $photographer->avatar_url ?: self::defaultImage(),
             ogType: 'profile',
             twitterCard: 'summary_large_image',
             structuredData: $structuredData,
@@ -184,7 +205,7 @@ class SeoMetadata
         if ($isIndexable) {
             $structuredData = [
                 '@context' => 'https://schema.org',
-                '@type' => 'WebPage',
+                '@type' => 'ImageGallery',
                 'name' => $gallery->title,
                 'url' => $canonical,
                 'description' => $description,
@@ -203,7 +224,7 @@ class SeoMetadata
             robots: $robots,
             ogTitle: $title,
             ogDescription: $description,
-            ogImage: $coverUrl,
+            ogImage: $isIndexable && $coverUrl ? $coverUrl : self::defaultImage(),
             ogType: 'website',
             twitterCard: 'summary_large_image',
             structuredData: $structuredData,
@@ -221,5 +242,38 @@ class SeoMetadata
             canonical: url()->current(),
             robots: $robots,
         );
+    }
+
+    /**
+     * 1200x630 brand image used whenever a page has no image of its own.
+     */
+    public static function defaultImage(): string
+    {
+        return asset('og-default.jpg');
+    }
+
+    /**
+     * Paid plans as schema.org offers (monthly price).
+     */
+    private static function planOffers(): ?array
+    {
+        try {
+            $offers = \App\Models\Plan::query()
+                ->where('monthly_price', '>', 0)
+                ->orderBy('monthly_price')
+                ->get(['name', 'monthly_price', 'currency'])
+                ->map(fn ($plan) => [
+                    '@type' => 'Offer',
+                    'name' => $plan->name,
+                    'price' => (string) $plan->monthly_price,
+                    'priceCurrency' => $plan->currency ?: 'RWF',
+                ])
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return $offers ?: null;
     }
 }

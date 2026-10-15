@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
             'impersonation.prevent_admin' => \App\Http\Middleware\PreventAdminDuringImpersonation::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'noindex' => \App\Http\Middleware\NoIndex::class,
         ]);
         $middleware->replace(
             \Illuminate\Http\Middleware\TrustProxies::class,

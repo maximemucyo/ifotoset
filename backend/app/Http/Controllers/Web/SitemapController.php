@@ -18,36 +18,39 @@ class SitemapController extends Controller
     ) {}
 
     /**
-     * Return root sitemap index linking to modular sitemap sections.
+     * Return root sitemap index linking to every page of every section.
      */
     public function index(): Response
     {
         $xml = Cache::remember('sitemap_index_xml', 21600, function () {
-            $rootUrl = $this->urlService->home();
-            $staticSitemap = rtrim($rootUrl, '/') . '/sitemaps/static.xml';
-            $photographersSitemap = rtrim($rootUrl, '/') . '/sitemaps/photographers.xml';
-            $galleriesSitemap = rtrim($rootUrl, '/') . '/sitemaps/galleries.xml';
+            $base = rtrim($this->urlService->home(), '/') . '/sitemaps/';
 
-            $now = now()->toIso8601String();
+            $entries = [['static', now()->startOfMonth()]];
+
+            $photographers = User::publiclyIndexable();
+            $photographerPages = max(1, (int) ceil((clone $photographers)->count() / self::CHUNK_SIZE));
+            $photographersLastmod = (clone $photographers)->max('updated_at');
+            for ($page = 1; $page <= $photographerPages; $page++) {
+                $entries[] = [$page === 1 ? 'photographers' : "photographers-{$page}", $photographersLastmod];
+            }
+
+            $galleries = Gallery::publiclyIndexable();
+            $galleryPages = max(1, (int) ceil((clone $galleries)->count() / self::CHUNK_SIZE));
+            $galleriesLastmod = (clone $galleries)->max('updated_at');
+            for ($page = 1; $page <= $galleryPages; $page++) {
+                $entries[] = [$page === 1 ? 'galleries' : "galleries-{$page}", $galleriesLastmod];
+            }
 
             $output = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
             $output .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-            
-            $output .= "  <sitemap>\n";
-            $output .= "    <loc>{$staticSitemap}</loc>\n";
-            $output .= "    <lastmod>{$now}</lastmod>\n";
-            $output .= "  </sitemap>\n";
-
-            $output .= "  <sitemap>\n";
-            $output .= "    <loc>{$photographersSitemap}</loc>\n";
-            $output .= "    <lastmod>{$now}</lastmod>\n";
-            $output .= "  </sitemap>\n";
-
-            $output .= "  <sitemap>\n";
-            $output .= "    <loc>{$galleriesSitemap}</loc>\n";
-            $output .= "    <lastmod>{$now}</lastmod>\n";
-            $output .= "  </sitemap>\n";
-
+            foreach ($entries as [$section, $lastmod]) {
+                $output .= "  <sitemap>\n";
+                $output .= "    <loc>{$base}{$section}.xml</loc>\n";
+                if ($lastmod) {
+                    $output .= '    <lastmod>' . \Illuminate\Support\Carbon::parse($lastmod)->toIso8601String() . "</lastmod>\n";
+                }
+                $output .= "  </sitemap>\n";
+            }
             $output .= '</sitemapindex>';
 
             return $output;
@@ -98,15 +101,19 @@ class SitemapController extends Controller
      */
     protected function generateStaticSitemap(): string
     {
-        $homeUrl = htmlspecialchars($this->urlService->home(), ENT_XML1, 'UTF-8');
-        $lastMod = now()->toIso8601String();
+        $urls = [
+            $this->urlService->home(),
+            route('legal.terms'),
+            route('legal.privacy'),
+        ];
 
         $output = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $output .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-        $output .= "  <url>\n";
-        $output .= "    <loc>{$homeUrl}</loc>\n";
-        $output .= "    <lastmod>{$lastMod}</lastmod>\n";
-        $output .= "  </url>\n";
+        foreach ($urls as $url) {
+            $output .= "  <url>\n";
+            $output .= '    <loc>' . htmlspecialchars($url, ENT_XML1, 'UTF-8') . "</loc>\n";
+            $output .= "  </url>\n";
+        }
         $output .= '</urlset>';
 
         return $output;

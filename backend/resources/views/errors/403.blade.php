@@ -1,4 +1,4 @@
-@extends('layouts.public', ['title' => 'Access restricted · ifotoset'])
+@extends('layouts.public', ['title' => 'Access restricted · ifotoset', 'robots' => 'noindex, nofollow'])
 
 @section('content')
 <x-errors.page code="403" icon="lock" title="Access restricted" :message="$exception->getMessage() ?: 'You don\'t have permission to view this page. If this is a private client gallery, open it from your gallery link and enter the password.'">

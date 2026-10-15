@@ -113,13 +113,18 @@ class SeoArchitectureTest extends TestCase
 
     public function test_photographer_bio_cannot_break_out_of_structured_data_script(): void
     {
-        $this->photographer->update(['bio' => '</script><script>alert(1)</script>']);
+        $this->photographer->update([
+            'bio' => '</script><script>alert(1)</script>',
+            'location' => '</script><script>alert(2)</script>',
+        ]);
 
         $response = $this->get($this->urlService->photographer($this->photographer));
         $response->assertStatus(200);
 
         $response->assertDontSee('<script>alert(1)</script>', false);
-        $response->assertSee('\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E', false);
+        $response->assertDontSee('<script>alert(2)</script>', false);
+        // Fields that keep raw text are JSON-escaped inside the ld+json block
+        $response->assertSee('\u003C/script\u003E\u003Cscript\u003Ealert(2)\u003C/script\u003E', false);
     }
 
     public function test_public_gallery_renders_canonical_and_index_robots(): void

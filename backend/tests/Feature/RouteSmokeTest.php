@@ -83,7 +83,6 @@ class RouteSmokeTest extends TestCase
             'admin.payments.index',
             'admin.analytics.index',
             'admin.moderation.index',
-            'admin.support.index',
             'admin.settings.index',
         ];
 

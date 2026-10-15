@@ -8,6 +8,7 @@
     @stack('styles')
 </head>
 <body class="h-full bg-sidebar text-foreground antialiased">
+    <x-ui.skip-link />
     <x-admin.impersonation-banner />
     @php
         $pendingBookings = auth()->check()

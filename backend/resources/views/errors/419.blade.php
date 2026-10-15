@@ -1,4 +1,4 @@
-@extends('layouts.public', ['title' => 'Session expired · ifotoset'])
+@extends('layouts.public', ['title' => 'Session expired · ifotoset', 'robots' => 'noindex, nofollow'])
 
 @section('content')
 <x-errors.page code="419" icon="clock" title="Your session expired" message="For your security, forms expire after a period of inactivity. Refresh the page and try again. Nothing has been lost.">

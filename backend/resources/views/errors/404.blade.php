@@ -1,4 +1,4 @@
-@extends('layouts.public', ['title' => 'Page not found · ifotoset'])
+@extends('layouts.public', ['title' => 'Page not found · ifotoset', 'robots' => 'noindex, nofollow'])
 
 @section('content')
 <x-errors.page code="404" icon="search" title="This page is out of frame" message="The gallery, photo or page you're looking for may have been moved, deleted or never existed. Double-check the link you were sent.">

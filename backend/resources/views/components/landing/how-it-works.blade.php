@@ -18,7 +18,7 @@
                 <li class="relative flex flex-col items-center text-center" data-reveal style="--reveal-delay: {{ $i * 120 }}ms">
                     <span class="relative inline-flex size-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground shadow-sm">
                         <x-icon :name="$step['icon']" class="size-5" />
-                        <span class="absolute -right-2 -top-2 inline-flex size-5 items-center justify-center rounded-full bg-brand font-display text-[11px] font-semibold text-brand-foreground tabular-nums">{{ $i + 1 }}</span>
+                        <span class="absolute -right-2 -top-2 inline-flex size-5 items-center justify-center rounded-full bg-brand-strong font-display text-[11px] font-semibold text-brand-foreground tabular-nums">{{ $i + 1 }}</span>
                     </span>
                     <h3 class="mt-6 text-lg font-semibold tracking-tight">{{ $step['title'] }}</h3>
                     <p class="mt-2 max-w-xs text-[14.5px] leading-relaxed text-muted-foreground">{{ $step['body'] }}</p>

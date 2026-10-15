@@ -87,8 +87,20 @@
     "file": "assets/instrument-serif-latin-ext-400-normal-C2je3j2s.woff2",
     "src": "node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-ext-400-normal.woff2"
   },
+  "node_modules/artplayer/dist/artplayer.mjs": {
+    "file": "assets/artplayer-YinuAzNv.js",
+    "name": "artplayer",
+    "src": "node_modules/artplayer/dist/artplayer.mjs",
+    "isDynamicEntry": true
+  },
+  "node_modules/hls.js/dist/hls.mjs": {
+    "file": "assets/hls-qrK6pUM6.js",
+    "name": "hls",
+    "src": "node_modules/hls.js/dist/hls.mjs",
+    "isDynamicEntry": true
+  },
   "resources/css/app.css": {
-    "file": "assets/app-CvR8WblC.css",
+    "file": "assets/app-DPJwfLTN.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -99,21 +111,13 @@
     "isEntry": true
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-C-Y_Omuw.js",
+    "file": "assets/gallery-BE4rhDTB.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
-    "isEntry": true
-  },
-  "resources/js/pages/photographer.js": {
-    "file": "assets/photographer-l0sNRNKZ.js",
-    "name": "photographer",
-    "src": "resources/js/pages/photographer.js",
-    "isEntry": true
-  },
-  "resources/js/pages/studio-gallery.js": {
-    "file": "assets/studio-gallery-C6ZFI7Ci.js",
-    "name": "studio-gallery",
-    "src": "resources/js/pages/studio-gallery.js",
-    "isEntry": true
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/artplayer/dist/artplayer.mjs",
+      "node_modules/hls.js/dist/hls.mjs"
+    ]
   }
 }

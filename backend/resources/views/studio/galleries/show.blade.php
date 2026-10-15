@@ -76,7 +76,7 @@
     'uploadAbortUrl' => route('studio.uploads.abort'),
     'videoStatusUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'storageStatsUrl' => route('studio.storage.stats'),
-    'billingCheckoutUrl' => route('studio.billing.checkout', ['plan' => 'basic']) . '?return_to=' . urlencode(request()->getRequestUri()),
+    'billingCheckoutUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
     'billingPlansUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
     'userStorage' => $userStorage ?? [],
     'userVideo' => [

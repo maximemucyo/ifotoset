@@ -3,6 +3,7 @@
     'description' => "Export photo archive for '{$gallery->title}'.",
     'hideNav' => true,
     'hideFooter' => true,
+    'robots' => 'noindex, nofollow',
 ])
 
 @section('content')

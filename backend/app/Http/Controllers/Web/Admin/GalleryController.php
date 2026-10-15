@@ -56,7 +56,6 @@ class GalleryController extends Controller
             'gallery' => $gallery,
             'photographer' => $gallery->user,
             'photos' => $photos,
-            'isAdminModeration' => true,
         ]);
     }
 

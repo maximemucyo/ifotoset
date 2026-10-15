@@ -6,8 +6,8 @@
     $hues = [18, 32, 200, 262, 152, 340, 220, 45];
     $hue = $hues[abs(crc32((string) $name)) % count($hues)];
 @endphp
-<span {{ $attributes->merge(['class' => 'avatar ' . ($sizes[$size] ?? $sizes['md'])]) }}
-      @if(!$src) style="background: hsl({{ $hue }} 70% 92%); color: hsl({{ $hue }} 45% 30%);" @endif>
+<span {{ $attributes->merge(['class' => 'avatar ' . ($sizes[$size] ?? $sizes['md']) . ($src ? '' : ' avatar-initials')]) }}
+      @if(!$src) style="--avatar-hue: {{ $hue }};" @endif>
     @if($src)
         <img src="{{ $src }}" alt="{{ $name }}" class="size-full object-cover" loading="lazy" decoding="async">
     @else

@@ -11,6 +11,18 @@ import { LightboxSlideshow } from './slideshow.js';
 import { LightboxDeepLink } from './deepLink.js';
 import { renderBlurHashToCanvas } from '../blurhash.js';
 
+// hls.js + Artplayer are ~600 KB together; only fetch them the first time a video opens
+let videoPlayerPromise = null;
+function loadVideoPlayer() {
+    videoPlayerPromise ??= Promise.all([import('artplayer'), import('hls.js')])
+        .then(([artplayer, hls]) => ({ Artplayer: artplayer.default, Hls: hls.default }))
+        .catch((e) => {
+            videoPlayerPromise = null; // allow a retry on the next video
+            throw e;
+        });
+    return videoPlayerPromise;
+}
+
 const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SLIDE_GAP = 24; // px between neighbouring photos while swiping
 const LG_WIDTH = 1600; // 'lg' rendition width; above this the 'xl' (2560) rendition is used
@@ -631,10 +643,18 @@ export class GalleryLightbox {
         const poster = photo.large || photo.full || photo.thumbnail || '';
         const playerContainer = document.createElement('div');
         playerContainer.className = 'lightbox-artplayer-mount pointer-events-auto absolute inset-0 z-10 select-auto overflow-hidden bg-black';
+        frame.appendChild(playerContainer);
 
-        if (window.Artplayer) {
-            try {
-                const art = new window.Artplayer({
+        // Each mount gets a token so a player that finishes loading after the
+        // visitor has moved on is never attached to a stale slide.
+        const token = Symbol('video');
+        this.videoMountToken = token;
+
+        loadVideoPlayer()
+            .then(({ Artplayer, Hls }) => {
+                if (this.videoMountToken !== token || !playerContainer.isConnected) return;
+
+                this.activeArtplayer = new Artplayer({
                     container: playerContainer,
                     url: videoUrl,
                     poster: poster,
@@ -657,9 +677,9 @@ export class GalleryLightbox {
                     theme: '#f0532a',
                     customType: {
                         m3u8: function (video, url, artInstance) {
-                            if (window.Hls && window.Hls.isSupported()) {
+                            if (Hls.isSupported()) {
                                 if (artInstance.hls) artInstance.hls.destroy();
-                                const hls = new window.Hls();
+                                const hls = new Hls();
                                 hls.loadSource(url);
                                 hls.attachMedia(video);
                                 artInstance.hls = hls;
@@ -672,30 +692,28 @@ export class GalleryLightbox {
                         },
                     },
                 });
+            })
+            .catch((e) => {
+                console.error('[Lightbox] Video player failed to load, using the native player:', e);
+                if (this.videoMountToken !== token || !playerContainer.isConnected) return;
 
-                frame.appendChild(playerContainer);
-                this.activeArtplayer = art;
-                return;
-            } catch (e) {
-                console.error('[Lightbox] Artplayer initialization error:', e);
-            }
-        }
+                const video = document.createElement('video');
+                video.className = 'lightbox-slide-video size-full select-auto bg-black object-contain';
+                video.controls = true;
+                video.playsInline = true;
+                video.preload = 'auto';
+                if (poster) video.poster = poster;
+                video.src = videoUrl;
+                playerContainer.appendChild(video);
+                this.activeVideo = video;
 
-        const video = document.createElement('video');
-        video.className = 'lightbox-slide-video pointer-events-auto absolute inset-0 z-10 size-full select-auto bg-black object-contain';
-        video.controls = true;
-        video.playsInline = true;
-        video.preload = 'auto';
-        if (poster) video.poster = poster;
-        video.src = videoUrl;
-        frame.appendChild(video);
-        this.activeVideo = video;
-
-        video.muted = true;
-        video.play().catch(() => {});
+                video.muted = true;
+                video.play().catch(() => {});
+            });
     }
 
     teardownActiveVideo() {
+        this.videoMountToken = null;
         if (this.activeArtplayer) {
             try {
                 this.activeArtplayer.destroy(true);
