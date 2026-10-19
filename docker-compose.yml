@@ -1,14 +1,14 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: ifotoset_backend
     restart: unless-stopped
     ports:
       - '8000:8000'
     volumes:
-      - './backend:/var/www/html'
+      - '.:/var/www/html'
     environment:
       - PHP_CLI_SERVER_WORKERS=8
       - APP_ENV=local
@@ -29,13 +29,13 @@ services:
 
   queue:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: ifotoset_queue
     restart: unless-stopped
     command: php artisan queue:work --queue=media,default --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
-      - './backend:/var/www/html'
+      - '.:/var/www/html'
     environment:
       - APP_ENV=local
       - APP_DEBUG=true
@@ -57,12 +57,12 @@ services:
   queue_photos:
     container_name: ifotoset_queue_photos
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     command: php artisan queue:work --queue=photos,media --verbose --tries=3 --sleep=3 --max-time=3600
     volumes:
-      - './backend:/var/www/html'
+      - '.:/var/www/html'
     environment:
       - APP_ENV=local
       - APP_DEBUG=true
@@ -83,13 +83,13 @@ services:
 
   scheduler:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: ifotoset_scheduler
     restart: unless-stopped
     command: php artisan schedule:work
     volumes:
-      - './backend:/var/www/html'
+      - '.:/var/www/html'
     environment:
       - APP_ENV=local
       - DB_CONNECTION=mysql

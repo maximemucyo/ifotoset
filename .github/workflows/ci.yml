@@ -21,13 +21,13 @@ jobs:
 
       # The suite expects the compose services by hostname (mysql, redis, s3),
       # so it runs inside the same containers as local development.
-      # backend/ is bind-mounted into the container, so the gitignored runtime
+      # The checkout is bind-mounted into the container, so the gitignored runtime
       # dirs have to exist in the checkout itself.
       - name: Create runtime directories
         run: |
-          mkdir -p backend/bootstrap/cache backend/storage/app/public backend/storage/logs \
-            backend/storage/framework/{cache/data,sessions,views,testing}
-          chmod -R a+rwX backend/bootstrap/cache backend/storage
+          mkdir -p bootstrap/cache storage/app/public storage/logs \
+            storage/framework/{cache/data,sessions,views,testing}
+          chmod -R a+rwX bootstrap/cache storage
 
       - name: Start services
         run: docker compose up -d --build --wait mysql redis s3 backend
@@ -46,7 +46,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           git fetch --no-tags origin "${{ github.base_ref }}"
-          files=$(git diff --name-only --diff-filter=AM "origin/${{ github.base_ref }}"...HEAD -- 'backend/*.php' | sed 's#^backend/##')
+          files=$(git diff --name-only --diff-filter=AM "origin/${{ github.base_ref }}"...HEAD -- '*.php')
           if [ -n "$files" ]; then docker compose exec -T backend vendor/bin/pint --test $files; fi
 
       - name: Run tests
@@ -59,15 +59,12 @@ jobs:
   assets:
     name: Build assets
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
       - run: npm run build

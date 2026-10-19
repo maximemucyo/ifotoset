@@ -18,8 +18,6 @@ echo "== Deploy started $(date -u +%FT%TZ)"
 git fetch --quiet origin main
 git reset --hard origin/main
 
-cd "$APP_DIR/backend"
-
 "$PHP" "$COMPOSER" install --no-dev --optimize-autoloader --no-interaction --no-progress
 
 npm ci --no-audit --no-fund
@@ -46,7 +44,6 @@ npm run build
 # compiled views, caches or log files make web requests fail with file_put_contents errors.
 chown -R www:www storage bootstrap/cache
 
-cd "$APP_DIR"
 pm2 startOrRestart ecosystem.config.js
 # The legacy Next.js app was removed from ecosystem.config.js; make sure it is gone.
 pm2 delete ifotoset >/dev/null 2>&1 || true

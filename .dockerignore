@@ -1,8 +1,11 @@
 .env
+.env.*
 vendor/
+node_modules/
 .git
 .github
 tests/
 phpunit.xml
 docker-compose.yml
 Dockerfile
+docs/

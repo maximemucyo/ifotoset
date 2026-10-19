@@ -9,21 +9,20 @@ This platform is a **Laravel 11 (PHP 8.3)** full-stack application (Blade, Tailw
 ## 1. Directory Structure
 
 ```
-ifotoset/
-├── backend/                  # Laravel 11 app (Blade + Tailwind v4 + Alpine.js, built with Vite)
-│   ├── app/
-│   │   ├── Actions/          # Billing, studio and admin use cases
-│   │   ├── Enums/            # Backed enums (PhotoStatus, NotificationPreference, …)
-│   │   ├── Http/Controllers/
-│   │   │   ├── Web/          # Public site, studio, admin, auth
-│   │   │   └── Api/V1/       # Small JSON API used by gallery JavaScript + PawaPay webhook
-│   │   ├── Jobs/             # Photo/video processing, ZIP exports, Google Photos sync
-│   │   └── Services/         # UploadService, StorageService, PawaPayGateway
-│   ├── database/             # Migrations and idempotent plan seeders
-│   └── resources/views/      # Blade views (see DESIGN-SYSTEM.md)
+ifotoset/                     # Laravel 11 app (Blade + Tailwind v4 + Alpine.js, built with Vite)
+├── app/
+│   ├── Actions/              # Billing, studio and admin use cases
+│   ├── Enums/                # Backed enums (PhotoStatus, NotificationPreference, …)
+│   ├── Http/Controllers/
+│   │   ├── Web/              # Public site, studio, admin, auth
+│   │   └── Api/V1/           # Small JSON API used by gallery JavaScript + PawaPay webhook
+│   ├── Jobs/                 # Photo/video processing, ZIP exports, Google Photos sync
+│   └── Services/             # UploadService, StorageService, PawaPayGateway
+├── database/                 # Migrations and idempotent plan seeders
+├── resources/views/          # Blade views (see DESIGN-SYSTEM.md)
 ├── cdn_cloudflare_worker.js  # Cloudflare Worker in front of Backblaze B2 (credentials are Worker secrets)
 ├── deploy.sh                 # Production deploy steps run by the push-to-main webhook
-├── ecosystem.config.js       # pm2: queue workers, video worker, scheduler
+├── ecosystem.config.js       # pm2: queue workers and video worker
 ├── docker/                   # Local docker files
 └── docker-compose.yml        # Development stack (MySQL, Redis, Mailpit, S3 stand-in)
 ```
@@ -50,7 +49,7 @@ The web UI is a Laravel full-stack app (Blade + Tailwind v4 + Alpine.js, built w
 * Node.js 20+ on the host (for Vite)
 
 ### Step 1: Environment
-Copy `backend/.env.example` to `backend/.env`. For local development, point
+Copy `.env.example` to `.env`. For local development, point
 storage at the bundled S3-compatible service and mail at Mailpit:
 
 ```dotenv
@@ -73,7 +72,7 @@ CDN_PROTOCOL=http
 USE_CDN_DOWNLOADS=false
 ```
 
-Host port forwards can be overridden in a root `.env` (`FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`, `FORWARD_MAILPIT_PORT`,
+Host port forwards can be overridden in the same `.env` (`FORWARD_DB_PORT`, `FORWARD_REDIS_PORT`, `FORWARD_MAILPIT_PORT`,
 `FORWARD_MAILPIT_DASHBOARD_PORT`, `FORWARD_S3_PORT`).
 
 ### Step 2: Start the stack
@@ -90,7 +89,7 @@ and `s3` (SeaweedFS S3 gateway on :8333, standing in for Backblaze B2 + Cloudfla
 
 ### Step 3: Frontend assets
 ```bash
-cd backend && npm install
+npm install
 npm run dev     # Vite dev server with HMR
 npm run build   # production build into public/build
 ```
@@ -98,12 +97,12 @@ npm run build   # production build into public/build
 Demo logins: `studio@ifotoset.com` / `demo123` (photographer), `admin@ifotoset.com` / `demo123` (admin).
 
 ### Design system
-See `backend/resources/views/DESIGN-SYSTEM.md` for tokens, component classes, Blade components and layout conventions.
+See `resources/views/DESIGN-SYSTEM.md` for tokens, component classes, Blade components and layout conventions.
 
 ---
 
 ## 4. Production
 
 * Push to `main` deploys automatically (see `deploy.sh`). Back up the database first.
-* The scheduler must run: pm2 runs `ifotoset-scheduler` (`php artisan schedule:work`) from `ecosystem.config.js`. Do not also add a `schedule:run` cron.
+* The scheduler runs from root's crontab (`php artisan schedule:run` every minute). Do not also run `schedule:work` under pm2, or every job runs twice.
 * Tests: `docker compose exec -T backend php artisan test`.
