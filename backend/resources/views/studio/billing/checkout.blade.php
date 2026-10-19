@@ -4,7 +4,7 @@
     $fmtSize = function ($bytes): string {
         $gb = ((float) $bytes) / (1024 ** 3);
         if ($gb >= 1000) return rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB';
-        return rtrim(rtrim(number_format($gb, $gb >= 100 ? 0 : 1), '0'), '.') . ' GB';
+        return ($gb >= 100 ? number_format($gb, 0) : rtrim(rtrim(number_format($gb, 1), '0'), '.')) . ' GB';
     };
     $videoSeconds = (int) $plan->video_limit_seconds;
     $videoLabel = $videoSeconds >= 3600

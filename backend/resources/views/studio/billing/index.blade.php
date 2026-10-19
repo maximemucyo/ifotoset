@@ -10,7 +10,7 @@
             return rtrim(rtrim(number_format($tb, 1), '0'), '.') . ' TB';
         }
         if ($gb >= 1) {
-            return rtrim(rtrim(number_format($gb, $gb >= 100 ? 0 : 1), '0'), '.') . ' GB';
+            return ($gb >= 100 ? number_format($gb, 0) : rtrim(rtrim(number_format($gb, 1), '0'), '.')) . ' GB';
         }
         $mb = $bytes / (1024 ** 2);
         if ($mb >= 1) {
