@@ -44,8 +44,8 @@ npm run build
 # compiled views, caches or log files make web requests fail with file_put_contents errors.
 chown -R www:www storage bootstrap/cache
 
-pm2 startOrRestart ecosystem.config.js
-# The legacy Next.js app was removed from ecosystem.config.js; make sure it is gone.
+pm2 startOrRestart ecosystem.config.cjs
+# The legacy Next.js app was removed from the pm2 config; make sure it is gone.
 pm2 delete ifotoset >/dev/null 2>&1 || true
 pm2 save
 

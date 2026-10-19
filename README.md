@@ -22,7 +22,7 @@ ifotoset/                     # Laravel 11 app (Blade + Tailwind v4 + Alpine.js,
 ├── resources/views/          # Blade views (see DESIGN-SYSTEM.md)
 ├── cdn_cloudflare_worker.js  # Cloudflare Worker in front of Backblaze B2 (credentials are Worker secrets)
 ├── deploy.sh                 # Production deploy steps run by the push-to-main webhook
-├── ecosystem.config.js       # pm2: queue workers and video worker
+├── ecosystem.config.cjs      # pm2: queue workers and video worker
 ├── docker/                   # Local docker files
 └── docker-compose.yml        # Development stack (MySQL, Redis, Mailpit, S3 stand-in)
 ```
