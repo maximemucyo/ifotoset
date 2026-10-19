@@ -174,15 +174,24 @@ class GalleryController extends Controller
         $hashInput = $photos->map(fn($p) => $p->id . '-' . $p->updated_at->timestamp)->join(',');
         $snapshotHash = md5($hashInput);
 
+        // Reuse the newest usable archive for this snapshot. Failed records are skipped: an older
+        // failed row would otherwise shadow a newer ready one and trigger a rebuild every request.
         $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
             ->where('photo_snapshot_hash', $snapshotHash)
-            ->where('status', '!=', 'expired')
+            ->whereIn('status', ['ready', 'ready_with_errors', 'processing', 'pending'])
+            ->orderByRaw("CASE WHEN status IN ('ready', 'ready_with_errors') THEN 0 ELSE 1 END")
+            ->latest('id')
             ->first();
 
         $zipService = app(GalleryZipDownloadService::class);
         if ($download) {
             if ($zipService->expireIfNecessary($download)) {
-                $download = null;
+                // Join a rebuild that is already under way rather than starting a duplicate
+                $download = \App\Models\GalleryDownload::where('gallery_id', $gallery->id)
+                    ->where('photo_snapshot_hash', $snapshotHash)
+                    ->whereIn('status', ['processing', 'pending'])
+                    ->latest('id')
+                    ->first();
             }
         }
 

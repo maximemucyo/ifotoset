@@ -23,11 +23,21 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 2;
 
-    public int $timeout = 600; // 10 minutes timeout for large galleries
+    // A 1 GB gallery takes ~4 min to pack and ~6 min to upload to B2, so give large galleries room
+    public int $timeout = 3600;
 
-    public int $uniqueFor = 600;
+    // Fail at once on timeout so failed() marks the export failed, instead of the record
+    // sitting in "processing" until the queue's retry_after (65 min) re-dispatches it
+    public bool $failOnTimeout = true;
+
+    public int $backoff = 60;
+
+    public int $uniqueFor = 3600;
+
+    // Fewer, larger parts for big archives (a 1.1 GB ZIP is ~17 parts instead of ~210)
+    private const UPLOAD_PART_SIZE = 64 * 1024 * 1024;
 
     /**
      * Create a new job instance.
@@ -36,14 +46,17 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         public int $galleryId,
         public int $downloadId,
         public ?string $downloadToken = null
-    ) {}
+    ) {
+        $this->onQueue('exports');
+    }
 
     /**
-     * Unique queue identifier.
+     * Unique per download record: a gallery-wide lock silently dropped the dispatch for a
+     * second snapshot while another was packing, leaving that record "pending" forever.
      */
     public function uniqueId(): string
     {
-        return 'generate_zip_' . $this->galleryId;
+        return 'generate_zip_' . $this->downloadId;
     }
 
     /**
@@ -184,8 +197,23 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             $snapshotHash = $download->photo_snapshot_hash;
             $b2ZipPath = $gallery->mediaPrefix() . "/downloads/photos-{$snapshotHash}.zip";
 
-            // Upload the ZIP to B2
-            Storage::disk('b2')->put($b2ZipPath, fopen($tempZipPath, 'r'));
+            // Upload the ZIP to B2 through the Flysystem driver, which throws, so the real
+            // upload error is logged (the Laravel wrapper swallows it and returns false)
+            $this->abortUnfinishedUploads($b2ZipPath);
+            $zipStream = fopen($tempZipPath, 'r');
+            try {
+                Storage::disk('b2')->getDriver()->writeStream($b2ZipPath, $zipStream, [
+                    'part_size' => self::UPLOAD_PART_SIZE,
+                    'concurrency' => 3,
+                ]);
+            } catch (Throwable $e) {
+                $this->abortUnfinishedUploads($b2ZipPath);
+                throw $e;
+            } finally {
+                if (is_resource($zipStream)) {
+                    fclose($zipStream);
+                }
+            }
 
             // Verify upload exists in B2
             if (!Storage::disk('b2')->exists($b2ZipPath)) {
@@ -237,10 +265,10 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
 
             $download->update([
                 'status' => 'failed',
-                'error' => $e->getMessage(),
+                'error' => mb_substr($e->getMessage(), 0, 1000),
                 'completed_at' => now(),
             ]);
-            
+
             throw $e;
         } finally {
             // Safe cleanup
@@ -262,8 +290,41 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             ->whereIn('status', ['pending', 'processing'])
             ->update([
                 'status' => 'failed',
-                'error' => $exception?->getMessage() ?: 'ZIP generation timed out.',
+                'error' => mb_substr($exception?->getMessage() ?: 'ZIP generation timed out.', 0, 1000),
                 'completed_at' => now(),
             ]);
+
+        // A timeout kill skips handle()'s catch block, so drop any half-finished upload here
+        $download = GalleryDownload::find($this->downloadId);
+        $gallery = Gallery::find($this->galleryId);
+        if ($download && $gallery && $download->photo_snapshot_hash) {
+            $this->abortUnfinishedUploads($gallery->mediaPrefix() . "/downloads/photos-{$download->photo_snapshot_hash}.zip");
+        }
+    }
+
+    /**
+     * Cancel unfinished B2 multipart uploads for this key. B2 bills their parts as stored
+     * data until they are cancelled, and a failed upload never cancels its own.
+     */
+    private function abortUnfinishedUploads(string $key): void
+    {
+        $disk = Storage::disk('b2');
+        if (!method_exists($disk, 'getClient')) {
+            return;
+        }
+
+        try {
+            $client = $disk->getClient();
+            $bucket = config('filesystems.disks.b2.bucket');
+            $uploads = $client->listMultipartUploads(['Bucket' => $bucket, 'Prefix' => $key])['Uploads'] ?? [];
+
+            foreach ($uploads as $upload) {
+                if ($upload['Key'] === $key) {
+                    $client->abortMultipartUpload(['Bucket' => $bucket, 'Key' => $key, 'UploadId' => $upload['UploadId']]);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Could not cancel unfinished ZIP uploads.', ['key' => $key, 'error' => $e->getMessage()]);
+        }
     }
 }

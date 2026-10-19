@@ -499,5 +499,110 @@ class GalleryZipDownloadTest extends TestCase
         $this->assertEquals("protected-galleries/{$this->gallery->uuid}/downloads/photos-abc123.zip", $download->storage_path);
         Storage::disk('b2')->assertExists($download->storage_path);
     }
-}
 
+    public function test_failed_export_does_not_shadow_a_newer_ready_zip(): void
+    {
+        Storage::fake('b2');
+        Queue::fake([GenerateGalleryZipJob::class]);
+
+        $photo = $this->createPhoto();
+        $snapshotHash = md5($photo->id . '-' . $photo->updated_at->timestamp);
+        $storagePath = "galleries/{$this->gallery->uuid}/downloads/photos-{$snapshotHash}.zip";
+        Storage::disk('b2')->put($storagePath, 'zip content');
+
+        GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'failed',
+            'photo_snapshot_hash' => $snapshotHash,
+            'error' => 'Failed to verify ZIP presence in storage.',
+        ]);
+        $ready = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'ready',
+            'photo_snapshot_hash' => $snapshotHash,
+            'storage_path' => $storagePath,
+            'size' => 11,
+            'completed_at' => now(),
+        ]);
+
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
+            'email' => 'visitor@example.com',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonFragment(['status' => 'ready', 'download_id' => $ready->id]);
+        $this->assertEquals(2, GalleryDownload::where('gallery_id', $this->gallery->id)->count());
+        Queue::assertNotPushed(GenerateGalleryZipJob::class);
+    }
+
+    public function test_request_joins_an_export_already_in_progress_despite_an_older_failure(): void
+    {
+        Storage::fake('b2');
+        Queue::fake([GenerateGalleryZipJob::class]);
+
+        $photo = $this->createPhoto();
+        $snapshotHash = md5($photo->id . '-' . $photo->updated_at->timestamp);
+
+        GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'failed',
+            'photo_snapshot_hash' => $snapshotHash,
+        ]);
+        $processing = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'processing',
+            'photo_snapshot_hash' => $snapshotHash,
+        ]);
+
+        $response = $this->postJson("/api/v1/public/galleries/testphoto/{$this->gallery->slug}/download-zip", [
+            'email' => 'visitor@example.com',
+        ]);
+
+        $response->assertJsonFragment(['status' => 'processing', 'download_id' => $processing->id]);
+        Queue::assertNotPushed(GenerateGalleryZipJob::class);
+    }
+
+    public function test_zip_job_runs_on_exports_queue_and_is_unique_per_download(): void
+    {
+        $jobA = new GenerateGalleryZipJob($this->gallery->id, 1);
+        $jobB = new GenerateGalleryZipJob($this->gallery->id, 2);
+
+        $this->assertEquals('exports', $jobA->queue);
+        $this->assertNotEquals($jobA->uniqueId(), $jobB->uniqueId());
+        $this->assertTrue($jobA->failOnTimeout);
+    }
+
+    public function test_upload_failure_records_the_real_storage_error(): void
+    {
+        $adapter = new class(storage_path('framework/testing/disks/b2-failing')) extends \League\Flysystem\Local\LocalFilesystemAdapter {
+            public function writeStream(string $path, $contents, \League\Flysystem\Config $config): void
+            {
+                if (str_ends_with($path, '.zip')) {
+                    throw \League\Flysystem\UnableToWriteFile::atLocation($path, 'An exception occurred while uploading parts to a multipart upload.');
+                }
+                parent::writeStream($path, $contents, $config);
+            }
+        };
+        Storage::set('b2', new \Illuminate\Filesystem\FilesystemAdapter(new \League\Flysystem\Filesystem($adapter), $adapter));
+
+        $photo = $this->createPhoto();
+        Storage::disk('b2')->put("{$photo->path}/{$photo->filename}", 'image bytes');
+
+        $download = GalleryDownload::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'pending',
+            'photo_snapshot_hash' => 'abc123',
+        ]);
+
+        try {
+            (new GenerateGalleryZipJob($this->gallery->id, $download->id))->handle(app(\App\Services\StorageService::class));
+            $this->fail('Expected the upload failure to be rethrown.');
+        } catch (\League\Flysystem\UnableToWriteFile $e) {
+            // expected
+        }
+
+        $download->refresh();
+        $this->assertEquals('failed', $download->status);
+        $this->assertStringContainsString('uploading parts to a multipart upload', $download->error);
+    }
+}

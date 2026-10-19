@@ -6,6 +6,7 @@ use App\Models\GalleryDownload;
 use App\Services\GalleryZipDownloadService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class CleanupExpiredZips extends Command
 {
@@ -44,10 +45,62 @@ class CleanupExpiredZips extends Command
             });
 
         $this->info("Cleanup process complete! Expired and updated {$expiredCount} ZIP downloads.");
+
+        $abortedCount = $this->abortStaleZipUploads($threshold);
+
         Log::info("CleanupExpiredZips run complete.", [
             'expired_count' => $expiredCount,
+            'aborted_uploads' => $abortedCount,
         ]);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Cancel ZIP multipart uploads left unfinished by killed or failed export jobs.
+     * B2 bills their parts as stored data until they are cancelled.
+     */
+    private function abortStaleZipUploads(\Carbon\CarbonInterface $threshold): int
+    {
+        $disk = Storage::disk('b2');
+        if (!method_exists($disk, 'getClient')) {
+            return 0;
+        }
+
+        $aborted = 0;
+
+        try {
+            $client = $disk->getClient();
+            $bucket = config('filesystems.disks.b2.bucket');
+            $params = ['Bucket' => $bucket];
+
+            do {
+                $page = $client->listMultipartUploads($params);
+
+                foreach ($page['Uploads'] ?? [] as $upload) {
+                    // Only export archives; photo and video uploads share the bucket
+                    if (!preg_match('#/downloads/photos-[0-9a-f]+\.zip$#', $upload['Key'])) {
+                        continue;
+                    }
+                    if (\Illuminate\Support\Carbon::parse($upload['Initiated'])->gte($threshold)) {
+                        continue;
+                    }
+
+                    $client->abortMultipartUpload(['Bucket' => $bucket, 'Key' => $upload['Key'], 'UploadId' => $upload['UploadId']]);
+                    $aborted++;
+                }
+
+                $params['KeyMarker'] = $page['NextKeyMarker'] ?? null;
+                $params['UploadIdMarker'] = $page['NextUploadIdMarker'] ?? null;
+            } while (!empty($page['IsTruncated']));
+        } catch (\Throwable $e) {
+            Log::error('Failed to cancel stale ZIP uploads: ' . $e->getMessage());
+        }
+
+        if ($aborted > 0) {
+            $this->info("Cancelled {$aborted} unfinished ZIP uploads.");
+        }
+
+        return $aborted;
     }
 }
