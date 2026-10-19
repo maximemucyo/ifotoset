@@ -174,7 +174,7 @@
                                                 <div x-show="takedownOpen"
                                                      x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                                                      x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                                                     class="relative w-full max-w-md rounded-2xl border border-border bg-card text-left shadow-2xl">
+                                                     class="relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card text-left shadow-2xl">
                                                     <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}">
                                                         @csrf
                                                         <div class="space-y-4 p-5">

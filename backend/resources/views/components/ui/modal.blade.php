@@ -36,7 +36,7 @@
             <div x-show="open"
                  x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-3 sm:translate-y-0 sm:scale-[0.97]" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100 sm:scale-100" x-transition:leave-end="opacity-0 sm:scale-[0.97]"
-                 class="relative w-full {{ $maxWidthClass }} overflow-hidden rounded-2xl border border-border bg-popover text-left text-popover-foreground shadow-xl">
+                 class="relative w-full {{ $maxWidthClass }} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover text-left text-popover-foreground shadow-xl">
                 @if($title)
                     <div class="flex items-start justify-between gap-4 px-6 pt-5 pb-1">
                         <div>

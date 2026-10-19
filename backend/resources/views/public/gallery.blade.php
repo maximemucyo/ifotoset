@@ -5,7 +5,7 @@
     $allowPhotoDownloads = (bool) $gallery->allow_photo_downloads;
     $iconBtn = 'inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-full px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $lbBtn = 'inline-flex size-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
-    $panel = 'w-full max-w-sm animate-scale-in overflow-hidden rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
+    $panel = 'w-full max-w-sm animate-scale-in max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
     $backdrop = 'fixed inset-0 z-[60] flex hidden items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center';
 @endphp
 

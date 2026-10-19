@@ -184,7 +184,7 @@
                                             <div x-show="planModalOpen"
                                                  x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                                                  x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                                                 class="relative w-full max-w-md rounded-2xl border border-border bg-card text-left shadow-2xl">
+                                                 class="relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card text-left shadow-2xl">
                                                 <div class="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
                                                     <div>
                                                         <h3 class="text-[15px] font-semibold text-foreground">Change plan</h3>
@@ -237,7 +237,7 @@
                                     <template x-teleport="body">
                                         <div x-show="revokeModalOpen" x-cloak class="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true">
                                             <div x-show="revokeModalOpen" x-transition.opacity class="absolute inset-0 bg-black/40 backdrop-blur-[2px]" @click="revokeModalOpen = false"></div>
-                                            <div x-show="revokeModalOpen" x-transition class="relative w-full max-w-md rounded-2xl border border-border bg-card text-left shadow-2xl">
+                                            <div x-show="revokeModalOpen" x-transition class="relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card text-left shadow-2xl">
                                                 <form method="POST" action="{{ route('admin.users.plan.revoke', $user->id) }}">
                                                     @csrf
                                                     <div class="space-y-4 px-5 py-5">

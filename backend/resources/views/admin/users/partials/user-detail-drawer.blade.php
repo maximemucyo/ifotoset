@@ -96,7 +96,7 @@
         </header>
 
         <!-- Body -->
-        <div class="flex-1 overflow-y-auto overscroll-contain p-5">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
 
             <!-- Loading skeleton -->
             <div x-show="isLoading" class="space-y-4" aria-live="polite">
@@ -441,7 +441,7 @@
          role="alertdialog" aria-modal="true"
          style="display: none;">
         <div x-show="confirmUnverifyModal" x-transition.opacity class="absolute inset-0 bg-black/40"></div>
-        <div x-show="confirmUnverifyModal" x-transition @click.away="confirmUnverifyModal = false" class="relative w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+        <div x-show="confirmUnverifyModal" x-transition @click.away="confirmUnverifyModal = false" class="relative w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div class="flex gap-3">
                 <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"><x-icon name="triangle-alert" class="size-4" /></span>
                 <div>

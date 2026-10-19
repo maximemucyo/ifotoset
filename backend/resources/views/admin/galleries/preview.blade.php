@@ -298,7 +298,7 @@
          role="dialog" aria-modal="true"
          style="display: none;">
         <div x-show="takedownModalOpen" x-transition.opacity class="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-        <div x-show="takedownModalOpen" x-transition @click.away="takedownModalOpen = false" class="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl">
+        <div x-show="takedownModalOpen" x-transition @click.away="takedownModalOpen = false" class="relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card shadow-2xl">
             <form method="POST" action="{{ route('admin.galleries.takedown', $gallery->uuid) }}">
                 @csrf
                 <div class="space-y-4 p-5">

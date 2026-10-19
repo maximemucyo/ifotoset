@@ -29,7 +29,7 @@
                  x-trap.noscroll="{{ $show }}"
                  x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-3 sm:translate-y-0 sm:scale-[0.97]" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100 sm:scale-100" x-transition:leave-end="opacity-0 sm:scale-[0.97]"
-                 class="pointer-events-auto relative w-full {{ $maxWidth }} overflow-hidden rounded-2xl border border-border bg-popover text-left text-popover-foreground shadow-xl">
+                 class="pointer-events-auto relative w-full {{ $maxWidth }} max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-2xl sm:max-h-[calc(100dvh-2rem)] border border-border bg-popover text-left text-popover-foreground shadow-xl">
                 @if(!empty($title))
                     <div class="flex items-start gap-3.5 px-5 pt-5 pb-1 sm:px-6">
                         @if(!empty($icon))

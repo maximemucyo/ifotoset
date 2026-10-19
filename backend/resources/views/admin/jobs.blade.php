@@ -540,7 +540,7 @@
          @click.self="stageModalOpen = false"
          @keydown.escape.window="stageModalOpen = false">
 
-        <div class="my-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl">
+        <div class="my-4 flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl">
             {{-- Header --}}
             <div class="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
                 <div class="flex min-w-0 items-center gap-3">
@@ -568,7 +568,7 @@
             </div>
 
             {{-- Body --}}
-            <div class="space-y-5 overflow-y-auto p-5">
+            <div class="min-h-0 space-y-5 overflow-y-auto overscroll-contain p-5">
                 {{-- Overall progress --}}
                 <div class="surface-muted p-4">
                     <div class="flex items-end justify-between gap-4">
@@ -709,7 +709,7 @@
          style="display: none;"
          role="dialog" aria-modal="true"
          @click.self="errorModalOpen = false">
-        <div class="w-full max-w-lg space-y-4 rounded-2xl border border-border bg-popover p-5 shadow-xl">
+        <div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain space-y-4 rounded-2xl border border-border bg-popover p-5 shadow-xl">
             <div class="flex items-center justify-between">
                 <h3 class="flex items-center gap-2 text-[15px] font-semibold text-foreground">
                     <x-icon name="circle-alert" class="size-4 text-destructive" />
