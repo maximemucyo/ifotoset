@@ -21,6 +21,14 @@ jobs:
 
       # The suite expects the compose services by hostname (mysql, redis, s3),
       # so it runs inside the same containers as local development.
+      # backend/ is bind-mounted into the container, so the gitignored runtime
+      # dirs have to exist in the checkout itself.
+      - name: Create runtime directories
+        run: |
+          mkdir -p backend/bootstrap/cache backend/storage/app/public backend/storage/logs \
+            backend/storage/framework/{cache/data,sessions,views,testing}
+          chmod -R a+rwX backend/bootstrap/cache backend/storage
+
       - name: Start services
         run: docker compose up -d --build --wait mysql redis s3 backend
 

@@ -32,6 +32,10 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
+# Runtime dirs are gitignored, so a fresh checkout doesn't have them
+RUN mkdir -p bootstrap/cache storage/app/public storage/framework/cache/data \
+    storage/framework/sessions storage/framework/views storage/framework/testing storage/logs
+
 # Install Composer dependencies
 RUN composer install --no-interaction --no-dev --optimize-autoloader
 
