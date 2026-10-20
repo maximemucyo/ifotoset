@@ -7,6 +7,8 @@ use App\Models\Gallery;
 use App\Models\GalleryDownload;
 use App\Models\Photo;
 use App\Services\StorageService;
+use Aws\Exception\MultipartUploadException;
+use Aws\S3\MultipartUploader;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,6 +18,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Sleep;
 use Throwable;
 use ZipArchive;
 
@@ -36,8 +39,12 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
 
     public int $uniqueFor = 3600;
 
-    // Fewer, larger parts for big archives (a 1.1 GB ZIP is ~17 parts instead of ~210)
-    private const UPLOAD_PART_SIZE = 64 * 1024 * 1024;
+    // B2 failed most 64 MB parts (each request open 60s+ at ~3 MB/s) with 500s; 16 MB parts
+    // keep requests short while a 1.1 GB ZIP stays at ~70 parts instead of ~210
+    private const UPLOAD_PART_SIZE = 16 * 1024 * 1024;
+
+    // Resume rounds for a multipart upload whose parts B2 rejected with transient 500s
+    private const UPLOAD_ATTEMPTS = 6;
 
     /**
      * Create a new job instance.
@@ -197,22 +204,13 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
             $snapshotHash = $download->photo_snapshot_hash;
             $b2ZipPath = $gallery->mediaPrefix() . "/downloads/photos-{$snapshotHash}.zip";
 
-            // Upload the ZIP to B2 through the Flysystem driver, which throws, so the real
-            // upload error is logged (the Laravel wrapper swallows it and returns false)
+            // Upload the ZIP to B2
             $this->abortUnfinishedUploads($b2ZipPath);
-            $zipStream = fopen($tempZipPath, 'r');
             try {
-                Storage::disk('b2')->getDriver()->writeStream($b2ZipPath, $zipStream, [
-                    'part_size' => self::UPLOAD_PART_SIZE,
-                    'concurrency' => 3,
-                ]);
+                $this->uploadZip($b2ZipPath, $tempZipPath);
             } catch (Throwable $e) {
                 $this->abortUnfinishedUploads($b2ZipPath);
                 throw $e;
-            } finally {
-                if (is_resource($zipStream)) {
-                    fclose($zipStream);
-                }
             }
 
             // Verify upload exists in B2
@@ -299,6 +297,62 @@ class GenerateGalleryZipJob implements ShouldQueue, ShouldBeUnique
         $gallery = Gallery::find($this->galleryId);
         if ($download && $gallery && $download->photo_snapshot_hash) {
             $this->abortUnfinishedUploads($gallery->mediaPrefix() . "/downloads/photos-{$download->photo_snapshot_hash}.zip");
+        }
+    }
+
+    /**
+     * Upload the archive as a multipart upload. B2 answers some part uploads with
+     * "500 InternalError: internal incident" and expects the client to retry them, so a
+     * failed upload is resumed (re-sending only the failed parts) instead of failing the job,
+     * which would re-download and re-pack the whole gallery.
+     */
+    private function uploadZip(string $key, string $localPath): void
+    {
+        $disk = Storage::disk('b2');
+
+        // Fake and local disks in tests have no S3 client; write through the throwing driver
+        if (!method_exists($disk, 'getClient')) {
+            $stream = fopen($localPath, 'r');
+            try {
+                $disk->getDriver()->writeStream($key, $stream);
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+            return;
+        }
+
+        $client = $disk->getClient();
+        $uploader = new MultipartUploader($client, $localPath, [
+            'bucket' => config('filesystems.disks.b2.bucket'),
+            'key' => $key,
+            'part_size' => self::UPLOAD_PART_SIZE,
+            'concurrency' => 3,
+            'params' => ['ContentType' => 'application/zip'],
+        ]);
+
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $uploader->upload();
+                return;
+            } catch (MultipartUploadException $e) {
+                if ($attempt >= self::UPLOAD_ATTEMPTS) {
+                    throw $e;
+                }
+
+                Log::warning('ZIP upload had failed parts; resuming.', [
+                    'key' => $key,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                ]);
+                Sleep::for(min(5 * $attempt, 30))->seconds();
+
+                $uploader = new MultipartUploader($client, $localPath, [
+                    'state' => $e->getState(),
+                    'concurrency' => 3,
+                ]);
+            }
         }
     }
 

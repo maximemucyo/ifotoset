@@ -605,4 +605,39 @@ class GalleryZipDownloadTest extends TestCase
         $this->assertEquals('failed', $download->status);
         $this->assertStringContainsString('uploading parts to a multipart upload', $download->error);
     }
+
+    public function test_zip_upload_resumes_when_b2_rejects_a_part_with_a_transient_500(): void
+    {
+        \Illuminate\Support\Sleep::fake();
+
+        $mock = new \Aws\MockHandler();
+        $mock->append(new \Aws\Result(['UploadId' => 'upload-1']));
+        $mock->append(fn ($command) => new \Aws\S3\Exception\S3Exception('internal incident', $command, [
+            'code' => 'InternalError',
+            'response' => new \GuzzleHttp\Psr7\Response(500),
+        ]));
+        $mock->append(new \Aws\Result(['ETag' => '"etag-1"']));
+        $mock->append(new \Aws\Result(['Location' => 'zip']));
+
+        $client = new \Aws\S3\S3Client([
+            'region' => 'us-east-005',
+            'version' => 'latest',
+            'retries' => 0,
+            'credentials' => ['key' => 'k', 'secret' => 's'],
+            'handler' => $mock,
+        ]);
+        $adapter = new \League\Flysystem\AwsS3V3\AwsS3V3Adapter($client, 'ifotoset-media');
+        Storage::set('b2', new \Illuminate\Filesystem\AwsS3V3Adapter(new \League\Flysystem\Filesystem($adapter), $adapter, ['bucket' => 'ifotoset-media'], $client));
+
+        $localZip = tempnam(sys_get_temp_dir(), 'zip');
+        file_put_contents($localZip, 'zip bytes');
+
+        $job = new GenerateGalleryZipJob($this->gallery->id, 1);
+        (new \ReflectionMethod($job, 'uploadZip'))->invoke($job, 'galleries/test/downloads/photos-abc.zip', $localZip);
+        unlink($localZip);
+
+        // Create, failed part, resumed part, complete: the upload finished without starting over
+        $this->assertEquals(0, $mock->count());
+        \Illuminate\Support\Sleep::assertSleptTimes(1);
+    }
 }
