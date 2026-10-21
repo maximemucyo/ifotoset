@@ -4,6 +4,12 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
+// Server-wide PawaPay credentials shared with the other sites on the host. Loaded
+// before .env and immutable, so a token rotated there wins over any stale copy here.
+if (@is_readable('/etc/pawapay/credentials.env')) {
+    Dotenv\Dotenv::createImmutable('/etc/pawapay', 'credentials.env')->safeLoad();
+}
+
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',

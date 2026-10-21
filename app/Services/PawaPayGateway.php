@@ -112,6 +112,10 @@ class PawaPayGateway implements PaymentGateway
                     'provider' => $provider,
                 ],
             ],
+            // Echoed back in the callback so the shared relay can route it to this site.
+            'metadata' => [
+                ['app' => 'ifotoset'],
+            ],
         ];
 
         $response = Http::withToken($this->apiKey)
