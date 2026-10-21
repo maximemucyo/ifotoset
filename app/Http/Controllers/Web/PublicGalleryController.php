@@ -241,7 +241,7 @@ class PublicGalleryController extends Controller
         return view('public.export', [
             'gallery' => $gallery,
             'photographer' => $gallery->user,
-            'type' => in_array($type, ['zip', 'google-photos']) ? $type : 'zip',
+            'type' => $type === 'google-photos' && $gallery->googlePhotosExportEnabled() ? $type : 'zip',
             'target' => in_array($target, ['all', 'favorites']) ? $target : 'all',
             'syncUuid' => is_string($syncUuid) && \Illuminate\Support\Str::isUuid($syncUuid) ? $syncUuid : null,
             'errorMessage' => $errorMessage,

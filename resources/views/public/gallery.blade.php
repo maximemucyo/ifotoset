@@ -263,7 +263,7 @@
                     <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums">0</span>
                 </button>
 
-                @if($gallery->allow_gallery_downloads || $gallery->allow_google_photos)
+                @if($gallery->allow_gallery_downloads || $gallery->googlePhotosExportEnabled())
                     <button type="button"
                             id="btn-download-options"
                             aria-label="Download gallery"
@@ -310,7 +310,7 @@
          data-has-more="{{ $hasMore ? 'true' : 'false' }}"
          data-allow-photo-downloads="{{ $allowPhotoDownloads ? 'true' : 'false' }}"
          data-allow-gallery-downloads="{{ $gallery->allow_gallery_downloads ? 'true' : 'false' }}"
-         data-allow-google-photos="{{ $gallery->allow_google_photos ? 'true' : 'false' }}"
+         data-allow-google-photos="{{ $gallery->googlePhotosExportEnabled() ? 'true' : 'false' }}"
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
         @php($photoAltFallback = $gallery->title . ' – photo by ' . $photographer->name)
@@ -582,7 +582,7 @@
                     </button>
                 @endif
 
-                @if($gallery->allow_google_photos)
+                @if($gallery->googlePhotosExportEnabled())
                     <button type="button" id="btn-choose-google-sync"
                             class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
                         <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
@@ -599,6 +599,7 @@
         </div>
     </div>
 
+    @if($gallery->googlePhotosExportEnabled())
     {{-- 4. Google Photos target --}}
     <div id="modal-google-photos-sync" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="google-modal-title">
         <div class="{{ $panel }}">
@@ -631,6 +632,7 @@
             </form>
         </div>
     </div>
+    @endif
 
     {{-- 5. iOS save notice --}}
     <div id="modal-ios-download-notice" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="ios-download-modal-title">

@@ -104,7 +104,9 @@ class PlatformHardeningTest extends TestCase
             \App\Events\PaymentCompleted::class,
             \App\Events\StorageRecalculatedEvent::class,
         ] as $event) {
-            $this->assertCount(1, Event::getRawListeners()[$event] ?? [], "{$event} should have exactly one listener");
+            $listeners = Event::getRawListeners()[$event] ?? [];
+            $this->assertNotEmpty($listeners, "{$event} should have a listener");
+            $this->assertSame(array_unique($listeners, SORT_REGULAR), $listeners, "{$event} has a listener registered twice");
         }
     }
 

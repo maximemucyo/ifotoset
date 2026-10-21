@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Services\StorageStatisticsService;
+use App\Support\GoogleAnalytics;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -162,6 +163,11 @@ class BillingController extends Controller
                 months: $months
             );
 
+            // Retries within the idempotency window return the existing payment; count each checkout once
+            if ($payment->wasRecentlyCreated) {
+                $this->trackCheckout($request, $payment, $plan);
+            }
+
             return response()->json([
                 'success' => true,
                 'payment_uuid' => $payment->uuid,
@@ -178,6 +184,29 @@ class BillingController extends Controller
                 'message' => $e->getMessage(),
             ], 400);
         }
+    }
+
+    /**
+     * Send begin_checkout and keep the visitor's GA client id so the later
+     * purchase (often confirmed by webhook, without cookies) joins the same user.
+     */
+    private function trackCheckout(Request $request, Payment $payment, Plan $plan): void
+    {
+        if ($clientId = GoogleAnalytics::clientId($request)) {
+            $payment->update(['metadata' => [...($payment->metadata ?? []), 'ga_client_id' => $clientId]]);
+        }
+
+        GoogleAnalytics::track($request, $request->user(), 'begin_checkout', [
+            'value' => (float) $payment->amount,
+            'currency' => $payment->currency,
+            'items' => [[
+                'item_id' => $plan->slug,
+                'item_name' => $plan->name,
+                'item_variant' => $payment->billing_cycle,
+                'price' => (float) $payment->amount,
+                'quantity' => 1,
+            ]],
+        ]);
     }
 
     /**

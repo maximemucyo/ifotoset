@@ -160,6 +160,14 @@ class Gallery extends Model
     }
 
     /**
+     * "Save to Google Photos" needs both the gallery setting and the platform switch (GOOGLE_PHOTOS_EXPORT).
+     */
+    public function googlePhotosExportEnabled(): bool
+    {
+        return $this->allow_google_photos && config('services.google.photos_export');
+    }
+
+    /**
      * PIN-protected and private galleries keep their media under the token-only `protected-galleries/` prefix.
      */
     public function hasProtectedMedia(): bool

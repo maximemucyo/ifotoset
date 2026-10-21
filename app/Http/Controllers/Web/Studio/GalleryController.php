@@ -10,6 +10,7 @@ use App\Models\GalleryInvitation;
 use App\Models\Photo;
 use App\Services\PublicUrlService;
 use App\Services\RecipientEmailImportService;
+use App\Support\GoogleAnalytics;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -138,6 +139,8 @@ class GalleryController extends Controller
                 $this->inviteRecipients($gallery, $allEmails);
             }
         }
+
+        GoogleAnalytics::track($request, $user, 'create_gallery', ['visibility' => $validated['visibility']]);
 
         return redirect()->route('studio.galleries.show', $gallery->uuid)
             ->with('success', 'Gallery created successfully! You can now upload photos.');

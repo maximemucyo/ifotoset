@@ -218,6 +218,21 @@ class WebFullStackTest extends TestCase
         $shortlink->assertRedirect($galleryUrl);
     }
 
+    public function test_google_photos_export_follows_platform_switch(): void
+    {
+        $galleryUrl = app(\App\Services\PublicUrlService::class)->galleryUrl('alexmorgan', 'serengeti-safari-collection');
+        $authorizeUrl = route('api.public.gallery.google.authorize', ['username' => 'alexmorgan', 'slug' => 'serengeti-safari-collection']);
+
+        config(['services.google.photos_export' => false]);
+        $this->get($galleryUrl)->assertOk()->assertDontSee('Save to Google Photos');
+        $this->get("{$galleryUrl}/export?type=google-photos")->assertOk()->assertViewHas('type', 'zip');
+        $this->postJson($authorizeUrl)->assertStatus(403)->assertJsonPath('code', 'GOOGLE_PHOTOS_DISABLED');
+
+        config(['services.google.photos_export' => true]);
+        $this->get($galleryUrl)->assertOk()->assertSee('Save to Google Photos');
+        $this->get("{$galleryUrl}/export?type=google-photos")->assertOk()->assertViewHas('type', 'google-photos');
+    }
+
     public function test_public_gallery_export_route_and_access_protection(): void
     {
         $urlService = app(\App\Services\PublicUrlService::class);

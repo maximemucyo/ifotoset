@@ -4,7 +4,9 @@
         'gallery' => [
             'icon' => 'images',
             'title' => 'Client gallery',
-            'body' => 'A distraction-free viewer with favourites, full-set downloads and Google Photos export. Your clients never see an ad or a login wall.',
+            'body' => config('services.google.photos_export')
+                ? 'A distraction-free viewer with favourites, full-set downloads and Google Photos export. Your clients never see an ad or a login wall.'
+                : 'A distraction-free viewer with favourites and full-set downloads. Your clients never see an ad or a login wall.',
         ],
         'portfolio' => [
             'icon' => 'globe',

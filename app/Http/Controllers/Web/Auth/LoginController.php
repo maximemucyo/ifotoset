@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\GoogleAnalytics;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -53,6 +54,8 @@ class LoginController extends Controller
             if (Auth::user()->isAdmin()) {
                 return redirect()->intended(route('admin.dashboard'));
             }
+
+            GoogleAnalytics::track($request, Auth::user(), 'login', ['method' => 'email']);
 
             return redirect()->intended(route('studio.dashboard'));
         }

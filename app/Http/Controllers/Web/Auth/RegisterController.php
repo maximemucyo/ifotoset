@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\User;
+use App\Support\GoogleAnalytics;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -71,6 +72,8 @@ class RegisterController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+
+        GoogleAnalytics::track($request, $user, 'sign_up', ['method' => 'email']);
 
         return redirect()->intended(route('studio.dashboard'))->with('success', 'Welcome to ifotoset! Your account has been created.');
     }

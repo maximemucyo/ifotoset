@@ -31,6 +31,9 @@ class AppServiceProvider extends ServiceProvider
             // Gracefully handle unmigrated database state during CLI/migration commands
         }
 
+        // gtag.js cookies are read server-side to attribute GA events to the visitor
+        \Illuminate\Cookie\Middleware\EncryptCookies::except(\App\Support\GoogleAnalytics::cookieNames());
+
         \App\Models\Photo::observe(\App\Observers\PhotoObserver::class);
         \App\Models\Gallery::observe(\App\Observers\GalleryObserver::class);
 

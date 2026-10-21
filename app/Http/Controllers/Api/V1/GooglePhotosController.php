@@ -45,7 +45,7 @@ class GooglePhotosController extends Controller
             return $errorResponse;
         }
 
-        if (!$gallery->allow_google_photos) {
+        if (!$gallery->googlePhotosExportEnabled()) {
             return response()->json([
                 'code' => 'GOOGLE_PHOTOS_DISABLED',
                 'message' => 'Google Photos integration is disabled for this gallery.',
