@@ -10,6 +10,7 @@
 <body class="h-full bg-sidebar text-foreground antialiased">
     <x-ui.skip-link />
     <x-admin.impersonation-banner />
+    <x-studio.over-quota-banner />
     @php
         $pendingBookings = auth()->check()
             ? \Illuminate\Support\Facades\Cache::remember('studio:pending-bookings:' . auth()->id(), 60, fn () => auth()->user()->bookings()->where('status', 'pending')->count())

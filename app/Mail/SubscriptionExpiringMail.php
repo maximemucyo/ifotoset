@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Enums\OverQuotaStage;
 use App\Models\Subscription;
 
 class SubscriptionExpiringMail extends NoticeMail
@@ -30,7 +31,7 @@ class SubscriptionExpiringMail extends NoticeMail
             'greeting' => $subscription->user?->name,
             'paragraphs' => [
                 "Your {$plan} ends on {$endsOn}. After that your account moves to the Free plan.",
-                'Your galleries stay online, but uploads are paused if you are above the Free plan limits. Renew now to avoid any interruption.',
+                'If you are above the Free plan storage limit, uploads pause straight away, new galleries and client downloads pause after ' . OverQuotaStage::restrictAfterDays() . ' days, galleries go offline after ' . OverQuotaStage::archiveAfterDays() . ' days, and your oldest galleries are permanently deleted after ' . OverQuotaStage::deleteAfterDays() . ' days. Renew now to avoid any interruption.',
             ],
             'button' => ['label' => 'Renew plan', 'url' => route('studio.billing.index')],
         ];

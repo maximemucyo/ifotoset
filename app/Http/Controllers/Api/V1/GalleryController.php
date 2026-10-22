@@ -151,7 +151,7 @@ class GalleryController extends Controller
             return $errorResponse;
         }
 
-        if (!$gallery->allow_gallery_downloads) {
+        if (!$gallery->galleryDownloadsAllowed()) {
             return response()->json([
                 'code' => 'DOWNLOADS_DISABLED',
                 'message' => 'Full gallery downloads are disabled for this gallery.',
@@ -433,7 +433,7 @@ class GalleryController extends Controller
             return redirect()->to($exportUrl . '?error=expired');
         }
 
-        if (!in_array($download->status, ['ready', 'ready_with_errors'])) {
+        if (!in_array($download->status, ['ready', 'ready_with_errors']) || $gallery->clientDownloadsPaused()) {
             return redirect()->to($exportUrl . '?error=unavailable');
         }
 

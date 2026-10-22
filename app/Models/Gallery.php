@@ -164,7 +164,25 @@ class Gallery extends Model
      */
     public function googlePhotosExportEnabled(): bool
     {
-        return $this->allow_google_photos && config('services.google.photos_export');
+        return $this->allow_google_photos && config('services.google.photos_export') && !$this->clientDownloadsPaused();
+    }
+
+    /**
+     * Client downloads pause while the owner's Free-plan account is over quota (config/billing.php).
+     */
+    public function clientDownloadsPaused(): bool
+    {
+        return (bool) $this->user?->overQuotaStage()?->pausesClientDownloads();
+    }
+
+    public function photoDownloadsAllowed(): bool
+    {
+        return $this->allow_photo_downloads && !$this->clientDownloadsPaused();
+    }
+
+    public function galleryDownloadsAllowed(): bool
+    {
+        return $this->allow_gallery_downloads && !$this->clientDownloadsPaused();
     }
 
     /**

@@ -52,7 +52,15 @@ class ExpireSubscriptions
                     ->exists();
 
                 if (!$hasOtherActive && $freePlan) {
-                    $user->forceFill(['plan_id' => $freePlan->id])->save();
+                    $user->forceFill(['plan_id' => $freePlan->id])->setRelation('plan', $freePlan);
+
+                    // Start the over-quota timeline now; the expiry email below explains it,
+                    // so the daily enforcement run treats the 'started' notice as sent
+                    if (!$user->over_quota_since && $user->isOverFreeQuota()) {
+                        $user->forceFill(['over_quota_since' => now(), 'over_quota_notice' => 'started']);
+                    }
+
+                    $user->save();
                     StorageStatisticsService::clearCache($user->id);
 
                     if ($user->email && $user->is_active) {

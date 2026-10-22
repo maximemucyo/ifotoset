@@ -308,7 +308,7 @@ class PublicGalleryController extends Controller
         }
 
         // 2. Verify photo downloads are permitted on this gallery
-        if (!$gallery->allow_photo_downloads) {
+        if (!$gallery->photoDownloadsAllowed()) {
             return response()->json([
                 'code' => 'DOWNLOADS_DISABLED',
                 'message' => 'Photo downloads are disabled for this gallery.',

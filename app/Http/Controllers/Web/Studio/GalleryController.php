@@ -75,9 +75,26 @@ class GalleryController extends Controller
     /**
      * Show form to create new gallery.
      */
-    public function create(): View
+    public function create(Request $request): View|RedirectResponse
     {
+        if ($redirect = $this->redirectIfOverQuota($request->user())) {
+            return $redirect;
+        }
+
         return view('studio.galleries.create');
+    }
+
+    /**
+     * Free-plan accounts over quota past the restrict day can't start new galleries.
+     */
+    private function redirectIfOverQuota(\App\Models\User $user): ?RedirectResponse
+    {
+        if (!$user->overQuotaStage()?->blocksNewGalleries()) {
+            return null;
+        }
+
+        return redirect()->route('studio.galleries.index')
+            ->with('error', 'Your account is over the Free plan storage limit. Upgrade or free up space to create new galleries.');
     }
 
     /**
@@ -86,6 +103,10 @@ class GalleryController extends Controller
     public function store(Request $request, RecipientEmailImportService $importService): RedirectResponse
     {
         $user = $request->user();
+
+        if ($redirect = $this->redirectIfOverQuota($user)) {
+            return $redirect;
+        }
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],

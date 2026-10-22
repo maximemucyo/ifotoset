@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 Schedule::command('ifotoset:purge-expired-trash')->daily()->withoutOverlapping()->onOneServer();
 Schedule::command('gallery:cleanup-expired-zips')->hourly()->withoutOverlapping()->onOneServer();
 Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('storage:enforce-free-quota')->dailyAt('10:00')->withoutOverlapping()->onOneServer();
 Schedule::command('subscriptions:send-expiry-reminders')->dailyAt('09:00')->withoutOverlapping()->onOneServer();
 Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:gallery-activity-digest')->dailyAt('07:00')->withoutOverlapping()->onOneServer();

@@ -2,7 +2,7 @@
     $isGranted = $accessDecision->isGranted();
     $eventDate = $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date) : null;
     $photoTotal = $isGranted ? $gallery->public_photo_count : 0;
-    $allowPhotoDownloads = (bool) $gallery->allow_photo_downloads;
+    $allowPhotoDownloads = $gallery->photoDownloadsAllowed();
     $iconBtn = 'inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-full px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $lbBtn = 'inline-flex size-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $panel = 'w-full max-w-sm animate-scale-in max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
@@ -263,7 +263,7 @@
                     <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums">0</span>
                 </button>
 
-                @if($gallery->allow_gallery_downloads || $gallery->googlePhotosExportEnabled())
+                @if($gallery->galleryDownloadsAllowed() || $gallery->googlePhotosExportEnabled())
                     <button type="button"
                             id="btn-download-options"
                             aria-label="Download gallery"
@@ -309,7 +309,7 @@
          data-next-cursor="{{ $nextCursor }}"
          data-has-more="{{ $hasMore ? 'true' : 'false' }}"
          data-allow-photo-downloads="{{ $allowPhotoDownloads ? 'true' : 'false' }}"
-         data-allow-gallery-downloads="{{ $gallery->allow_gallery_downloads ? 'true' : 'false' }}"
+         data-allow-gallery-downloads="{{ $gallery->galleryDownloadsAllowed() ? 'true' : 'false' }}"
          data-allow-google-photos="{{ $gallery->googlePhotosExportEnabled() ? 'true' : 'false' }}"
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
@@ -568,7 +568,7 @@
             <p class="mt-1 text-[13px] text-muted-foreground">Choose how you'd like to save this collection.</p>
 
             <div class="mt-5 space-y-2">
-                @if($gallery->allow_gallery_downloads)
+                @if($gallery->galleryDownloadsAllowed())
                     <button type="button" id="btn-choose-zip-download"
                             class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
                         <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">

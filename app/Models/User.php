@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Enums\OverQuotaStage;
 use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -63,6 +64,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'storage_warning_75_active' => 'boolean',
         'storage_warning_100_active' => 'boolean',
         'storage_warning_generation' => 'integer',
+        'over_quota_since' => 'datetime',
     ];
 
     public function isAdmin(): bool
@@ -73,6 +75,30 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isFree(): bool
     {
         return ! $this->plan_id || ! $this->plan || $this->plan->slug === 'free';
+    }
+
+    /**
+     * True when the account is on the Free plan and stores more than its limit.
+     */
+    public function isOverFreeQuota(): bool
+    {
+        $limit = $this->plan?->storage_limit;
+
+        return $this->plan?->slug === 'free'
+            && $limit !== null && $limit > 0
+            && (int) $this->storage_used_bytes > $limit;
+    }
+
+    /**
+     * Over-quota timeline stage, or null once the account has upgraded or freed up space.
+     */
+    public function overQuotaStage(): ?OverQuotaStage
+    {
+        if (!$this->over_quota_since || !$this->isOverFreeQuota()) {
+            return null;
+        }
+
+        return OverQuotaStage::since($this->over_quota_since);
     }
 
     public function hasVideoSupport(): bool

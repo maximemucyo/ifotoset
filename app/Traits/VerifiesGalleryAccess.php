@@ -32,6 +32,11 @@ trait VerifiesGalleryAccess
             return GalleryAccessDecision::granted();
         }
 
+        // Free-plan owner over quota past the archive day: galleries are offline until they upgrade or free up space
+        if ($gallery->user?->overQuotaStage()?->hidesGalleries()) {
+            return GalleryAccessDecision::denied('This gallery is temporarily unavailable. Please contact the photographer.', 'GALLERY_ARCHIVED');
+        }
+
         // 3. Check if gallery is expired
         if ($gallery->expires_at && $gallery->expires_at->isPast()) {
             return GalleryAccessDecision::expired();
