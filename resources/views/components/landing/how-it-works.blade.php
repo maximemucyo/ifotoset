@@ -1,6 +1,6 @@
 @php
     $steps = [
-        ['icon' => 'user-plus', 'title' => 'Create your studio', 'body' => 'Sign up for free, choose your username and add your logo. Your portfolio is live straight away.'],
+        ['icon' => 'user-plus', 'title' => 'Create your studio', 'body' => 'Sign up for free, choose your username and add your logo or profile photo. Your portfolio is live straight away.'],
         ['icon' => 'cloud-upload', 'title' => 'Upload and organise', 'body' => 'Drag in photos and films. We optimise them for the web and keep your originals safe.'],
         ['icon' => 'send', 'title' => 'Deliver and get paid', 'body' => 'Send a private link, take bookings and collect Mobile Money payments in the same place.'],
     ];

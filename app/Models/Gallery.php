@@ -14,6 +14,10 @@ class Gallery extends Model
 {
     use SoftDeletes, HasBinaryUuid;
 
+    /**
+     * Portfolio pages on {username}.{root}/ that a gallery slug must never take.
+     */
+    public const RESERVED_SLUGS = ['book', 'about', 'contact'];
 
     protected $fillable = [
         'uuid',
@@ -40,6 +44,7 @@ class Gallery extends Model
         'expires_at',
         'version',
         'featured_order',
+        'portfolio_category',
     ];
 
     protected static function booted(): void
@@ -106,6 +111,16 @@ class Gallery extends Model
     public function scopeFeatured(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereNotNull('featured_order')->orderBy('featured_order', 'asc');
+    }
+
+    /**
+     * Order the photographer chose in the portfolio builder; galleries never sorted follow, newest first.
+     */
+    public function scopePortfolioOrder(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->orderByRaw('featured_order IS NULL')
+            ->orderBy('featured_order')
+            ->orderByDesc('created_at');
     }
 
     /**

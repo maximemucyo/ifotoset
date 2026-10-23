@@ -47,12 +47,12 @@ class PurgeDeletedUserJob implements ShouldQueue
                 $trashService->purgeGallery($gallery->id, recalculateStats: false);
             });
 
-        // 2. Avatar
-        if ($user->avatar_path) {
+        // 2. Avatar and portfolio branding images
+        foreach (array_filter([$user->avatar_path, $user->logo_path, $user->cover_path, $user->share_image_path]) as $path) {
             try {
-                $storageService->delete($user->avatar_path);
+                $storageService->delete($path);
             } catch (\Throwable $e) {
-                Log::warning("Avatar delete failed while purging user {$user->id}: " . $e->getMessage());
+                Log::warning("Profile image delete failed while purging user {$user->id}: " . $e->getMessage());
             }
         }
 
@@ -73,6 +73,10 @@ class PurgeDeletedUserJob implements ShouldQueue
                 'website' => null,
                 'bio' => null,
                 'avatar_path' => null,
+                'logo_path' => null,
+                'cover_path' => null,
+                'share_image_path' => null,
+                'portfolio_settings' => null,
                 'notification_preferences' => null,
                 'remember_token' => null,
                 'is_active' => false,

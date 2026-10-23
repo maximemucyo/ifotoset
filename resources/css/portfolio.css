@@ -1,0 +1,4 @@
+/* Heading typefaces for the portfolio font pairings (see App\Support\Portfolio\PortfolioSettings::FONTS).
+   Loaded only on portfolio and booking pages; Instrument Serif and Inter Tight already ship in app.css. */
+@import '@fontsource-variable/playfair-display';
+@import '@fontsource-variable/space-grotesk';

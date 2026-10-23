@@ -13,14 +13,14 @@
         </x-email.callout>
     @elseif($newStatus === 'cancelled')
         <x-email.callout variant="danger">
-            Your booking scheduled for {{ $booking->starts_at->format('l, F j, Y \a\t g:i A') }} has been cancelled.
+            Your booking scheduled for {{ $booking->whenLabel() }} has been cancelled.
         </x-email.callout>
     @endif
 
     <x-email.card title="Booking overview">
         <x-email.detail-row label="Session" :value="$booking->title" />
         <x-email.detail-row label="Photographer" :value="$photographer->name" />
-        <x-email.detail-row label="Date & time" :value="$booking->starts_at->format('l, F j, Y \a\t g:i A')" />
+        <x-email.detail-row label="Date & time" :value="$booking->whenLabel()" />
         @if($booking->location)
             <x-email.detail-row label="Location" :value="$booking->location" />
         @endif

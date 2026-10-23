@@ -22,11 +22,9 @@ class SlotGenerator
     ): Collection {
         $timezone = $photographer->timezone ?: 'Africa/Kigali';
         
-        // 1. Calculate occupied duration (Session duration + buffers)
+        // 1. The session plus its trailing buffer must finish inside working hours
         $duration = (int) $package->duration_minutes;
-        $bufferBefore = (int) ($package->buffer_before_minutes ?? 0);
         $bufferAfter = (int) ($package->buffer_after_minutes ?? 0);
-        $totalOccupiedMinutes = $duration + $bufferBefore + $bufferAfter;
 
         // 2. Parse working hours in photographer local timezone
         $startTimeString = $workingHours['start_time'];
@@ -35,11 +33,10 @@ class SlotGenerator
         $localWorkStart = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' ' . $startTimeString, $timezone);
         $localWorkEnd = Carbon::createFromFormat('Y-m-d H:i:s', $date->format('Y-m-d') . ' ' . $endTimeString, $timezone);
 
-        // 3. Compute last valid slot start time (so the whole occupied range fits before workday end)
-        // lastStartLocal = workEndLocal - occupiedDuration
-        $lastPossibleStart = (clone $localWorkEnd)->subMinutes($totalOccupiedMinutes);
+        // 3. Compute last valid slot start time (so the session and its buffer end by workday end)
+        $lastPossibleStart = (clone $localWorkEnd)->subMinutes($duration + $bufferAfter);
 
-        if ($localWorkStart->greaterThanOrEqualTo($lastPossibleStart)) {
+        if ($localWorkStart->greaterThan($lastPossibleStart)) {
             return collect();
         }
 

@@ -56,6 +56,7 @@ class AdminAnalyticsQuery
 
                 $revenue = Payment::where('user_id', $studio->id)
                     ->where('status', 'completed')
+                    ->where('purpose', '!=', 'booking_deposit')
                     ->sum('amount') ?: 0;
 
                 return [

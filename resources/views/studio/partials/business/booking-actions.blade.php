@@ -23,7 +23,7 @@
     @endif
     @if($status !== 'cancelled' && $status !== 'completed')
         <form method="POST" action="{{ route('studio.bookings.status', $booking->uuid) }}"
-              @submit.prevent="$dispatch('confirm-action', { form: $el, title: 'Cancel this booking?', message: @js('The session with ' . ($booking->client->name ?? 'this client') . ' on ' . $booking->starts_at->format('M j') . ' will be marked as cancelled and the time slot freed up.'), confirm: 'Cancel booking', cancel: 'Keep booking' })">
+              @submit.prevent="$dispatch('confirm-action', { form: $el, title: 'Cancel this booking?', message: @js('The session with ' . ($booking->client->name ?? 'this client') . ' on ' . $booking->localStartsAt()->format('M j') . ' will be marked as cancelled and the time slot freed up.'), confirm: 'Cancel booking', cancel: 'Keep booking' })">
             @csrf
             @method('PATCH')
             <input type="hidden" name="status" value="cancelled">

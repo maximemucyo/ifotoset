@@ -20,17 +20,15 @@ class ConflictDetector
         Package $package,
         Collection $candidates
     ): Collection {
-        $timezone = $photographer->timezone ?: 'Africa/Kigali';
-        
         // Define day boundaries in UTC for query optimization
         $startOfDayUtc = (clone $date)->startOfDay()->setTimezone('UTC');
         $endOfDayUtc = (clone $date)->endOfDay()->setTimezone('UTC');
 
         // 1. Fetch confirmed/blocking bookings overlapping this day
         $bookings = Booking::where('user_id', $photographer->id)
-            ->whereIn('status', Booking::blockingStatuses())
-            ->where('starts_at', '<=', $endOfDayUtc->addDay()) // Buffer margin
-            ->where('ends_at', '>=', $startOfDayUtc->subDay())
+            ->blocking()
+            ->where('starts_at', '<=', $endOfDayUtc->copy()->addDay()) // Buffer margin
+            ->where('ends_at', '>=', $startOfDayUtc->copy()->subDay())
             ->with('package')
             ->get();
 
@@ -59,8 +57,8 @@ class ConflictDetector
                 $bookingBufferAfter = (int) ($booking->package?->buffer_after_minutes ?? 0);
 
                 // Compute occupied boundaries of existing booking
-                $bookOccupiedStart = $booking->starts_at->subMinutes($bookingBufferBefore);
-                $bookOccupiedEnd = $booking->ends_at->addMinutes($bookingBufferAfter);
+                $bookOccupiedStart = $booking->starts_at->copy()->subMinutes($bookingBufferBefore);
+                $bookOccupiedEnd = $booking->ends_at->copy()->addMinutes($bookingBufferAfter);
 
                 // Check overlap condition: starts < ends && ends > starts
                 if ($candOccupiedStart->lessThan($bookOccupiedEnd) && $candOccupiedEnd->greaterThan($bookOccupiedStart)) {

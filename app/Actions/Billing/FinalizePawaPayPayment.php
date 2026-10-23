@@ -3,6 +3,7 @@
 namespace App\Actions\Billing;
 
 use App\DTO\PaymentStatusData;
+use App\Enums\BookingStatus;
 use App\Events\PaymentCompleted;
 use App\Models\Booking;
 use App\Models\Payment;
@@ -100,10 +101,7 @@ class FinalizePawaPayPayment
                 if ($payment->purpose === 'plan_subscription') {
                     $this->applyEntitlement->execute($payment);
                 } elseif ($payment->purpose === 'booking_deposit' && $payment->booking_id) {
-                    $booking = Booking::find($payment->booking_id);
-                    if ($booking && $booking->status === \App\Enums\BookingStatus::Pending) {
-                        $booking->update(['status' => \App\Enums\BookingStatus::Confirmed]);
-                    }
+                    $this->applyBookingDeposit($payment);
                 }
 
                 // 6. Dispatch side-effects strictly after transaction commit
@@ -123,6 +121,13 @@ class FinalizePawaPayPayment
                     'failure_reason' => $statusData->failureReason ?? 'Transaction failed or rejected by provider',
                 ]);
 
+                if ($payment->purpose === 'booking_deposit' && $payment->booking_id) {
+                    // The hold stays until it expires so the client can retry with another number
+                    Booking::where('id', $payment->booking_id)
+                        ->where('deposit_status', 'pending')
+                        ->update(['deposit_status' => 'failed']);
+                }
+
                 if (!$alreadyFailed) {
                     DB::afterCommit(fn () => event(new \App\Events\PaymentFailed($payment)));
                 }
@@ -138,5 +143,45 @@ class FinalizePawaPayPayment
 
             return $payment;
         });
+    }
+
+    /**
+     * Mark the booking's deposit paid and confirm it. A payment that lands after the hold
+     * expired reinstates the booking when the slot is still free; otherwise it is flagged
+     * so the photographer can refund or rebook the client.
+     */
+    protected function applyBookingDeposit(Payment $payment): void
+    {
+        $booking = Booking::where('id', $payment->booking_id)->lockForUpdate()->first();
+        if (!$booking) {
+            return;
+        }
+
+        $updates = [
+            'deposit_status' => 'paid',
+            'deposit_paid_at' => now(),
+            'hold_expires_at' => null,
+        ];
+
+        if ($booking->status === BookingStatus::Pending) {
+            $updates['status'] = BookingStatus::Confirmed;
+        } elseif ($booking->status === BookingStatus::Cancelled && $booking->deposit_status === 'expired') {
+            $slotTaken = Booking::where('user_id', $booking->user_id)
+                ->where('id', '!=', $booking->id)
+                ->blocking()
+                ->overlapping($booking->starts_at, $booking->ends_at)
+                ->exists();
+
+            if ($slotTaken) {
+                Log::critical("Booking deposit paid after its hold expired and the slot was rebooked; refund due.", [
+                    'booking_id' => $booking->id,
+                    'payment_id' => $payment->id,
+                ]);
+            } else {
+                $updates['status'] = BookingStatus::Confirmed;
+            }
+        }
+
+        $booking->update($updates);
     }
 }

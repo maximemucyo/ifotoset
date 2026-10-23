@@ -23,6 +23,7 @@
             ['label' => null, 'items' => [
                 ['label' => 'Overview', 'route' => 'studio.dashboard', 'icon' => 'layout-dashboard'],
                 ['label' => 'Galleries', 'route' => 'studio.galleries.index', 'icon' => 'images', 'match' => ['studio.galleries.*']],
+                ['label' => 'Portfolio', 'route' => 'studio.portfolio.edit', 'icon' => 'palette'],
                 ['label' => 'Analytics', 'route' => 'studio.analytics.index', 'icon' => 'chart-column'],
             ]],
             ['label' => 'Business', 'items' => [

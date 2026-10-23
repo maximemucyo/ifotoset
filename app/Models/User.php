@@ -40,6 +40,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'website',
         'bio',
         'avatar_path',
+        'portfolio_settings',
+        'logo_path',
+        'cover_path',
+        'share_image_path',
         'notification_preferences',
         'timezone',
         'slot_interval_minutes',
@@ -57,6 +61,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'purged_at' => 'datetime',
         'profile_public' => 'boolean',
         'notification_preferences' => 'array',
+        'portfolio_settings' => 'array',
         'storage_used_bytes' => 'integer',
         'storage_reserved_bytes' => 'integer',
         'video_seconds_used' => 'integer',
@@ -133,6 +138,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Plan::class);
     }
 
+    /**
+     * Whether the user's plan includes a feature (see FeatureSeeder for codes).
+     */
+    public function hasFeature(string $code): bool
+    {
+        return $this->plan !== null && in_array($code, $this->plan->featureCodes(), true);
+    }
+
     public function galleries(): HasMany
     {
         return $this->hasMany(Gallery::class);
@@ -191,11 +204,46 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function getAvatarUrlAttribute(): ?string
     {
-        if (!$this->avatar_path) {
+        return $this->cdnUrl($this->avatar_path);
+    }
+
+    public function getLogoUrlAttribute(): ?string
+    {
+        return $this->cdnUrl($this->logo_path);
+    }
+
+    public function getCoverUrlAttribute(): ?string
+    {
+        return $this->cdnUrl($this->cover_path);
+    }
+
+    public function getShareImageUrlAttribute(): ?string
+    {
+        return $this->cdnUrl($this->share_image_path);
+    }
+
+    /**
+     * Portfolio design with defaults filled in (memoized; call forgetPortfolio() after changing it).
+     */
+    public function portfolio(): \App\Support\Portfolio\PortfolioSettings
+    {
+        return $this->portfolioSettingsCache ??= \App\Support\Portfolio\PortfolioSettings::for($this);
+    }
+
+    public function forgetPortfolio(): void
+    {
+        $this->portfolioSettingsCache = null;
+    }
+
+    private ?\App\Support\Portfolio\PortfolioSettings $portfolioSettingsCache = null;
+
+    private function cdnUrl(?string $path): ?string
+    {
+        if (!$path) {
             return null;
         }
         $cdnDomain = config('filesystems.disks.b2.cdn_domain', 'cdn.ifotoset.com');
-        return \App\Support\Cdn::scheme() . "://{$cdnDomain}/" . ltrim($this->avatar_path, '/');
+        return \App\Support\Cdn::scheme() . "://{$cdnDomain}/" . ltrim($path, '/');
     }
 
     public function isPubliclyIndexable(): bool

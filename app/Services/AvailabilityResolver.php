@@ -36,14 +36,21 @@ class AvailabilityResolver
             ->where('day_of_week', $dayOfWeek)
             ->first();
 
-        if ($setting && $setting->is_active) {
+        // Weekdays never configured get the same defaults the Availability page starts from
+        if (!$setting) {
+            return [
+                'start_time' => AvailabilitySetting::DEFAULT_START,
+                'end_time' => AvailabilitySetting::DEFAULT_END,
+            ];
+        }
+
+        if ($setting->is_active) {
             return [
                 'start_time' => $setting->start_time,
                 'end_time' => $setting->end_time,
             ];
         }
 
-        // If no default setting is active, assume closed by default
         return null;
     }
 }

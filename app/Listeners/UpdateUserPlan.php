@@ -17,12 +17,9 @@ class UpdateUserPlan
         $payment = $event->payment;
         
         if ($payment->purpose === 'booking_deposit' && $payment->booking_id) {
+            // FinalizePawaPayPayment already marked the deposit paid and confirmed the booking
             $booking = \App\Models\Booking::find($payment->booking_id);
             if ($booking) {
-                if ($booking->status === \App\Enums\BookingStatus::Pending) {
-                    $booking->update(['status' => \App\Enums\BookingStatus::Confirmed]);
-                }
-
                 event(new \App\Events\BookingDepositPaid($booking, $payment));
 
                 Log::info("Booking deposit paid successfully via PawaPay.", [

@@ -62,7 +62,7 @@
                     <p class="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">A fast, search-friendly site for your best work, with booking built in. No developer needed.</p>
                     <ul class="mt-5 space-y-2.5 text-[14px] text-foreground">
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Curated collections from your galleries</li>
-                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Your own subdomain or custom domain</li>
+                        <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Your own ifotoset subdomain (custom domains coming soon)</li>
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> SEO metadata and social previews</li>
                     </ul>
                 </div>

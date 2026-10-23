@@ -1,6 +1,14 @@
 @extends('layouts.app', ['title' => 'Packages · ifotoset'])
 
 @section('content')
+@php
+    $collectsDeposits = auth()->user()->hasFeature('booking_deposits');
+    $depositPlan = $collectsDeposits ? null : \App\Models\Plan::whereHas('features', fn ($q) => $q->where('code', 'booking_deposits'))->orderBy('monthly_price')->first();
+    $depositUpgradeUrl = $depositPlan
+        ? route('studio.billing.checkout', $depositPlan->slug) . '?return_to=' . urlencode(route('studio.packages.index'))
+        : route('studio.billing.index') . '#plans';
+    $hasUncollectedDeposits = !$collectsDeposits && $packages->getCollection()->contains(fn ($p) => $p->deposit_type !== 'none' && $p->deposit_amount > 0);
+@endphp
 <div x-data="{
     createModalOpen: false,
     editModalOpen: false,
@@ -41,6 +49,17 @@
         </div>
     @endif
 
+    @if($hasUncollectedDeposits)
+        <div class="alert alert-warning mb-6 flex-col items-start gap-3 sm:flex-row sm:items-center">
+            <x-icon name="wallet" />
+            <div class="flex-1">
+                <p class="font-medium">Your clients aren't paying these deposits yet</p>
+                <p class="mt-0.5 text-[13px]">On your current plan, clients book without paying. Upgrade to {{ $depositPlan?->name ?? 'a paid plan' }} and they pay the deposit by Mobile Money when they book, so the date is only held once it's paid.</p>
+            </div>
+            <a href="{{ $depositUpgradeUrl }}" class="btn btn-primary btn-sm shrink-0"><x-icon name="zap" /> Upgrade to collect deposits</a>
+        </div>
+    @endif
+
     @if($packages->isEmpty())
         <x-ui.empty-state icon="package"
             title="Create your first package"
@@ -61,6 +80,8 @@
                         'price' => $pkg->price,
                         'currency' => $pkg->currency,
                         'duration_minutes' => $pkg->duration_minutes,
+                        'buffer_before_minutes' => $pkg->buffer_before_minutes,
+                        'buffer_after_minutes' => $pkg->buffer_after_minutes,
                         'deliverables_text' => implode("\n", $pkg->deliverables ?? []),
                         'deposit_type' => $pkg->deposit_type,
                         'deposit_amount' => $pkg->deposit_amount,
@@ -97,9 +118,9 @@
                         </div>
                         <p class="mt-2 text-xs text-muted-foreground">
                             @if($pkg->deposit_type === 'percentage' && $pkg->deposit_amount)
-                                <span class="font-medium text-foreground">{{ rtrim(rtrim(number_format($pkg->deposit_amount, 2), '0'), '.') }}% deposit</span> to secure the date
+                                <span class="font-medium text-foreground">{{ rtrim(rtrim(number_format($pkg->deposit_amount, 2), '0'), '.') }}% deposit</span> @if($collectsDeposits) paid by Mobile Money at booking @else · <a href="{{ $depositUpgradeUrl }}" class="font-medium text-warning underline underline-offset-2">upgrade to collect it</a> @endif
                             @elseif($pkg->deposit_type === 'fixed' && $pkg->deposit_amount)
-                                <span class="font-medium text-foreground">{{ $pkg->currency }} {{ number_format($pkg->deposit_amount, 0) }} deposit</span> to secure the date
+                                <span class="font-medium text-foreground">{{ $pkg->currency }} {{ number_format($pkg->deposit_amount, 0) }} deposit</span> @if($collectsDeposits) paid by Mobile Money at booking @else · <a href="{{ $depositUpgradeUrl }}" class="font-medium text-warning underline underline-offset-2">upgrade to collect it</a> @endif
                             @else
                                 No deposit required
                             @endif

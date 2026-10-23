@@ -7,6 +7,7 @@
 
     // Summary figures: a single grouped aggregate (no per-row queries).
     $summary = \App\Models\Booking::where('user_id', auth()->id())
+        ->visibleInStudio()
         ->toBase()
         ->selectRaw('status, currency, COUNT(*) as total, COALESCE(SUM(price), 0) as amount')
         ->groupBy('status', 'currency')
@@ -33,16 +34,28 @@
     $tabs = ['all' => 'All', 'pending' => 'Pending', 'confirmed' => 'Confirmed', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
 @endphp
 
+<div x-data="{ newBookingOpen: {{ old('date') ? 'true' : 'false' }} }">
 <x-ui.page-header title="Bookings" description="Review requests, confirm sessions and keep track of what's coming up.">
     <x-slot:actions>
+        @php $bookingLink = route('subdomain.booking', ['username' => auth()->user()->username]); @endphp
+        <button type="button" class="btn btn-outline" @click="$clipboard(@js($bookingLink), 'Booking link copied')" title="{{ $bookingLink }}">
+            <x-icon name="link" /> Copy booking link
+        </button>
         <a href="{{ route('studio.availability.index') }}" class="btn btn-outline">
             <x-icon name="calendar-check" /> Availability
         </a>
-        <a href="{{ route('studio.packages.index') }}" class="btn btn-primary">
-            <x-icon name="package" /> Packages
-        </a>
+        <button type="button" class="btn btn-primary" @click="newBookingOpen = true">
+            <x-icon name="plus" /> New booking
+        </button>
     </x-slot:actions>
 </x-ui.page-header>
+
+@if(session('error'))
+    <div class="alert alert-danger mb-6"><x-icon name="circle-alert" /> <span>{{ session('error') }}</span></div>
+@endif
+@if($errors->any())
+    <div class="alert alert-danger mb-6"><x-icon name="circle-alert" /> <span>{{ $errors->first() }}</span></div>
+@endif
 
 {{-- KPI row --}}
 <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -138,13 +151,13 @@
                             <td>
                                 <div class="flex items-center gap-3">
                                     <div class="flex w-10 shrink-0 flex-col items-center overflow-hidden rounded-md border border-border bg-card text-center leading-none">
-                                        <span class="w-full bg-muted py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{{ $booking->starts_at->format('M') }}</span>
-                                        <span class="py-1 font-display text-sm font-semibold tabular-nums text-foreground">{{ $booking->starts_at->format('j') }}</span>
+                                        <span class="w-full bg-muted py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{{ $booking->localStartsAt()->format('M') }}</span>
+                                        <span class="py-1 font-display text-sm font-semibold tabular-nums text-foreground">{{ $booking->localStartsAt()->format('j') }}</span>
                                     </div>
                                     <div class="min-w-0">
-                                        <div class="whitespace-nowrap text-[13px] font-medium text-foreground">{{ $booking->starts_at->format('D, M j') }}</div>
+                                        <div class="whitespace-nowrap text-[13px] font-medium text-foreground">{{ $booking->localStartsAt()->format('D, M j') }}</div>
                                         <div class="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                                            {{ $booking->starts_at->format('g:i A') }}@if($booking->ends_at) – {{ $booking->ends_at->format('g:i A') }}@endif
+                                            {{ $booking->localStartsAt()->format('g:i A') }}@if($booking->ends_at) – {{ $booking->localEndsAt()->format('g:i A') }}@endif
                                         </div>
                                     </div>
                                 </div>
@@ -155,9 +168,7 @@
                                 @else
                                     <span class="text-subtle">—</span>
                                 @endif
-                                @if($booking->deposit_paid)
-                                    <div class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success"><x-icon name="check" class="size-3" /> Deposit paid</div>
-                                @endif
+                                @include('studio.partials.business.booking-deposit', ['booking' => $booking])
                             </td>
                             <td>
                                 @include('studio.partials.business.booking-status', ['status' => $status])
@@ -193,17 +204,15 @@
                 <dl class="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-3 text-xs">
                     <div>
                         <dt class="text-muted-foreground">When</dt>
-                        <dd class="mt-0.5 font-medium text-foreground">{{ $booking->starts_at->format('D, M j') }}</dd>
-                        <dd class="tabular-nums text-muted-foreground">{{ $booking->starts_at->format('g:i A') }}@if($booking->ends_at) – {{ $booking->ends_at->format('g:i A') }}@endif</dd>
+                        <dd class="mt-0.5 font-medium text-foreground">{{ $booking->localStartsAt()->format('D, M j') }}</dd>
+                        <dd class="tabular-nums text-muted-foreground">{{ $booking->localStartsAt()->format('g:i A') }}@if($booking->ends_at) – {{ $booking->localEndsAt()->format('g:i A') }}@endif</dd>
                     </div>
                     <div>
                         <dt class="text-muted-foreground">Price</dt>
                         <dd class="mt-0.5 font-medium tabular-nums text-foreground">
                             @if($booking->price){{ $booking->currency }} {{ number_format($booking->price, 0) }}@else — @endif
                         </dd>
-                        @if($booking->deposit_paid)
-                            <dd class="text-success">Deposit paid</dd>
-                        @endif
+                        <dd>@include('studio.partials.business.booking-deposit', ['booking' => $booking])</dd>
                     </div>
                 </dl>
                 @if($status !== 'completed' && $status !== 'cancelled')
@@ -220,5 +229,7 @@
     @endif
 @endif
 
+@include('studio.partials.business.booking-create-modal')
 @include('studio.partials.business.confirm-dialog')
+</div>
 @endsection

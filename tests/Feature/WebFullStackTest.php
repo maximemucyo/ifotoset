@@ -440,8 +440,9 @@ class WebFullStackTest extends TestCase
         $response = $this->post($bookUrl, [
             'client_name' => 'Alice Walker',
             'client_email' => 'alice@example.com',
+            'client_phone' => '0788123456',
             'package_id' => $this->package->uuid,
-            'starts_at' => now()->addDays(2)->setHour(14)->setMinute(0)->toDateTimeString(),
+            'starts_at' => now()->addDays(2)->setTime(14, 0)->toDateTimeString(),
             'notes' => 'Studio portrait session',
         ]);
 

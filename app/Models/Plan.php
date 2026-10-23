@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Casts\UuidBinaryCast;
 use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
 
@@ -61,6 +62,21 @@ class Plan extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function features(): BelongsToMany
+    {
+        return $this->belongsToMany(Feature::class, 'plan_features');
+    }
+
+    /**
+     * Feature codes on this plan, cached briefly (the plan/feature matrix rarely changes).
+     *
+     * @return array<int, string>
+     */
+    public function featureCodes(): array
+    {
+        return Cache::remember("plan_features:{$this->id}", now()->addMinutes(10), fn () => $this->features()->pluck('code')->all());
     }
 }
 ?>

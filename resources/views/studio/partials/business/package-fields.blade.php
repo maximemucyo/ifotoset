@@ -29,6 +29,24 @@
         </div>
     </div>
 
+    <div class="grid grid-cols-2 gap-3">
+        <div>
+            <label for="{{ $prefix }}-buffer-before" class="label">Buffer before</label>
+            <div class="relative">
+                <input id="{{ $prefix }}-buffer-before" type="number" min="0" max="480" step="5" name="buffer_before_minutes" {!! $v('buffer_before_minutes', '0') !!} class="input pr-11 tabular-nums">
+                <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">min</span>
+            </div>
+        </div>
+        <div>
+            <label for="{{ $prefix }}-buffer-after" class="label">Buffer after</label>
+            <div class="relative">
+                <input id="{{ $prefix }}-buffer-after" type="number" min="0" max="480" step="5" name="buffer_after_minutes" {!! $v('buffer_after_minutes', '0') !!} class="input pr-11 tabular-nums">
+                <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">min</span>
+            </div>
+        </div>
+        <p class="help col-span-2 -mt-1">Travel or setup time kept free around each session. Clients never see it.</p>
+    </div>
+
     <div>
         <label for="{{ $prefix }}-description" class="label">Description <span class="font-normal text-muted-foreground">(optional)</span></label>
         <textarea id="{{ $prefix }}-description" name="description" rows="2" {!! $v('description') !!} placeholder="What's this session about?" class="textarea"></textarea>
@@ -53,6 +71,18 @@
             <label for="{{ $prefix }}-deposit-amount" class="label" x-text="depType === 'percentage' ? 'Deposit (%)' : 'Deposit amount'">Deposit amount</label>
             <input id="{{ $prefix }}-deposit-amount" type="number" step="0.01" min="0" name="deposit_amount" {!! $v('deposit_amount') !!} placeholder="e.g. 30" class="input tabular-nums">
         </div>
+        @if(auth()->user()?->hasFeature('booking_deposits'))
+            <p class="help sm:col-span-2" x-show="depType !== 'none'">Clients pay this by Mobile Money when they book. The slot is confirmed once it's paid.</p>
+        @else
+            <div class="sm:col-span-2 flex items-start gap-3 rounded-lg border border-warning/25 bg-warning/8 px-3.5 py-3" x-show="depType !== 'none'" x-cloak>
+                <x-icon name="zap" class="mt-0.5 size-4 shrink-0 text-warning" />
+                <div class="text-[13px]">
+                    <p class="font-medium text-foreground">Upgrade to collect this deposit</p>
+                    <p class="mt-0.5 text-muted-foreground">On your plan, clients book without paying. With Professional they pay the deposit by Mobile Money when they book.</p>
+                    <a href="{{ $depositUpgradeUrl ?? route('studio.billing.index') . '#plans' }}" class="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2">See plans <x-icon name="arrow-right" class="size-3.5" /></a>
+                </div>
+            </div>
+        @endif
     </div>
 
     <label class="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-3.5 py-3">

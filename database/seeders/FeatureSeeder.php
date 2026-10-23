@@ -29,24 +29,38 @@ class FeatureSeeder extends Seeder
             'name' => 'Priority Support Tier',
         ]);
 
+        $bookingDeposits = Feature::firstOrCreate([
+            'code' => 'booking_deposits',
+        ], [
+            'name' => 'Mobile Money Booking Deposits',
+        ]);
+
+        $premiumTemplates = Feature::firstOrCreate([
+            'code' => 'premium_templates',
+        ], [
+            'name' => 'Premium Portfolio Templates',
+        ]);
+
         // Feature links are only seeded the first time a feature is created.
         // After that admins own the plan/feature matrix, and this seeder runs
         // on every deploy, so it must not re-add features they removed.
         $link = fn (Feature $feature) => $feature->wasRecentlyCreated;
 
-        $proPlan = Plan::where('slug', 'pro')->first();
-        if ($proPlan && $link($customDomain)) {
-            DB::table('plan_features')->insertOrIgnore([
-                'plan_id' => $proPlan->id,
-                'feature_id' => $customDomain->id,
-            ]);
-        }
+        $matrix = [
+            'basic' => [$premiumTemplates],
+            'pro' => [$customDomain, $bookingDeposits, $premiumTemplates],
+            'business' => [$customDomain, $bookingManager, $prioritySupport, $bookingDeposits, $premiumTemplates],
+        ];
 
-        $businessPlan = Plan::where('slug', 'business')->first();
-        if ($businessPlan) {
-            $rows = collect([$customDomain, $bookingManager, $prioritySupport])
+        foreach ($matrix as $slug => $features) {
+            $plan = Plan::where('slug', $slug)->first();
+            if (!$plan) {
+                continue;
+            }
+
+            $rows = collect($features)
                 ->filter($link)
-                ->map(fn (Feature $feature) => ['plan_id' => $businessPlan->id, 'feature_id' => $feature->id])
+                ->map(fn (Feature $feature) => ['plan_id' => $plan->id, 'feature_id' => $feature->id])
                 ->values()
                 ->all();
 

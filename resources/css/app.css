@@ -523,6 +523,13 @@
   .link-brand {
     @apply font-medium text-brand hover:underline underline-offset-4;
   }
+  /* Portfolio headings follow the photographer's font pairing (vars set by public/partials/portfolio-theme) */
+  .pf-heading {
+    font-family: var(--pf-heading, var(--font-serif));
+    font-weight: var(--pf-heading-weight, 400);
+    letter-spacing: var(--pf-heading-tracking, 0);
+  }
+
   .eyebrow {
     @apply text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground;
   }

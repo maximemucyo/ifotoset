@@ -33,3 +33,7 @@ storage/*.zip
 .idea/
 .phpunit.result.cache
 **/.phpunit.result.cache
+
+# deploy.sh builds assets here before swapping them into public/build
+/public/build-next
+/public/build-prev

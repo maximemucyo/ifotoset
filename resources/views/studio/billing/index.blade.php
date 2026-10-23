@@ -392,11 +392,9 @@
                         <li class="flex items-start gap-2.5 text-muted-foreground">
                             <x-icon name="check" class="mt-0.5 size-4 shrink-0 text-success" /> Password &amp; PIN protection
                         </li>
-                        @unless($isFree)
-                            <li class="flex items-start gap-2.5 text-muted-foreground">
-                                <x-icon name="check" class="mt-0.5 size-4 shrink-0 text-success" /> Custom subdomain portfolio
-                            </li>
-                        @endunless
+                        <li class="flex items-start gap-2.5 text-muted-foreground">
+                            <x-icon name="check" class="mt-0.5 size-4 shrink-0 text-success" /> Portfolio on your own subdomain
+                        </li>
                     </ul>
                 </div>
             @endforeach

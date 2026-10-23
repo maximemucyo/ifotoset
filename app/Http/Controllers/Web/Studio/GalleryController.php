@@ -127,7 +127,7 @@ class GalleryController extends Controller
         $baseSlug = Str::slug($validated['title']);
         $slug = $baseSlug;
         $count = Gallery::where('user_id', $user->id)->where('slug', $slug)->count();
-        if ($count > 0) {
+        if ($count > 0 || in_array($slug, Gallery::RESERVED_SLUGS, true)) {
             $slug = "{$baseSlug}-" . time();
         }
 

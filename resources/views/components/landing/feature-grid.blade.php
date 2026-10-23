@@ -3,7 +3,7 @@
     $small = [
         ['icon' => 'package', 'title' => 'Packages', 'body' => 'Publish your services and prices once, reuse them for every booking.'],
         ['icon' => 'shield-check', 'title' => 'Private by default', 'body' => 'Password-protected galleries, expiry dates and download permissions.'],
-        ['icon' => 'globe', 'title' => 'Your own domain', 'body' => 'Use your ifotoset subdomain or connect a custom domain on Professional.'],
+        ['icon' => 'globe', 'title' => 'Your own domain', 'body' => 'Every studio gets its own ifotoset subdomain. Custom domains are coming soon on Professional.'],
         ['icon' => 'zap', 'title' => 'Fast everywhere', 'body' => 'Images are optimised automatically, so galleries load quickly on mobile data.'],
     ];
 @endphp
@@ -21,7 +21,7 @@
                     <div>
                         <span class="inline-flex size-9 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="smartphone" /></span>
                         <h3 class="mt-4 text-xl font-semibold tracking-tight">Get paid with Mobile Money</h3>
-                        <p class="mt-2 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">Clients pay deposits and packages straight from their phone through PawaPay. No card machine, no chasing transfers.</p>
+                        <p class="mt-2 max-w-sm text-[14.5px] leading-relaxed text-muted-foreground">Clients pay their booking deposit straight from their phone through PawaPay. No card machine, no chasing transfers.</p>
                         <div class="mt-5 flex flex-wrap gap-2">
                             <span class="badge badge-neutral">MTN MoMo</span>
                             <span class="badge badge-neutral">Airtel Money</span>

@@ -41,6 +41,7 @@ class BillingController extends Controller
 
         // Check for recent pending payment (created in last 30 minutes)
         $pendingPayment = Payment::where('user_id', $user->id)
+            ->where('purpose', '!=', 'booking_deposit')
             ->where('status', 'pending')
             ->where('created_at', '>', now()->subMinutes(30))
             ->latest()
@@ -257,6 +258,7 @@ class BillingController extends Controller
         $user = $request->user();
         $payment = Payment::where('uuid', $uuid)
             ->where('user_id', $user->id)
+            ->where('purpose', '!=', 'booking_deposit')
             ->with(['plan', 'user'])
             ->firstOrFail();
 

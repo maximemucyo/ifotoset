@@ -23,7 +23,10 @@ class StudioDashboardQuery
 
         $totalGalleries = Gallery::where('user_id', $user->id)->count();
         $totalPhotos = Photo::whereHas('gallery', fn ($q) => $q->where('user_id', $user->id))->count();
-        $pendingBookings = Booking::where('user_id', $user->id)->where('status', 'pending')->count();
+        // A slot held for an unpaid deposit isn't a request to review yet
+        $pendingBookings = Booking::where('user_id', $user->id)->where('status', 'pending')
+            ->where(fn ($q) => $q->whereNull('deposit_status')->orWhere('deposit_status', 'paid'))
+            ->count();
 
         $recentGalleries = Gallery::where('user_id', $user->id)
             ->with(['coverPhoto', 'stats'])
@@ -32,7 +35,7 @@ class StudioDashboardQuery
             ->get();
 
         $upcomingBookings = Booking::where('user_id', $user->id)
-            ->whereIn('status', ['confirmed', 'pending'])
+            ->blocking()
             ->where('starts_at', '>=', now()->startOfDay())
             ->with(['client', 'package'])
             ->orderBy('starts_at', 'asc')

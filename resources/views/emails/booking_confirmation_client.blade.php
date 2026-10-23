@@ -1,4 +1,4 @@
-<x-email.layout title="Booking Confirmation" :preheader="'Your request for ' . $booking->title . ' on ' . $booking->starts_at->format('M j') . ' has been sent to ' . $photographer->name . '.'">
+<x-email.layout title="Booking Confirmation" :preheader="'Your request for ' . $booking->title . ' on ' . $booking->localStartsAt()->format('M j') . ' has been sent to ' . $photographer->name . '.'">
     <x-email.heading
         eyebrow="Booking request"
         title="Booking request received"
@@ -17,7 +17,7 @@
         @if($package)
             <x-email.detail-row label="Package" :value="$package->name" />
         @endif
-        <x-email.detail-row label="Date & time" :value="$booking->starts_at->format('l, F j, Y \a\t g:i A')" />
+        <x-email.detail-row label="Date & time" :value="$booking->whenLabel()" />
         @if($booking->location)
             <x-email.detail-row label="Location" :value="$booking->location" />
         @endif

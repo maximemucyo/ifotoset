@@ -111,11 +111,16 @@ class SeoMetadata
         $urlService = app(PublicUrlService::class);
         $canonical = $urlService->photographer($photographer);
 
+        $portfolio = $photographer->portfolio();
         $locationText = $photographer->location ? " in {$photographer->location}" : '';
-        $title = "{$photographer->name}{$locationText} - Photography Portfolio | ifotoset";
-        $description = !empty($photographer->bio)
+        $title = $portfolio->seoTitle() ?? "{$photographer->name}{$locationText} - Photography Portfolio | ifotoset";
+        $description = $portfolio->seoDescription() ?? (!empty($photographer->bio)
             ? \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($photographer->bio))), 155)
-            : "View photography collections, client galleries, and book photo sessions with {$photographer->name}{$locationText}.";
+            : "View photography collections, client galleries, and book photo sessions with {$photographer->name}{$locationText}.");
+        $sameAs = array_values(array_filter(array_merge(
+            [$photographer->website],
+            array_column($portfolio->socialLinks(), 'url'),
+        )));
 
         $robots = $photographer->isPubliclyIndexable()
             ? 'index, follow, max-image-preview:large'
@@ -128,9 +133,10 @@ class SeoMetadata
             'identifier' => $photographer->username,
             'url' => $canonical,
             'image' => $photographer->avatar_url,
+            'jobTitle' => $portfolio->roleLabel(),
             'description' => $photographer->bio ? strip_tags($photographer->bio) : null,
             'homeLocation' => $photographer->location ? ['@type' => 'Place', 'name' => $photographer->location] : null,
-            'sameAs' => $photographer->website ? [$photographer->website] : null,
+            'sameAs' => $sameAs ?: null,
         ]);
 
         $offers = collect($packages)->map(fn ($package) => array_filter([
@@ -146,7 +152,7 @@ class SeoMetadata
             '@id' => $canonical . '#service',
             'name' => "{$photographer->name} Photography",
             'url' => $canonical,
-            'image' => $photographer->avatar_url,
+            'image' => $photographer->logo_url ?: $photographer->avatar_url,
             'founder' => ['@id' => $canonical . '#person'],
             'areaServed' => $photographer->location ?: null,
             'makesOffer' => $offers ?: null,
@@ -166,13 +172,59 @@ class SeoMetadata
             description: $description,
             canonical: $canonical,
             robots: $robots,
-            ogTitle: "{$photographer->name} - Photography Portfolio",
+            ogTitle: $portfolio->seoTitle() ?? "{$photographer->name} - Photography Portfolio",
             ogDescription: $description,
-            ogImage: $photographer->avatar_url ?: self::defaultImage(),
+            ogImage: self::photographerImage($photographer),
             ogType: 'profile',
             twitterCard: 'summary_large_image',
             structuredData: $structuredData,
         );
+    }
+
+    /**
+     * Factory for the portfolio's About and Contact pages.
+     */
+    public static function forPortfolioPage(User $photographer, string $page): self
+    {
+        $portfolio = $photographer->portfolio();
+        $canonical = app(PublicUrlService::class)->photographer($photographer) . '/' . $page;
+        $robots = $photographer->isPubliclyIndexable()
+            ? 'index, follow, max-image-preview:large'
+            : 'noindex, nofollow';
+
+        if ($page === 'about') {
+            $title = "About {$photographer->name} | ifotoset";
+            $source = $portfolio->aboutBody() ?? $photographer->bio;
+            $description = $source
+                ? \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags($source))), 155)
+                : "Meet {$photographer->name}, " . strtolower($portfolio->roleLabel()) . ($photographer->location ? " in {$photographer->location}" : '') . '.';
+        } else {
+            $title = "Contact {$photographer->name} | ifotoset";
+            $description = "Get in touch with {$photographer->name} about a photo session" . ($photographer->location ? " in {$photographer->location}" : '') . '.';
+        }
+
+        return new self(
+            title: $title,
+            description: $description,
+            canonical: $canonical,
+            robots: $robots,
+            ogTitle: $title,
+            ogDescription: $description,
+            ogImage: self::photographerImage($photographer),
+            ogType: 'profile',
+            twitterCard: 'summary_large_image',
+        );
+    }
+
+    /**
+     * Link-preview image: the dedicated share image, then the cover, then the profile photo.
+     */
+    protected static function photographerImage(User $photographer): string
+    {
+        return $photographer->share_image_url
+            ?: $photographer->cover_url
+            ?: $photographer->avatar_url
+            ?: self::defaultImage();
     }
 
     /**

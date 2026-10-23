@@ -54,7 +54,7 @@ class AvailabilityService
         // 4. Filter candidate time slots that have already passed (same-day bookings notice)
         $candidates = $candidates->filter(function ($cand) use ($nowLocal) {
             // Must be at least 24 hours in the future
-            return $cand['starts_at']->greaterThan($nowLocal->addHours(24));
+            return $cand['starts_at']->greaterThan($nowLocal->copy()->addHours(24));
         });
 
         if ($candidates->isEmpty()) {
@@ -120,7 +120,7 @@ class AvailabilityService
 
         // Pre-load bookings for the month + buffers
         $bookings = \App\Models\Booking::where('user_id', $photographer->id)
-            ->whereIn('status', \App\Models\Booking::blockingStatuses())
+            ->blocking()
             ->where('starts_at', '<=', $endOfMonth->copy()->addDay())
             ->where('ends_at', '>=', $startOfMonth->copy()->subDay())
             ->with('package')
@@ -160,15 +160,17 @@ class AvailabilityService
                     ];
                 }
             } else {
-                $dayOfWeek = $date->dayOfWeek;
-                if ($settings->has($dayOfWeek)) {
-                    $setting = $settings->get($dayOfWeek);
-                    if ($setting->is_active) {
-                        $workingHours = [
-                            'start_time' => $setting->start_time,
-                            'end_time' => $setting->end_time,
-                        ];
-                    }
+                $setting = $settings->get($date->dayOfWeek);
+                if (!$setting) {
+                    $workingHours = [
+                        'start_time' => \App\Models\AvailabilitySetting::DEFAULT_START,
+                        'end_time' => \App\Models\AvailabilitySetting::DEFAULT_END,
+                    ];
+                } elseif ($setting->is_active) {
+                    $workingHours = [
+                        'start_time' => $setting->start_time,
+                        'end_time' => $setting->end_time,
+                    ];
                 }
             }
 

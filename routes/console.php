@@ -15,6 +15,7 @@ Schedule::command('subscriptions:send-expiry-reminders')->dailyAt('09:00')->with
 Schedule::command('payments:reconcile')->everyTenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('notifications:gallery-activity-digest')->dailyAt('07:00')->withoutOverlapping()->onOneServer();
 Schedule::command('bookings:send-reminders')->hourly()->withoutOverlapping()->onOneServer();
+Schedule::command('bookings:expire-holds')->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('uploads:reconcile-reservations')->daily()->withoutOverlapping()->onOneServer();
 Schedule::command('media:reconcile-statistics')->daily()->withoutOverlapping()->onOneServer();
 Schedule::command('ops:check-health')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();

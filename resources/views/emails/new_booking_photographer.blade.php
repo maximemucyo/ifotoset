@@ -1,4 +1,4 @@
-<x-email.layout title="New Booking Request" :preheader="$client->name . ' requested ' . $booking->title . ' on ' . $booking->starts_at->format('l, F j \a\t g:i A') . '.'">
+<x-email.layout title="New Booking Request" :preheader="$client->name . ' requested ' . $booking->title . ' on ' . $booking->localStartsAt()->format('l, F j \a\t g:i A') . '.'">
     <x-email.heading
         eyebrow="New booking"
         title="New booking request"
@@ -21,7 +21,7 @@
         @if($package)
             <x-email.detail-row label="Package" :value="$package->name" />
         @endif
-        <x-email.detail-row label="Date & time" :value="$booking->starts_at->format('l, F j, Y \a\t g:i A')" />
+        <x-email.detail-row label="Date & time" :value="$booking->whenLabel()" />
         @if($booking->location)
             <x-email.detail-row label="Location" :value="$booking->location" />
         @endif

@@ -25,6 +25,8 @@ class CreatePackage
             'price'            => $data['price'],
             'currency'         => $data['currency'] ?? 'RWF',
             'duration_minutes' => (int) ($data['duration_minutes'] ?? 60),
+            'buffer_before_minutes' => (int) ($data['buffer_before_minutes'] ?? 0),
+            'buffer_after_minutes' => (int) ($data['buffer_after_minutes'] ?? 0),
             'deliverables'     => array_values($deliverables),
             'deposit_type'     => $data['deposit_type'] ?? 'none',
             'deposit_amount'   => ! empty($data['deposit_amount']) ? (float) $data['deposit_amount'] : null,

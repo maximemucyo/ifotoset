@@ -30,11 +30,11 @@ $faqItems = [
     ],
     [
         'question' => 'Can I customize my portfolio?',
-        'answer' => 'Yes. The portfolio builder lets you showcase curated galleries, add your brand logo, adjust theme styling, and set custom domain mapping on the Professional plan.'
+        'answer' => 'Yes. Your portfolio lives on your own ifotoset subdomain. You choose which galleries appear on it and add your logo or profile photo, bio, location, packages and a booking page. Custom domains are coming soon on the Professional plan.'
     ],
     [
         'question' => 'Can I manage bookings and clients?',
-        'answer' => 'Yes. Our integrated Studio Manager handles booking calendars, customizable packages, client contact profiles, and invoices in a central panel.'
+        'answer' => 'Yes. Studio Manager handles packages, working hours, blocked time, client profiles and booking requests. Clients pick from your open time slots, and on Professional they can pay a deposit by Mobile Money when they book.'
     ],
     [
         'question' => 'Can I cancel anytime?',

@@ -178,6 +178,7 @@ class PlatformHardeningTest extends TestCase
         $this->post($bookUrl, [
             'client_name' => 'Alice Walker',
             'client_email' => 'alice@example.com',
+            'client_phone' => '0788123456',
             'package_id' => $package->uuid,
             'starts_at' => now()->addDays(3)->setTime(10, 0)->toDateTimeString(),
         ])->assertSessionHas('success');

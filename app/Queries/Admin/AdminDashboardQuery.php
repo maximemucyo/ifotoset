@@ -16,7 +16,8 @@ class AdminDashboardQuery
         $totalUsers = User::count();
         $totalGalleries = Gallery::count();
         $totalStorageBytes = User::sum('storage_used_bytes') ?: 0;
-        $totalRevenue = Payment::where('status', 'completed')->sum('amount') ?: 0;
+        // Booking deposits are client money for photographers, not platform revenue
+        $totalRevenue = Payment::where('status', 'completed')->where('purpose', '!=', 'booking_deposit')->sum('amount') ?: 0;
 
         $recentUsers = User::withCount('galleries')
             ->orderBy('created_at', 'desc')

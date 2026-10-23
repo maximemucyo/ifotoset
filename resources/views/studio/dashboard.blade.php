@@ -184,7 +184,7 @@
                 @foreach($upcomingBookings as $booking)
                     @php
                         $status = $booking->status instanceof \BackedEnum ? $booking->status->value : (string) $booking->status;
-                        $starts = $booking->starts_at;
+                        $starts = $booking->localStartsAt();
                     @endphp
                     <li>
                         <a href="{{ route('studio.bookings.index', ['status' => $status]) }}" class="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted/50">

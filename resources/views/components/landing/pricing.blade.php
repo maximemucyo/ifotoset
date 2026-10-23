@@ -8,19 +8,19 @@
         'free' => [
             'tagline' => 'Learn the platform',
             'description' => 'Perfect for new photographers starting to establish their presence.',
-            'features' => ['Portfolio website', 'Unlimited galleries', ':storage', ':video', 'Email support'],
+            'features' => ['Portfolio website on your subdomain', 'Online booking page', 'Unlimited galleries', ':storage', ':video', 'Email support'],
             'cta' => 'Get started free',
         ],
         'basic' => [
             'tagline' => 'Start delivering professionally',
             'description' => 'For growing photographers who need more storage and video tools.',
-            'features' => ['Portfolio website', 'Unlimited galleries', ':storage', ':video', 'Email support'],
+            'features' => ['Portfolio website on your subdomain', 'Online booking page', 'Unlimited galleries', ':storage', ':video', 'Email support'],
             'cta' => 'Choose Basic',
         ],
         'pro' => [
             'tagline' => 'Run your photography business',
             'description' => 'For established photographers running a full-time business.',
-            'features' => ['Everything in Basic', ':storage', ':video', 'Booking manager', 'Secure payments integration', 'Custom domain support', 'Priority support'],
+            'features' => ['Everything in Basic', ':storage', ':video', 'Mobile Money booking deposits', 'Priority support', 'Custom domain (coming soon)'],
             'cta' => 'Choose Professional',
         ],
         'business' => [

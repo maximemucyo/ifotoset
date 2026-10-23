@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Support\BookingCalendar;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -62,5 +63,12 @@ class BookingDepositPaidClientMail extends Mailable implements ShouldQueue
                 'client' => $this->booking->client,
             ],
         );
+    }
+
+    public function attachments(): array
+    {
+        return in_array($this->booking->status->value, ['confirmed', 'completed'], true)
+            ? [BookingCalendar::attachment($this->booking)]
+            : [];
     }
 }

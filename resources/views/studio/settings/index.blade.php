@@ -106,7 +106,7 @@
                             </button>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-foreground">Profile photo or logo</p>
+                            <p class="text-sm font-medium text-foreground">Profile photo</p>
                             <p class="mt-0.5 text-[13px] text-muted-foreground">Square images work best. JPG, PNG or WebP up to 10 MB. We resize it to 400 × 400.</p>
                             <p x-show="error" x-cloak class="error-text" x-text="error"></p>
                             <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -238,7 +238,7 @@
                         </label>
                     </div>
                     <div class="card-footer flex items-center justify-between gap-3">
-                        <p class="text-xs text-muted-foreground">Bio, location and photo come from your <button type="button" class="link" @click="go('profile')">profile</button>.</p>
+                        <p class="text-xs text-muted-foreground">Change its template, logo and sections in the <a href="{{ route('studio.portfolio.edit') }}" class="link">portfolio builder</a>.</p>
                         <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
                     </div>
                 </form>

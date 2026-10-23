@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Exceptions\BookingOverlapException;
+use App\Exceptions\SlotUnavailableException;
 use App\Models\Booking;
 use App\Models\Client;
 use App\Models\Package;
@@ -20,7 +21,12 @@ class CreateBookingAction
     /**
      * Create a new booking.
      *
+     * Times without an explicit offset are read in the photographer's timezone; they are stored in UTC.
+     * Options: validate_availability, ignore_overlap, collect_deposit (hold the slot until the
+     * deposit is paid), notify (send the "new booking" emails, default true).
+     *
      * @throws BookingOverlapException
+     * @throws SlotUnavailableException
      */
     public function execute(User $user, array $data): Booking
     {
@@ -38,23 +44,27 @@ class CreateBookingAction
                 $clientId = $client->id;
             }
 
-            // Resolve Package ID from UUID
+            // Resolve Package ID from UUID (archived or hidden packages can't be booked)
             $packageId = null;
             $package = null;
             if (!empty($data['package_id'])) {
                 $package = Package::where('uuid', $data['package_id'])
                     ->where('user_id', $user->id)
+                    ->active()
                     ->firstOrFail();
                 $packageId = $package->id;
             }
 
-            $startsAt = new Carbon($data['starts_at']);
-            
+            $timezone = $data['timezone'] ?? $user->timezone ?? config('app.timezone', 'UTC');
+            $startsAt = $this->parseTime($data['starts_at'], $timezone);
+
             // If the package is set, auto-calculate the ends_at duration
             if ($package && empty($data['ends_at'])) {
-                $endsAt = (clone $startsAt)->addMinutes($package->duration_minutes);
+                $endsAt = $startsAt->copy()->addMinutes($package->duration_minutes);
+            } elseif (!empty($data['ends_at'])) {
+                $endsAt = $this->parseTime($data['ends_at'], $timezone);
             } else {
-                $endsAt = isset($data['ends_at']) ? new Carbon($data['ends_at']) : (clone $startsAt)->addHour();
+                $endsAt = $startsAt->copy()->addMinutes((int) ($data['duration_minutes'] ?? 60));
             }
 
             // 2. Validate availability using AvailabilityService if requested (public flow)
@@ -62,7 +72,7 @@ class CreateBookingAction
             if ($validateAvailability && $package) {
                 $isAvailable = $this->availabilityService->isSlotAvailable($user, $startsAt, $package);
                 if (!$isAvailable) {
-                    throw new \RuntimeException("The selected time slot is no longer available. Please select another time.");
+                    throw new SlotUnavailableException();
                 }
             }
 
@@ -70,7 +80,7 @@ class CreateBookingAction
             $ignoreOverlap = filter_var($data['ignore_overlap'] ?? false, FILTER_VALIDATE_BOOLEAN);
             if (!$ignoreOverlap) {
                 $conflicts = Booking::where('user_id', $user->id)
-                    ->whereNull('deleted_at')
+                    ->blocking()
                     ->overlapping($startsAt, $endsAt)
                     ->get();
 
@@ -79,6 +89,11 @@ class CreateBookingAction
                 }
             }
 
+            // 4. Online deposit: hold the slot while the client approves the payment
+            $depositAmount = filter_var($data['collect_deposit'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                ? $package?->computedDepositAmount()
+                : null;
+
             $booking = Booking::create([
                 'user_id' => $user->id,
                 'client_id' => $clientId,
@@ -86,17 +101,34 @@ class CreateBookingAction
                 'title' => $data['title'],
                 'starts_at' => $startsAt,
                 'ends_at' => $endsAt,
-                'timezone' => $data['timezone'] ?? $user->timezone ?? config('app.timezone', 'UTC'),
+                'timezone' => $timezone,
                 'location' => $data['location'] ?? null,
                 'status' => $data['status'] ?? 'pending',
                 'price' => $data['price'] ?? ($package ? $package->price : null),
+                'deposit_amount' => $depositAmount,
+                'deposit_status' => $depositAmount ? 'pending' : null,
+                'hold_expires_at' => $depositAmount ? now()->addMinutes(Booking::DEPOSIT_HOLD_MINUTES) : null,
                 'currency' => $data['currency'] ?? ($package ? $package->currency : 'RWF'),
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            event(new \App\Events\BookingCreated($booking));
+            if (filter_var($data['notify'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+                event(new \App\Events\BookingCreated($booking));
+            }
 
             return $booking;
         });
+    }
+
+    /**
+     * Parse a wall-clock time in the given timezone (an explicit offset wins) and return it in UTC.
+     */
+    protected function parseTime(mixed $value, string $timezone): Carbon
+    {
+        $time = $value instanceof \DateTimeInterface
+            ? Carbon::instance($value)
+            : Carbon::parse((string) $value, $timezone);
+
+        return $time->utc();
     }
 }

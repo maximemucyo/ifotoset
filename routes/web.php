@@ -13,6 +13,7 @@ use App\Http\Controllers\Web\Auth\LoginController;
 use App\Http\Controllers\Web\Auth\PasswordResetController;
 use App\Http\Controllers\Web\Auth\RegisterController;
 use App\Http\Controllers\Web\HomeController;
+use App\Http\Controllers\Web\PublicBookingController;
 use App\Http\Controllers\Web\PublicGalleryController;
 use App\Http\Controllers\Web\PublicPhotographerController;
 use App\Http\Controllers\Web\Studio\AnalyticsController as StudioAnalyticsController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardContro
 use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController;
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
+use App\Http\Controllers\Web\Studio\PortfolioController as StudioPortfolioController;
 use App\Http\Controllers\Web\Studio\TrashController as StudioTrashController;
 use App\Http\Controllers\Web\Studio\UploadController;
 use App\Models\Gallery;
@@ -59,13 +61,26 @@ Route::domain('www.' . $rootHost)->group(function () {
 Route::domain('{username}.' . $rootHost)
     ->where(['username' => '(?!(?:' . $escapedReserved . ')(?:\.|$))[a-zA-Z0-9_\-]+'])
     ->group(function () {
+        // Booking (before the gallery catch-all so /book never resolves as a gallery slug)
+        Route::get('/book', [PublicBookingController::class, 'page'])->name('subdomain.booking');
+        Route::get('/book/availability', [PublicBookingController::class, 'availability'])->middleware(['noindex', 'throttle:60,1'])->name('subdomain.booking.availability');
+        Route::get('/book/slots', [PublicBookingController::class, 'slots'])->middleware(['noindex', 'throttle:60,1'])->name('subdomain.booking.slots');
+        Route::post('/book', [PublicBookingController::class, 'book'])->middleware('throttle:5,1')->name('subdomain.photographer.book');
+        Route::get('/book/{booking}', [PublicBookingController::class, 'show'])->middleware('noindex')->whereUuid('booking')->name('subdomain.booking.show');
+        Route::get('/book/{booking}/status', [PublicBookingController::class, 'status'])->middleware(['noindex', 'throttle:60,1'])->whereUuid('booking')->name('subdomain.booking.status');
+        Route::post('/book/{booking}/pay', [PublicBookingController::class, 'pay'])->middleware('throttle:5,1')->whereUuid('booking')->name('subdomain.booking.pay');
+
+        // Portfolio pages (also before the gallery catch-all; Gallery::RESERVED_SLUGS keeps galleries off these)
+        Route::get('/about', [PublicPhotographerController::class, 'about'])->name('subdomain.about');
+        Route::get('/contact', [PublicPhotographerController::class, 'contact'])->name('subdomain.contact');
+        Route::post('/contact', [PublicPhotographerController::class, 'sendMessage'])->middleware('throttle:5,1')->name('subdomain.contact.send');
+
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
 
-        Route::post('/book', [PublicPhotographerController::class, 'book'])->middleware('throttle:5,1')->name('subdomain.photographer.book');
         Route::get('/', [PublicPhotographerController::class, 'show'])->name('subdomain.photographer');
     });
 
@@ -181,6 +196,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.
 
     // Bookings
     Route::get('/bookings', [StudioBookingController::class, 'index'])->name('bookings.index');
+    Route::post('/bookings', [StudioBookingController::class, 'store'])->name('bookings.store');
     Route::patch('/bookings/{uuid}/status', [StudioBookingController::class, 'updateStatus'])->name('bookings.status');
 
     // Availability & Scheduling Suite
@@ -213,6 +229,14 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.
     Route::post('/billing/initiate', [StudioBillingController::class, 'initiate'])->name('billing.initiate');
     Route::get('/billing/check/{uuid}', [StudioBillingController::class, 'check'])->name('billing.check');
     Route::get('/billing/receipt/{uuid}', [StudioBillingController::class, 'receipt'])->name('billing.receipt');
+
+    // Portfolio builder
+    Route::get('/portfolio', [StudioPortfolioController::class, 'edit'])->name('portfolio.edit');
+    Route::post('/portfolio/collections', [StudioPortfolioController::class, 'updateCollections'])->name('portfolio.collections');
+    Route::post('/portfolio/images/{kind}/request', [StudioPortfolioController::class, 'requestImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.request');
+    Route::post('/portfolio/images/{kind}/confirm', [StudioPortfolioController::class, 'confirmImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.confirm');
+    Route::delete('/portfolio/images/{kind}', [StudioPortfolioController::class, 'destroyImage'])->whereIn('kind', ['logo', 'cover', 'share'])->name('portfolio.images.destroy');
+    Route::post('/portfolio/{part}', [StudioPortfolioController::class, 'update'])->whereIn('part', StudioPortfolioController::PARTS)->name('portfolio.update');
 
     // Settings
     Route::get('/settings', [StudioSettingsController::class, 'index'])->name('settings.index');

@@ -136,7 +136,7 @@ class SettingsController extends Controller
             'exported_at' => now()->toIso8601String(),
             'profile' => $user->only([
                 'name', 'username', 'email', 'phone', 'location', 'website', 'bio',
-                'timezone', 'profile_public', 'notification_preferences', 'created_at',
+                'timezone', 'profile_public', 'notification_preferences', 'portfolio_settings', 'created_at',
             ]),
             'plan' => $user->plan?->only(['name', 'slug']),
             'galleries' => $user->galleries()->withCount('photos')->orderBy('id')->get()->map(fn ($gallery) => [

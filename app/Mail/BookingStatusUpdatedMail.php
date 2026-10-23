@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Booking;
 use App\Services\PublicUrlService;
+use App\Support\BookingCalendar;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -53,5 +54,13 @@ class BookingStatusUpdatedMail extends Mailable implements ShouldQueue
                 'portfolioUrl' => $portfolioUrl,
             ],
         );
+    }
+
+    /**
+     * A confirmed session comes with a calendar file.
+     */
+    public function attachments(): array
+    {
+        return $this->newStatus === 'confirmed' ? [BookingCalendar::attachment($this->booking)] : [];
     }
 }
