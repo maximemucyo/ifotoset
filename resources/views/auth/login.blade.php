@@ -4,6 +4,8 @@
 <form method="POST" action="{{ route('login') }}" class="space-y-4" x-data="{ submitting: false }" @submit="submitting = true">
     @csrf
 
+    @include('auth.partials.google-button', ['label' => 'Continue with Google'])
+
     <x-ui.input label="Email"
                 type="email"
                 name="email"

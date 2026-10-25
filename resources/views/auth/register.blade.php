@@ -24,6 +24,8 @@
       @submit="submitting = true">
     @csrf
 
+    @include('auth.partials.google-button', ['label' => 'Sign up with Google'])
+
     <x-ui.input label="Full name"
                 type="text"
                 name="name"
