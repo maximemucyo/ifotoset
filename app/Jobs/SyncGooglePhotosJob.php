@@ -86,6 +86,7 @@ class SyncGooglePhotosJob implements ShouldQueue
                     'total_photos' => 0,
                     'completed_at' => now(),
                 ]);
+                $sync->forgetCredential();
                 return;
             }
 
@@ -163,5 +164,7 @@ class SyncGooglePhotosJob implements ShouldQueue
                 'status' => 'failed',
                 'error' => $exception?->getMessage() ?: 'Google Photos sync timed out.',
             ]);
+
+        GooglePhotoSync::find($this->syncId)?->forgetCredential();
     }
 }

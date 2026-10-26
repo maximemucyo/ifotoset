@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\NotificationPreference;
 use App\Models\Gallery;
 use App\Models\GooglePhotoAuthorization;
+use App\Models\GooglePhotoCredential;
 use App\Models\GooglePhotoSync;
 use App\Models\Plan;
 use App\Models\User;
@@ -309,6 +310,60 @@ class PlatformHardeningTest extends TestCase
 
         // Unknown state goes home
         $this->get('/google-photos/callback?state=nope&code=abc')->assertRedirect(route('home'));
+    }
+
+    private function googleSyncWithCredential(array $attributes = []): GooglePhotoSync
+    {
+        $sync = GooglePhotoSync::create([
+            'gallery_id' => $this->gallery->id,
+            'status' => 'processing',
+            'total_photos' => 0,
+            ...$attributes,
+        ]);
+        GooglePhotoCredential::create(['sync_id' => $sync->id, 'access_token' => 'at', 'refresh_token' => 'rt', 'expires_at' => now()->addHour()]);
+
+        return $sync;
+    }
+
+    public function test_google_tokens_are_revoked_and_deleted_when_sync_completes(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['oauth2.googleapis.com/revoke' => Http::response()]);
+        $sync = $this->googleSyncWithCredential();
+
+        (new \App\Jobs\UploadGooglePhotosChunkJob($sync->id, []))->handle();
+
+        $this->assertSame('completed', $sync->fresh()->status);
+        $this->assertSame(0, GooglePhotoCredential::count());
+        Http::assertSent(fn ($request) => $request->url() === 'https://oauth2.googleapis.com/revoke' && $request['token'] === 'rt');
+    }
+
+    public function test_google_tokens_are_revoked_when_sync_fails(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['oauth2.googleapis.com/revoke' => Http::response()]);
+        $sync = $this->googleSyncWithCredential(['status' => 'pending']);
+
+        (new \App\Jobs\SyncGooglePhotosJob($sync->id))->failed(new \RuntimeException('boom'));
+
+        $this->assertSame('failed', $sync->fresh()->status);
+        $this->assertSame(0, GooglePhotoCredential::count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_stale_google_tokens_are_pruned_even_if_revoke_fails(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['oauth2.googleapis.com/revoke' => Http::response('', 500)]);
+        $stale = $this->googleSyncWithCredential();
+        $fresh = $this->googleSyncWithCredential();
+        GooglePhotoCredential::where('sync_id', $stale->id)->update(['created_at' => now()->subDays(2)]);
+
+        Artisan::call('model:prune', ['--model' => [GooglePhotoCredential::class]]);
+
+        $this->assertNull($stale->credential()->first());
+        $this->assertNotNull($fresh->credential()->first());
+        Http::assertSentCount(1);
     }
 
     // --- 3.8 Account lifecycle ---

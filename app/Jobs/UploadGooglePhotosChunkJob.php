@@ -158,36 +158,44 @@ class UploadGooglePhotosChunkJob implements ShouldQueue
         }
 
         // Atomic row locking sync database update
-        DB::transaction(function () use ($sync, $successCount, $failedCount) {
+        $isComplete = DB::transaction(function () use ($sync, $successCount, $failedCount) {
             $lockSync = GooglePhotoSync::where('id', $sync->id)->lockForUpdate()->first();
-            if ($lockSync) {
-                $lockSync->processed_photos += $successCount;
-                $lockSync->failed_photos += $failedCount;
-
-                $isComplete = $lockSync->processed_photos + $lockSync->failed_photos >= $lockSync->total_photos;
-                if ($isComplete) {
-                    $lockSync->status = $lockSync->failed_photos > 0 ? 'completed_with_errors' : 'completed';
-                    $lockSync->completed_at = now();
-                }
-                $lockSync->save();
-
-                // Safe check for opt-in mail trigger on job completion
-                if ($isComplete && $lockSync->notify_when_ready && $lockSync->email && is_null($lockSync->notification_sent_at)) {
-                    $lockSync->update([
-                        'notification_sent_at' => now(),
-                    ]);
-
-                    $email = $lockSync->email;
-
-                    // Queue email after commit
-                    DB::afterCommit(function () use ($lockSync, $email) {
-                        \Illuminate\Support\Facades\Mail::to($email)->queue(
-                            new \App\Mail\GooglePhotosSyncCompletedMail($lockSync)
-                        );
-                    });
-                }
+            if (!$lockSync) {
+                return false;
             }
+
+            $lockSync->processed_photos += $successCount;
+            $lockSync->failed_photos += $failedCount;
+
+            $isComplete = $lockSync->processed_photos + $lockSync->failed_photos >= $lockSync->total_photos;
+            if ($isComplete) {
+                $lockSync->status = $lockSync->failed_photos > 0 ? 'completed_with_errors' : 'completed';
+                $lockSync->completed_at = now();
+            }
+            $lockSync->save();
+
+            // Safe check for opt-in mail trigger on job completion
+            if ($isComplete && $lockSync->notify_when_ready && $lockSync->email && is_null($lockSync->notification_sent_at)) {
+                $lockSync->update([
+                    'notification_sent_at' => now(),
+                ]);
+
+                $email = $lockSync->email;
+
+                // Queue email after commit
+                DB::afterCommit(function () use ($lockSync, $email) {
+                    \Illuminate\Support\Facades\Mail::to($email)->queue(
+                        new \App\Mail\GooglePhotosSyncCompletedMail($lockSync)
+                    );
+                });
+            }
+
+            return $isComplete;
         });
+
+        if ($isComplete) {
+            $sync->forgetCredential();
+        }
     }
 
     /**
@@ -229,10 +237,10 @@ class UploadGooglePhotosChunkJob implements ShouldQueue
      */
     public function failed(?Throwable $exception): void
     {
-        DB::transaction(function () {
+        $sync = DB::transaction(function () {
             $sync = GooglePhotoSync::whereKey($this->syncId)->lockForUpdate()->first();
             if (!$sync || in_array($sync->status, ['completed', 'completed_with_errors', 'failed'], true)) {
-                return;
+                return $sync;
             }
 
             $sync->failed_photos += count($this->photoIds);
@@ -241,6 +249,12 @@ class UploadGooglePhotosChunkJob implements ShouldQueue
                 $sync->completed_at = now();
             }
             $sync->save();
+
+            return $sync;
         });
+
+        if ($sync && in_array($sync->status, ['completed', 'completed_with_errors', 'failed'], true)) {
+            $sync->forgetCredential();
+        }
     }
 }

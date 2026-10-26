@@ -49,4 +49,12 @@ class GooglePhotoSync extends Model
     {
         return $this->hasOne(GooglePhotoCredential::class, 'sync_id');
     }
+
+    /**
+     * Revoke and delete the visitor's Google tokens once the sync is final.
+     */
+    public function forgetCredential(): void
+    {
+        GooglePhotoCredential::where('sync_id', $this->id)->first()?->revoke();
+    }
 }

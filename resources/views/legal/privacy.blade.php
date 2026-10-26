@@ -1,7 +1,7 @@
 @extends('legal.layout', [
     'pageTitle' => 'Privacy Policy',
     'pageDescription' => 'What data ifotoset collects, why, and the choices you have.',
-    'updated' => 'October 15, 2026',
+    'updated' => 'October 26, 2026',
 ])
 
 @section('legal')
@@ -9,6 +9,7 @@
     <h2>What we collect</h2>
     <ul>
         <li><strong>Photographers:</strong> name, username, email, password (stored hashed), optional profile details (phone, location, website, bio, avatar), uploaded photos and videos, clients, packages, bookings and billing history.</li>
+        <li><strong>Sign in with Google:</strong> if you choose it, Google shares your name, email address and Google account ID with us. We use them only to create and sign in to your account.</li>
         <li><strong>Gallery visitors and clients:</strong> the email address you give to download, favorite or export photos; booking details you submit; and basic technical data (IP address, browser, pages viewed) used for security and gallery statistics.</li>
     </ul>
 </section>
@@ -32,6 +33,19 @@
         <li>Google Analytics (aggregate site usage on our marketing pages)</li>
         <li>Google Photos, only when a visitor chooses to export photos to their own Google account</li>
     </ul>
+</section>
+
+<section>
+    <h2>Google Photos</h2>
+    <p>If you choose "Save to Google Photos" on a gallery, you sign in with Google and grant ifotoset one permission: to add photos to your Google Photos library. We use it only to create an album named after the gallery and upload the photos you selected into it.</p>
+    <ul>
+        <li>We cannot see, list, change or delete anything already in your Google Photos library.</li>
+        <li>We do not receive your Google password. Google gives us a temporary access token, which we store encrypted while the export runs.</li>
+        <li>As soon as the export finishes or fails, we revoke the token with Google and delete it. Tokens from exports that never finish are revoked and deleted within a day.</li>
+        <li>We do not share, sell or use Google user data for advertising, and we do not use it to train AI models.</li>
+        <li>You can also remove ifotoset's access at any time from your Google Account at <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a>.</li>
+    </ul>
+    <p>ifotoset's use and transfer of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
 </section>
 
 <section>

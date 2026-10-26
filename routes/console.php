@@ -20,6 +20,7 @@ Schedule::command('uploads:reconcile-reservations')->daily()->withoutOverlapping
 Schedule::command('media:reconcile-statistics')->daily()->withoutOverlapping()->onOneServer();
 Schedule::command('ops:check-health')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('users:purge-deleted')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
+Schedule::command('model:prune', ['--model' => [\App\Models\GooglePhotoCredential::class]])->hourly()->withoutOverlapping()->onOneServer();
 
 Artisan::command('b2:sync-cors', function () {
     $keyId = config('filesystems.disks.b2.key');
