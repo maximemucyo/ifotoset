@@ -1,16 +1,16 @@
 @php
     $columns = [
         'Product' => [
-            ['Features', '#features'],
-            ['Showcase', '#showcase'],
-            ['Pricing', '#pricing'],
-            ['FAQ', '#faq'],
+            ['Client galleries', route('features.galleries')],
+            ['Portfolio website', route('features.portfolio')],
+            ['Online booking', route('features.booking')],
+            ['Pricing', route('pricing')],
         ],
-        'For photographers' => [
-            ['Client galleries', '#features'],
-            ['Portfolio website', '#features'],
-            ['Bookings & payments', '#features'],
-            ['Video delivery', '#features'],
+        'Explore' => [
+            ['Features', url('/#features')],
+            ['Showcase', url('/#showcase')],
+            ['How it works', url('/#how-it-works')],
+            ['FAQ', url('/#faq')],
         ],
         'Account' => auth()->check()
             ? [['Open studio', url('/studio/dashboard')]]

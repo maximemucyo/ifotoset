@@ -1,5 +1,6 @@
+@props(['items' => null, 'description' => 'Everything you need to know about the platform, delivery features and studio plans.'])
 @php
-$faqItems = [
+$faqItems = $items ?? [
     [
         'question' => 'What is ifotoset?',
         'answer' => 'ifotoset is a complete, all-in-one photography platform built for modern photographers and studios in East Africa and beyond. It combines elegant client gallery delivery, portfolio showcase creation, and studio management tools (bookings, payments, and client management) into a single, unified experience.'
@@ -18,7 +19,7 @@ $faqItems = [
     ],
     [
         'question' => 'Can clients download their photos?',
-        'answer' => 'Yes. You have control over download privileges. You can allow clients to download high-resolution or web-sized versions, apply watermarks, or disable downloads altogether based on your agreement.'
+        'answer' => 'Yes, if you allow it. For each gallery you decide whether clients can download single photos, the whole gallery as a ZIP file, or nothing at all.'
     ],
     [
         'question' => 'How much storage do I get?',
@@ -46,7 +47,7 @@ $faqItems = [
 <section id="faq" x-data="{ openIndex: 0 }" class="relative border-t border-border py-24 sm:py-32">
     <div class="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16 lg:px-8">
         <div class="lg:sticky lg:top-28 lg:self-start">
-            <x-landing.section-heading align="left" eyebrow="FAQ" description="Everything you need to know about the platform, delivery features and studio plans.">
+            <x-landing.section-heading align="left" eyebrow="FAQ" :description="$description">
                 Questions, <em class="font-serif font-normal italic tracking-normal">answered</em>.
             </x-landing.section-heading>
             <div class="mt-8 hidden items-center gap-3 rounded-xl border border-border bg-card p-4 lg:flex" data-reveal>

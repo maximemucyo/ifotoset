@@ -6,7 +6,7 @@
     ];
 @endphp
 
-<section class="relative border-t border-border py-24 sm:py-32">
+<section id="how-it-works" class="relative border-t border-border py-24 sm:py-32">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <x-landing.section-heading eyebrow="How it works" description="No setup calls, no plugins, no learning curve.">
             From sign-up to first delivery in an <em class="font-serif font-normal italic tracking-normal">afternoon</em>.

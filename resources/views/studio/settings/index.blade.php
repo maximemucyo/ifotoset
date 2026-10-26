@@ -144,11 +144,49 @@
                         </div>
 
                         <div class="grid gap-5 sm:grid-cols-2">
-                            <x-ui.input label="Location" name="location" placeholder="Kigali, Rwanda" icon="map-pin"
+                            @php
+                                $cityName = $user->cityName();
+                                $locationHint = match (true) {
+                                    $cityName !== null => "Matched to {$cityName}, so clients looking for a photographer there can find you.",
+                                    filled($user->location) => "We couldn't match this to a city yet. It still shows on your portfolio.",
+                                    default => 'Your town or neighbourhood, for example Kimihurura, Kigali.',
+                                };
+                            @endphp
+                            <x-ui.input label="Location" name="location" placeholder="Kimihurura, Kigali" icon="map-pin" list="location-suggestions" autocomplete="off"
+                                        :hint="$locationHint"
                                         :value="old('location', $user->location)" :error="$errors->first('location')" />
-                            <x-ui.input label="Website" type="url" name="website" placeholder="https://yourstudio.com" icon="link"
+                            <datalist id="location-suggestions">
+                                @foreach(\App\Support\Directory::locationSuggestions() as $suggestion)
+                                    <option value="{{ $suggestion }}"></option>
+                                @endforeach
+                            </datalist>
+                            <x-ui.input label="Other website" type="url" name="website" icon="link"
+                                        :placeholder="$publicUrl ?? 'https://yourstudio.com'"
+                                        :hint="$publicUrl ? 'Your ifotoset portfolio is already your website. Only add an address here if you have a separate site.' : null"
                                         :value="old('website', $user->website)" :error="$errors->first('website')" />
                         </div>
+
+                        @php $chosenSpecialties = old('specialties', $user->specialties ?? []); @endphp
+                        <fieldset x-data="{ chosen: @js(array_values($chosenSpecialties)), max: {{ config('directory.max_specialties') }} }">
+                            <div class="mb-1.5 flex items-center justify-between">
+                                <legend class="label !mb-0">Specialties</legend>
+                                <span class="text-xs tabular-nums text-muted-foreground"><span x-text="chosen.length"></span> / {{ config('directory.max_specialties') }}</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach(config('directory.specialties') as $slug => $label)
+                                    <label class="cursor-pointer" :class="!chosen.includes(@js($slug)) && chosen.length >= max && 'cursor-not-allowed opacity-50'">
+                                        <input type="checkbox" name="specialties[]" value="{{ $slug }}" class="peer sr-only" x-model="chosen"
+                                               :disabled="!chosen.includes(@js($slug)) && chosen.length >= max">
+                                        <span class="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-[13px] text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground peer-checked:border-brand/50 peer-checked:bg-brand/10 peer-checked:text-foreground peer-checked:[&>svg]:inline peer-focus-visible:ring-4 peer-focus-visible:ring-ring/15">
+                                            <x-icon name="check" class="hidden size-3.5 text-brand" />
+                                            {{ $label }}
+                                        </span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @error('specialties') <p class="error-text">{{ $message }}</p> @else <p class="help">The kinds of sessions you shoot most. Choose up to {{ config('directory.max_specialties') }}.</p> @enderror
+                            @error('specialties.*') <p class="error-text">{{ $message }}</p> @enderror
+                        </fieldset>
 
                         <div>
                             <span class="label">Email</span>

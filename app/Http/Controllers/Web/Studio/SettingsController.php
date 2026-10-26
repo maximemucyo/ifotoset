@@ -38,9 +38,21 @@ class SettingsController extends Controller
             'name'     => ['required', 'string', 'max:255'],
             'bio'      => ['nullable', 'string', 'max:1000'],
             'location' => ['nullable', 'string', 'max:255'],
+            'specialties'   => ['nullable', 'array', 'max:' . config('directory.max_specialties')],
+            'specialties.*' => ['string', 'distinct', \Illuminate\Validation\Rule::in(array_keys(config('directory.specialties')))],
             'website'  => ['nullable', 'url', 'max:255'],
             'phone'    => ['nullable', 'string', 'max:50'],
+        ], [
+            'specialties.max' => 'Choose up to ' . config('directory.max_specialties') . ' specialties.',
         ]);
+
+        $validated['specialties'] = array_values($validated['specialties'] ?? []) ?: null;
+
+        // The portfolio is already their website: linking it to itself would add nothing
+        if (filled($validated['website'] ?? null) && $user->username
+            && strcasecmp((string) parse_url($validated['website'], PHP_URL_HOST), (string) parse_url($user->public_url, PHP_URL_HOST)) === 0) {
+            $validated['website'] = null;
+        }
 
         $user->update($validated);
 
@@ -135,7 +147,7 @@ class SettingsController extends Controller
         $payload = [
             'exported_at' => now()->toIso8601String(),
             'profile' => $user->only([
-                'name', 'username', 'email', 'phone', 'location', 'website', 'bio',
+                'name', 'username', 'email', 'phone', 'location', 'city', 'specialties', 'website', 'bio',
                 'timezone', 'profile_public', 'notification_preferences', 'portfolio_settings', 'created_at',
             ]),
             'plan' => $user->plan?->only(['name', 'slug']),

@@ -37,6 +37,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'profile_public',
         'phone',
         'location',
+        'specialties',
         'website',
         'bio',
         'avatar_path',
@@ -62,6 +63,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'profile_public' => 'boolean',
         'notification_preferences' => 'array',
         'portfolio_settings' => 'array',
+        'specialties' => 'array',
         'storage_used_bytes' => 'integer',
         'storage_reserved_bytes' => 'integer',
         'video_seconds_used' => 'integer',
@@ -71,6 +73,40 @@ class User extends Authenticatable implements MustVerifyEmail
         'storage_warning_generation' => 'integer',
         'over_quota_since' => 'datetime',
     ];
+
+    /**
+     * Display name of the directory city matched from the location, e.g. "Rubavu".
+     */
+    public function cityName(): ?string
+    {
+        return \App\Support\Directory::cityName($this->city);
+    }
+
+    /**
+     * Labels of the chosen specialties, in the order the directory lists them.
+     *
+     * @return array<int, string>
+     */
+    public function specialtyLabels(): array
+    {
+        $chosen = $this->specialties ?? [];
+
+        return array_values(array_filter(
+            config('directory.specialties'),
+            fn (string $slug) => in_array($slug, $chosen, true),
+            ARRAY_FILTER_USE_KEY,
+        ));
+    }
+
+    protected static function booted(): void
+    {
+        // The directory city is derived from the typed location, never entered directly
+        static::saving(function (User $user) {
+            if ($user->isDirty('location')) {
+                $user->city = \App\Support\Directory::matchCity($user->location);
+            }
+        });
+    }
 
     public function isAdmin(): bool
     {

@@ -26,7 +26,7 @@ class DashboardController extends Controller
 
         // Getting-started checklist, derived from real data (cheap EXISTS queries).
         $data['setup'] = [
-            'profile'      => filled($user->username) && filled($user->bio) && filled($user->avatar_path),
+            'profile'      => filled($user->username) && filled($user->bio) && filled($user->avatar_path) && filled($user->location) && filled($user->specialties),
             'gallery'      => $data['totalGalleries'] > 0,
             'photos'       => $data['totalPhotos'] > 0,
             'availability' => AvailabilitySetting::where('user_id', $user->id)->where('is_active', true)->exists(),

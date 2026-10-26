@@ -1,4 +1,4 @@
-@props(['plans' => collect()])
+@props(['plans' => collect(), 'headingTag' => 'h2'])
 @php
     /*
      | Marketing copy per plan slug. Prices, storage and video allowances come from
@@ -134,7 +134,7 @@
     <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-dots opacity-50 mask-fade-b"></div>
 
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <x-landing.section-heading eyebrow="Pricing" description="Start free and upgrade when your studio grows. No setup fees, no long-term contracts.">
+        <x-landing.section-heading :tag="$headingTag" eyebrow="Pricing" description="Start free and upgrade when your studio grows. No setup fees, no long-term contracts.">
             Simple pricing. <em class="font-serif font-normal italic tracking-normal">No surprises.</em>
         </x-landing.section-heading>
 

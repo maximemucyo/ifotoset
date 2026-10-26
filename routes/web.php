@@ -87,6 +87,10 @@ Route::domain('{username}.' . $rootHost)
 
 // Public Landing Page & Scalable XML Sitemaps
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/features/client-galleries', [\App\Http\Controllers\Web\MarketingController::class, 'galleries'])->name('features.galleries');
+Route::get('/features/online-booking', [\App\Http\Controllers\Web\MarketingController::class, 'booking'])->name('features.booking');
+Route::get('/features/portfolio-website', [\App\Http\Controllers\Web\MarketingController::class, 'portfolio'])->name('features.portfolio');
+Route::get('/pricing', [\App\Http\Controllers\Web\MarketingController::class, 'pricing'])->name('pricing');
 Route::view('/terms', 'legal.terms')->name('legal.terms');
 Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
 Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 'index'])->name('sitemap');

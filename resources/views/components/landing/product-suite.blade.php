@@ -31,6 +31,9 @@
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Favourites and one-click full downloads</li>
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Email invitations to your clients</li>
                     </ul>
+                    <a href="{{ route('features.galleries') }}" class="mt-6 inline-flex items-center gap-1.5 self-start text-[13.5px] font-medium text-foreground transition-colors hover:text-brand">
+                        Learn more<span class="sr-only"> about client galleries</span> <x-icon name="arrow-right" class="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </a>
                 </div>
             </article>
 
@@ -65,6 +68,9 @@
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Your own ifotoset subdomain (custom domains coming soon)</li>
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> SEO metadata and social previews</li>
                     </ul>
+                    <a href="{{ route('features.portfolio') }}" class="mt-6 inline-flex items-center gap-1.5 self-start text-[13.5px] font-medium text-foreground transition-colors hover:text-brand">
+                        Learn more<span class="sr-only"> about portfolio websites</span> <x-icon name="arrow-right" class="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </a>
                 </div>
             </article>
 
@@ -111,6 +117,9 @@
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Client records and session history</li>
                         <li class="flex gap-2.5"><x-icon name="check" class="mt-0.5 size-4 text-brand" /> Packages with Mobile Money checkout</li>
                     </ul>
+                    <a href="{{ route('features.booking') }}" class="mt-6 inline-flex items-center gap-1.5 self-start text-[13.5px] font-medium text-foreground transition-colors hover:text-brand">
+                        Learn more<span class="sr-only"> about online booking</span> <x-icon name="arrow-right" class="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </a>
                 </div>
             </article>
         </div>

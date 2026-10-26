@@ -109,6 +109,8 @@ class UserController extends Controller
                 'username' => $user->username,
                 'phone' => $user->phone,
                 'location' => $user->location,
+                'city' => $user->cityName(),
+                'specialties' => $user->specialtyLabels(),
                 'website' => $user->website,
                 'bio' => $user->bio,
                 'role' => $user->role,

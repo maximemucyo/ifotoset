@@ -70,6 +70,8 @@ class PurgeDeletedUserJob implements ShouldQueue
                 'password' => Hash::make(Str::random(64)),
                 'phone' => null,
                 'location' => null,
+                'city' => null,
+                'specialties' => null,
                 'website' => null,
                 'bio' => null,
                 'avatar_path' => null,

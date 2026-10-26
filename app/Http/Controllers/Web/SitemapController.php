@@ -103,6 +103,10 @@ class SitemapController extends Controller
     {
         $urls = [
             $this->urlService->home(),
+            route('features.galleries'),
+            route('features.portfolio'),
+            route('features.booking'),
+            route('pricing'),
             route('legal.terms'),
             route('legal.privacy'),
         ];

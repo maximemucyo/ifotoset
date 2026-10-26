@@ -104,6 +104,51 @@ class SeoMetadata
     }
 
     /**
+     * Factory for platform marketing pages (features, pricing) with breadcrumb structured data.
+     */
+    public static function forMarketingPage(string $title, string $description, string $routeName, string $name): self
+    {
+        $home = app(PublicUrlService::class)->home();
+        $canonical = route($routeName);
+
+        $structuredData = [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                [
+                    '@type' => 'WebPage',
+                    '@id' => $canonical . '#webpage',
+                    'url' => $canonical,
+                    'name' => $title,
+                    'description' => $description,
+                    'isPartOf' => ['@id' => $home . '#website'],
+                    'breadcrumb' => ['@id' => $canonical . '#breadcrumb'],
+                ],
+                [
+                    '@type' => 'BreadcrumbList',
+                    '@id' => $canonical . '#breadcrumb',
+                    'itemListElement' => [
+                        ['@type' => 'ListItem', 'position' => 1, 'name' => 'ifotoset', 'item' => $home],
+                        ['@type' => 'ListItem', 'position' => 2, 'name' => $name, 'item' => $canonical],
+                    ],
+                ],
+            ],
+        ];
+
+        return new self(
+            title: $title,
+            description: $description,
+            canonical: $canonical,
+            robots: 'index, follow, max-image-preview:large',
+            ogTitle: $title,
+            ogDescription: $description,
+            ogImage: self::defaultImage(),
+            ogType: 'website',
+            twitterCard: 'summary_large_image',
+            structuredData: $structuredData,
+        );
+    }
+
+    /**
      * Factory for public photographer profile SEO.
      */
     public static function forPhotographer(User $photographer, array $packages = []): self
@@ -136,6 +181,7 @@ class SeoMetadata
             'jobTitle' => $portfolio->roleLabel(),
             'description' => $photographer->bio ? strip_tags($photographer->bio) : null,
             'homeLocation' => $photographer->location ? ['@type' => 'Place', 'name' => $photographer->location] : null,
+            'knowsAbout' => $photographer->specialtyLabels() ?: null,
             'sameAs' => $sameAs ?: null,
         ]);
 
@@ -154,7 +200,7 @@ class SeoMetadata
             'url' => $canonical,
             'image' => $photographer->logo_url ?: $photographer->avatar_url,
             'founder' => ['@id' => $canonical . '#person'],
-            'areaServed' => $photographer->location ?: null,
+            'areaServed' => $photographer->location ?: $photographer->cityName(),
             'makesOffer' => $offers ?: null,
         ]);
 

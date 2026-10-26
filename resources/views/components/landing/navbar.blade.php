@@ -1,10 +1,10 @@
 @php
-    $links = [
-        ['href' => '#features', 'label' => 'Features'],
-        ['href' => '#showcase', 'label' => 'Showcase'],
-        ['href' => '#pricing', 'label' => 'Pricing'],
-        ['href' => '#faq', 'label' => 'FAQ'],
-    ];
+    $links = collect([
+        ['route' => 'features.galleries', 'label' => 'Galleries'],
+        ['route' => 'features.portfolio', 'label' => 'Portfolio'],
+        ['route' => 'features.booking', 'label' => 'Booking'],
+        ['route' => 'pricing', 'label' => 'Pricing'],
+    ])->map(fn ($link) => $link + ['href' => route($link['route']), 'current' => request()->routeIs($link['route'])])->all();
 @endphp
 <header
     x-data="{ scrolled: false, isOpen: false }"
@@ -20,7 +20,11 @@
         {{-- Desktop links --}}
         <div class="hidden items-center gap-1 md:flex">
             @foreach($links as $link)
-                <a href="{{ $link['href'] }}" class="rounded-lg px-3 py-1.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">{{ $link['label'] }}</a>
+                <a href="{{ $link['href'] }}" @if($link['current']) aria-current="page" @endif @class([
+                    'rounded-lg px-3 py-1.5 text-[13.5px] font-medium transition-colors hover:bg-muted hover:text-foreground',
+                    'text-foreground' => $link['current'],
+                    'text-muted-foreground' => !$link['current'],
+                ])>{{ $link['label'] }}</a>
             @endforeach
         </div>
 
@@ -64,7 +68,7 @@
     >
         <div class="mx-auto max-w-7xl space-y-1 px-4 pb-5 pt-3 sm:px-6">
             @foreach($links as $link)
-                <a href="{{ $link['href'] }}" @click="isOpen = false" class="flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] font-medium text-foreground transition-colors hover:bg-muted">
+                <a href="{{ $link['href'] }}" @if($link['current']) aria-current="page" @endif @click="isOpen = false" class="flex items-center justify-between rounded-lg px-3 py-2.5 text-[15px] font-medium text-foreground transition-colors hover:bg-muted">
                     {{ $link['label'] }}
                     <x-icon name="chevron-right" class="size-4 text-subtle" />
                 </a>

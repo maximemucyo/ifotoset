@@ -37,7 +37,7 @@
     // ---- Getting started ------------------------------------------------
     $firstGallery = $recentGalleries->first();
     $steps = [
-        ['key' => 'profile', 'title' => 'Complete your profile', 'description' => 'Add a username, bio and profile photo.', 'icon' => 'user', 'url' => route('studio.settings.index')],
+        ['key' => 'profile', 'title' => 'Complete your profile', 'description' => 'Add a bio, profile photo, location and specialties.', 'icon' => 'user', 'url' => route('studio.settings.index')],
         ['key' => 'gallery', 'title' => 'Create your first gallery', 'description' => 'A home for a client\'s photos.', 'icon' => 'images', 'url' => route('studio.galleries.create')],
         ['key' => 'photos', 'title' => 'Upload photos', 'description' => 'Drag and drop images into a gallery.', 'icon' => 'upload-cloud', 'url' => $firstGallery ? route('studio.galleries.show', $firstGallery->uuid) : route('studio.galleries.create')],
         ['key' => 'availability', 'title' => 'Set your availability', 'description' => 'Let clients book open time slots.', 'icon' => 'calendar', 'url' => route('studio.availability.index')],

@@ -87,6 +87,35 @@ class SeoArchitectureTest extends TestCase
         $response->assertSee('"@type":"SoftwareApplication"', false);
     }
 
+    public function test_marketing_pages_render_their_own_indexable_metadata(): void
+    {
+        $pages = [
+            '/features/client-galleries' => 'Client Gallery Software for Photographers | ifotoset',
+            '/features/online-booking' => 'Online Booking for Photographers with Mobile Money Deposits | ifotoset',
+            '/features/portfolio-website' => 'Photography Portfolio Website Builder | ifotoset',
+            '/pricing' => 'Pricing: Plans for Photographers in RWF | ifotoset',
+        ];
+
+        foreach ($pages as $path => $title) {
+            $response = $this->get($path);
+            $response->assertStatus(200);
+            $response->assertSee('<title>' . e($title) . '</title>', false);
+            $response->assertSee('<link rel="canonical" href="http://localhost:8000' . $path . '">', false);
+            $response->assertSee('<meta name="robots" content="index, follow, max-image-preview:large">', false);
+            $response->assertSee('"@type":"BreadcrumbList"', false);
+            $response->assertSee('<h1', false);
+        }
+    }
+
+    public function test_pricing_page_compares_plans_from_the_database(): void
+    {
+        $response = $this->get('/pricing');
+
+        $response->assertStatus(200);
+        $response->assertSee('Pro Plan');
+        $response->assertSee('100 GB');
+    }
+
     public function test_auth_pages_emit_noindex_follow(): void
     {
         $loginResponse = $this->get('/login');
@@ -183,6 +212,10 @@ class SeoArchitectureTest extends TestCase
         $staticResponse = $this->get('/sitemaps/static.xml');
         $staticResponse->assertStatus(200);
         $staticResponse->assertSee('<urlset', false);
+        $staticResponse->assertSee('<loc>http://localhost:8000/features/client-galleries</loc>', false);
+        $staticResponse->assertSee('<loc>http://localhost:8000/features/portfolio-website</loc>', false);
+        $staticResponse->assertSee('<loc>http://localhost:8000/features/online-booking</loc>', false);
+        $staticResponse->assertSee('<loc>http://localhost:8000/pricing</loc>', false);
 
         // 3. Photographers sitemap
         $photographersResponse = $this->get('/sitemaps/photographers.xml');

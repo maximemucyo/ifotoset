@@ -143,6 +143,14 @@
                             <dt class="text-muted-foreground">Location</dt>
                             <dd class="truncate text-foreground" :class="!user?.location && 'text-subtle'" x-text="user?.location || 'Not provided'"></dd>
                         </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5">
+                            <dt class="text-muted-foreground">City</dt>
+                            <dd class="truncate text-foreground" :class="!user?.city && 'text-subtle'" x-text="user?.city || 'Not provided'"></dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 px-4 py-2.5 sm:border-l sm:border-border">
+                            <dt class="shrink-0 text-muted-foreground">Specialties</dt>
+                            <dd class="truncate text-foreground" :class="!user?.specialties?.length && 'text-subtle'" x-text="user?.specialties?.length ? user.specialties.join(', ') : 'Not provided'"></dd>
+                        </div>
                     </dl>
                 </section>
 
