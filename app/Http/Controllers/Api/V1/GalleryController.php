@@ -158,6 +158,10 @@ class GalleryController extends Controller
             ], 403);
         }
 
+        if ($pinError = $this->verifyDownloadPin($gallery, $request)) {
+            return $pinError;
+        }
+
         $photos = $gallery->photos()
             ->where('status', \App\Enums\PhotoStatus::Ready->value)
             ->orderBy('id')
@@ -445,8 +449,9 @@ class GalleryController extends Controller
                 return redirect()->to($exportUrl . '?error=unauthorized');
             }
         } else {
+            // Archive ids are sequential: without the emailed token, require the same rights as starting a ZIP
             $errorResponse = $this->verifyGalleryAccess($gallery, $request);
-            if ($errorResponse) {
+            if ($errorResponse || !$gallery->galleryDownloadsAllowed() || !$this->downloadsUnlocked($gallery, $request)) {
                 return redirect()->to($exportUrl . '?error=unauthorized');
             }
         }

@@ -136,6 +136,41 @@ trait VerifiesGalleryAccess
     }
 
     /**
+     * Whether this visitor may download: true when the gallery has no download PIN, or the session
+     * holds an unlock for the current PIN (changing the PIN invalidates earlier unlocks).
+     */
+    protected function downloadsUnlocked(Gallery $gallery, Request $request): bool
+    {
+        if (!$gallery->requiresDownloadPin()) {
+            return true;
+        }
+
+        if (!$request->hasSession()) {
+            return false;
+        }
+
+        $checksum = $request->session()->get("gallery_download_unlocked_{$gallery->id}");
+
+        return is_string($checksum) && hash_equals(md5($gallery->download_pin), $checksum);
+    }
+
+    /**
+     * JSON error for download endpoints when the gallery's download PIN has not been entered.
+     */
+    protected function verifyDownloadPin(Gallery $gallery, Request $request): ?JsonResponse
+    {
+        if ($this->downloadsUnlocked($gallery, $request)) {
+            return null;
+        }
+
+        return response()->json([
+            'code' => 'DOWNLOAD_PIN_REQUIRED',
+            'message' => 'Enter the download PIN to download from this gallery.',
+            'requires_download_pin' => true,
+        ], 403);
+    }
+
+    /**
      * Backward-compatible JSON access verification helper for API endpoints.
      */
     protected function verifyGalleryAccess(Gallery $gallery, Request $request): ?JsonResponse

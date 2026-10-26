@@ -80,6 +80,7 @@ Route::domain('{username}.' . $rootHost)
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
+        Route::post('/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('subdomain.gallery.download-unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
 
         Route::get('/', [PublicPhotographerController::class, 'show'])->name('subdomain.photographer');
@@ -155,6 +156,7 @@ Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'phot
 Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('public.gallery.photo.download');
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('public.gallery.export');
 Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
+Route::post('/p/{username}/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('public.gallery.download-unlock');
 
 // Shortlink Redirect (/g/{username}/{slug} -> canonical subdomain URL via 301)
 Route::get('/g/{username}/{slug}', function (Request $request, string $username, string $slug) {

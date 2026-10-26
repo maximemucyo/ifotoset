@@ -117,11 +117,15 @@ class GalleryController extends Controller
             'show_on_profile' => ['nullable', 'boolean'],
             'allow_photo_downloads' => ['nullable', 'boolean'],
             'allow_gallery_downloads' => ['nullable', 'boolean'],
+            'download_pin_enabled' => ['nullable', 'boolean'],
+            'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'invite_emails' => ['nullable', 'string'],
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
             'password.required_if' => 'A PIN is required when setting privacy to PIN Protected.',
             'password.min' => 'The PIN must be at least 6 characters.',
+            'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
+            'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
         ]);
 
         $baseSlug = Str::slug($validated['title']);
@@ -145,6 +149,7 @@ class GalleryController extends Controller
             'password_hash' => ($validated['visibility'] === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads', true),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
+            'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
             'version' => 1,
         ]);
 
@@ -371,11 +376,15 @@ class GalleryController extends Controller
             'show_on_profile' => ['nullable', 'boolean'],
             'allow_photo_downloads' => ['nullable', 'boolean'],
             'allow_gallery_downloads' => ['nullable', 'boolean'],
+            'download_pin_enabled' => ['nullable', 'boolean'],
+            'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'invite_emails' => ['nullable', 'string'],
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
             'password.required' => 'A PIN is required when setting privacy to PIN Protected.',
             'password.min' => 'The PIN must be at least 6 characters.',
+            'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
+            'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
         ]);
 
         $showOnProfile = ($validated['visibility'] === 'public') && $request->boolean('show_on_profile');
@@ -388,6 +397,7 @@ class GalleryController extends Controller
             'show_on_profile' => $showOnProfile,
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads'),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads'),
+            'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
         ];
 
         if (!empty($validated['password'])) {

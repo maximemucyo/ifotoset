@@ -906,7 +906,7 @@ export class GalleryLightbox {
 
         // Do not process lightbox shortcuts if a modal dialog is currently open
         const activeModal = document.querySelector(
-            '#modal-save-favorites:not(.hidden), #modal-social-share:not(.hidden), #modal-download-options:not(.hidden), #modal-google-photos-sync:not(.hidden), #modal-ios-download-notice:not(.hidden)'
+            '#modal-save-favorites:not(.hidden), #modal-social-share:not(.hidden), #modal-download-options:not(.hidden), #modal-google-photos-sync:not(.hidden), #modal-download-pin:not(.hidden), #modal-ios-download-notice:not(.hidden)'
         );
         if (activeModal) return;
 

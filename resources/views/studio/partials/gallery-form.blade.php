@@ -5,20 +5,25 @@
 --}}
 @php
     $isEdit = isset($gallery) && $gallery;
-    $visibilityValue = old('visibility', $isEdit ? $gallery->visibility : 'private');
+    $visibilityValue = old('visibility', $isEdit ? $gallery->visibility : 'public');
     $visibilityOptions = [
-        'private'  => ['label' => 'Private',       'icon' => 'lock',  'description' => 'Only invited client emails can open it.'],
-        'password' => ['label' => 'PIN protected', 'icon' => 'key',   'description' => 'Anyone with the link and PIN.'],
         'public'   => ['label' => 'Public',        'icon' => 'globe', 'description' => 'Anyone with the direct link.'],
+        'password' => ['label' => 'PIN protected', 'icon' => 'key',   'description' => 'Anyone with the link and PIN.'],
+        'private'  => ['label' => 'Private',       'icon' => 'lock',  'description' => 'Only invited client emails can open it.'],
     ];
     $eventDate = old('event_date', $isEdit
         ? ($gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date)->format('Y-m-d') : '')
         : date('Y-m-d'));
     $photoDownloads = $isEdit ? (bool) $gallery->allow_photo_downloads : true;
     $galleryDownloads = $isEdit ? (bool) $gallery->allow_gallery_downloads : true;
+    $downloadPinEnabled = $isEdit && $gallery->requiresDownloadPin();
+    // Suggest a fresh PIN so turning the switch on is all it takes
+    $downloadPin = $isEdit && $gallery->download_pin ? $gallery->download_pin : str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     if (old('_token')) {
         $photoDownloads = (bool) old('allow_photo_downloads');
         $galleryDownloads = (bool) old('allow_gallery_downloads');
+        $downloadPinEnabled = (bool) old('download_pin_enabled');
+        $downloadPin = old('download_pin', $downloadPin);
     }
 @endphp
 
@@ -238,6 +243,37 @@
                     <span></span>
                 </span>
             </label>
+            <div x-data="{ pinEnabled: @js($downloadPinEnabled) }">
+                <label class="flex cursor-pointer items-start justify-between gap-4 p-5 sm:px-6">
+                    <span class="flex items-start gap-3">
+                        <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="key" class="size-4" /></span>
+                        <span>
+                            <span class="block text-sm font-medium text-foreground">Require a download PIN</span>
+                            <span class="mt-0.5 block text-xs text-muted-foreground">Anyone can view the gallery, but downloading asks for this PIN. Share it only with the people who should take photos home.</span>
+                        </span>
+                    </span>
+                    <span class="switch mt-1.5">
+                        <input type="hidden" name="download_pin_enabled" value="0">
+                        <input type="checkbox" name="download_pin_enabled" value="1" class="sr-only" x-model="pinEnabled" @checked($downloadPinEnabled)>
+                        <span></span>
+                    </span>
+                </label>
+                <div x-show="pinEnabled" x-cloak class="-mt-1 px-5 pb-5 sm:px-6 sm:pl-[4.25rem]"
+                     style="{{ $downloadPinEnabled ? '' : 'display: none;' }}">
+                    <div class="max-w-[12rem]">
+                        <x-ui.input label="Download PIN"
+                                    name="download_pin"
+                                    inputmode="numeric"
+                                    maxlength="4"
+                                    pattern="[0-9]{4}"
+                                    autocomplete="off"
+                                    class="font-mono tracking-[0.3em]"
+                                    :value="$downloadPin"
+                                    hint="4 digits."
+                                    :error="$errors->first('download_pin')" />
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 </div>

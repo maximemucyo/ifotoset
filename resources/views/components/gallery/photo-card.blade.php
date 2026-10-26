@@ -1,6 +1,8 @@
 @props([
     'photo',
     'allowDownloads' => true,
+    // Presigned original links bypass the download route; off while downloads are disabled or PIN-locked
+    'withOriginals' => true,
     'eager' => false,
     // "{gallery title} – photo by {photographer}" when the photo has no title or caption
     'altFallback' => '',
@@ -11,9 +13,9 @@
     $fullUrl = $photo->getUrl('xl');
     $largeUrl = $photo->getUrl('lg');
     $thumbnailUrl = $photo->getThumbnailUrl('md');
-    $originalUrl = $photo->getOriginalDownloadUrl();
+    $originalUrl = $withOriginals ? $photo->getOriginalDownloadUrl() : '';
     $deliveryUrl = $isVideo ? $photo->getStreamUrl() : null;
-    $deliveryDownloadUrl = $isVideo ? $photo->getDeliveryDownloadUrl() : $originalUrl;
+    $deliveryDownloadUrl = $withOriginals ? ($isVideo ? $photo->getDeliveryDownloadUrl() : $originalUrl) : '';
     $srcset = $photo->getSrcset();
     $blurhash = $photo->blurhash;
     $w = $photo->width ?: 1920;

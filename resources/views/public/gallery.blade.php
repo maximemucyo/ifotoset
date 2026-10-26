@@ -3,6 +3,7 @@
     $eventDate = $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date) : null;
     $photoTotal = $isGranted ? $gallery->public_photo_count : 0;
     $allowPhotoDownloads = $gallery->photoDownloadsAllowed();
+    $downloadPinRequired = $gallery->requiresDownloadPin() && ! $downloadsUnlocked;
     $iconBtn = 'inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-full px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $lbBtn = 'inline-flex size-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $panel = 'w-full max-w-sm animate-scale-in max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
@@ -311,12 +312,14 @@
          data-allow-photo-downloads="{{ $allowPhotoDownloads ? 'true' : 'false' }}"
          data-allow-gallery-downloads="{{ $gallery->galleryDownloadsAllowed() ? 'true' : 'false' }}"
          data-allow-google-photos="{{ $gallery->googlePhotosExportEnabled() ? 'true' : 'false' }}"
+         data-download-pin-required="{{ $downloadPinRequired ? 'true' : 'false' }}"
+         data-download-unlock-url="{{ route('subdomain.gallery.download-unlock', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
         @php($photoAltFallback = $gallery->title . ' – photo by ' . $photographer->name)
         <div id="gallery-grid" class="relative w-full" data-alt-fallback="{{ $photoAltFallback }}">
             @foreach($photos as $photo)
-                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :eager="! $coverUrl && $loop->index < 6" :alt-fallback="$photoAltFallback" />
+                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :with-originals="$allowPhotoDownloads && ! $downloadPinRequired" :eager="! $coverUrl && $loop->index < 6" :alt-fallback="$photoAltFallback" />
             @endforeach
         </div>
 
@@ -629,6 +632,39 @@
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary w-full">Continue <x-icon name="arrow-right" /></button>
+            </form>
+        </div>
+    </div>
+    @endif
+
+    @if($downloadPinRequired)
+    {{-- Download PIN --}}
+    <div id="modal-download-pin" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="download-pin-modal-title">
+        <div class="{{ $panel }}">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
+                    <x-icon name="key" class="size-[18px]" />
+                </div>
+                <button type="button" id="btn-close-download-pin" class="btn btn-ghost btn-icon btn-sm -mr-2 -mt-1" aria-label="Close dialog">
+                    <x-icon name="x" />
+                </button>
+            </div>
+            <h3 id="download-pin-modal-title" class="mt-4 text-base font-semibold text-foreground">Enter download PIN</h3>
+            <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                {{ $photographer->name }} needs a PIN before photos can be downloaded. Ask them for it if you don't have it.
+            </p>
+            <form id="form-download-pin" class="mt-5 space-y-3">
+                <label for="download-pin-input" class="sr-only">Download PIN</label>
+                <input type="password"
+                       id="download-pin-input"
+                       inputmode="numeric"
+                       maxlength="4"
+                       required
+                       autocomplete="off"
+                       placeholder="4-digit PIN"
+                       class="input h-12 rounded-xl text-center font-mono text-lg tracking-[0.4em] placeholder:font-sans placeholder:text-sm placeholder:tracking-normal">
+                <p id="download-pin-error" class="hidden text-center text-xs font-medium text-destructive"></p>
+                <button type="submit" id="btn-submit-download-pin" class="btn btn-primary w-full">Unlock downloads</button>
             </form>
         </div>
     </div>

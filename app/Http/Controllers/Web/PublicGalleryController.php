@@ -48,6 +48,7 @@ class PublicGalleryController extends Controller
 
         // Pure evaluation of access decision
         $decision = $this->evaluateGalleryAccess($gallery, $request);
+        $downloadsUnlocked = $this->downloadsUnlocked($gallery, $request);
 
         $initialPhotos = collect();
         $nextCursor = null;
@@ -75,7 +76,7 @@ class PublicGalleryController extends Controller
                     ->first();
 
                 if ($resolvePhoto) {
-                    $deepLinkedPhoto = $this->photoPayload($resolvePhoto, $gallery);
+                    $deepLinkedPhoto = $this->photoPayload($resolvePhoto, $gallery, $this->exposesOriginals($gallery, $request));
                 }
             }
 
@@ -118,6 +119,7 @@ class PublicGalleryController extends Controller
             'nextCursor' => $nextCursor,
             'hasMore' => $hasMore,
             'accessDecision' => $decision,
+            'downloadsUnlocked' => $downloadsUnlocked,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
             'seo' => \App\Support\Seo\SeoMetadata::forGallery($gallery, $coverUrl, $decision->isGranted()),
@@ -162,7 +164,7 @@ class PublicGalleryController extends Controller
                 return response()->json(['code' => 'PHOTO_NOT_FOUND', 'message' => 'Photo not found.'], 404);
             }
 
-            return response()->json(['data' => $this->photoPayload($photo, $gallery)]);
+            return response()->json(['data' => $this->photoPayload($photo, $gallery, $this->exposesOriginals($gallery, $request))]);
         }
 
         $perPage = $request->integer('per_page', 24);
@@ -175,7 +177,8 @@ class PublicGalleryController extends Controller
 
         $paginated = $this->photoQuery->getPaginatedForGallery($gallery, $perPage, is_array($uuids) ? $uuids : null);
 
-        $data = collect($paginated->items())->map(fn (Photo $photo) => $this->photoPayload($photo, $gallery));
+        $withOriginals = $this->exposesOriginals($gallery, $request);
+        $data = collect($paginated->items())->map(fn (Photo $photo) => $this->photoPayload($photo, $gallery, $withOriginals));
 
         return response()->json([
             'data' => $data,
@@ -185,11 +188,20 @@ class PublicGalleryController extends Controller
     }
 
     /**
+     * Presigned original-file links bypass the download route, so only hand them out when this visitor may download.
+     */
+    private function exposesOriginals(Gallery $gallery, Request $request): bool
+    {
+        return $gallery->photoDownloadsAllowed() && $this->downloadsUnlocked($gallery, $request);
+    }
+
+    /**
      * Client payload for one photo; mirrors the data-* attributes of components/gallery/photo-card.
      */
-    private function photoPayload(Photo $photo, Gallery $gallery): array
+    private function photoPayload(Photo $photo, Gallery $gallery, bool $withOriginals): array
     {
         $isVideo = $photo->isVideo();
+        $originalUrl = $withOriginals ? $photo->getOriginalDownloadUrl() : null;
 
         return [
             'id' => $photo->id,
@@ -198,13 +210,13 @@ class PublicGalleryController extends Controller
             'large' => $isVideo ? $photo->getPosterUrl('lg') : $photo->getUrl('lg'),
             // Video posters stop at 'lg'
             'full' => $isVideo ? $photo->getPosterUrl('lg') : $photo->getUrl('xl'),
-            'original' => $photo->getOriginalDownloadUrl(),
+            'original' => $originalUrl,
             'thumbnail' => $photo->getThumbnailUrl('md'),
             'srcset' => $photo->getSrcset(),
             'is_video' => $isVideo,
             'duration' => $photo->duration_formatted,
             'delivery_url' => $isVideo ? app(\App\Services\MediaTokenService::class)->getStreamUrl($photo, $gallery) : null,
-            'delivery_download_url' => $isVideo ? $photo->getDeliveryDownloadUrl() : $photo->getOriginalDownloadUrl(),
+            'delivery_download_url' => $withOriginals ? ($isVideo ? $photo->getDeliveryDownloadUrl() : $originalUrl) : null,
             'width' => $photo->width,
             'height' => $photo->height,
             'blurhash' => $photo->blurhash,
@@ -220,7 +232,7 @@ class PublicGalleryController extends Controller
         $gallery = $this->resolveGallery($username, $slug);
 
         $accessError = $this->verifyGalleryAccess($gallery, $request);
-        if ($accessError) {
+        if ($accessError || !$this->downloadsUnlocked($gallery, $request)) {
             return redirect($gallery->public_url);
         }
 
@@ -294,6 +306,51 @@ class PublicGalleryController extends Controller
     }
 
     /**
+     * Unlock downloads on a gallery with a download PIN; the session keeps a checksum so changing the PIN re-locks.
+     */
+    public function unlockDownloads(Request $request, string $username, string $slug): JsonResponse
+    {
+        $request->validate([
+            'pin' => ['required', 'string'],
+        ]);
+
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
+
+        if ($accessError = $this->verifyGalleryAccess($gallery, $request)) {
+            return $accessError;
+        }
+
+        if (!$gallery->requiresDownloadPin()) {
+            return response()->json(['success' => true]);
+        }
+
+        // Four digits is a small space: cap guesses per gallery on top of the per-IP route throttle
+        $limiterKey = "gallery-download-unlock:{$gallery->id}";
+        if (RateLimiter::tooManyAttempts($limiterKey, 30)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many attempts. Please try again in a few minutes.',
+            ], 429);
+        }
+
+        if (hash_equals($gallery->download_pin, trim($request->pin))) {
+            $request->session()->put("gallery_download_unlocked_{$gallery->id}", md5($gallery->download_pin));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Downloads unlocked.',
+            ]);
+        }
+
+        RateLimiter::hit($limiterKey, 600);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'The download PIN you entered is incorrect.',
+        ], 401);
+    }
+
+    /**
      * Download a single photo with original filename and Content-Disposition.
      * Enforces gallery access control, photo scoping to gallery, download permissions, and records telemetry.
      */
@@ -313,6 +370,10 @@ class PublicGalleryController extends Controller
                 'code' => 'DOWNLOADS_DISABLED',
                 'message' => 'Photo downloads are disabled for this gallery.',
             ], 403);
+        }
+
+        if ($pinError = $this->verifyDownloadPin($gallery, $request)) {
+            return $pinError;
         }
 
         // 3. Strictly scope photo lookup to this gallery

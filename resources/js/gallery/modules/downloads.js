@@ -16,6 +16,10 @@ export class GalleryDownloads {
         this.allowPhotoDownloads = config.allowPhotoDownloads ?? true;
         this.allowGalleryDownloads = config.allowGalleryDownloads ?? false;
         this.allowGooglePhotos = config.allowGooglePhotos ?? false;
+        this.downloadPinRequired = config.downloadPinRequired ?? false;
+        this.downloadUnlockUrl = config.downloadUnlockUrl || null;
+        // Download the visitor asked for while still locked; resumed once the PIN is accepted
+        this.pendingAfterUnlock = null;
         this.csrfToken = config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content;
         this.downloadingUuids = new Set();
         this.pendingIosPhoto = null;
@@ -38,7 +42,73 @@ export class GalleryDownloads {
         this.initModals();
     }
 
+    /**
+     * Run `action` now, or after the visitor enters the gallery's download PIN.
+     */
+    whenUnlocked(action) {
+        if (!this.downloadPinRequired) {
+            action();
+            return;
+        }
+
+        this.pendingAfterUnlock = action;
+        this.openDownloadPinModal();
+    }
+
+    openDownloadPinModal() {
+        const modal = document.getElementById('modal-download-pin');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        document.getElementById('download-pin-input')?.focus();
+    }
+
+    async submitDownloadPin(pin) {
+        const errorEl = document.getElementById('download-pin-error');
+        const submitBtn = document.getElementById('btn-submit-download-pin');
+        const showError = (message) => {
+            if (!errorEl) return;
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        };
+
+        errorEl?.classList.add('hidden');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const res = await fetch(this.downloadUnlockUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken
+                },
+                body: JSON.stringify({ pin })
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || !data.success) {
+                showError(data.message || 'The download PIN you entered is incorrect.');
+                return;
+            }
+
+            this.downloadPinRequired = false;
+            document.getElementById('modal-download-pin')?.classList.add('hidden');
+
+            const action = this.pendingAfterUnlock;
+            this.pendingAfterUnlock = null;
+            action?.();
+        } catch {
+            showError('An unexpected error occurred. Please try again.');
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    }
+
     handleGalleryDownloadTrigger() {
+        this.whenUnlocked(() => this.openGalleryDownload());
+    }
+
+    openGalleryDownload() {
         if (this.allowGalleryDownloads && this.allowGooglePhotos) {
             this.openDownloadOptionsModal();
         } else if (this.allowGalleryDownloads) {
@@ -118,7 +188,29 @@ export class GalleryDownloads {
             }
         }
 
-        // 3. iOS Download Notice Modal
+        // 3. Download PIN Modal
+        const pinModal = document.getElementById('modal-download-pin');
+        const formPin = document.getElementById('form-download-pin');
+
+        if (pinModal) {
+            const closePin = () => {
+                pinModal.classList.add('hidden');
+                this.pendingAfterUnlock = null;
+            };
+
+            document.getElementById('btn-close-download-pin')?.addEventListener('click', closePin);
+            pinModal.addEventListener('click', (e) => {
+                if (e.target === pinModal) closePin();
+            });
+
+            formPin?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const pin = document.getElementById('download-pin-input')?.value.trim() || '';
+                if (pin) this.submitDownloadPin(pin);
+            });
+        }
+
+        // 4. iOS Download Notice Modal
         const iosModal = document.getElementById('modal-ios-download-notice');
         const closeIosBtn = document.getElementById('btn-close-ios-download-notice');
         const cancelIosBtn = document.getElementById('btn-cancel-ios-download');
@@ -176,6 +268,10 @@ export class GalleryDownloads {
     async downloadPhoto(photo, triggerButton = null) {
         if (!photo || !photo.uuid) return;
         if (!this.allowPhotoDownloads) return;
+        if (this.downloadPinRequired) {
+            this.whenUnlocked(() => this.downloadPhoto(photo, triggerButton));
+            return;
+        }
         if (this.downloadingUuids.has(photo.uuid)) return;
 
         this.downloadingUuids.add(photo.uuid);

@@ -38,6 +38,7 @@ class Gallery extends Model
         'allow_photo_downloads',
         'allow_gallery_downloads',
         'allow_google_photos',
+        'download_pin',
         'password_hash',
         'password_hint',
         'invite_token',
@@ -198,6 +199,14 @@ class Gallery extends Model
     public function galleryDownloadsAllowed(): bool
     {
         return $this->allow_gallery_downloads && !$this->clientDownloadsPaused();
+    }
+
+    /**
+     * Downloads stay behind a separate PIN the client enters on top of gallery access.
+     */
+    public function requiresDownloadPin(): bool
+    {
+        return !empty($this->download_pin);
     }
 
     /**

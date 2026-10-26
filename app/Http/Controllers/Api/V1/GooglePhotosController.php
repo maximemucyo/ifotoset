@@ -52,6 +52,10 @@ class GooglePhotosController extends Controller
             ], 403);
         }
 
+        if ($pinError = $this->verifyDownloadPin($gallery, $request)) {
+            return $pinError;
+        }
+
         $photoCount = Photo::where('gallery_id', $gallery->id)
             ->where('is_hidden', false)
             ->where('status', \App\Enums\PhotoStatus::Ready->value)

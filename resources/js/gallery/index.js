@@ -27,6 +27,8 @@ export function bootstrapGallery() {
     const allowPhotoDownloads = container.dataset.allowPhotoDownloads === 'true';
     const allowGalleryDownloads = container.dataset.allowGalleryDownloads === 'true';
     const allowGooglePhotos = container.dataset.allowGooglePhotos === 'true';
+    const downloadPinRequired = container.dataset.downloadPinRequired === 'true';
+    const downloadUnlockUrl = container.dataset.downloadUnlockUrl || null;
 
     let initialDeepLinkedPhoto = null;
     try {
@@ -105,7 +107,9 @@ export function bootstrapGallery() {
         exportUrl,
         allowPhotoDownloads,
         allowGalleryDownloads,
-        allowGooglePhotos
+        allowGooglePhotos,
+        downloadPinRequired,
+        downloadUnlockUrl
     });
 
     // 6. Initialize Pagination Manager

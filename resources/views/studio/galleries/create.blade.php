@@ -7,7 +7,7 @@
                       :back="route('studio.galleries.index')" back-label="Galleries" />
 
     <form method="POST" action="{{ route('studio.galleries.store') }}" enctype="multipart/form-data"
-          x-data="{ visibility: '{{ old('visibility', 'private') }}', submitting: false }" @submit="submitting = true">
+          x-data="{ visibility: '{{ old('visibility', 'public') }}', submitting: false }" @submit="submitting = true">
         @csrf
 
         @include('studio.partials.gallery-form', ['gallery' => null, 'invitations' => null])
