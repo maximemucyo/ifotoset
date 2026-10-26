@@ -10,7 +10,8 @@
     $isCover = $gallery->cover_photo_id === $photo->id;
     $isHidden = (bool) $photo->is_hidden;
     $isVideo = $photo->isVideo();
-    $isProcessing = $photo->status === 'processing';
+    // Photos show their original while variants generate; only videos are unplayable until transcoded.
+    $isProcessing = $isVideo && $photo->status === 'processing';
     $c = $gmCardClasses;
 @endphp
 <div id="photo-card-{{ $photo->uuid }}"

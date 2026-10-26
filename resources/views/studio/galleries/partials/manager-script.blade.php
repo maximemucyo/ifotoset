@@ -462,7 +462,7 @@ window.studioGalleryManager = function(inlineConfig) {
             const sizeMb = photo.size ? formatBytes(photo.size) : '';
             const isVideo = photo.is_video || photo.media_type === 'video';
             const duration = esc(photo.duration || '');
-            const isProcessing = photo.status === 'processing';
+            const isProcessing = isVideo && photo.status === 'processing';
             const uuid = esc(photo.uuid);
 
             card.innerHTML = `
@@ -717,7 +717,15 @@ window.studioGalleryManager = function(inlineConfig) {
         updateCardToFailed(uuid, error) {
             const card = document.getElementById(`photo-card-${uuid}`);
             if (card) {
-                const procOverlay = card.querySelector('.processing-overlay');
+                let procOverlay = card.querySelector('.processing-overlay');
+                if (!procOverlay) {
+                    // Photos have no overlay while processing; add one so failures stay visible.
+                    const media = card.querySelector('.photo-media');
+                    if (media) {
+                        media.insertAdjacentHTML('beforeend', gmProcessingOverlayHtml());
+                        procOverlay = media.querySelector('.processing-overlay');
+                    }
+                }
                 if (procOverlay) {
                     const I = window.GM_ICONS || {};
                     procOverlay.classList.remove('bg-black/40', 'bg-muted/70');
