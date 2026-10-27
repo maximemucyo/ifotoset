@@ -272,7 +272,7 @@
             @endunless
             <div class="mt-4 flex gap-2 border-t border-border pt-4">
                 @cannot('studio.billing')
-                    {{-- Team members: the owner handles the plan --}}
+                    {{-- Members: the owner or a manager handles the plan --}}
                 @elseif($isFreePlan || $storagePct >= 75)
                     <a href="{{ route('studio.billing.index') }}" class="btn btn-brand btn-sm flex-1"><x-icon name="zap" /> Upgrade plan</a>
                 @else

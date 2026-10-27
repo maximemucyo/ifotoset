@@ -62,12 +62,12 @@ class UploadController extends Controller
             $declaredDuration = (int) $declaredDuration;
         }
 
-        // Team members can't open Billing: send no upgrade link and point them at the owner instead.
+        // Members can't open Billing: send no upgrade link and point them at the owner instead.
         $canManageBilling = Gate::allows('studio.billing');
         $upgradeUrl = $canManageBilling ? route('studio.billing.index') : null;
         $planMessage = fn (Exception $e) => $canManageBilling
             ? $e->getMessage()
-            : rtrim(preg_replace('/\s*Please upgrade.*$/', '', $e->getMessage()), '.') . '. Ask the studio owner to upgrade the plan.';
+            : rtrim(preg_replace('/\s*Please upgrade.*$/', '', $e->getMessage()), '.') . '. Ask the studio owner or a manager to upgrade the plan.';
 
         try {
             $session = $this->uploadService->createUploadSession(

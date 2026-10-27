@@ -76,7 +76,7 @@
     'uploadAbortUrl' => route('studio.uploads.abort'),
     'videoStatusUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'storageStatsUrl' => route('studio.storage.stats'),
-    // Team members can't open Billing, so they get no plan links and are told to ask the owner instead.
+    // Members can't open Billing, so they get no plan links and are told to ask the owner instead.
     'canManageBilling' => Gate::allows('studio.billing'),
     'billingCheckoutUrl' => Gate::allows('studio.billing') ? route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()) : '',
     'billingPlansUrl' => Gate::allows('studio.billing') ? route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()) : '',

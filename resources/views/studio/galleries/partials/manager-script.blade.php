@@ -1255,7 +1255,7 @@ window.studioGalleryManager = function(inlineConfig) {
                         item.status = 'error';
                         item.errorMessage = this.canManageBilling
                             ? 'Storage quota reached. Upgrade your plan to continue.'
-                            : 'Storage quota reached. Ask the studio owner to upgrade the plan.';
+                            : 'Storage quota reached. Ask the studio owner or a manager to upgrade the plan.';
                         this.cleanupItemPreview(item);
                         return;
                     }

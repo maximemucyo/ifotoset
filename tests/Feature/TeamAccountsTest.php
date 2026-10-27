@@ -389,7 +389,7 @@ class TeamAccountsTest extends TestCase
         $this->delete(route('studio.galleries.destroy', $this->ownerGallery->uuid))->assertRedirect();
         $this->assertSoftDeleted($this->ownerGallery);
 
-        $this->get(route('studio.billing.index'))->assertForbidden();
+        $this->get(route('studio.billing.index'))->assertOk();
         $this->get(route('studio.settings.export'))->assertForbidden();
         $this->post(route('studio.team.invite'), ['email' => 'x@example.com', 'role' => 'member'])->assertForbidden();
         $membership = $this->member($this->owner, $this->user('Other Member', null, 'om@example.com'));
@@ -530,7 +530,7 @@ class TeamAccountsTest extends TestCase
         $this->postJson(route('studio.uploads.request'), $payload('b.jpg'))->assertStatus(409)->assertJson(['code' => 'STORAGE_QUOTA_EXCEEDED']);
     }
 
-    public function test_upload_limit_errors_send_members_to_the_owner_not_billing(): void
+    public function test_upload_limit_errors_send_only_billing_roles_to_billing(): void
     {
         $member = $this->user('Member', null, 'member@example.com');
         $this->member($this->owner, $member);
@@ -549,9 +549,14 @@ class TeamAccountsTest extends TestCase
             ->assertOk()
             ->assertDontSee(route('studio.billing.index'), false);
 
-        $this->actingAs($this->owner)->postJson(route('studio.uploads.request'), $video)
-            ->assertStatus(409)
-            ->assertJson(['upgrade_url' => route('studio.billing.index')]);
+        $manager = $this->user('Manager', null, 'manager@example.com');
+        $this->member($this->owner, $manager, AccountRole::Manager);
+
+        foreach ([$this->owner, $manager] as $user) {
+            $this->inStudio($user, $this->owner)->postJson(route('studio.uploads.request'), $video)
+                ->assertStatus(409)
+                ->assertJson(['upgrade_url' => route('studio.billing.index')]);
+        }
     }
 
     // ---------------------------------------------------------------- Lifecycle
@@ -627,7 +632,7 @@ class TeamAccountsTest extends TestCase
             'studio.analytics.index' => [200, 200, 403],
             'studio.portfolio.edit' => [200, 200, 403],
             'studio.team.index' => [200, 200, 403],
-            'studio.billing.index' => [200, 403, 403],
+            'studio.billing.index' => [200, 200, 403],
         ];
 
         foreach ([[$this->owner, 0], [$manager, 1], [$member, 2]] as [$user, $column]) {

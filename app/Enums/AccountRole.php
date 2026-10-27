@@ -31,7 +31,7 @@ enum AccountRole: string
         'analytics.view' => ['manager'],
         'team.view' => ['manager'],
         'team.manage' => [],
-        'billing' => [],
+        'billing' => ['manager'],
         // Data export and account deletion
         'account.manage' => [],
     ];
@@ -76,7 +76,7 @@ enum AccountRole: string
     {
         return match ($this) {
             self::Owner => 'Full access, including billing and the team.',
-            self::Manager => 'Everything except billing, the team and deleting the account.',
+            self::Manager => 'Everything, including billing, except the team and deleting the account.',
             self::Member => 'Galleries, uploads, bookings and clients. Can\'t delete galleries or clients.',
         };
     }
