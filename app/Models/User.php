@@ -50,6 +50,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'slot_interval_minutes',
     ];
 
+    protected $attributes = [
+        'profile_public' => false,
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',
@@ -368,7 +372,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $reserved = config('reserved_usernames', []);
         return !$this->trashed()
             && $this->is_active
-            && $this->profile_public !== false
+            && $this->profile_public
             && !empty($this->username)
             && !in_array(strtolower($this->username), $reserved, true)
             && $this->role !== 'admin'

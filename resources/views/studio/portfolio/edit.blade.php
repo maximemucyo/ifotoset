@@ -85,7 +85,7 @@
         @endif
     </x-ui.page-header>
 
-    @if($user->profile_public === false)
+    @if(!$user->profile_public)
         <div class="mb-6 flex flex-col gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
             <span class="flex items-start gap-2.5"><x-icon name="eye-off" class="mt-0.5 size-4 text-warning" /> Your portfolio is hidden. Only you can see it while you're signed in.</span>
             <a href="{{ route('studio.settings.index') }}#public" class="btn btn-outline btn-sm shrink-0">Visibility settings</a>

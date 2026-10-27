@@ -49,6 +49,7 @@ class GalleryCountAndSubdomainTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Maxime Mucyo',
             'username' => 'maximemucyo',
+            'profile_public' => true,
             'email' => 'maxime@example.com',
             'password' => \Illuminate\Support\Facades\Hash::make('password123'),
             'role' => 'user',

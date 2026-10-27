@@ -67,6 +67,7 @@ class PlatformHardeningTest extends TestCase
             'plan_id' => $this->plan->id,
             'name' => ucfirst($username),
             'username' => $username,
+            'profile_public' => true,
             'email' => $email,
             'password' => Hash::make('password123'),
             'email_verified_at' => now(),
@@ -443,6 +444,36 @@ class PlatformHardeningTest extends TestCase
         $this->user->forceFill(['profile_public' => false])->save();
         $xml = $this->get('/sitemaps/galleries.xml')->assertOk()->getContent();
         $this->assertStringNotContainsString('wedding-collection', $xml);
+    }
+
+    public function test_hidden_portfolio_explains_it_is_not_live_yet(): void
+    {
+        $this->makeUser('quietstudio', 'quiet@example.com', ['profile_public' => false]);
+        $urls = app(\App\Services\PublicUrlService::class);
+
+        foreach (['', '/about', '/book'] as $path) {
+            $this->get($urls->photographerUrl('quietstudio') . $path)
+                ->assertNotFound()
+                ->assertSee('published yet')
+                ->assertSee('Powered by')
+                ->assertSee('/studio/settings#public', false)
+                ->assertSee('noindex', false);
+        }
+    }
+
+    public function test_photographers_sitemap_lists_only_public_portfolios(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->makeUser('quietstudio', 'quiet@example.com', ['profile_public' => false]);
+        User::forceCreate([
+            'uuid' => Uuid::uuid7()->toString(), 'plan_id' => $this->plan->id, 'name' => 'Fresh', 'username' => 'freshstudio',
+            'email' => 'fresh@example.com', 'password' => Hash::make('password123'), 'is_active' => true,
+        ]);
+
+        $xml = $this->get('/sitemaps/photographers.xml')->assertOk()->getContent();
+        $this->assertStringContainsString($this->user->username, $xml);
+        $this->assertStringNotContainsString('quietstudio', $xml);
+        $this->assertStringNotContainsString('freshstudio', $xml);
     }
 
     public function test_sitemap_index_lists_every_section(): void

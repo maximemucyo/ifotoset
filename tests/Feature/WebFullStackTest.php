@@ -45,6 +45,7 @@ class WebFullStackTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Alex Morgan',
             'username' => 'alexmorgan',
+            'profile_public' => true,
             'email' => 'alex@example.com',
             'password' => Hash::make('password123'),
             'role' => 'user',
@@ -165,7 +166,8 @@ class WebFullStackTest extends TestCase
         ]);
 
         $registerResponse->assertRedirect('/studio/dashboard');
-        $this->assertDatabaseHas('users', ['username' => 'newphotographer']);
+        // Portfolios are opt-in, so a new account is hidden until its owner makes it public
+        $this->assertDatabaseHas('users', ['username' => 'newphotographer', 'profile_public' => false]);
     }
 
     public function test_public_photographer_portfolio_view(): void

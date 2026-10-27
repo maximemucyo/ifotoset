@@ -242,7 +242,7 @@
             @can('studio.profile.manage')
             <section x-show="tab === 'public'" x-cloak class="card" aria-labelledby="public-heading">
                 <form method="POST" action="{{ route('studio.settings.public-profile') }}"
-                      x-data="{ username: @js(old('username', $user->username)), original: @js($user->username), isPublic: @js((bool) old('profile_public', $user->profile_public ?? true)) }">
+                      x-data="{ username: @js(old('username', $user->username)), original: @js($user->username), isPublic: @js((bool) old('profile_public', $user->profile_public ?? false)) }">
                     @csrf
                     <div class="card-header">
                         <div>

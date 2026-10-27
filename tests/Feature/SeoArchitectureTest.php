@@ -46,6 +46,7 @@ class SeoArchitectureTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Kigali Visuals',
             'username' => 'kigalivisuals',
+            'profile_public' => true,
             'email' => 'kigali@example.com',
             'password' => Hash::make('secret123'),
             'role' => 'photographer',

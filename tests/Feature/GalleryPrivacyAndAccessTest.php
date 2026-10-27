@@ -55,6 +55,7 @@ class GalleryPrivacyAndAccessTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Alice Photographer',
             'username' => 'alice',
+            'profile_public' => true,
             'email' => 'alice@example.com',
             'password' => Hash::make('secret123'),
         ]);
@@ -65,6 +66,7 @@ class GalleryPrivacyAndAccessTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Bob Photographer',
             'username' => 'bob',
+            'profile_public' => true,
             'email' => 'bob@example.com',
             'password' => Hash::make('secret123'),
         ]);

@@ -282,7 +282,7 @@ class PublicBookingController extends Controller
             ->firstOrFail();
 
         // Hidden profiles only take bookings from their owner's preview
-        abort_if($photographer->profile_public === false && auth()->id() !== $photographer->id, 404);
+        abort_if(!$photographer->profile_public && auth()->id() !== $photographer->id, response()->view('public.unpublished', [], 404));
 
         return $photographer;
     }

@@ -36,6 +36,7 @@ class ProfileDirectoryFieldsTest extends TestCase
             'plan_id' => $plan->id,
             'name' => 'Huye Light',
             'username' => 'huyelight',
+            'profile_public' => true,
             'email' => 'huye@example.com',
             'password' => Hash::make('secret123'),
             'role' => 'photographer',

@@ -51,6 +51,7 @@ class PortfolioBuilderTest extends TestCase
             'plan_id' => $this->freePlan->id,
             'name' => 'Alex Morgan',
             'username' => 'alexmorgan',
+            'profile_public' => true,
             'email' => 'alex@example.com',
             'password' => bcrypt('password123'),
             'role' => 'user',

@@ -113,7 +113,7 @@ class PublicPhotographerController extends Controller
             ->firstOrFail();
 
         // Hidden profiles are only visible to their owner (e.g. to preview before going public)
-        abort_if($photographer->profile_public === false && auth()->id() !== $photographer->id, 404);
+        abort_if(!$photographer->profile_public && auth()->id() !== $photographer->id, response()->view('public.unpublished', [], 404));
 
         return $photographer;
     }
