@@ -257,6 +257,7 @@ window.studioGalleryManager = function(inlineConfig) {
         uploadAbortUrl: config.uploadAbortUrl || '',
         videoStatusUrlBase: config.videoStatusUrlBase || '',
         storageStatsUrl: config.storageStatsUrl || '',
+        canManageBilling: Boolean(config.canManageBilling),
         billingCheckoutUrl: config.billingCheckoutUrl || '',
         billingPlansUrl: config.billingPlansUrl || '',
         userStorage: config.userStorage || null,
@@ -1252,11 +1253,13 @@ window.studioGalleryManager = function(inlineConfig) {
 
                         item.isQuotaError = true;
                         item.status = 'error';
-                        item.errorMessage = 'Storage quota reached. Upgrade your plan to continue.';
+                        item.errorMessage = this.canManageBilling
+                            ? 'Storage quota reached. Upgrade your plan to continue.'
+                            : 'Storage quota reached. Ask the studio owner to upgrade the plan.';
                         this.cleanupItemPreview(item);
                         return;
                     }
-                    if (errData.code === 'VIDEO_NOT_SUPPORTED' || errData.code === 'VIDEO_QUOTA_EXCEEDED' || errData.code === 'VIDEO_FILE_SIZE_EXCEEDED') {
+                    if (errData.code === 'VIDEO_NOT_SUPPORTED_ON_PLAN' || errData.code === 'VIDEO_QUOTA_EXCEEDED' || errData.code === 'VIDEO_FILE_SIZE_EXCEEDED') {
                         item.status = 'error';
                         item.errorMessage = errData.message || 'Video plan limit exceeded.';
                         this.cleanupItemPreview(item);

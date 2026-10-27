@@ -30,9 +30,10 @@
                         </p>
                     </div>
                 </div>
-                <button type="button" @click="openUpgradeWindow()" class="btn btn-outline btn-sm shrink-0">
+                <button type="button" x-show="canManageBilling" @click="openUpgradeWindow()" class="btn btn-outline btn-sm shrink-0">
                     Upgrade plan <x-icon name="arrow-up-right" />
                 </button>
+                <p x-show="!canManageBilling" class="text-xs opacity-90 sm:max-w-48 sm:text-right">Ask the studio owner to upgrade the plan.</p>
             </div>
         </template>
 
@@ -64,6 +65,7 @@
                         <div class="progress"><span class="!bg-destructive" style="width: 100%"></span></div>
                         <p class="text-[11px] text-muted-foreground">
                             This file needs <span class="font-mono font-medium text-foreground" x-text="quotaErrorState.formattedRequired"></span>.
+                            <span x-show="!canManageBilling">Ask the studio owner to upgrade the plan, or free up space.</span>
                         </p>
                     </div>
 
@@ -130,7 +132,7 @@
                                 </template>
                                 <span x-text="isCheckingStatus ? 'Checking…' : 'Check status'"></span>
                             </button>
-                            <button type="button" @click="openUpgradeWindow(billingPlansUrl)" class="btn btn-primary btn-sm">
+                            <button type="button" x-show="canManageBilling" @click="openUpgradeWindow(billingPlansUrl)" class="btn btn-primary btn-sm">
                                 Compare plans <x-icon name="arrow-up-right" />
                             </button>
                         </div>

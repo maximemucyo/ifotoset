@@ -9,6 +9,7 @@ use App\Services\UploadService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class UploadController extends Controller
 {
@@ -61,6 +62,13 @@ class UploadController extends Controller
             $declaredDuration = (int) $declaredDuration;
         }
 
+        // Team members can't open Billing: send no upgrade link and point them at the owner instead.
+        $canManageBilling = Gate::allows('studio.billing');
+        $upgradeUrl = $canManageBilling ? route('studio.billing.index') : null;
+        $planMessage = fn (Exception $e) => $canManageBilling
+            ? $e->getMessage()
+            : rtrim(preg_replace('/\s*Please upgrade.*$/', '', $e->getMessage()), '.') . '. Ask the studio owner to upgrade the plan.';
+
         try {
             $session = $this->uploadService->createUploadSession(
                 $user,
@@ -78,29 +86,29 @@ class UploadController extends Controller
             return response()->json([
                 'code' => 'VIDEO_NOT_SUPPORTED_ON_PLAN',
                 'is_video_error' => true,
-                'message' => $e->getMessage(),
-                'upgrade_url' => route('studio.billing.index'),
+                'message' => $planMessage($e),
+                'upgrade_url' => $upgradeUrl,
             ], 409);
         } catch (\App\Exceptions\VideoQuotaExceededException $e) {
             return response()->json([
                 'code' => 'VIDEO_QUOTA_EXCEEDED',
                 'is_video_error' => true,
-                'message' => $e->getMessage(),
+                'message' => $planMessage($e),
                 'required_seconds' => $e->requiredSeconds,
                 'available_seconds' => $e->availableSeconds,
                 'limit_seconds' => $e->limitSeconds,
                 'used_seconds' => $e->usedSeconds,
                 'reserved_seconds' => $e->reservedSeconds,
-                'upgrade_url' => route('studio.billing.index'),
+                'upgrade_url' => $upgradeUrl,
             ], 409);
         } catch (\App\Exceptions\VideoFileSizeExceededException $e) {
             return response()->json([
                 'code' => 'VIDEO_FILE_SIZE_EXCEEDED',
                 'is_video_error' => true,
-                'message' => $e->getMessage(),
+                'message' => $planMessage($e),
                 'file_size_bytes' => $e->fileSizeBytes,
                 'max_allowed_bytes' => $e->maxAllowedBytes,
-                'upgrade_url' => route('studio.billing.index'),
+                'upgrade_url' => $upgradeUrl,
             ], 413);
         } catch (\App\Exceptions\StorageQuotaExceededException $e) {
             return response()->json([
@@ -112,7 +120,7 @@ class UploadController extends Controller
                 'limit_bytes' => $e->limitBytes,
                 'used_bytes' => $e->usedBytes,
                 'reserved_bytes' => $e->reservedBytes,
-                'upgrade_url' => route('studio.billing.index'),
+                'upgrade_url' => $upgradeUrl,
             ], 409);
         } catch (Exception $e) {
             return response()->json([

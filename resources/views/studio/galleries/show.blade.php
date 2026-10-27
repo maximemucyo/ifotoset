@@ -76,8 +76,10 @@
     'uploadAbortUrl' => route('studio.uploads.abort'),
     'videoStatusUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'storageStatsUrl' => route('studio.storage.stats'),
-    'billingCheckoutUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
-    'billingPlansUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
+    // Team members can't open Billing, so they get no plan links and are told to ask the owner instead.
+    'canManageBilling' => Gate::allows('studio.billing'),
+    'billingCheckoutUrl' => Gate::allows('studio.billing') ? route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()) : '',
+    'billingPlansUrl' => Gate::allows('studio.billing') ? route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()) : '',
     'userStorage' => $userStorage ?? [],
     'userVideo' => [
         'has_video' => request()->account()->hasVideoSupport(),
@@ -87,7 +89,7 @@
         'available_seconds' => request()->account()->getAvailableVideoSeconds(),
         'formatted' => request()->account()->getVideoUsageFormatted(),
     ],
-    'upgradePlans' => collect($upgradePlans ?? [])->map(fn ($p) => [
+    'upgradePlans' => collect(Gate::allows('studio.billing') ? ($upgradePlans ?? []) : [])->map(fn ($p) => [
         'id' => $p->id,
         'slug' => $p->slug,
         'name' => $p->name,

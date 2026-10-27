@@ -530,6 +530,30 @@ class TeamAccountsTest extends TestCase
         $this->postJson(route('studio.uploads.request'), $payload('b.jpg'))->assertStatus(409)->assertJson(['code' => 'STORAGE_QUOTA_EXCEEDED']);
     }
 
+    public function test_upload_limit_errors_send_members_to_the_owner_not_billing(): void
+    {
+        $member = $this->user('Member', null, 'member@example.com');
+        $this->member($this->owner, $member);
+
+        $video = [
+            'gallery_id' => $this->ownerGallery->uuid, 'filename' => 'clip.mp4', 'file_size' => 1024 * 1024,
+            'mime_type' => 'video/mp4', 'sha256' => hash('sha256', 'clip.mp4'), 'duration_seconds' => 10,
+        ];
+
+        $this->inStudio($member, $this->owner)->postJson(route('studio.uploads.request'), $video)
+            ->assertStatus(409)
+            ->assertJson(['code' => 'VIDEO_NOT_SUPPORTED_ON_PLAN', 'upgrade_url' => null])
+            ->assertJsonPath('message', fn (string $m) => str_contains($m, 'Ask the studio owner') && !str_contains($m, 'Please upgrade'));
+
+        $this->inStudio($member, $this->owner)->get(route('studio.galleries.show', $this->ownerGallery->uuid))
+            ->assertOk()
+            ->assertDontSee(route('studio.billing.index'), false);
+
+        $this->actingAs($this->owner)->postJson(route('studio.uploads.request'), $video)
+            ->assertStatus(409)
+            ->assertJson(['upgrade_url' => route('studio.billing.index')]);
+    }
+
     // ---------------------------------------------------------------- Lifecycle
 
     public function test_owner_deletion_ends_team_and_members_fall_back(): void

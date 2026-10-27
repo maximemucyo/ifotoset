@@ -169,7 +169,7 @@ Members never sign up a second time. Their login already exists; it just has no 
 
 ## Phase 0 — Stop the overpromise (today)
 
-- [ ] Change the Business bullet to **"Multi-user team accounts (coming soon)"**, as we already do for Pro's custom domain (`pricing.blade.php:29`). Do the same on any feature or FAQ page and in the plan comparison on `/pricing`.
+- [x] ~~Change the Business bullet to "Multi-user team accounts (coming soon)"~~ Dropped: invites were tested end to end on 27 Oct 2026, so the bullet ships as "Multi-user team accounts" with no label.
 - [ ] Check production for active Business subscribers who might expect seats (`subscriptions` joined to `plans.slug = 'business'`, `ends_at > now()`). If there are any, contact them personally and offer to onboard them first when it ships.
 - [ ] Decide Pro's `team_limit` (see [Open decisions](#12-open-decisions)).
 
@@ -285,7 +285,7 @@ Run the tests through docker compose as usual (`ifotoset_testing` DB).
 
 - Every migration is additive (new tables, nullable columns), so it's safe with `deploy.sh` running migrations before the code switch.
 - `FeatureSeeder` runs on each deploy. The new `teams` feature is linked only on first creation, so admins can unlink it afterwards.
-- Ship Phase 1 with the `teams` feature linked **only** to `business`. This stays the long-term setup: Pro's `team_limit = 1` is inert without the feature. After a week of real use, remove "(coming soon)" from the pricing copy.
+- Ship Phase 1 with the `teams` feature linked **only** to `business`. This stays the long-term setup: Pro's `team_limit = 1` is inert without the feature. The "(coming soon)" label was skipped after the live invite test passed.
 - Locally, don't send real invite emails or touch B2 from docker (the local `b2` disk is the production bucket). Use `Mail::fake()` and `Storage::fake('b2')` in tests.
 
 ## 12. Decisions (confirmed 2026-10-26)
