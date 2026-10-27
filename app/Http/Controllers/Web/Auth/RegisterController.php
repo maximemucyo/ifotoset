@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Web\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\User;
+use App\Rules\StudioPhone;
 use App\Support\GoogleAnalytics;
+use App\Support\Phone;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,6 +38,14 @@ class RegisterController extends Controller
             ]);
         }
 
+        // Team members who joined by invite already have a login, just no studio yet
+        $email = strtolower(trim((string) $request->input('email')));
+        if ($email !== '' && User::where('email', $email)->whereNull('username')->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'You already have an account. Log in, then choose "Create my own studio" from the studio menu.',
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => [
@@ -46,6 +56,8 @@ class RegisterController extends Controller
                 Rule::notIn(config('reserved_usernames', []))
             ],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'phone_country' => ['nullable', 'string', 'size:2'],
+            'phone' => ['required', 'string', 'max:30', new StudioPhone()],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
@@ -66,6 +78,7 @@ class RegisterController extends Controller
             'name' => $validated['name'],
             'username' => $validated['username'],
             'email' => $validated['email'],
+            'phone' => Phone::normalize($validated['phone'], $validated['phone_country'] ?? null),
             'password' => Hash::make($validated['password']),
         ]);
 

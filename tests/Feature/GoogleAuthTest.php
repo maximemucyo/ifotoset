@@ -172,12 +172,13 @@ class GoogleAuthTest extends TestCase
             ->assertSee('alex@example.com')
             ->assertSee('alexmorgan2');
 
-        $this->post(route('auth.google.complete'), ['name' => 'Alex Morgan', 'username' => 'AlexStudio'])
+        $this->post(route('auth.google.complete'), ['name' => 'Alex Morgan', 'username' => 'AlexStudio', 'phone' => '0788 123 456'])
             ->assertRedirect(route('studio.dashboard'));
 
         $user = User::where('email', 'alex@example.com')->firstOrFail();
         $this->assertAuthenticatedAs($user);
         $this->assertSame('alexstudio', $user->username);
+        $this->assertSame('+250788123456', $user->phone);
         $this->assertSame('google-123', $user->google_id);
         $this->assertSame($this->freePlan->id, $user->plan_id);
         $this->assertNotNull($user->email_verified_at);

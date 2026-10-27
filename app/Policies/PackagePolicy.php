@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Package;
 use App\Models\User;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class PackagePolicy
@@ -23,7 +24,7 @@ class PackagePolicy
      */
     public function view(User $user, Package $package): bool
     {
-        return $user->id === $package->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->belongsTo($package->user_id) || $user->role === 'admin';
     }
 
     /**
@@ -39,7 +40,7 @@ class PackagePolicy
      */
     public function update(User $user, Package $package): bool
     {
-        return $user->id === $package->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($package->user_id, 'business.manage') || $user->role === 'admin';
     }
 
     /**
@@ -47,7 +48,7 @@ class PackagePolicy
      */
     public function delete(User $user, Package $package): bool
     {
-        return $user->id === $package->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($package->user_id, 'business.manage') || $user->role === 'admin';
     }
 
     /**
@@ -55,6 +56,6 @@ class PackagePolicy
      */
     public function restore(User $user, Package $package): bool
     {
-        return $user->id === $package->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($package->user_id, 'business.manage') || $user->role === 'admin';
     }
 }

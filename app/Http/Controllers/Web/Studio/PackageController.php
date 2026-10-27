@@ -18,7 +18,7 @@ class PackageController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $packages = Package::where('user_id', $user->id)
             ->withCount('bookings')
@@ -36,7 +36,7 @@ class PackageController extends Controller
      */
     public function store(Request $request, CreatePackage $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'name'              => ['required', 'string', 'max:255'],
@@ -63,7 +63,7 @@ class PackageController extends Controller
      */
     public function update(Request $request, string $uuid, UpdatePackage $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $package = Package::where('uuid', $uuid)
             ->where('user_id', $user->id)
@@ -94,7 +94,7 @@ class PackageController extends Controller
      */
     public function toggle(Request $request, string $uuid): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $package = Package::where('uuid', $uuid)
             ->where('user_id', $user->id)
@@ -112,7 +112,7 @@ class PackageController extends Controller
      */
     public function destroy(Request $request, string $uuid, DeactivatePackage $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $package = Package::where('uuid', $uuid)
             ->where('user_id', $user->id)

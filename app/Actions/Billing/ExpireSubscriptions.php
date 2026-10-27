@@ -61,6 +61,7 @@ class ExpireSubscriptions
                     }
 
                     $user->save();
+                    app(\App\Actions\Teams\SyncSeatsWithPlan::class)->execute($user);
                     StorageStatisticsService::clearCache($user->id);
 
                     if ($user->email && $user->is_active) {

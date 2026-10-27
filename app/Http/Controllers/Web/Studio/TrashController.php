@@ -23,7 +23,7 @@ class TrashController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $tab = $request->query('tab', 'galleries');
         if (!in_array($tab, ['galleries', 'photos'], true)) {
             $tab = 'galleries';
@@ -65,7 +65,7 @@ class TrashController extends Controller
      */
     public function restore(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'uuid' => ['required', 'string'],
@@ -119,7 +119,7 @@ class TrashController extends Controller
      */
     public function purge(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'uuid' => ['required', 'string'],
@@ -175,7 +175,7 @@ class TrashController extends Controller
      */
     public function empty(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $this->trashService->emptyTrash($user);
 

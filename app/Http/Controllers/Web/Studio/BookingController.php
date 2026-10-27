@@ -21,7 +21,7 @@ class BookingController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $query = Booking::where('user_id', $user->id)
             ->visibleInStudio()
@@ -47,7 +47,7 @@ class BookingController extends Controller
      */
     public function store(Request $request, CreateBookingAction $createBookingAction): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'client_id' => ['nullable', 'string', 'required_without:client_name'],
@@ -117,7 +117,7 @@ class BookingController extends Controller
      */
     public function updateStatus(Request $request, string $uuid): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $booking = Booking::where('uuid', $uuid)
             ->where('user_id', $user->id)

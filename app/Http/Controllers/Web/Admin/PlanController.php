@@ -41,6 +41,7 @@ class PlanController extends Controller
             'unlimited_galleries' => ['nullable', 'boolean'],
             'gallery_limit' => ['nullable', 'integer', 'min:1'],
             'currency' => ['required', 'string', 'max:10'],
+            'team_limit' => ['nullable', 'integer', 'min:0', 'max:100'],
         ]);
 
         $admin = $request->user();
@@ -59,6 +60,7 @@ class PlanController extends Controller
             'annual_price' => $plan->annual_price,
             'storage_limit' => $plan->storage_limit,
             'gallery_limit' => $plan->gallery_limit,
+            'team_limit' => $plan->team_limit,
             'currency' => $plan->currency,
         ];
 
@@ -68,8 +70,17 @@ class PlanController extends Controller
             'annual_price' => $validated['annual_price'],
             'storage_limit' => $storageBytes,
             'gallery_limit' => $galleryLimit,
+            'team_limit' => (int) ($validated['team_limit'] ?? $plan->team_limit),
             'currency' => strtoupper($validated['currency']),
         ]);
+
+        // Fewer seats pauses the newest members of studios on this plan; more seats restores them
+        if ($plan->wasChanged('team_limit')) {
+            $sync = app(\App\Actions\Teams\SyncSeatsWithPlan::class);
+            \App\Models\User::where('plan_id', $plan->id)
+                ->where(fn ($q) => $q->has('teamMembers')->orHas('teamInvitations'))
+                ->each(fn (\App\Models\User $owner) => $sync->execute($owner));
+        }
 
         AdminAuditLog::record(
             $admin,
@@ -85,6 +96,7 @@ class PlanController extends Controller
                     'annual_price' => $plan->annual_price,
                     'storage_limit' => $plan->storage_limit,
                     'gallery_limit' => $plan->gallery_limit,
+                    'team_limit' => $plan->team_limit,
                     'currency' => $plan->currency,
                 ],
             ]

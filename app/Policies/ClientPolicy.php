@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Client;
 use App\Models\User;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class ClientPolicy
@@ -23,7 +24,7 @@ class ClientPolicy
      */
     public function view(User $user, Client $client): bool
     {
-        return $user->id === $client->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->belongsTo($client->user_id) || $user->role === 'admin';
     }
 
     /**
@@ -39,7 +40,7 @@ class ClientPolicy
      */
     public function update(User $user, Client $client): bool
     {
-        return $user->id === $client->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($client->user_id, 'clients.manage') || $user->role === 'admin';
     }
 
     /**
@@ -47,7 +48,7 @@ class ClientPolicy
      */
     public function delete(User $user, Client $client): bool
     {
-        return $user->id === $client->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($client->user_id, 'clients.delete') || $user->role === 'admin';
     }
 
     /**
@@ -55,6 +56,6 @@ class ClientPolicy
      */
     public function restore(User $user, Client $client): bool
     {
-        return $user->id === $client->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($client->user_id, 'clients.manage') || $user->role === 'admin';
     }
 }

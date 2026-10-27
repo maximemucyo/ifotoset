@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Booking;
 use App\Models\User;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class BookingPolicy
@@ -23,7 +24,7 @@ class BookingPolicy
      */
     public function view(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->belongsTo($booking->user_id) || $user->role === 'admin';
     }
 
     /**
@@ -39,7 +40,7 @@ class BookingPolicy
      */
     public function update(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($booking->user_id, 'bookings.manage') || $user->role === 'admin';
     }
 
     /**
@@ -47,7 +48,7 @@ class BookingPolicy
      */
     public function delete(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($booking->user_id, 'bookings.manage') || $user->role === 'admin';
     }
 
     /**
@@ -55,6 +56,6 @@ class BookingPolicy
      */
     public function restore(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($booking->user_id, 'bookings.manage') || $user->role === 'admin';
     }
 }

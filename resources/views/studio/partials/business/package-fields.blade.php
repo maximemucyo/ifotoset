@@ -71,7 +71,7 @@
             <label for="{{ $prefix }}-deposit-amount" class="label" x-text="depType === 'percentage' ? 'Deposit (%)' : 'Deposit amount'">Deposit amount</label>
             <input id="{{ $prefix }}-deposit-amount" type="number" step="0.01" min="0" name="deposit_amount" {!! $v('deposit_amount') !!} placeholder="e.g. 30" class="input tabular-nums">
         </div>
-        @if(auth()->user()?->hasFeature('booking_deposits'))
+        @if(request()->account()?->hasFeature('booking_deposits'))
             <p class="help sm:col-span-2" x-show="depType !== 'none'">Clients pay this by Mobile Money when they book. The slot is confirmed once it's paid.</p>
         @else
             <div class="sm:col-span-2 flex items-start gap-3 rounded-lg border border-warning/25 bg-warning/8 px-3.5 py-3" x-show="depType !== 'none'" x-cloak>
@@ -79,7 +79,9 @@
                 <div class="text-[13px]">
                     <p class="font-medium text-foreground">Upgrade to collect this deposit</p>
                     <p class="mt-0.5 text-muted-foreground">On your plan, clients book without paying. With Professional they pay the deposit by Mobile Money when they book.</p>
-                    <a href="{{ $depositUpgradeUrl ?? route('studio.billing.index') . '#plans' }}" class="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2">See plans <x-icon name="arrow-right" class="size-3.5" /></a>
+                    @can('studio.billing')
+                        <a href="{{ $depositUpgradeUrl ?? route('studio.billing.index') . '#plans' }}" class="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2">See plans <x-icon name="arrow-right" class="size-3.5" /></a>
+                    @endcan
                 </div>
             </div>
         @endif

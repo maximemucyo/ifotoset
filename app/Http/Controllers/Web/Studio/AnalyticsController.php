@@ -14,7 +14,7 @@ class AnalyticsController extends Controller
      */
     public function index(Request $request, StudioAnalyticsQuery $query): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $period = $request->input('period', '30d');
 
         $analytics = $query->get($user, $period);

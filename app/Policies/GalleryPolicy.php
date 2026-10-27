@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Gallery;
 use App\Models\User;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class GalleryPolicy
@@ -23,7 +24,7 @@ class GalleryPolicy
      */
     public function view(User $user, Gallery $gallery): bool
     {
-        return $user->id === $gallery->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->belongsTo($gallery->user_id) || $user->role === 'admin';
     }
 
     /**
@@ -39,7 +40,7 @@ class GalleryPolicy
      */
     public function update(User $user, Gallery $gallery): bool
     {
-        return $user->id === $gallery->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($gallery->user_id, 'galleries.manage') || $user->role === 'admin';
     }
 
     /**
@@ -47,6 +48,6 @@ class GalleryPolicy
      */
     public function delete(User $user, Gallery $gallery): bool
     {
-        return $user->id === $gallery->user_id || $user->role === 'admin';
+        return StudioAccount::current()?->owns($gallery->user_id, 'galleries.delete') || $user->role === 'admin';
     }
 }

@@ -19,7 +19,7 @@ class ClientController extends Controller
      */
     public function index(Request $request, StudioClientsQuery $query): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $search = $request->input('search');
 
         $clients = $query->paginate($user, $search, 15);
@@ -37,7 +37,7 @@ class ClientController extends Controller
      */
     public function store(Request $request, CreateClient $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'name'         => ['required', 'string', 'max:255'],
@@ -59,7 +59,7 @@ class ClientController extends Controller
      */
     public function update(Request $request, string $uuid, UpdateClient $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $client = Client::where('uuid', $uuid)
             ->where('user_id', $user->id)
@@ -85,7 +85,7 @@ class ClientController extends Controller
      */
     public function destroy(Request $request, string $uuid, DeleteClient $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $client = Client::where('uuid', $uuid)
             ->where('user_id', $user->id)

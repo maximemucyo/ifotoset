@@ -71,6 +71,7 @@ class ApplySubscriptionEntitlement
 
         // Synchronize user plan entitlement
         $user->forceFill(['plan_id' => $plan->id])->save();
+        app(\App\Actions\Teams\SyncSeatsWithPlan::class)->execute($user);
 
         // Invalidate storage quota cache
         StorageStatisticsService::clearCache($user->id);

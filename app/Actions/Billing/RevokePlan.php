@@ -36,6 +36,7 @@ class RevokePlan
 
             // Revert user to free plan
             $user->forceFill(['plan_id' => $freePlan->id])->save();
+            app(\App\Actions\Teams\SyncSeatsWithPlan::class)->execute($user);
 
             StorageStatisticsService::clearCache($user->id);
 

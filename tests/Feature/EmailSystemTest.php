@@ -118,6 +118,7 @@ class EmailSystemTest extends TestCase
             'name' => 'John Doe',
             'username' => 'johndoe' . rand(100, 999),
             'email' => $email,
+            'phone' => '0788123456',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
         ]);

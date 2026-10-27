@@ -54,6 +54,7 @@ class AssignPlan
                 $user->forceFill(['plan_id' => $newPlan->id])->save();
             }
 
+            app(\App\Actions\Teams\SyncSeatsWithPlan::class)->execute($user);
             StorageStatisticsService::clearCache($user->id);
 
             AdminAuditLog::record(

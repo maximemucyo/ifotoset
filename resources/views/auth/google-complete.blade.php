@@ -1,4 +1,4 @@
-@extends('layouts.guest', ['title' => 'Create your studio · ifotoset', 'heading' => 'Almost there', 'subheading' => 'Choose your studio URL to finish creating your account.'])
+@extends('layouts.guest', ['title' => 'Create your studio · ifotoset', 'heading' => 'Almost there', 'subheading' => 'A couple of details to finish creating your account.'])
 
 @php
     $rootHost = config('app.public_root_host', 'ifotoset.com');
@@ -43,6 +43,11 @@
             <p class="help">Your portfolio: <span class="font-medium text-foreground" x-text="(username || 'yourstudio') + '.{{ $rootHost }}'"></span></p>
         @enderror
     </div>
+
+    <x-ui.phone-input label="Phone number"
+                      required
+                      placeholder="788 123 456"
+                      :error="$errors->first('phone')" />
 
     <button type="submit" class="btn btn-primary btn-lg w-full !mt-6" :disabled="submitting">
         <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />

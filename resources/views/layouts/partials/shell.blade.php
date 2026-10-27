@@ -10,6 +10,13 @@
     $user = auth()->user();
     $isAdminContext = $context === 'admin';
 
+    // In the studio, plan, storage and the public site belong to the studio account,
+    // which is someone else's when working in a team studio
+    $account = !$isAdminContext && $user ? request()->account() : $user;
+    $teamContext = !$isAdminContext && isset($studioAccount) ? $studioAccount : null;
+    $canBilling = !$isAdminContext && Gate::allows('studio.billing');
+    $navAllowed = fn (array $item): bool => Route::has($item['route']) && (empty($item['can']) || Gate::allows($item['can']));
+
     $resolveActive = function (array $item): bool {
         $patterns = (array) ($item['match'] ?? []);
         if (empty($patterns)) {
@@ -20,8 +27,8 @@
     };
 
     // Storage meter (studio only)
-    $storageUsed = (int) ($user->storage_used_bytes ?? 0);
-    $storageLimit = (int) ($user->plan->storage_limit ?? 0);
+    $storageUsed = (int) ($account->storage_used_bytes ?? 0);
+    $storageLimit = (int) ($account->plan->storage_limit ?? 0);
     $storagePct = $storageLimit > 0 ? min(100, round($storageUsed / $storageLimit * 100, 1)) : 0;
     $fmtBytes = function (int $bytes): string {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -35,19 +42,21 @@
     $commandItems = [];
     foreach ($navGroups as $group) {
         foreach ($group['items'] as $item) {
-            if (Route::has($item['route'])) {
+            if ($navAllowed($item)) {
                 $commandItems[] = ['label' => $item['label'], 'url' => route($item['route']), 'group' => 'Navigate', 'icon' => $item['icon']];
             }
         }
     }
     if (!$isAdminContext) {
         $commandItems[] = ['label' => 'Create new gallery', 'url' => route('studio.galleries.create'), 'group' => 'Actions', 'keywords' => 'add new upload', 'icon' => 'plus'];
-        if ($user?->username) {
-            $commandItems[] = ['label' => 'View public portfolio', 'url' => $user->public_url, 'group' => 'Actions', 'keywords' => 'profile website', 'icon' => 'external-link', 'newTab' => true];
+        if ($account?->username) {
+            $commandItems[] = ['label' => 'View public portfolio', 'url' => $account->public_url, 'group' => 'Actions', 'keywords' => 'profile website', 'icon' => 'external-link', 'newTab' => true];
         }
-        $commandItems[] = $user?->isFree()
-            ? ['label' => 'Upgrade plan', 'url' => route('studio.billing.index'), 'group' => 'Actions', 'keywords' => 'billing pricing subscription', 'icon' => 'zap']
-            : ['label' => 'Billing & plans', 'url' => route('studio.billing.index'), 'group' => 'Actions', 'keywords' => 'billing pricing subscription upgrade', 'icon' => 'credit-card'];
+        if ($canBilling) {
+            $commandItems[] = $account?->isFree()
+                ? ['label' => 'Upgrade plan', 'url' => route('studio.billing.index'), 'group' => 'Actions', 'keywords' => 'billing pricing subscription', 'icon' => 'zap']
+                : ['label' => 'Billing & plans', 'url' => route('studio.billing.index'), 'group' => 'Actions', 'keywords' => 'billing pricing subscription upgrade', 'icon' => 'credit-card'];
+        }
     }
     if ($user?->isAdmin()) {
         $commandItems[] = $isAdminContext
@@ -77,7 +86,7 @@
             @if($isAdminContext)
                 <span class="badge badge-danger">Admin</span>
             @else
-                <span class="badge badge-neutral capitalize">{{ $user->plan->name ?? 'Free' }}</span>
+                <span class="badge badge-neutral capitalize">{{ $account->plan->name ?? 'Free' }}</span>
             @endif
             <button type="button" @click="sidebarOpen = false" class="btn btn-ghost btn-icon btn-sm ml-auto lg:hidden" aria-label="Close menu">
                 <x-icon name="x" />
@@ -104,7 +113,7 @@
                 @endif
                 <div class="space-y-0.5">
                     @foreach($group['items'] as $item)
-                        @continue(!Route::has($item['route']))
+                        @continue(!$navAllowed($item))
                         @php($active = $resolveActive($item))
                         <a href="{{ route($item['route']) }}" class="nav-item" @if($active) aria-current="page" @endif>
                             <x-icon :name="$item['icon']" />
@@ -121,14 +130,14 @@
         {{-- Sidebar footer --}}
         <div class="shrink-0 space-y-2 p-3">
             @if(!$isAdminContext && $storageLimit > 0)
-                <a href="{{ route('studio.billing.index') }}" class="block rounded-xl border border-sidebar-border bg-background/70 p-3 shadow-xs transition hover:border-border-strong">
+                <a href="{{ $canBilling ? route('studio.billing.index') : route('studio.galleries.index') }}" class="block rounded-xl border border-sidebar-border bg-background/70 p-3 shadow-xs transition hover:border-border-strong">
                     <div class="flex items-center justify-between text-xs">
                         <span class="flex items-center gap-1.5 font-medium text-foreground"><x-icon name="hard-drive" class="size-3.5 text-muted-foreground" /> Storage</span>
                         <span class="tabular-nums text-muted-foreground">{{ $storagePct }}%</span>
                     </div>
                     <div class="progress mt-2.5"><span style="width: {{ max($storagePct, 1.5) }}%" class="{{ $storagePct >= 90 ? '!bg-destructive' : ($storagePct >= 75 ? '!bg-warning' : '') }}"></span></div>
                     <p class="mt-2 text-[11px] text-muted-foreground tabular-nums">{{ $fmtBytes($storageUsed) }} of {{ $fmtBytes($storageLimit) }}</p>
-                    @if($user->isFree())
+                    @if($canBilling && $account->isFree())
                         <span class="mt-2.5 flex items-center gap-1 text-[12px] font-medium text-brand"><x-icon name="zap" class="size-3.5" /> Upgrade plan</span>
                     @endif
                 </a>
@@ -162,10 +171,41 @@
                     </div>
                     <div class="menu-separator"></div>
                     @unless($isAdminContext)
+                        @if($teamContext && ($teamContext->teamMemberships()->isNotEmpty()))
+                            {{-- Studio switcher: the member's own studio and every team studio they belong to --}}
+                            <p class="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wider text-subtle">Studios</p>
+                            @if($user->hasOwnStudio())
+                                <form method="POST" action="{{ route('studio.account.switch') }}">
+                                    @csrf
+                                    <input type="hidden" name="account" value="{{ $user->uuid }}">
+                                    <button type="submit" class="menu-item" @if(!$teamContext->isTeamContext()) aria-current="true" @endif>
+                                        <x-icon name="camera" /> <span class="flex-1 truncate text-left">My studio</span>
+                                        @if(!$teamContext->isTeamContext())<x-icon name="check" class="!size-3.5 text-brand" />@endif
+                                    </button>
+                                </form>
+                            @endif
+                            @foreach($teamContext->teamMemberships() as $membership)
+                                @php($isCurrent = $membership->account_id === $account->id)
+                                <form method="POST" action="{{ route('studio.account.switch') }}">
+                                    @csrf
+                                    <input type="hidden" name="account" value="{{ $membership->account->uuid }}">
+                                    <button type="submit" class="menu-item" @if($isCurrent) aria-current="true" @endif>
+                                        <x-icon name="building" /> <span class="flex-1 truncate text-left">{{ $membership->account->name }} <span class="text-muted-foreground">(team)</span></span>
+                                        @if($isCurrent)<x-icon name="check" class="!size-3.5 text-brand" />@endif
+                                    </button>
+                                </form>
+                            @endforeach
+                            @unless($user->hasOwnStudio())
+                                <a href="{{ route('studio.own.create') }}" class="menu-item"><x-icon name="plus" /> Create my own studio</a>
+                            @endunless
+                            <div class="menu-separator"></div>
+                        @endif
                         <a href="{{ route('studio.settings.index') }}" class="menu-item"><x-icon name="settings" /> Settings</a>
-                        <a href="{{ route('studio.billing.index') }}" class="menu-item"><x-icon name="credit-card" /> Billing</a>
-                        @if($user?->username)
-                            <a href="{{ $user->public_url }}" target="_blank" rel="noopener" class="menu-item"><x-icon name="globe" /> Public portfolio <x-icon name="arrow-up-right" class="ml-auto !size-3.5" /></a>
+                        @if($canBilling)
+                            <a href="{{ route('studio.billing.index') }}" class="menu-item"><x-icon name="credit-card" /> Billing</a>
+                        @endif
+                        @if($account?->username)
+                            <a href="{{ $account->public_url }}" target="_blank" rel="noopener" class="menu-item"><x-icon name="globe" /> Public portfolio <x-icon name="arrow-up-right" class="ml-auto !size-3.5" /></a>
                         @endif
                     @else
                         <a href="{{ route('admin.settings.index') }}" class="menu-item"><x-icon name="settings" /> Platform settings</a>
@@ -210,8 +250,8 @@
                         @yield('topbar-actions')
                     @endif
                     <x-ui.theme-toggle />
-                    @if(!$isAdminContext && $user?->username)
-                        <a href="{{ $user->public_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm hidden sm:inline-flex">
+                    @if(!$isAdminContext && $account?->username)
+                        <a href="{{ $account->public_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm hidden sm:inline-flex">
                             <x-icon name="globe" /> Portfolio
                         </a>
                     @endif

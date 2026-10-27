@@ -26,6 +26,9 @@ use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardContro
 use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController;
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
+use App\Http\Controllers\Web\Studio\StudioAccountController;
+use App\Http\Controllers\Web\Studio\TeamController as StudioTeamController;
+use App\Http\Controllers\Web\TeamInvitationController;
 use App\Http\Controllers\Web\Studio\PortfolioController as StudioPortfolioController;
 use App\Http\Controllers\Web\Studio\TrashController as StudioTrashController;
 use App\Http\Controllers\Web\Studio\UploadController;
@@ -178,7 +181,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Studio Portal Routes (Authenticated Photographers & Media Houses)
-Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.')->group(function () {
+Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('studio')->as('studio.')->group(function () {
     Route::get('/dashboard', [StudioDashboardController::class, 'index'])->name('dashboard');
 
     // Galleries CRUD & Photo Management
@@ -204,7 +207,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.
     Route::post('/uploads/confirm', [UploadController::class, 'confirmUpload'])->name('uploads.confirm');
     Route::post('/uploads/abort', [UploadController::class, 'abortUpload'])->name('uploads.abort');
     Route::get('/storage/stats', function (\Illuminate\Http\Request $request, \App\Services\StorageStatisticsService $service) {
-        return response()->json($service->getStorageStats($request->user()));
+        return response()->json($service->getStorageStats($request->account()));
     })->name('storage.stats');
 
     // Bookings
@@ -214,58 +217,90 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('studio')->as('studio.
 
     // Availability & Scheduling Suite
     Route::get('/availability', [StudioAvailabilityController::class, 'index'])->name('availability.index');
-    Route::post('/availability/settings', [StudioAvailabilityController::class, 'updateSettings'])->name('availability.settings');
-    Route::post('/availability/exceptions', [StudioAvailabilityController::class, 'storeException'])->name('availability.exceptions.store');
-    Route::post('/availability/exceptions/{uuid}/delete', [StudioAvailabilityController::class, 'deleteException'])->name('availability.exceptions.destroy');
-    Route::post('/availability/blocked', [StudioAvailabilityController::class, 'storeBlocked'])->name('availability.blocked.store');
-    Route::post('/availability/blocked/{uuid}/delete', [StudioAvailabilityController::class, 'deleteBlocked'])->name('availability.blocked.destroy');
+    Route::middleware('can:studio.business.manage')->group(function () {
+        Route::post('/availability/settings', [StudioAvailabilityController::class, 'updateSettings'])->name('availability.settings');
+        Route::post('/availability/exceptions', [StudioAvailabilityController::class, 'storeException'])->name('availability.exceptions.store');
+        Route::post('/availability/exceptions/{uuid}/delete', [StudioAvailabilityController::class, 'deleteException'])->name('availability.exceptions.destroy');
+        Route::post('/availability/blocked', [StudioAvailabilityController::class, 'storeBlocked'])->name('availability.blocked.store');
+        Route::post('/availability/blocked/{uuid}/delete', [StudioAvailabilityController::class, 'deleteBlocked'])->name('availability.blocked.destroy');
+    });
 
     // Clients CRM
     Route::get('/clients', [StudioClientController::class, 'index'])->name('clients.index');
     Route::post('/clients', [StudioClientController::class, 'store'])->name('clients.store');
     Route::patch('/clients/{uuid}', [StudioClientController::class, 'update'])->name('clients.update');
-    Route::post('/clients/{uuid}/delete', [StudioClientController::class, 'destroy'])->name('clients.destroy');
+    Route::post('/clients/{uuid}/delete', [StudioClientController::class, 'destroy'])->middleware('can:studio.clients.delete')->name('clients.destroy');
 
     // Photography Packages
     Route::get('/packages', [StudioPackageController::class, 'index'])->name('packages.index');
-    Route::post('/packages', [StudioPackageController::class, 'store'])->name('packages.store');
-    Route::patch('/packages/{uuid}', [StudioPackageController::class, 'update'])->name('packages.update');
-    Route::post('/packages/{uuid}/toggle', [StudioPackageController::class, 'toggle'])->name('packages.toggle');
-    Route::post('/packages/{uuid}/delete', [StudioPackageController::class, 'destroy'])->name('packages.destroy');
+    Route::middleware('can:studio.business.manage')->group(function () {
+        Route::post('/packages', [StudioPackageController::class, 'store'])->name('packages.store');
+        Route::patch('/packages/{uuid}', [StudioPackageController::class, 'update'])->name('packages.update');
+        Route::post('/packages/{uuid}/toggle', [StudioPackageController::class, 'toggle'])->name('packages.toggle');
+        Route::post('/packages/{uuid}/delete', [StudioPackageController::class, 'destroy'])->name('packages.destroy');
+    });
 
     // Studio Analytics
-    Route::get('/analytics', [StudioAnalyticsController::class, 'index'])->name('analytics.index');
+    Route::get('/analytics', [StudioAnalyticsController::class, 'index'])->middleware('can:studio.analytics.view')->name('analytics.index');
 
     // Subscription Billing & Checkout Suite
-    Route::get('/billing', [StudioBillingController::class, 'index'])->name('billing.index');
-    Route::get('/billing/checkout/{plan:slug}', [StudioBillingController::class, 'checkout'])->name('billing.checkout');
-    Route::post('/billing/initiate', [StudioBillingController::class, 'initiate'])->name('billing.initiate');
-    Route::get('/billing/check/{uuid}', [StudioBillingController::class, 'check'])->name('billing.check');
-    Route::get('/billing/receipt/{uuid}', [StudioBillingController::class, 'receipt'])->name('billing.receipt');
+    Route::middleware('can:studio.billing')->group(function () {
+        Route::get('/billing', [StudioBillingController::class, 'index'])->name('billing.index');
+        Route::get('/billing/checkout/{plan:slug}', [StudioBillingController::class, 'checkout'])->name('billing.checkout');
+        Route::post('/billing/initiate', [StudioBillingController::class, 'initiate'])->name('billing.initiate');
+        Route::get('/billing/check/{uuid}', [StudioBillingController::class, 'check'])->name('billing.check');
+        Route::get('/billing/receipt/{uuid}', [StudioBillingController::class, 'receipt'])->name('billing.receipt');
+    });
 
     // Portfolio builder
-    Route::get('/portfolio', [StudioPortfolioController::class, 'edit'])->name('portfolio.edit');
-    Route::post('/portfolio/collections', [StudioPortfolioController::class, 'updateCollections'])->name('portfolio.collections');
-    Route::post('/portfolio/images/{kind}/request', [StudioPortfolioController::class, 'requestImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.request');
-    Route::post('/portfolio/images/{kind}/confirm', [StudioPortfolioController::class, 'confirmImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.confirm');
-    Route::delete('/portfolio/images/{kind}', [StudioPortfolioController::class, 'destroyImage'])->whereIn('kind', ['logo', 'cover', 'share'])->name('portfolio.images.destroy');
-    Route::post('/portfolio/{part}', [StudioPortfolioController::class, 'update'])->whereIn('part', StudioPortfolioController::PARTS)->name('portfolio.update');
+    Route::middleware('can:studio.profile.manage')->group(function () {
+        Route::get('/portfolio', [StudioPortfolioController::class, 'edit'])->name('portfolio.edit');
+        Route::post('/portfolio/collections', [StudioPortfolioController::class, 'updateCollections'])->name('portfolio.collections');
+        Route::post('/portfolio/images/{kind}/request', [StudioPortfolioController::class, 'requestImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.request');
+        Route::post('/portfolio/images/{kind}/confirm', [StudioPortfolioController::class, 'confirmImageUpload'])->whereIn('kind', ['logo', 'cover', 'share'])->middleware('throttle:30,1')->name('portfolio.images.confirm');
+        Route::delete('/portfolio/images/{kind}', [StudioPortfolioController::class, 'destroyImage'])->whereIn('kind', ['logo', 'cover', 'share'])->name('portfolio.images.destroy');
+        Route::post('/portfolio/{part}', [StudioPortfolioController::class, 'update'])->whereIn('part', StudioPortfolioController::PARTS)->name('portfolio.update');
+    });
 
     // Settings
     Route::get('/settings', [StudioSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/profile', [StudioSettingsController::class, 'updateProfile'])->name('settings.profile');
     Route::post('/settings/password', [StudioSettingsController::class, 'updatePassword'])->name('settings.password');
-    Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->name('settings.public-profile');
+    Route::post('/settings/phone', [StudioSettingsController::class, 'updatePhone'])->name('settings.phone');
+    Route::post('/settings/phone/dismiss', [StudioSettingsController::class, 'dismissPhonePrompt'])->name('settings.phone.dismiss');
+    Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->middleware('can:studio.profile.manage')->name('settings.public-profile');
     Route::post('/settings/notifications', [StudioSettingsController::class, 'updateNotifications'])->name('settings.notifications');
-    Route::get('/settings/export', [StudioSettingsController::class, 'exportData'])->middleware('throttle:5,1')->name('settings.export');
+    Route::get('/settings/export', [StudioSettingsController::class, 'exportData'])->middleware(['can:studio.account.manage', 'throttle:5,1'])->name('settings.export');
     Route::delete('/settings/account', [StudioSettingsController::class, 'destroyAccount'])->middleware('throttle:5,1')->name('settings.account.destroy');
 
     // Trash & Lifecycle
     Route::get('/trash', [StudioTrashController::class, 'index'])->name('trash.index');
     Route::match(['POST', 'DELETE'], '/trash/restore', [StudioTrashController::class, 'restore'])->name('trash.restore');
-    Route::match(['POST', 'DELETE'], '/trash/purge', [StudioTrashController::class, 'purge'])->name('trash.purge');
-    Route::match(['POST', 'DELETE'], '/trash/empty', [StudioTrashController::class, 'empty'])->name('trash.empty');
+    Route::match(['POST', 'DELETE'], '/trash/purge', [StudioTrashController::class, 'purge'])->middleware('can:studio.galleries.delete')->name('trash.purge');
+    Route::match(['POST', 'DELETE'], '/trash/empty', [StudioTrashController::class, 'empty'])->middleware('can:studio.galleries.delete')->name('trash.empty');
+
+    // Team accounts
+    Route::get('/team', [StudioTeamController::class, 'index'])->middleware('can:studio.team.view')->name('team.index');
+    Route::middleware('can:studio.team.manage')->group(function () {
+        Route::post('/team/invitations', [StudioTeamController::class, 'invite'])->middleware('throttle:10,1')->name('team.invite');
+        Route::post('/team/invitations/{uuid}/resend', [StudioTeamController::class, 'resend'])->middleware('throttle:10,1')->name('team.resend');
+        Route::post('/team/invitations/{uuid}/revoke', [StudioTeamController::class, 'revoke'])->name('team.revoke');
+        Route::patch('/team/members/{member}', [StudioTeamController::class, 'updateRole'])->whereNumber('member')->name('team.role');
+        Route::delete('/team/members/{member}', [StudioTeamController::class, 'remove'])->whereNumber('member')->name('team.remove');
+    });
+    Route::post('/team/leave', [StudioTeamController::class, 'leave'])->name('team.leave');
+
+    // Studio switcher, and a member's own studio
+    Route::post('/account/switch', [StudioAccountController::class, 'switch'])->name('account.switch');
+    Route::get('/own', [StudioAccountController::class, 'create'])->name('own.create');
+    Route::post('/own', [StudioAccountController::class, 'store'])->middleware('throttle:5,1')->name('own.store');
 });
+
+// Team invitations (open to guests and to logged-in users)
+Route::get('/team/invite/{token}', [TeamInvitationController::class, 'show'])->middleware('noindex')->name('team.invitation.show');
+Route::post('/team/invite/{token}/accept', [TeamInvitationController::class, 'accept'])->middleware(['auth', 'active', 'throttle:10,1'])->name('team.invitation.accept');
+Route::post('/team/invite/{token}/register', [TeamInvitationController::class, 'register'])->middleware(['guest', 'throttle:5,1'])->name('team.invitation.register');
+Route::get('/team/invite/{token}/google', [TeamInvitationController::class, 'google'])->middleware(['guest', 'throttle:20,1'])->name('team.invitation.google');
 
 // Admin Panel Routes (Superadmin Only - Guarded by AdminMiddleware & Impersonation Prevention)
 Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->prefix('admin')->as('admin.')->group(function () {

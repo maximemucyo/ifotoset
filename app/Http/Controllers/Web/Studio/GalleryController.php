@@ -28,7 +28,7 @@ class GalleryController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $query = Gallery::where('user_id', $user->id)
             ->with(['coverPhoto', 'stats']);
@@ -77,7 +77,7 @@ class GalleryController extends Controller
      */
     public function create(Request $request): View|RedirectResponse
     {
-        if ($redirect = $this->redirectIfOverQuota($request->user())) {
+        if ($redirect = $this->redirectIfOverQuota($request->account())) {
             return $redirect;
         }
 
@@ -102,7 +102,7 @@ class GalleryController extends Controller
      */
     public function store(Request $request, RecipientEmailImportService $importService): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         if ($redirect = $this->redirectIfOverQuota($user)) {
             return $redirect;
@@ -211,7 +211,7 @@ class GalleryController extends Controller
         })->values();
 
         $storageService = app(\App\Services\StorageStatisticsService::class);
-        $userStorage = $storageService->getStorageStats($request->user());
+        $userStorage = $storageService->getStorageStats($request->account());
         $upgradePlans = \App\Models\Plan::where('slug', '!=', 'free')
             ->orderBy('monthly_price')
             ->get(['id', 'slug', 'name', 'monthly_price', 'storage_limit', 'video_limit_seconds']);

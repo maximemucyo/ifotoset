@@ -270,6 +270,7 @@ class UserController extends Controller
 
         // 1. Regenerate session to prevent fixation
         $request->session()->regenerate();
+        $request->session()->forget(\App\Support\StudioAccount::SESSION_KEY);
 
         // 2. Establish complete impersonation episode context
         $nonce = Str::random(40);

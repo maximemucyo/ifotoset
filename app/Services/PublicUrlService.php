@@ -9,8 +9,9 @@ class PublicUrlService
      */
     public function photographer(mixed $photographer): string
     {
-        $username = $photographer instanceof \App\Models\User 
-            ? $photographer->username 
+        // Team members who joined by invite have no username (and no public studio)
+        $username = $photographer instanceof \App\Models\User
+            ? (string) $photographer->username
             : (is_object($photographer) ? ($photographer->username ?? '') : (string) $photographer);
 
         return $this->photographerUrl($username);

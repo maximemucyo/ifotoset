@@ -29,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'impersonation.prevent_admin' => \App\Http\Middleware\PreventAdminDuringImpersonation::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
             'noindex' => \App\Http\Middleware\NoIndex::class,
+            'studio.account' => \App\Http\Middleware\ResolveStudioAccount::class,
         ]);
         $middleware->replace(
             \Illuminate\Http\Middleware\TrustProxies::class,

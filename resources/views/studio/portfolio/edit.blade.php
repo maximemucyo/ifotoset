@@ -162,7 +162,7 @@
                             </div>
                             @error('template') <p class="error-text">{{ $message }}</p> @enderror
                             @if(!$portfolio->premiumAllowed())
-                                <p class="help">Bold and Grid come with every paid plan. <a href="{{ route('studio.billing.index') }}" class="link-brand">See plans</a></p>
+                                <p class="help">Bold and Grid come with every paid plan.@can('studio.billing') <a href="{{ route('studio.billing.index') }}" class="link-brand">See plans</a>@endcan</p>
                             @endif
                         </fieldset>
 

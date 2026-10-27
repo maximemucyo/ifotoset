@@ -20,7 +20,7 @@ class AvailabilityController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
 
         // Ensure 7 weekly default settings exist (0=Sunday to 6=Saturday)
         $settings = [];
@@ -69,7 +69,7 @@ class AvailabilityController extends Controller
      */
     public function updateSettings(Request $request, UpdateAvailabilitySchedule $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'settings'                => ['required', 'array', 'size:7'],
@@ -96,7 +96,7 @@ class AvailabilityController extends Controller
      */
     public function storeException(Request $request, CreateAvailabilityException $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'date'       => ['required', 'date_format:Y-m-d'],
@@ -116,11 +116,11 @@ class AvailabilityController extends Controller
     public function deleteException(Request $request, string $uuid): RedirectResponse
     {
         $exception = AvailabilityException::where('uuid', $uuid)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->account()->id)
             ->firstOrFail();
 
         $exception->delete();
-        $request->user()->clearAvailabilityCache();
+        $request->account()->clearAvailabilityCache();
 
         return back()->with('success', 'Date exception removed successfully.');
     }
@@ -130,7 +130,7 @@ class AvailabilityController extends Controller
      */
     public function storeBlocked(Request $request, CreateBlockedSlot $action): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $validated = $request->validate([
             'starts_at' => ['required', 'date'],
@@ -149,11 +149,11 @@ class AvailabilityController extends Controller
     public function deleteBlocked(Request $request, string $uuid): RedirectResponse
     {
         $blocked = BlockedSlot::where('uuid', $uuid)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->account()->id)
             ->firstOrFail();
 
         $blocked->delete();
-        $request->user()->clearAvailabilityCache();
+        $request->account()->clearAvailabilityCache();
 
         return back()->with('success', 'Time slot unblocked successfully.');
     }

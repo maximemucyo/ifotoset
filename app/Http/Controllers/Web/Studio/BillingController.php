@@ -30,7 +30,7 @@ class BillingController extends Controller
      */
     public function index(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $currentPlan = $user->plan;
         $plans = Plan::orderBy('monthly_price')->get();
 
@@ -90,7 +90,7 @@ class BillingController extends Controller
                 ->with('info', 'The Free tier is active by default with 2 GB storage.');
         }
 
-        $user = $request->user();
+        $user = $request->account();
         $billingCycle = $request->query('cycle', 'monthly');
         $billingCycle = in_array(strtolower($billingCycle), ['annual', 'yearly']) ? 'annual' : 'monthly';
 
@@ -135,7 +135,7 @@ class BillingController extends Controller
             'provider' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $user = $request->user();
+        $user = $request->account();
         $plan = Plan::where('slug', $validated['plan_slug'])->firstOrFail();
 
         $months = (int) ($validated['months'] ?? 0);
@@ -197,7 +197,7 @@ class BillingController extends Controller
             $payment->update(['metadata' => [...($payment->metadata ?? []), 'ga_client_id' => $clientId]]);
         }
 
-        GoogleAnalytics::track($request, $request->user(), 'begin_checkout', [
+        GoogleAnalytics::track($request, $request->account(), 'begin_checkout', [
             'value' => (float) $payment->amount,
             'currency' => $payment->currency,
             'items' => [[
@@ -216,7 +216,7 @@ class BillingController extends Controller
      */
     public function check(Request $request, string $uuid): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->account();
         $payment = Payment::where('uuid', $uuid)
             ->where('user_id', $user->id)
             ->first();
@@ -255,7 +255,7 @@ class BillingController extends Controller
      */
     public function receipt(Request $request, string $uuid): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $payment = Payment::where('uuid', $uuid)
             ->where('user_id', $user->id)
             ->where('purpose', '!=', 'booking_deposit')

@@ -44,9 +44,9 @@
                         <span class="text-subtle" aria-hidden="true">·</span>
                         <span class="inline-flex items-center gap-1"><x-icon name="calendar" class="size-3.5" /> {{ $gallery->event_date->format('M j, Y') }}</span>
                     @endif
-                    @if(auth()->user()->hasVideoSupport())
+                    @if(request()->account()->hasVideoSupport())
                         <span class="text-subtle" aria-hidden="true">·</span>
-                        <span class="inline-flex items-center gap-1"><x-icon name="video" class="size-3.5" /> Video {{ auth()->user()->getVideoUsageFormatted() }}</span>
+                        <span class="inline-flex items-center gap-1"><x-icon name="video" class="size-3.5" /> Video {{ request()->account()->getVideoUsageFormatted() }}</span>
                     @endif
                 </p>
             </div>
@@ -108,7 +108,7 @@
             };
         @endphp
         @if(!empty($su))
-            <a href="{{ route('studio.billing.index') }}" class="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2 shadow-xs transition-colors hover:border-border-strong md:w-64" title="Storage used across all galleries">
+            <a href="{{ Gate::allows('studio.billing') ? route('studio.billing.index') : route('studio.trash.index') }}" class="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2 shadow-xs transition-colors hover:border-border-strong md:w-64" title="Storage used across all galleries">
                 <x-icon name="hard-drive" class="size-4 text-subtle" />
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center justify-between gap-2 text-[11px]">

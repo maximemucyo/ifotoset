@@ -38,8 +38,8 @@ class ImpersonationController extends Controller
         // 1. Invalidate current target user authentication state
         Auth::logout();
 
-        // 2. Clear impersonation context
-        $request->session()->forget('impersonation');
+        // 2. Clear impersonation context, including any team studio picked while impersonating
+        $request->session()->forget(['impersonation', \App\Support\StudioAccount::SESSION_KEY]);
 
         // 3. Mandatory session regeneration on exit to prevent state leakage
         $request->session()->regenerate();

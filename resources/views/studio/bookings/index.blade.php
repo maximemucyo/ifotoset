@@ -6,7 +6,7 @@
     $statusOf = fn ($b) => $b->status instanceof \BackedEnum ? $b->status->value : (string) $b->status;
 
     // Summary figures: a single grouped aggregate (no per-row queries).
-    $summary = \App\Models\Booking::where('user_id', auth()->id())
+    $summary = \App\Models\Booking::where('user_id', request()->account()->id)
         ->visibleInStudio()
         ->toBase()
         ->selectRaw('status, currency, COUNT(*) as total, COALESCE(SUM(price), 0) as amount')
@@ -37,7 +37,7 @@
 <div x-data="{ newBookingOpen: {{ old('date') ? 'true' : 'false' }} }">
 <x-ui.page-header title="Bookings" description="Review requests, confirm sessions and keep track of what's coming up.">
     <x-slot:actions>
-        @php $bookingLink = route('subdomain.booking', ['username' => auth()->user()->username]); @endphp
+        @php $bookingLink = route('subdomain.booking', ['username' => request()->account()->username]); @endphp
         <button type="button" class="btn btn-outline" @click="$clipboard(@js($bookingLink), 'Booking link copied')" title="{{ $bookingLink }}">
             <x-icon name="link" /> Copy booking link
         </button>

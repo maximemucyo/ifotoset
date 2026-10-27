@@ -72,6 +72,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'storage_warning_100_active' => 'boolean',
         'storage_warning_generation' => 'integer',
         'over_quota_since' => 'datetime',
+        'phone_prompt_dismissed_at' => 'datetime',
     ];
 
     /**
@@ -205,6 +206,86 @@ class User extends Authenticatable implements MustVerifyEmail
     public function adminNotes(): HasMany
     {
         return $this->hasMany(AdminNote::class, 'user_id');
+    }
+
+    /**
+     * People working in this user's studio (as its owner).
+     */
+    public function teamMembers(): HasMany
+    {
+        return $this->hasMany(AccountMember::class, 'account_id');
+    }
+
+    public function teamInvitations(): HasMany
+    {
+        return $this->hasMany(AccountInvitation::class, 'account_id');
+    }
+
+    /**
+     * Studios this user works in as a member.
+     */
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(AccountMember::class, 'user_id');
+    }
+
+    /**
+     * Whether this user has a studio of their own. Members who joined through
+     * an invite have no username, and so no public studio, until they create one.
+     */
+    public function hasOwnStudio(): bool
+    {
+        return filled($this->username);
+    }
+
+    /**
+     * Whether to ask this studio owner for a phone number. Closing the prompt hides it for a week.
+     */
+    public function shouldPromptForPhone(): bool
+    {
+        return $this->hasOwnStudio()
+            && blank($this->phone)
+            && (!$this->phone_prompt_dismissed_at || $this->phone_prompt_dismissed_at->lt(now()->subDays(7)));
+    }
+
+    /**
+     * Whether this studio's plan includes team accounts.
+     */
+    public function hasTeams(): bool
+    {
+        return $this->hasFeature('teams');
+    }
+
+    /**
+     * Team seats on the plan, not counting the owner.
+     */
+    public function seatLimit(): int
+    {
+        return $this->hasTeams() ? max(0, (int) $this->plan->team_limit) : 0;
+    }
+
+    /**
+     * Seats taken: active members plus pending, unexpired invitations.
+     */
+    public function seatsUsed(): int
+    {
+        return $this->teamMembers()->active()->count() + $this->teamInvitations()->pending()->count();
+    }
+
+    /**
+     * Team studios this user can open now: active membership, owner still active and on a plan with teams.
+     *
+     * @return \Illuminate\Support\Collection<int, AccountMember>
+     */
+    public function activeMemberships(): \Illuminate\Support\Collection
+    {
+        return $this->memberships()->active()
+            ->whereHas('account', fn ($q) => $q->where('is_active', true))
+            ->with('account.plan')
+            ->orderBy('created_at')
+            ->get()
+            ->filter(fn (AccountMember $membership) => $membership->account->hasTeams())
+            ->values();
     }
 
     public function clearAvailabilityCache(): void

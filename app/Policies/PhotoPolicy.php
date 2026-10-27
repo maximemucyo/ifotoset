@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Photo;
 use App\Models\User;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class PhotoPolicy
@@ -16,7 +17,7 @@ class PhotoPolicy
     public function delete(User $user, Photo $photo): bool
     {
         $gallery = $photo->gallery;
-        return $gallery && ($user->id === $gallery->user_id || $user->role === 'admin');
+        return $gallery && (StudioAccount::current()?->owns($gallery->user_id, 'galleries.manage') || $user->role === 'admin');
     }
 
     /**
@@ -25,7 +26,7 @@ class PhotoPolicy
     public function update(User $user, Photo $photo): bool
     {
         $gallery = $photo->gallery;
-        return $gallery && ($user->id === $gallery->user_id || $user->role === 'admin');
+        return $gallery && (StudioAccount::current()?->owns($gallery->user_id, 'galleries.manage') || $user->role === 'admin');
     }
 
     /**
@@ -34,6 +35,6 @@ class PhotoPolicy
     public function setCover(User $user, Photo $photo): bool
     {
         $gallery = $photo->gallery;
-        return $gallery && ($user->id === $gallery->user_id || $user->role === 'admin');
+        return $gallery && (StudioAccount::current()?->owns($gallery->user_id, 'galleries.manage') || $user->role === 'admin');
     }
 }

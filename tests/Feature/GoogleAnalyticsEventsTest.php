@@ -88,6 +88,7 @@ class GoogleAnalyticsEventsTest extends TestCase
             'name' => 'New Shooter',
             'username' => 'newshooter',
             'email' => 'new@ifotoset.com',
+            'phone' => '0788123456',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ])->assertRedirect();

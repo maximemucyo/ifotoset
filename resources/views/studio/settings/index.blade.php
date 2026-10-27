@@ -6,12 +6,17 @@
     $publicUrl = $user->username ? $user->public_url : null;
     $rootHost = config('app.public_root_host', 'ifotoset.com');
 
-    $sections = [
+    // In a team studio, $user is the studio (owner) and $me is the person signed in.
+    // Members edit only their own name, photo and password there.
+    $teamContext = isset($studioAccount) && $studioAccount->isTeamContext();
+    $me = $teamContext ? $actor : $user;
+
+    $sections = array_values(array_filter([
         ['id' => 'profile', 'label' => 'Profile', 'icon' => 'user', 'hint' => 'Name, photo and contact'],
-        ['id' => 'public', 'label' => 'Public profile', 'icon' => 'globe', 'hint' => 'Portfolio link and visibility'],
+        Gate::allows('studio.profile.manage') ? ['id' => 'public', 'label' => 'Public profile', 'icon' => 'globe', 'hint' => 'Portfolio link and visibility'] : null,
         ['id' => 'security', 'label' => 'Security', 'icon' => 'shield', 'hint' => 'Password'],
-        ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'bell', 'hint' => 'Email alerts'],
-    ];
+        $teamContext ? null : ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'bell', 'hint' => 'Email alerts'],
+    ]));
 @endphp
 
 @section('breadcrumbs')
@@ -62,29 +67,47 @@
                         <span x-show="tab === '{{ $s['id'] }}'" class="size-1.5 rounded-full bg-brand"></span>
                     </button>
                 @endforeach
-                <div class="my-3 h-px bg-border"></div>
-                <a href="{{ route('studio.billing.index') }}" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground">
-                    <x-icon name="credit-card" class="size-4" />
-                    <span class="flex-1">Billing &amp; plans</span>
-                    <x-icon name="arrow-up-right" class="size-3.5 opacity-60" />
-                </a>
+                @can('studio.billing')
+                    <div class="my-3 h-px bg-border"></div>
+                    <a href="{{ route('studio.billing.index') }}" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground">
+                        <x-icon name="credit-card" class="size-4" />
+                        <span class="flex-1">Billing &amp; plans</span>
+                        <x-icon name="arrow-up-right" class="size-3.5 opacity-60" />
+                    </a>
+                @endcan
             </div>
         </nav>
 
         <div class="min-w-0 space-y-6">
 
             {{-- ============ Profile ============ --}}
+            @if($teamContext)
+                <section x-show="tab === 'profile'" class="card" aria-labelledby="team-heading">
+                    <div class="card-header">
+                        <div>
+                            <h2 id="team-heading" class="card-title">Team studio</h2>
+                            <p class="card-description">You're working in <span class="font-medium text-foreground">{{ $user->name }}</span> as {{ strtolower($studioAccount->role()->label()) }}. Its profile, plan and billing are managed by the owner.</p>
+                        </div>
+                        <span class="flex size-9 items-center justify-center rounded-lg bg-brand/10 text-brand"><x-icon name="building" class="size-4" /></span>
+                    </div>
+                    <form method="POST" action="{{ route('studio.team.leave') }}" class="card-footer flex justify-end"
+                          onsubmit="return confirm(@js('Leave ' . $user->name . '? You will lose access to its galleries, bookings and clients.'))">
+                        @csrf
+                        <button type="submit" class="btn btn-danger-ghost"><x-icon name="log-out" /> Leave team</button>
+                    </form>
+                </section>
+            @endif
             <section x-show="tab === 'profile'" class="card" aria-labelledby="profile-heading">
                 <div class="card-header">
                     <div>
-                        <h2 id="profile-heading" class="card-title">Profile</h2>
-                        <p class="card-description">This is how clients see you on galleries, booking pages and emails.</p>
+                        <h2 id="profile-heading" class="card-title">{{ $teamContext ? 'Your profile' : 'Profile' }}</h2>
+                        <p class="card-description">{{ $teamContext ? 'Your own name and photo, shown to the rest of the team.' : 'This is how clients see you on galleries, booking pages and emails.' }}</p>
                     </div>
                 </div>
 
                 {{-- Avatar uploader (uploads directly; independent of the form below) --}}
                 <div class="border-b border-border p-5" x-data="avatarUploader({
-                        current: @js($user->avatar_url),
+                        current: @js($me->avatar_url),
                         requestUrl: '{{ url('/api/v1/settings/avatar/request') }}',
                         confirmUrl: '{{ url('/api/v1/settings/avatar/confirm') }}'
                      })">
@@ -94,7 +117,7 @@
                                 <img :src="preview" alt="Profile photo" width="80" height="80" decoding="async" class="size-20 rounded-full object-cover ring-1 ring-border">
                             </template>
                             <template x-if="!preview">
-                                <x-ui.avatar :name="$user->name" size="xl" class="!size-20 text-xl" />
+                                <x-ui.avatar :name="$me->name" size="xl" class="!size-20 text-xl" />
                             </template>
                             <div x-show="uploading" x-cloak class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white">
                                 <x-icon name="loader-circle" class="size-5 animate-spin" />
@@ -127,10 +150,14 @@
                     <div class="card-body space-y-5">
                         <div class="grid gap-5 sm:grid-cols-2">
                             <x-ui.input label="Display name" name="name" required autocomplete="name"
-                                        :value="old('name', $user->name)" :error="$errors->first('name')" />
-                            <x-ui.input label="Phone / WhatsApp" name="phone" type="tel" autocomplete="tel" placeholder="+250 788 000 000" icon="phone"
-                                        :value="old('phone', $user->phone)" :error="$errors->first('phone')" />
+                                        :value="old('name', $me->name)" :error="$errors->first('name')" />
+                            @unless($teamContext)
+                            <x-ui.phone-input label="Phone / WhatsApp" placeholder="788 123 456"
+                                              :value="$user->phone" :error="$errors->first('phone')" />
+                            @endunless
                         </div>
+
+                        @unless($teamContext)
 
                         <div x-data="{ count: {{ mb_strlen((string) old('bio', $user->bio)) }} }">
                             <div class="mb-1.5 flex items-center justify-between">
@@ -187,12 +214,13 @@
                             @error('specialties') <p class="error-text">{{ $message }}</p> @else <p class="help">The kinds of sessions you shoot most. Choose up to {{ config('directory.max_specialties') }}.</p> @enderror
                             @error('specialties.*') <p class="error-text">{{ $message }}</p> @enderror
                         </fieldset>
+                        @endunless
 
                         <div>
                             <span class="label">Email</span>
                             <div class="flex h-10 items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 text-sm">
-                                <span class="truncate text-muted-foreground">{{ $user->email }}</span>
-                                @if($user->hasVerifiedEmail())
+                                <span class="truncate text-muted-foreground">{{ $me->email }}</span>
+                                @if($me->hasVerifiedEmail())
                                     <x-ui.badge variant="success"><x-icon name="check" class="size-3" /> Verified</x-ui.badge>
                                 @else
                                     <x-ui.badge variant="warning">Unverified</x-ui.badge>
@@ -202,13 +230,16 @@
                         </div>
                     </div>
                     <div class="card-footer flex items-center justify-end gap-3">
-                        <p class="mr-auto hidden text-xs text-muted-foreground sm:block">Shown on your public portfolio.</p>
+                        @unless($teamContext)
+                            <p class="mr-auto hidden text-xs text-muted-foreground sm:block">Shown on your public portfolio.</p>
+                        @endunless
                         <button type="submit" class="btn btn-primary">Save profile</button>
                     </div>
                 </form>
             </section>
 
             {{-- ============ Public profile ============ --}}
+            @can('studio.profile.manage')
             <section x-show="tab === 'public'" x-cloak class="card" aria-labelledby="public-heading">
                 <form method="POST" action="{{ route('studio.settings.public-profile') }}"
                       x-data="{ username: @js(old('username', $user->username)), original: @js($user->username), isPublic: @js((bool) old('profile_public', $user->profile_public ?? true)) }">
@@ -281,6 +312,7 @@
                     </div>
                 </form>
             </section>
+            @endcan
 
             {{-- ============ Security ============ --}}
             <section x-show="tab === 'security'" x-cloak class="card" aria-labelledby="security-heading">
@@ -307,6 +339,7 @@
                 </form>
             </section>
 
+            @can('studio.account.manage')
             <section x-show="tab === 'security'" x-cloak class="card mt-6" aria-labelledby="data-heading">
                 <div class="card-header">
                     <div>
@@ -319,7 +352,10 @@
                     <a href="{{ route('studio.settings.export') }}" class="btn btn-outline"><x-icon name="download" /> Download my data</a>
                 </div>
             </section>
+            @endcan
 
+            {{-- Inside a team studio, only members without a studio of their own can delete their login from here --}}
+            @if(!$teamContext || !$me->hasOwnStudio())
             <section x-show="tab === 'security'" x-cloak class="card mt-6 border-destructive/40" aria-labelledby="delete-heading">
                 <div class="card-header">
                     <div>
@@ -342,8 +378,10 @@
                     </div>
                 </form>
             </section>
+            @endif
 
             {{-- ============ Notifications ============ --}}
+            @unless($teamContext)
             <section x-show="tab === 'notifications'" x-cloak class="card" aria-labelledby="notif-heading">
                 <div class="card-header">
                     <div>
@@ -379,8 +417,10 @@
                     </div>
                 </form>
             </section>
+            @endunless
 
             {{-- Plan shortcut (mobile + quick glance) --}}
+            @can('studio.billing')
             <a href="{{ route('studio.billing.index') }}" class="card card-hover flex items-center gap-4 p-4 sm:p-5">
                 <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><x-icon name="crown" class="size-5" /></span>
                 <span class="min-w-0 flex-1">
@@ -395,6 +435,7 @@
                 </span>
                 <x-icon name="chevron-right" class="size-4 text-muted-foreground" />
             </a>
+            @endcan
         </div>
     </div>
 </div>

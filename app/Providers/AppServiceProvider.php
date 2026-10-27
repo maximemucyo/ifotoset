@@ -46,6 +46,19 @@ class AppServiceProvider extends ServiceProvider
             return $user->role === 'admin';
         });
 
+        // Studio team abilities ("studio.billing", "studio.galleries.delete", ...) for the current studio account
+        foreach (\App\Enums\AccountRole::abilities() as $ability) {
+            \Illuminate\Support\Facades\Gate::define("studio.{$ability}", fn (\App\Models\User $user) => \App\Support\StudioAccount::current()?->can($ability) ?? false);
+        }
+
+        // The studio account a request works in (the owner's user row); the logged-in user outside studio routes
+        \Illuminate\Http\Request::macro('account', function () {
+            /** @var \Illuminate\Http\Request $this */
+            $context = $this->attributes->get(\App\Support\StudioAccount::REQUEST_ATTRIBUTE);
+
+            return $context instanceof \App\Support\StudioAccount ? $context->account() : $this->user();
+        });
+
         \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function (\App\Models\User $user, string $token) {
             return route('password.reset', ['token' => $token, 'email' => $user->email]);
         });

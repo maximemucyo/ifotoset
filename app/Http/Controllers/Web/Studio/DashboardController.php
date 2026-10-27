@@ -15,7 +15,7 @@ class DashboardController extends Controller
      */
     public function index(Request $request, StudioDashboardQuery $query): View
     {
-        $user = $request->user();
+        $user = $request->account();
         $data = $query->get($user);
 
         // Every recent gallery belongs to this user: hydrate the relation so

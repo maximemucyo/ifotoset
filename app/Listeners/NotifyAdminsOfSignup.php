@@ -18,7 +18,9 @@ class NotifyAdminsOfSignup
 
         AdminAlerts::send(new AdminAlertMail(
             headline: 'New signup: ' . $user->name,
-            summary: "{$user->name} ({$user->email}) created a studio.",
+            summary: $user->username
+                ? "{$user->name} ({$user->email}) created a studio."
+                : "{$user->name} ({$user->email}) joined a team studio by invitation.",
             details: array_filter([
                 'Username' => $user->username,
                 'Email' => $user->email,

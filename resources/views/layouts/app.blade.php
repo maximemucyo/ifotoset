@@ -10,10 +10,12 @@
 <body class="h-full bg-sidebar text-foreground antialiased">
     <x-ui.skip-link />
     <x-admin.impersonation-banner />
+    <x-studio.team-context-banner />
     <x-studio.over-quota-banner />
     @php
-        $pendingBookings = auth()->check()
-            ? \Illuminate\Support\Facades\Cache::remember('studio:pending-bookings:' . auth()->id(), 60, fn () => auth()->user()->bookings()->where('status', 'pending')->count())
+        $studioOwner = auth()->check() ? request()->account() : null;
+        $pendingBookings = $studioOwner
+            ? \Illuminate\Support\Facades\Cache::remember('studio:pending-bookings:' . $studioOwner->id, 60, fn () => $studioOwner->bookings()->where('status', 'pending')->count())
             : 0;
     @endphp
     @include('layouts.partials.shell', [
@@ -23,8 +25,8 @@
             ['label' => null, 'items' => [
                 ['label' => 'Overview', 'route' => 'studio.dashboard', 'icon' => 'layout-dashboard'],
                 ['label' => 'Galleries', 'route' => 'studio.galleries.index', 'icon' => 'images', 'match' => ['studio.galleries.*']],
-                ['label' => 'Portfolio', 'route' => 'studio.portfolio.edit', 'icon' => 'palette'],
-                ['label' => 'Analytics', 'route' => 'studio.analytics.index', 'icon' => 'chart-column'],
+                ['label' => 'Portfolio', 'route' => 'studio.portfolio.edit', 'icon' => 'palette', 'can' => 'studio.profile.manage'],
+                ['label' => 'Analytics', 'route' => 'studio.analytics.index', 'icon' => 'chart-column', 'can' => 'studio.analytics.view'],
             ]],
             ['label' => 'Business', 'items' => [
                 ['label' => 'Bookings', 'route' => 'studio.bookings.index', 'icon' => 'calendar-check', 'badge' => $pendingBookings ?: null],
@@ -33,7 +35,8 @@
                 ['label' => 'Packages', 'route' => 'studio.packages.index', 'icon' => 'package'],
             ]],
             ['label' => 'Account', 'items' => [
-                ['label' => 'Billing & plans', 'route' => 'studio.billing.index', 'icon' => 'credit-card'],
+                ['label' => 'Billing & plans', 'route' => 'studio.billing.index', 'icon' => 'credit-card', 'can' => 'studio.billing'],
+                ['label' => 'Team', 'route' => 'studio.team.index', 'icon' => 'user-plus', 'can' => 'studio.team.view'],
                 ['label' => 'Settings', 'route' => 'studio.settings.index', 'icon' => 'settings'],
                 ['label' => 'Trash', 'route' => 'studio.trash.index', 'icon' => 'trash-2'],
             ]],

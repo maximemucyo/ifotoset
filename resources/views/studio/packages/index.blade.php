@@ -2,7 +2,7 @@
 
 @section('content')
 @php
-    $collectsDeposits = auth()->user()->hasFeature('booking_deposits');
+    $collectsDeposits = request()->account()->hasFeature('booking_deposits');
     $depositPlan = $collectsDeposits ? null : \App\Models\Plan::whereHas('features', fn ($q) => $q->where('code', 'booking_deposits'))->orderBy('monthly_price')->first();
     $depositUpgradeUrl = $depositPlan
         ? route('studio.billing.checkout', $depositPlan->slug) . '?return_to=' . urlencode(route('studio.packages.index'))

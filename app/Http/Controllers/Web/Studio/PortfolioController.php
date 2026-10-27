@@ -26,7 +26,7 @@ class PortfolioController extends Controller
 
     public function edit(Request $request): View
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $galleries = $user->galleries()
             ->where('visibility', 'public')
@@ -51,7 +51,7 @@ class PortfolioController extends Controller
     {
         abort_unless(in_array($part, self::PARTS, true), 404);
 
-        $user = $request->user();
+        $user = $request->account();
         $values = match ($part) {
             'design' => $this->design($request),
             'branding' => $request->validate([
@@ -88,7 +88,7 @@ class PortfolioController extends Controller
             'galleries.*.category.max' => 'Categories can be up to 60 characters.',
         ]);
 
-        $user = $request->user();
+        $user = $request->account();
         $rows = collect($validated['galleries'])->values();
 
         $galleries = $user->galleries()
@@ -123,7 +123,7 @@ class PortfolioController extends Controller
             'sha256' => ['required', 'string', 'size:64'],
         ]);
 
-        return response()->json($action->requestUpload($request->user(), $kind, $validated['filename'], $validated['sha256']), 201);
+        return response()->json($action->requestUpload($request->account(), $kind, $validated['filename'], $validated['sha256']), 201);
     }
 
     public function confirmImageUpload(Request $request, string $kind, UploadPortfolioImageAction $action): JsonResponse
@@ -133,7 +133,7 @@ class PortfolioController extends Controller
         ]);
 
         try {
-            $url = $action->confirmUpload($request->user(), $kind, $validated['object_key']);
+            $url = $action->confirmUpload($request->account(), $kind, $validated['object_key']);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -148,7 +148,7 @@ class PortfolioController extends Controller
 
     public function destroyImage(Request $request, string $kind, UploadPortfolioImageAction $action): JsonResponse
     {
-        $action->remove($request->user(), $kind);
+        $action->remove($request->account(), $kind);
 
         return response()->json(['message' => 'Image removed.']);
     }
@@ -178,7 +178,7 @@ class PortfolioController extends Controller
             'brand_color.regex' => 'Use a hex colour such as #c2410c.',
         ]);
 
-        if (PortfolioSettings::isPremiumTemplate($validated['template']) && !$request->user()->hasFeature(PortfolioSettings::PREMIUM_FEATURE)) {
+        if (PortfolioSettings::isPremiumTemplate($validated['template']) && !$request->account()->hasFeature(PortfolioSettings::PREMIUM_FEATURE)) {
             throw ValidationException::withMessages([
                 'template' => 'The ' . PortfolioSettings::TEMPLATES[$validated['template']]['name'] . ' template is available on paid plans. Upgrade to use it.',
             ]);

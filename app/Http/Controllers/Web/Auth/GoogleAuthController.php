@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers\Web\Auth;
 
+use App\Actions\Teams\AcceptTeamInvitation;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\TeamInvitationController;
+use App\Models\AccountInvitation;
 use App\Models\Plan;
 use App\Models\User;
+use App\Rules\StudioPhone;
 use App\Support\GoogleAnalytics;
+use App\Support\Phone;
+use App\Support\StudioAccount;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -83,7 +89,14 @@ class GoogleAuthController extends Controller
         $user = User::withTrashed()->where('google_id', $profile['sub'])->first()
             ?? User::withTrashed()->where('email', $profile['email'])->first();
 
+        // Started from a team invitation: an existing user signs in and confirms on the invite page
+        $inviteToken = $request->session()->pull(TeamInvitationController::GOOGLE_SESSION_KEY);
+
         if (!$user) {
+            if ($inviteToken) {
+                return $this->joinTeam($request, $inviteToken, $profile);
+            }
+
             $request->session()->put(self::PROFILE_KEY, $profile);
 
             return redirect()->route('auth.google.complete');
@@ -122,7 +135,35 @@ class GoogleAuthController extends Controller
     }
 
     /**
-     * Second sign-up step: choose the studio URL.
+     * A new visitor accepting a team invitation joins without a studio of their own, so no username step.
+     */
+    private function joinTeam(Request $request, string $token, array $profile): RedirectResponse
+    {
+        $acceptor = app(AcceptTeamInvitation::class);
+        $invitation = AccountInvitation::findByToken($token);
+
+        if ($problem = $acceptor->problem($invitation)) {
+            return $this->fail($problem);
+        }
+        if (Str::lower($invitation->email) !== $profile['email']) {
+            return $this->fail("This invitation was sent to {$invitation->email}. Continue with that Google account, or create a password instead.");
+        }
+
+        $user = TeamInvitationController::createInvitedUser($invitation, $profile['name'], Hash::make(Str::random(64)), $profile['sub']);
+        $acceptor->execute($invitation, $user);
+
+        Auth::login($user, true);
+        $request->session()->regenerate();
+        $request->session()->forget('url.intended');
+        $request->session()->put(StudioAccount::SESSION_KEY, $invitation->account_id);
+
+        GoogleAnalytics::track($request, $user, 'sign_up', ['method' => 'google_team_invite']);
+
+        return redirect()->route('studio.dashboard')->with('success', "Welcome to {$invitation->account->name}! You're now part of the team.");
+    }
+
+    /**
+     * Second sign-up step: choose the studio URL and add a phone number.
      */
     public function showCompleteForm(Request $request): View|RedirectResponse
     {
@@ -158,6 +199,8 @@ class GoogleAuthController extends Controller
                 'unique:users,username',
                 Rule::notIn(config('reserved_usernames', [])),
             ],
+            'phone_country' => ['nullable', 'string', 'size:2'],
+            'phone' => ['required', 'string', 'max:30', new StudioPhone()],
         ]);
 
         // The email or Google account may have registered in another tab since the callback
@@ -184,6 +227,7 @@ class GoogleAuthController extends Controller
             'name' => $validated['name'],
             'username' => $validated['username'],
             'email' => $profile['email'],
+            'phone' => Phone::normalize($validated['phone'], $validated['phone_country'] ?? null),
             'google_id' => $profile['sub'],
             'email_verified_at' => now(),
             // Unusable until they set one through "Forgot password"

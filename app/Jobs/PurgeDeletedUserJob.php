@@ -63,6 +63,10 @@ class PurgeDeletedUserJob implements ShouldQueue
                 DB::table($table)->where('user_id', $user->id)->delete();
             }
 
+            // Team memberships in both directions and the studio's invitations
+            DB::table('account_members')->where('account_id', $user->id)->orWhere('user_id', $user->id)->delete();
+            DB::table('account_invitations')->where('account_id', $user->id)->delete();
+
             $user->forceFill([
                 'name' => 'Deleted user',
                 'email' => "deleted-{$user->id}@deleted.invalid",

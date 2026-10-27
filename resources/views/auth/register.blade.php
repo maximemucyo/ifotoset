@@ -62,6 +62,11 @@
                 placeholder="you@studio.com"
                 :error="$errors->first('email')" />
 
+    <x-ui.phone-input label="Phone number"
+                      required
+                      placeholder="788 123 456"
+                      :error="$errors->first('phone')" />
+
     <div>
         <x-ui.input label="Password"
                     type="password"

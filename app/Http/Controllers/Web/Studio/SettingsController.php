@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web\Studio;
 
 use App\Http\Controllers\Controller;
+use App\Rules\StudioPhone;
 use App\Services\StorageStatisticsService;
+use App\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,12 +19,14 @@ class SettingsController extends Controller
      */
     public function index(Request $request, StorageStatisticsService $storageService): View
     {
-        $user = $request->user();
-        $storage = $storageService->getStorageStats($user);
+        $account = $request->account();
+        $storage = $storageService->getStorageStats($account);
 
         return view('studio.settings.index', [
-            'user'    => $user,
-            'plan'    => $user->plan,
+            // The studio's profile; a team member edits only their own name and photo
+            'user'    => $account,
+            'actor'   => $request->user(),
+            'plan'    => $account->plan,
             'storage' => $storage,
         ]);
     }
@@ -32,7 +36,15 @@ class SettingsController extends Controller
      */
     public function updateProfile(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
+
+        // Team members working in someone else's studio only change their own display name
+        if ($user->id !== $request->user()->id) {
+            $validated = $request->validate(['name' => ['required', 'string', 'max:255']]);
+            $request->user()->update(['name' => $validated['name']]);
+
+            return back()->with('success', 'Profile updated successfully.');
+        }
 
         $validated = $request->validate([
             'name'     => ['required', 'string', 'max:255'],
@@ -41,12 +53,15 @@ class SettingsController extends Controller
             'specialties'   => ['nullable', 'array', 'max:' . config('directory.max_specialties')],
             'specialties.*' => ['string', 'distinct', \Illuminate\Validation\Rule::in(array_keys(config('directory.specialties')))],
             'website'  => ['nullable', 'url', 'max:255'],
-            'phone'    => ['nullable', 'string', 'max:50'],
+            'phone_country' => ['nullable', 'string', 'size:2'],
+            'phone'    => ['nullable', 'string', 'max:30', new StudioPhone($user)],
         ], [
             'specialties.max' => 'Choose up to ' . config('directory.max_specialties') . ' specialties.',
         ]);
 
         $validated['specialties'] = array_values($validated['specialties'] ?? []) ?: null;
+        $validated['phone'] = Phone::normalize($validated['phone'] ?? null, $validated['phone_country'] ?? null);
+        unset($validated['phone_country']);
 
         // The portfolio is already their website: linking it to itself would add nothing
         if (filled($validated['website'] ?? null) && $user->username
@@ -60,11 +75,38 @@ class SettingsController extends Controller
     }
 
     /**
+     * Save the phone number from the dashboard prompt.
+     */
+    public function updatePhone(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'phone_country' => ['nullable', 'string', 'size:2'],
+            'phone' => ['required', 'string', 'max:30', new StudioPhone($user)],
+        ]);
+
+        $user->update(['phone' => Phone::normalize($validated['phone'], $validated['phone_country'] ?? null)]);
+
+        return back()->with('success', 'Phone number saved.');
+    }
+
+    /**
+     * Hide the phone prompt for a while.
+     */
+    public function dismissPhonePrompt(Request $request): RedirectResponse
+    {
+        $request->user()->forceFill(['phone_prompt_dismissed_at' => now()])->save();
+
+        return back();
+    }
+
+    /**
      * Update the public portfolio address (username) and whether the profile is publicly visible.
      */
     public function updatePublicProfile(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $request->merge(['username' => strtolower(trim((string) $request->input('username')))]);
 
@@ -142,7 +184,7 @@ class SettingsController extends Controller
      */
     public function exportData(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        $user = $request->user();
+        $user = $request->account();
 
         $payload = [
             'exported_at' => now()->toIso8601String(),
@@ -179,6 +221,14 @@ class SettingsController extends Controller
                 ]),
             'payments' => \App\Models\Payment::where('user_id', $user->id)->orderBy('id')->get()
                 ->map(fn ($payment) => $payment->only(['amount', 'currency', 'status', 'purpose', 'billing_cycle', 'created_at'])),
+            'team' => $user->teamMembers()->with('user:id,name,email')->orderBy('id')->get()
+                ->map(fn ($member) => [
+                    'name' => $member->user?->name,
+                    'email' => $member->user?->email,
+                    'role' => $member->role->value,
+                    'suspended' => $member->isSuspended(),
+                    'joined_at' => $member->created_at,
+                ]),
             'note' => 'Photo files are not included. Download them per gallery with the ZIP export.',
         ];
 
@@ -197,6 +247,13 @@ class SettingsController extends Controller
      */
     public function destroyAccount(Request $request): RedirectResponse
     {
+        // This deletes the logged-in person's own login and studio. Inside a team
+        // studio only members without a studio of their own may do it from here.
+        $context = \App\Support\StudioAccount::current();
+        if ($context->isTeamContext() && $request->user()->hasOwnStudio()) {
+            return back()->with('error', 'Switch to your own studio to delete your account.');
+        }
+
         $request->validate([
             'delete_password' => ['required', 'current_password'],
             'confirm' => ['required', 'in:DELETE'],
@@ -211,6 +268,10 @@ class SettingsController extends Controller
             \App\Models\Subscription::where('user_id', $user->id)
                 ->where('status', \App\Enums\SubscriptionStatus::Active->value)
                 ->update(['status' => \App\Enums\SubscriptionStatus::Canceled->value]);
+
+            // Their team (as owner) and their memberships elsewhere end with the account
+            \App\Models\AccountMember::where('account_id', $user->id)->orWhere('user_id', $user->id)->delete();
+            \App\Models\AccountInvitation::where('account_id', $user->id)->pending()->update(['revoked_at' => now()]);
 
             $user->delete();
         });

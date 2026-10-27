@@ -51,7 +51,7 @@ class UploadController extends Controller
 
         $idempotencyKey = $request->header('Idempotency-Key') ?? md5($validated['gallery_id'] . $validated['filename'] . $validated['sha256']);
 
-        $user = $request->user();
+        $user = $request->account();
         $gallery = Gallery::where('uuid', $validated['gallery_id'])
             ->where('user_id', $user->id)
             ->firstOrFail();
@@ -138,7 +138,7 @@ class UploadController extends Controller
 
         try {
             $photo = $this->uploadService->confirmUpload(
-                $request->user(),
+                $request->account(),
                 $validated['upload_session_id']
             );
 
@@ -167,7 +167,7 @@ class UploadController extends Controller
         ]);
 
         $this->uploadService->abortUpload(
-            $request->user(),
+            $request->account(),
             $validated['upload_session_id'],
             $validated['reason'] ?? null
         );

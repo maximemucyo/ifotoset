@@ -75,7 +75,7 @@
         $months = $monthsFree($plan);
         $saving = $hasAnnual && $fullYear > $annual ? (int) round((1 - $annual / $fullYear) * 100) : 0;
         $perMonth = $hasAnnual ? $annual / 12 : $monthly;
-        $perMonthNote = '≈ ' . $money($perMonth, $plan->currency) . '/mo';
+        $billedNote = $money($annual, $plan->currency) . ' billed yearly';
 
         return [
             'slug' => $plan->slug,
@@ -88,14 +88,14 @@
             'currency' => $plan->currency,
             'monthly' => number_format($monthly, 0),
             'hasAnnual' => $hasAnnual,
-            // Yearly view leads with the real annual total; plans without an annual price stay monthly.
-            'yearly' => number_format($hasAnnual ? $annual : $monthly, 0),
-            'yearlyUnit' => $hasAnnual ? '/year' : '/month',
-            'yearlyCompare' => $saving > 0 ? $money($fullYear, $plan->currency) : null,
+            // Yearly view leads with the rounded per-month equivalent; the annual total sits in the note below.
+            'yearly' => number_format($perMonth, 0),
+            'yearlyUnit' => '/month',
+            'yearlyCompare' => $saving > 0 ? $money($monthly, $plan->currency) : null,
             'yearlyNote' => match (true) {
-                $months !== null => $perMonthNote . ' · ' . $months . ' ' . ($months === 1 ? 'month' : 'months') . ' free',
-                $saving > 0 => $perMonthNote . ' · Save ' . $saving . '%',
-                $hasAnnual => 'Billed annually',
+                $months !== null => $billedNote . ' · ' . $months . ' ' . ($months === 1 ? 'month' : 'months') . ' free',
+                $saving > 0 => $billedNote . ' · Save ' . $saving . '%',
+                $hasAnnual => 'Billed yearly',
                 default => 'Billed monthly',
             },
             'features' => array_map(fn ($f) => match ($f) {

@@ -41,6 +41,12 @@ class FeatureSeeder extends Seeder
             'name' => 'Premium Portfolio Templates',
         ]);
 
+        $teams = Feature::firstOrCreate([
+            'code' => 'teams',
+        ], [
+            'name' => 'Multi-user Team Accounts',
+        ]);
+
         // Feature links are only seeded the first time a feature is created.
         // After that admins own the plan/feature matrix, and this seeder runs
         // on every deploy, so it must not re-add features they removed.
@@ -49,7 +55,7 @@ class FeatureSeeder extends Seeder
         $matrix = [
             'basic' => [$premiumTemplates],
             'pro' => [$customDomain, $bookingDeposits, $premiumTemplates],
-            'business' => [$customDomain, $bookingManager, $prioritySupport, $bookingDeposits, $premiumTemplates],
+            'business' => [$customDomain, $bookingManager, $prioritySupport, $bookingDeposits, $premiumTemplates, $teams],
         ];
 
         foreach ($matrix as $slug => $features) {

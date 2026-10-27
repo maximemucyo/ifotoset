@@ -75,6 +75,32 @@
     </x-slot:actions>
 </x-ui.page-header>
 
+{{-- Phone prompt for owners who signed up before it was asked --}}
+@if(auth()->id() === $user->id && $user->shouldPromptForPhone())
+    <section class="card mb-6 p-5">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start gap-3.5">
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20"><x-icon name="phone" class="size-4" /></span>
+                <div>
+                    <h2 class="text-[15px] font-semibold text-foreground">Add a phone number to your account</h2>
+                    <p class="mt-0.5 text-[13px] text-muted-foreground">We'll use it for billing and important account updates.</p>
+                </div>
+            </div>
+            <form method="POST" action="{{ route('studio.settings.phone.dismiss') }}">
+                @csrf
+                <button type="submit" class="btn btn-ghost btn-icon btn-sm" aria-label="Remind me later"><x-icon name="x" /></button>
+            </form>
+        </div>
+        <form method="POST" action="{{ route('studio.settings.phone') }}" class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:pl-[3.375rem]">
+            @csrf
+            <div class="sm:w-80">
+                <x-ui.phone-input placeholder="788 123 456" :error="$errors->first('phone')" />
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </section>
+@endif
+
 {{-- KPI row --}}
 <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
     <x-studio.stat-card label="Galleries" :value="number_format($totalGalleries)" icon="images"
@@ -245,11 +271,13 @@
                 </div>
             @endunless
             <div class="mt-4 flex gap-2 border-t border-border pt-4">
-                @if($isFreePlan || $storagePct >= 75)
+                @cannot('studio.billing')
+                    {{-- Team members: the owner handles the plan --}}
+                @elseif($isFreePlan || $storagePct >= 75)
                     <a href="{{ route('studio.billing.index') }}" class="btn btn-brand btn-sm flex-1"><x-icon name="zap" /> Upgrade plan</a>
                 @else
                     <a href="{{ route('studio.billing.index') }}" class="btn btn-outline btn-sm flex-1">Manage plan</a>
-                @endif
+                @endcannot
                 <a href="{{ route('studio.trash.index') }}" class="btn btn-ghost btn-sm"><x-icon name="trash-2" /> Trash</a>
             </div>
         </section>

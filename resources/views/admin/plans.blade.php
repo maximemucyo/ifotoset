@@ -130,13 +130,21 @@
                     </div>
                 </div>
 
-                {{-- Read-only video & team limits --}}
-                <dl class="mx-5 mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+                <div class="px-5 pb-5">
+                    <label class="label" for="plan-{{ $plan->id }}-team">Team seats</label>
+                    <div class="relative w-40">
+                        <input id="plan-{{ $plan->id }}-team" type="number" step="1" min="0" max="100" name="team_limit" value="{{ (int) $plan->team_limit }}" required class="input pr-16 tabular-nums">
+                        <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">+ owner</span>
+                    </div>
+                    <p class="help">Only used when the plan has the <span class="font-mono">teams</span> feature. Lowering it pauses the newest members.</p>
+                </div>
+
+                {{-- Read-only video limits --}}
+                <dl class="mx-5 mb-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border">
                     @foreach([
                         ['Video quota', $fmtMinutes($plan->video_limit_seconds), 'video'],
                         ['Max clip length', $fmtMinutes($plan->max_single_video_duration_seconds), 'timer'],
                         ['Max video file', $fmtGb($plan->max_video_size_bytes), 'hard-drive'],
-                        ['Team seats', (int) $plan->team_limit > 0 ? number_format($plan->team_limit) : '—', 'users'],
                     ] as [$label, $value, $icon])
                         <div class="bg-card px-3 py-2.5">
                             <dt class="flex items-center gap-1.5 text-[11px] text-muted-foreground"><x-icon :name="$icon" class="size-3" /> {{ $label }}</dt>
@@ -164,7 +172,7 @@
         @endforeach
     </div>
     <p class="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <x-icon name="info" class="size-3.5" /> Video and team limits are shown for reference and can’t be edited from this page.
+        <x-icon name="info" class="size-3.5" /> Video limits are shown for reference and can’t be edited from this page.
     </p>
 @endif
 @endsection

@@ -159,6 +159,7 @@ class WebFullStackTest extends TestCase
             'name' => 'New Photographer',
             'username' => 'newphotographer',
             'email' => 'new@example.com',
+            'phone' => '0788123456',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ]);

@@ -80,12 +80,12 @@
     'billingPlansUrl' => route('studio.billing.index') . '?return_to=' . urlencode(request()->getRequestUri()),
     'userStorage' => $userStorage ?? [],
     'userVideo' => [
-        'has_video' => auth()->user()->hasVideoSupport(),
-        'used_seconds' => auth()->user()->video_seconds_used,
-        'reserved_seconds' => auth()->user()->video_seconds_reserved,
-        'limit_seconds' => auth()->user()->plan?->video_limit_seconds ?? 0,
-        'available_seconds' => auth()->user()->getAvailableVideoSeconds(),
-        'formatted' => auth()->user()->getVideoUsageFormatted(),
+        'has_video' => request()->account()->hasVideoSupport(),
+        'used_seconds' => request()->account()->video_seconds_used,
+        'reserved_seconds' => request()->account()->video_seconds_reserved,
+        'limit_seconds' => request()->account()->plan?->video_limit_seconds ?? 0,
+        'available_seconds' => request()->account()->getAvailableVideoSeconds(),
+        'formatted' => request()->account()->getVideoUsageFormatted(),
     ],
     'upgradePlans' => collect($upgradePlans ?? [])->map(fn ($p) => [
         'id' => $p->id,

@@ -1,5 +1,5 @@
 @php
-    $overQuotaUser = auth()->user();
+    $overQuotaUser = auth()->check() ? request()->account() : null;
     $overQuotaStage = $overQuotaUser?->overQuotaStage();
 @endphp
 @if($overQuotaStage)
@@ -20,7 +20,9 @@
         </p>
         <div class="flex shrink-0 gap-2">
             <a href="{{ route('studio.galleries.index') }}" class="btn btn-xs bg-white/15 text-white hover:bg-white/25">Free up space</a>
-            <a href="{{ route('studio.billing.index') }}" class="btn btn-xs bg-white text-destructive hover:bg-white/90">Upgrade</a>
+            @can('studio.billing')
+                <a href="{{ route('studio.billing.index') }}" class="btn btn-xs bg-white text-destructive hover:bg-white/90">Upgrade</a>
+            @endcan
         </div>
     </div>
 @endif
