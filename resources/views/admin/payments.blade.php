@@ -32,7 +32,7 @@
     };
 @endphp
 
-<x-ui.page-header title="Payments" description="Subscription payments, booking deposits and PawaPay mobile money receipts across the platform." />
+<x-ui.page-header title="Payments" description="Subscription payments, booking deposits and mobile money receipts across the platform." />
 
 {{-- KPI row --}}
 <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

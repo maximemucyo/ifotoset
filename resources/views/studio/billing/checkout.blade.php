@@ -242,7 +242,7 @@
 
                         <p class="mt-4 text-center text-xs text-muted-foreground">
                             <x-icon name="shield-check" class="-mt-0.5 mr-1 inline size-3.5 text-success" />
-                            Processed securely by PawaPay. We never see your PIN.
+                            Your payment is processed securely. We never see your PIN.
                         </p>
                     </fieldset>
                 </form>

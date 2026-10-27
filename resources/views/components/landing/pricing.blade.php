@@ -232,7 +232,7 @@
             </div>
 
             <p class="mx-auto mt-10 max-w-2xl text-center text-[12.5px] leading-relaxed text-muted-foreground">
-                Prices in {{ $plans->first()->currency }}. Large uploads are transcoded automatically. Storage and video allowances are subject to fair use.
+                Prices in {{ $plans->first()->currency }}. Large videos are optimized automatically. Storage and video allowances are subject to fair use.
             </p>
         @endif
     </div>

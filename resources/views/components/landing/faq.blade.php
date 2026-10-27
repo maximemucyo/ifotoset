@@ -27,7 +27,7 @@ $faqItems = $items ?? [
     ],
     [
         'question' => 'How does video hosting work?',
-        'answer' => 'Video hosting is optimized for premium client delivery (such as highlight films, ceremony recordings, or commercial clips). Basic includes up to 30 minutes, Professional includes up to 5 hours, and Business includes up to 15 hours of total hosted video. All uploads are transcoded and optimized to ensure ultra-fast client playback.'
+        'answer' => 'Video hosting is optimized for premium client delivery (such as highlight films, ceremony recordings, or commercial clips). Basic includes up to 30 minutes, Professional includes up to 5 hours, and Business includes up to 15 hours of total hosted video. All uploads are optimized to ensure ultra-fast client playback.'
     ],
     [
         'question' => 'Can I customize my portfolio?',
