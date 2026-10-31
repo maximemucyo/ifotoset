@@ -59,6 +59,10 @@ fi
 # --- 2. Switch the code ------------------------------------------------------------------------
 git reset --hard "$TARGET"
 
+# The autoloader is classmap-authoritative, so classes added in this release don't exist until the
+# classmap is rebuilt. Rebuild it right away (about 2 s) instead of waiting for the full install.
+"$PHP" "$COMPOSER" dump-autoload --optimize --classmap-authoritative --no-scripts --no-interaction
+
 "$PHP" "$COMPOSER" install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress
 
 # Drop stale caches (an old cached config can point at services that are gone), then rebuild
