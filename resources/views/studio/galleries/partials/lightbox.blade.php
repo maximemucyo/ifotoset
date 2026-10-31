@@ -18,6 +18,7 @@
         <div class="flex min-w-0 items-center gap-2.5">
             <span class="shrink-0 rounded-md bg-white/10 px-2 py-0.5 font-mono text-[11px] tabular-nums text-white/80" x-text="(lightboxIndex + 1) + ' / ' + photos.length"></span>
             <span class="min-w-0 truncate text-sm font-medium" x-text="currentPhoto ? (currentPhoto.original_filename || currentPhoto.filename) : ''"></span>
+            <span class="hidden shrink-0 text-xs tabular-nums text-white/60 md:inline" x-show="currentPhoto && currentPhoto.taken_label" x-text="currentPhoto ? 'Taken ' + currentPhoto.taken_label : ''"></span>
             <template x-if="currentPhoto && currentPhoto.is_cover">
                 <span class="hidden shrink-0 items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-black sm:inline-flex"><x-icon name="star" class="size-3 fill-current" /> Cover</span>
             </template>

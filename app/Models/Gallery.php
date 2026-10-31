@@ -19,6 +19,15 @@ class Gallery extends Model
      */
     public const RESERVED_SLUGS = ['book', 'about', 'contact'];
 
+    /**
+     * How photos are ordered in the gallery, keyed by the stored `photo_order` value.
+     */
+    public const PHOTO_ORDERS = [
+        'taken' => 'Date taken',
+        'filename' => 'File name',
+        'uploaded' => 'Upload order',
+    ];
+
     protected $fillable = [
         'uuid',
         'user_id',
@@ -38,6 +47,7 @@ class Gallery extends Model
         'allow_photo_downloads',
         'allow_gallery_downloads',
         'allow_google_photos',
+        'photo_order',
         'download_pin',
         'password_hash',
         'password_hint',
@@ -46,6 +56,10 @@ class Gallery extends Model
         'version',
         'featured_order',
         'portfolio_category',
+    ];
+
+    protected $attributes = [
+        'photo_order' => 'taken',
     ];
 
     protected static function booted(): void

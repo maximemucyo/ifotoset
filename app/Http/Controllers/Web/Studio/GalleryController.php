@@ -119,6 +119,7 @@ class GalleryController extends Controller
             'allow_gallery_downloads' => ['nullable', 'boolean'],
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
+            'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             'invite_emails' => ['nullable', 'string'],
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
@@ -150,6 +151,7 @@ class GalleryController extends Controller
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads', true),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
             'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
+            'photo_order' => $validated['photo_order'] ?? 'taken',
             'version' => 1,
         ]);
 
@@ -206,6 +208,7 @@ class GalleryController extends Controller
                 'blurhash' => $photo->blurhash,
                 'is_hidden' => (bool) $photo->is_hidden,
                 'is_cover' => $coverId === $photo->id,
+                'taken_label' => $photo->taken_at?->format('j M Y, H:i:s'),
                 'created_at' => $photo->created_at?->toIso8601String(),
             ];
         })->values();
@@ -266,6 +269,7 @@ class GalleryController extends Controller
                 'blurhash' => $photo->blurhash,
                 'is_hidden' => (bool) $photo->is_hidden,
                 'is_cover' => $coverId === $photo->id,
+                'taken_label' => $photo->taken_at?->format('j M Y, H:i:s'),
                 'created_at' => $photo->created_at?->toIso8601String(),
             ];
         });
@@ -378,6 +382,7 @@ class GalleryController extends Controller
             'allow_gallery_downloads' => ['nullable', 'boolean'],
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
+            'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             'invite_emails' => ['nullable', 'string'],
             'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
         ], [
@@ -398,6 +403,7 @@ class GalleryController extends Controller
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads'),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads'),
             'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
+            'photo_order' => $validated['photo_order'] ?? $gallery->photo_order,
         ];
 
         if (!empty($validated['password'])) {

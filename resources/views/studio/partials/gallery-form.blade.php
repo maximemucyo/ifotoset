@@ -19,6 +19,12 @@
     $downloadPinEnabled = $isEdit && $gallery->requiresDownloadPin();
     // Suggest a fresh PIN so turning the switch on is all it takes
     $downloadPin = $isEdit && $gallery->download_pin ? $gallery->download_pin : str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+    $photoOrder = old('photo_order', $isEdit ? $gallery->photo_order : 'taken');
+    $photoOrderHints = [
+        'taken'    => 'Follows the camera clock, so the day reads in sequence. Burst shots fall back to file number.',
+        'filename' => 'Follows camera file numbers (e.g. IMG_0100, IMG_0103). Useful when camera clocks were out of sync.',
+        'uploaded' => 'The order files finished uploading.',
+    ];
     if (old('_token')) {
         $photoDownloads = (bool) old('allow_photo_downloads');
         $galleryDownloads = (bool) old('allow_gallery_downloads');
@@ -203,6 +209,26 @@
                     </div>
                 @endif
             </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    {{-- Photo order --}}
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <div class="lg:pt-5">
+            <h2 class="text-[15px] font-semibold text-foreground">Photo order</h2>
+            <p class="mt-1 text-[13px] text-muted-foreground">How photos are arranged for you and your client.</p>
+        </div>
+        <div class="card p-5 sm:p-6" x-data="{ order: @js($photoOrder), hints: @js($photoOrderHints) }">
+            <label for="photo_order" class="label">Sort photos by</label>
+            <select id="photo_order" name="photo_order" class="select max-w-xs" x-model="order">
+                @foreach(\App\Models\Gallery::PHOTO_ORDERS as $value => $label)
+                    <option value="{{ $value }}" @selected($photoOrder === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            <p class="help" x-text="hints[order]">{{ $photoOrderHints[$photoOrder] ?? '' }}</p>
+            @error('photo_order') <p class="error-text">{{ $message }}</p> @enderror
         </div>
     </section>
 

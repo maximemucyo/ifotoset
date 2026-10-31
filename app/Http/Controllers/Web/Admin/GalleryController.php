@@ -46,10 +46,8 @@ class GalleryController extends Controller
             ->with(['user', 'stats', 'coverPhoto'])
             ->firstOrFail();
 
-        $photos = $gallery->photos()
-            ->whereNull('deleted_at')
-            ->orderBy('sort_date', 'asc')
-            ->orderBy('sort_order', 'asc')
+        $photos = app(\App\Queries\GalleryPhotoQuery::class)
+            ->applyOrder($gallery->photos()->whereNull('deleted_at'), $gallery)
             ->paginate(48);
 
         return view('admin.galleries.preview', [
