@@ -385,7 +385,7 @@
             </div>
             <button type="button"
                     id="gallery-end"
-                    onclick="(document.getElementById('gallery-action-bar') || document.getElementById('gallery-container'))?.scrollIntoView({ behavior: 'smooth' })"
+                    onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
                     class="group flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
                     aria-label="Back to top">
                 <span class="flex size-10 items-center justify-center rounded-full border border-border transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:border-border-strong">
