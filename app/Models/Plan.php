@@ -52,6 +52,9 @@ class Plan extends Model
         // Keep the landing page pricing in sync with admin edits.
         static::saved(fn () => Cache::forget(self::LANDING_CACHE_KEY));
         static::deleted(fn () => Cache::forget(self::LANDING_CACHE_KEY));
+        // Prices appear on the cached home and pricing pages
+        static::saved(fn () => app(\App\Services\GalleryCachePurgeService::class)->queueMainSite());
+        static::deleted(fn () => app(\App\Services\GalleryCachePurgeService::class)->queueMainSite());
     }
 
     public function getVideoLimitSecondsAttribute(): int

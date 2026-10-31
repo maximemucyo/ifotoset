@@ -14,6 +14,44 @@ if (token) {
 }
 
 /* -------------------------------------------------------------------------
+ | Pages served from Cloudflare's cache carry a token from a discarded session.
+ | When a same-origin POST is rejected as expired (419), fetch a fresh token,
+ | which also starts this visitor's session, and retry once. Later requests
+ | reuse the fresh token.
+ * ---------------------------------------------------------------------- */
+const nativeFetch = window.fetch.bind(window);
+let freshToken = null;
+
+window.fetch = async (input, init = {}) => {
+    const method = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const url = new URL(input instanceof Request ? input.url : input, location.href);
+    if (['GET', 'HEAD', 'OPTIONS'].includes(method) || url.origin !== location.origin || input instanceof Request) {
+        return nativeFetch(input, init);
+    }
+
+    const withToken = (value) => {
+        const headers = new Headers(init.headers || {});
+        if (value) headers.set('X-CSRF-TOKEN', value);
+        return { ...init, headers };
+    };
+
+    const response = await nativeFetch(input, freshToken ? withToken(freshToken) : init);
+    if (response.status !== 419) {
+        return response;
+    }
+
+    const tokenResponse = await nativeFetch('/csrf-token', { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+    if (!tokenResponse.ok) {
+        return response;
+    }
+    freshToken = (await tokenResponse.json()).token;
+    window.csrfToken = freshToken;
+    document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', freshToken);
+
+    return nativeFetch(input, withToken(freshToken));
+};
+
+/* -------------------------------------------------------------------------
  | Theme (light / dark / system)
  | The initial class is applied by an inline <head> script to avoid a flash.
  * ---------------------------------------------------------------------- */

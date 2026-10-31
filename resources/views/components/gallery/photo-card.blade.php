@@ -46,7 +46,7 @@
             aria-label="View {{ $isVideo ? 'video' : 'photo' }} {{ $photo->original_filename }}"></button>
 
     {{-- Blurhash placeholder --}}
-    <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-700"></canvas>
+    <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-300"></canvas>
 
     {{-- Image (poster for video) --}}
     <img src="{{ $thumbnailUrl }}"
@@ -57,7 +57,7 @@
          decoding="async"
          width="{{ $w }}"
          height="{{ $h }}"
-         class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]"
+         class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.025]"
          onload="this.classList.remove('opacity-0'); if (this.previousElementSibling) this.previousElementSibling.classList.add('opacity-0');">
 
     @if($isVideo)

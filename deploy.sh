@@ -92,6 +92,9 @@ if [ -f package.json ]; then
     rm -rf public/build-prev
 fi
 
+# New HTML references the new asset files: drop pages Cloudflare cached from the old release
+"$PHP" artisan edge-cache:purge || true
+
 # --- 4. Workers --------------------------------------------------------------------------------
 # Each worker exits after its current job and pm2 starts it again on the new code. A pm2 restart
 # here would kill a long ZIP export or video transcode halfway.

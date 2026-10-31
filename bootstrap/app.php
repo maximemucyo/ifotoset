@@ -19,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
+        // Outermost, so it sees the cookies the session middleware adds
+        $middleware->append(\App\Http\Middleware\ApplyEdgeCacheHeaders::class);
         $middleware->web(append: [
             \App\Http\Middleware\HandleImpersonationState::class,
             \App\Http\Middleware\SecurityHeaders::class,
@@ -29,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'impersonation.prevent_admin' => \App\Http\Middleware\PreventAdminDuringImpersonation::class,
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
             'noindex' => \App\Http\Middleware\NoIndex::class,
+            'edge.cache' => \App\Http\Middleware\MarkEdgeCacheable::class,
             'studio.account' => \App\Http\Middleware\ResolveStudioAccount::class,
         ]);
         $middleware->replace(

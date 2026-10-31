@@ -64,6 +64,10 @@ class Gallery extends Model
 
     protected static function booted(): void
     {
+        // Cached public pages (portfolio and galleries) show gallery details: clear them on change
+        static::updated(fn (Gallery $gallery) => app(\App\Services\GalleryCachePurgeService::class)->queuePhotographer($gallery->user));
+        static::deleted(fn (Gallery $gallery) => app(\App\Services\GalleryCachePurgeService::class)->queuePhotographer($gallery->user));
+
         // Privacy decides the storage prefix (and so whether the CDN demands a token): move media when it flips.
         static::updated(function (Gallery $gallery) {
             if (!$gallery->wasChanged(['visibility', 'password_hash'])) {

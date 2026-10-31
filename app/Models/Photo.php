@@ -14,6 +14,14 @@ class Photo extends Model
 
     protected static function booted()
     {
+        $purgeCachedPages = function (Photo $photo) {
+            if (\App\Services\GalleryCachePurgeService::configured()) {
+                app(\App\Services\GalleryCachePurgeService::class)->queuePhotographer($photo->gallery?->user);
+            }
+        };
+        static::saved($purgeCachedPages);
+        static::deleted($purgeCachedPages);
+
         static::created(function ($photo) {
             $gallery = $photo->gallery;
             if ($gallery) {

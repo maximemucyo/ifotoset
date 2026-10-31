@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Gallery;
 use App\Models\Photo;
 use App\Queries\GalleryPhotoQuery;
+use App\Support\EdgeCache;
 use App\Queries\GalleryQuery;
 use App\Traits\VerifiesGalleryAccess;
 use App\ValueObjects\GalleryAccessDecision;
@@ -46,6 +47,13 @@ class PublicGalleryController extends Controller
             }
         }
 
+        // Only galleries anyone with the link can open are shared from Cloudflare's cache
+        if (!$gallery->hasPublicLink()) {
+            EdgeCache::skip($request);
+        }
+        // A cached page is shared, so its view is counted by a beacon from the browser instead
+        $trackViewInBrowser = EdgeCache::eligible($request);
+
         // Pure evaluation of access decision
         $decision = $this->evaluateGalleryAccess($gallery, $request);
         $downloadsUnlocked = $this->downloadsUnlocked($gallery, $request);
@@ -81,19 +89,21 @@ class PublicGalleryController extends Controller
             }
 
             // Non-blocking telemetry view log
-            try {
-                DB::table('activity_logs')->insert([
-                    'gallery_id' => $gallery->id,
-                    'event' => 'gallery_viewed',
-                    'visitor_session_id' => $request->session()->getId(),
-                    'source' => $request->query('source', 'direct'),
-                    'referrer' => $request->header('referer'),
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'created_at' => now(),
-                ]);
-            } catch (\Throwable $e) {
-                // Telemetry failure should never break gallery rendering
+            if (!$trackViewInBrowser) {
+                try {
+                    DB::table('activity_logs')->insert([
+                        'gallery_id' => $gallery->id,
+                        'event' => 'gallery_viewed',
+                        'visitor_session_id' => $request->session()->getId(),
+                        'source' => $request->query('source', 'direct'),
+                        'referrer' => $request->header('referer'),
+                        'ip_address' => $request->ip(),
+                        'user_agent' => $request->userAgent(),
+                        'created_at' => now(),
+                    ]);
+                } catch (\Throwable $e) {
+                    // Telemetry failure should never break gallery rendering
+                }
             }
 
             // Hero cover image
@@ -122,6 +132,7 @@ class PublicGalleryController extends Controller
             'downloadsUnlocked' => $downloadsUnlocked,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
+            'trackViewInBrowser' => $trackViewInBrowser && $decision->isGranted(),
             'seo' => \App\Support\Seo\SeoMetadata::forGallery(
                 $gallery,
                 app(\App\Services\GalleryShareImageService::class)->url($gallery),
@@ -134,6 +145,36 @@ class PublicGalleryController extends Controller
      * Resolve a gallery for an HTML page: 410 Gone when it was deleted, so
      * search engines drop it, and 404 when it never existed.
      */
+    /**
+     * View beacon sent by gallery pages served from Cloudflare's cache.
+     */
+    public function recordView(Request $request, string $username, string $slug): \Illuminate\Http\Response
+    {
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
+        abort_unless($gallery->hasPublicLink(), 404);
+
+        $validated = $request->validate([
+            'visitor_id' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9-]+$/'],
+            'source' => ['nullable', 'string', 'max:100'],
+            'campaign' => ['nullable', 'string', 'max:100'],
+            'referrer' => ['nullable', 'string', 'max:2048'],
+        ]);
+
+        DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => 'gallery_viewed',
+            'visitor_session_id' => $validated['visitor_id'] ?? null,
+            'source' => $validated['source'] ?? 'direct',
+            'campaign' => $validated['campaign'] ?? null,
+            'referrer' => $validated['referrer'] ?? null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+        ]);
+
+        return response()->noContent();
+    }
+
     /**
      * Link-preview image for galleries anyone with the link can open; 404 for PIN and private ones.
      */

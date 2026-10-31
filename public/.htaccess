@@ -44,6 +44,10 @@
     <FilesMatch "^(logo-mark\.webp|logo\.png|favicon\.(ico|svg)|favicon-64\.png|apple-touch-icon\.png|og-default\.jpg|icon-(192|512|maskable-512)\.png)$">
         Header set Cache-Control "public, max-age=2592000"
     </FilesMatch>
+    # Marketing images keep their names when replaced, so a week rather than forever
+    <If "%{REQUEST_URI} =~ m#^/images/#">
+        Header set Cache-Control "public, max-age=604800"
+    </If>
     <FilesMatch "^(robots\.txt|site\.webmanifest)$">
         Header set Cache-Control "public, max-age=86400"
     </FilesMatch>

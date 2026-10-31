@@ -111,6 +111,20 @@ class User extends Authenticatable implements MustVerifyEmail
                 $user->city = \App\Support\Directory::matchCity($user->location);
             }
         });
+
+        // Their portfolio and galleries are cached at the edge; sign-in bookkeeping doesn't change them
+        static::updated(function (User $user) {
+            $visible = array_diff(array_keys($user->getChanges()), ['updated_at', 'remember_token', 'password', 'storage_used_bytes']);
+            if ($visible === []) {
+                return;
+            }
+
+            $purger = app(\App\Services\GalleryCachePurgeService::class);
+            $purger->queuePhotographer($user);
+            if ($user->wasChanged('username')) {
+                $purger->queuePhotographer(null, $user->getOriginal('username'));
+            }
+        });
     }
 
     public function isAdmin(): bool

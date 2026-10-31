@@ -61,6 +61,12 @@ Route::domain('www.' . $rootHost)->group(function () {
     })->where('any', '.*');
 });
 
+// Fresh CSRF token for pages served from Cloudflare's cache, which carry no session (any host,
+// so it is registered before the subdomain gallery catch-all)
+Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
+    ->middleware(['noindex', 'throttle:30,1'])
+    ->name('csrf-token');
+
 // 2. Subdomain Photographer & Gallery Routes ({username}.{rootDomain}/{slug})
 Route::domain('{username}.' . $rootHost)
     ->where(['username' => '(?!(?:' . $escapedReserved . ')(?:\.|$))[a-zA-Z0-9_\-]+'])
@@ -75,29 +81,41 @@ Route::domain('{username}.' . $rootHost)
         Route::post('/book/{booking}/pay', [PublicBookingController::class, 'pay'])->middleware('throttle:5,1')->whereUuid('booking')->name('subdomain.booking.pay');
 
         // Portfolio pages (also before the gallery catch-all; Gallery::RESERVED_SLUGS keeps galleries off these)
-        Route::get('/about', [PublicPhotographerController::class, 'about'])->name('subdomain.about');
+        Route::get('/about', [PublicPhotographerController::class, 'about'])->middleware('edge.cache')->name('subdomain.about');
         Route::get('/contact', [PublicPhotographerController::class, 'contact'])->name('subdomain.contact');
         Route::post('/contact', [PublicPhotographerController::class, 'sendMessage'])->middleware('throttle:5,1')->name('subdomain.contact.send');
 
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
+        // Beacon from cached gallery pages; sessionless so it never sets a cookie that would end caching for the visitor
+        Route::post('/{slug}/viewed', [PublicGalleryController::class, 'recordView'])
+            ->withoutMiddleware([
+                \Illuminate\Session\Middleware\StartSession::class,
+                \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+                \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+                \App\Http\Middleware\HandleImpersonationState::class,
+            ])
+            ->middleware(['noindex', 'throttle:60,1'])
+            ->name('subdomain.gallery.viewed');
         Route::get('/{slug}/share.jpg', [PublicGalleryController::class, 'shareImage'])->middleware('noindex')->name('subdomain.gallery.share-image');
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::post('/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('subdomain.gallery.download-unlock');
-        Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');
+        Route::get('/{slug}', [PublicGalleryController::class, 'show'])->middleware('edge.cache')->name('subdomain.gallery');
 
-        Route::get('/', [PublicPhotographerController::class, 'show'])->name('subdomain.photographer');
+        Route::get('/', [PublicPhotographerController::class, 'show'])->middleware('edge.cache')->name('subdomain.photographer');
     });
 
 // Public Landing Page & Scalable XML Sitemaps
-Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::get('/features/client-galleries', [\App\Http\Controllers\Web\MarketingController::class, 'galleries'])->name('features.galleries');
-Route::get('/features/online-booking', [\App\Http\Controllers\Web\MarketingController::class, 'booking'])->name('features.booking');
-Route::get('/features/portfolio-website', [\App\Http\Controllers\Web\MarketingController::class, 'portfolio'])->name('features.portfolio');
-Route::get('/pricing', [\App\Http\Controllers\Web\MarketingController::class, 'pricing'])->name('pricing');
-Route::view('/terms', 'legal.terms')->name('legal.terms');
-Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
+Route::middleware('edge.cache')->group(function () {
+    Route::get('/', [HomeController::class, 'index'])->name('home');
+    Route::get('/features/client-galleries', [\App\Http\Controllers\Web\MarketingController::class, 'galleries'])->name('features.galleries');
+    Route::get('/features/online-booking', [\App\Http\Controllers\Web\MarketingController::class, 'booking'])->name('features.booking');
+    Route::get('/features/portfolio-website', [\App\Http\Controllers\Web\MarketingController::class, 'portfolio'])->name('features.portfolio');
+    Route::get('/pricing', [\App\Http\Controllers\Web\MarketingController::class, 'pricing'])->name('pricing');
+    Route::view('/terms', 'legal.terms')->name('legal.terms');
+    Route::view('/privacy', 'legal.privacy')->name('legal.privacy');
+});
 Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 'index'])->name('sitemap');
 Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapController::class, 'section'])->name('sitemap.section');
 

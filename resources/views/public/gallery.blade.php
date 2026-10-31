@@ -18,6 +18,8 @@
 ])
 
 @push('styles')
+{{-- Photos come from the CDN host: open that connection while the page is still parsing --}}
+<link rel="preconnect" href="https://{{ config('filesystems.disks.b2.cdn_domain') }}">
 <style>
     @keyframes gallery-hero-in { from { transform: scale(1.08); opacity: .4; } to { transform: scale(1); opacity: 1; } }
     @keyframes gallery-cue { 0% { transform: translateY(-100%); } 60%, 100% { transform: translateY(220%); } }
@@ -715,5 +717,28 @@
 @push('scripts')
     @if($isGranted)
         @vite(['resources/js/pages/gallery.js'])
+    @endif
+    @if($trackViewInBrowser ?? false)
+        {{-- This page may come from Cloudflare's cache, so the view is counted from the browser --}}
+        <script>
+            (() => {
+                let visitorId = null;
+                try {
+                    visitorId = localStorage.getItem('ifotoset_visitor');
+                    if (!visitorId) {
+                        visitorId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(16).slice(2);
+                        localStorage.setItem('ifotoset_visitor', visitorId);
+                    }
+                } catch {}
+                const params = new URLSearchParams(location.search);
+                const body = new Blob([JSON.stringify({
+                    visitor_id: visitorId,
+                    source: params.get('source') || params.get('utm_source'),
+                    campaign: params.get('utm_campaign'),
+                    referrer: document.referrer || null,
+                })], { type: 'application/json' });
+                navigator.sendBeacon?.(location.pathname.replace(/\/+$/, '') + '/viewed', body);
+            })();
+        </script>
     @endif
 @endpush
