@@ -8,6 +8,8 @@
     $ogDescription = $seo?->ogDescription ?? $description;
     $ogImage = $seo?->ogImage ?? ($ogImage ?? null) ?? \App\Support\Seo\SeoMetadata::defaultImage();
     $ogImageIsDefault = $ogImage === \App\Support\Seo\SeoMetadata::defaultImage();
+    $ogImageWidth = ($seo ?? null)?->ogImageWidth;
+    $ogImageHeight = ($seo ?? null)?->ogImageHeight;
     $ogType = $seo?->ogType ?? 'website';
     $twitterCard = $seo?->twitterCard ?? 'summary_large_image';
     $structuredData = $seo?->structuredData ?? ($structuredData ?? null);
@@ -26,7 +28,10 @@
 <meta property="og:type" content="{{ $ogType }}">
 <meta property="og:image" content="{{ $ogImage }}">
 <meta property="og:image:alt" content="{{ $ogTitle }}">
-@if($ogImageIsDefault)
+@if($ogImageWidth)
+<meta property="og:image:width" content="{{ $ogImageWidth }}">
+<meta property="og:image:height" content="{{ $ogImageHeight }}">
+@elseif($ogImageIsDefault)
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 @endif

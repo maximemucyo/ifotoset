@@ -139,6 +139,19 @@ class Gallery extends Model
     }
 
     /**
+     * Anyone holding the link can open this gallery without a PIN or invitation.
+     * Wider than search indexing: unlisted client galleries qualify too.
+     */
+    public function hasPublicLink(): bool
+    {
+        return !$this->trashed()
+            && $this->visibility === 'public'
+            && empty($this->password_hash)
+            && ($this->expires_at === null || $this->expires_at->isFuture())
+            && $this->moderation_status !== 'taken_down';
+    }
+
+    /**
      * Determine whether this gallery is eligible for public search indexing.
      * Decoupled from user session authorization.
      */

@@ -19,6 +19,8 @@ class SeoMetadata
         public readonly string $ogType = 'website',
         public readonly string $twitterCard = 'summary_large_image',
         public readonly array|string|null $structuredData = null,
+        public readonly ?int $ogImageWidth = null,
+        public readonly ?int $ogImageHeight = null,
     ) {}
 
     public static function make(
@@ -276,7 +278,7 @@ class SeoMetadata
     /**
      * Factory for public gallery SEO.
      */
-    public static function forGallery(Gallery $gallery, ?string $coverUrl = null, bool $accessGranted = false): self
+    public static function forGallery(Gallery $gallery, ?string $shareImageUrl = null, bool $accessGranted = false): self
     {
         $urlService = app(PublicUrlService::class);
         $canonical = $urlService->gallery($gallery);
@@ -324,10 +326,13 @@ class SeoMetadata
             robots: $robots,
             ogTitle: $title,
             ogDescription: $description,
-            ogImage: $isIndexable && $coverUrl ? $coverUrl : self::defaultImage(),
+            // Any gallery with a public link previews its cover, listed on the profile or not
+            ogImage: $shareImageUrl ?: self::defaultImage(),
             ogType: 'website',
             twitterCard: 'summary_large_image',
             structuredData: $structuredData,
+            ogImageWidth: $shareImageUrl ? \App\Services\GalleryShareImageService::WIDTH : null,
+            ogImageHeight: $shareImageUrl ? \App\Services\GalleryShareImageService::HEIGHT : null,
         );
     }
 

@@ -82,6 +82,7 @@ Route::domain('{username}.' . $rootHost)
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
+        Route::get('/{slug}/share.jpg', [PublicGalleryController::class, 'shareImage'])->middleware('noindex')->name('subdomain.gallery.share-image');
         Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
         Route::post('/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('subdomain.gallery.download-unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->name('subdomain.gallery');

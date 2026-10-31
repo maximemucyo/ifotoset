@@ -122,7 +122,11 @@ class PublicGalleryController extends Controller
             'downloadsUnlocked' => $downloadsUnlocked,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
-            'seo' => \App\Support\Seo\SeoMetadata::forGallery($gallery, $coverUrl, $decision->isGranted()),
+            'seo' => \App\Support\Seo\SeoMetadata::forGallery(
+                $gallery,
+                app(\App\Services\GalleryShareImageService::class)->url($gallery),
+                $decision->isGranted()
+            ),
         ]);
     }
 
@@ -130,6 +134,20 @@ class PublicGalleryController extends Controller
      * Resolve a gallery for an HTML page: 410 Gone when it was deleted, so
      * search engines drop it, and 404 when it never existed.
      */
+    /**
+     * Link-preview image for galleries anyone with the link can open; 404 for PIN and private ones.
+     */
+    public function shareImage(string $username, string $slug, \App\Services\GalleryShareImageService $shareImages): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $path = $shareImages->path($this->galleryQuery->findForUser($username, $slug));
+        abort_unless($path, 404);
+
+        return response()->file($path, [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
     private function resolveGallery(string $username, string $slug): Gallery
     {
         try {
