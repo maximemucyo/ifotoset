@@ -10,7 +10,7 @@
 ## 0. The short version
 
 1. **Fix what the site promises before spending any money.** The pricing page and FAQ sell features that don't exist yet: custom domains, watermarks, invoices and booking calendars. Mark them "Coming soon" or remove them. One unhappy Kigali photographer in a WhatsApp group will undo a month of marketing.
-2. **Sell one thing.** Pitch: *"Stop sending wedding photos on WhatsApp and Google Drive. Send a beautiful private gallery your client can download in full quality, and pay for it with MoMo."* Don't lead with portfolio, booking or the "all-in-one" story.
+2. **Sell one thing.** Pitch: *"Stop sending wedding photos on WhatsApp and Google Drive. Send a beautiful private gallery your client can download in full quality, and pay for it with MoMo."* Don't lead with portfolio, booking or the "all-in-one" story. For photographers who open a free Pixieset account per client, the pitch becomes *"One account for all your clients, under your name, paid with MoMo"* (see the field note in section 1).
 3. **Your best salesperson is the client gallery.** Every gallery a photographer sends is seen by 10 to 200 people: the couple, their family and the guests. Make the "Powered by ifotoset" mark tasteful and clickable on Free galleries, and growth compounds without you talking to anyone.
 4. **Recruit 15 to 20 "Founding Photographers" by text, not by talking.** Use Instagram and WhatsApp DMs. They get Pro free for 6 months in exchange for using ifotoset on real clients and giving honest feedback.
 5. **Spend the cash on trusted photographers' voices, not on ads.** Paying 2 or 3 respected local photographers to show ifotoset to their followers beats any amount of Meta ads to a market of this size.
@@ -38,6 +38,33 @@
 
 Basic costs 10,999 RWF a month and Pro 29,999 RWF a month. One Kigali wedding studio publicly prices its wedding packages at **2.5M to 3.5M RWF**. So **a year of Pro (about 300k RWF) is about 10% of the price of one wedding**, and Basic is about 4%. Use this framing in every pitch: *"One wedding pays for a full year."*
 
+### Field note (2026-10-28): one Pixieset account per client
+
+Outreach shows a common habit. For each job, the photographer opens a **free Pixieset account using the client's email**, uploads the photos, hands it over, and never logs in again.
+
+**Why they do it, reason 1: free storage, forever.** Each account gets free storage that never expires, and one account per client means unlimited free hosting. Most jobs fit: at 2 to 5 MB per exported JPEG, 3 GB holds roughly 600 to 1,500 photos. We can't beat free on price, so don't chase photographers who only want free hosting. Target those the trick fails for: weddings over 3 GB, photo-plus-video teams, photographers who want their own brand, and studios juggling many logins. Also make sure ifotoset doesn't become the next free dumping ground (for example, Free galleries stay online for a limited time and paid plans keep them forever; apply this to new galleries only).
+
+**Reason 2: the client can never lose their photos.** Clients lose links all the time (old WhatsApp chats, new phones). Because the account is on the client's email, the client can reset the password and get every gallery back without calling the photographer. The photographer stops being the help desk for lost links.
+
+Other reasons: paying for Pixieset needs a card in USD, and a gallery looks more professional than Drive or WhatsApp.
+
+**So what they get is "free forever, and lost links aren't my problem".** To weigh the two reasons, ask founders: *"If Pixieset charged 5,000 RWF per client, would you still open an account per client?"*
+
+**What it costs the photographer (this becomes the pitch):**
+- Their work is scattered across dozens of accounts they don't own and can't log into.
+- When a client comes back months later for a missing photo, a reprint or a second copy for family, the photographer has no access. The account belongs to the client's email.
+- The gallery carries Pixieset's brand and the client's name, not the photographer's. Guests who see it can't find the photographer, so there is no repeat business or referral.
+- Free storage per account is small, so a full wedding often has to be culled or compressed to fit.
+- There is no list of past clients and no relationship. Every job starts from zero.
+
+**What this changes in the plan:**
+- **Build client self-recovery before pitching these photographers (product, about 1–2 days).** Galleries already store invited client emails (`gallery_invitations.email`, `clients.email`). Add a public "Find my photos" page: the client enters their email and receives a one-time link listing every gallery shared with that email, across all photographers. Link to it from every gallery page and every invitation email. This gives the client what the per-client Pixieset account gives them, while the photographer keeps one account.
+- **The real competitor is free Pixieset, not only WhatsApp and Drive.** Expect "Pixieset is free" more often than "Drive is free".
+- **These photographers are the warmest leads.** They already believe in online galleries; they only lack a way to pay and a reason to keep one account. Lead with: *"One account for all your clients, under your name, paid with MoMo."*
+- **Ask before you pitch.** Open DMs with "How do you send photos to clients today?" If the answer is Pixieset, use the Pixieset DM variant (section 6.2).
+- **Their buying habit is per job, not per month.** Test framing Basic as "10,999 RWF covers this month's events" rather than a subscription. If that works, consider a one-off "single event" price paid with MoMo.
+- **The same trick works on ifotoset.** Our Free plan (2 GB) is per account, so a photographer could open one free ifotoset account per client too. Check whether some of the 19 unverified accounts are client-email throwaways, and make the free plan's value about *one home for all your clients* (client list, past galleries, your name on every gallery), not about free storage.
+
 ---
 
 ## 2. Who we sell to (in this order)
@@ -64,6 +91,7 @@ Rwanda is a small, tightly connected market. Instagram has about 600k ad-reachab
 - "Your client's wedding photos lose quality the moment they're forwarded on WhatsApp."
 - "Google Drive links look unprofessional, and clients ask 'how do I download all of them?'"
 - "WeTransfer links expire after a few days, and then the aunt in Musanze calls you."
+- "A new Pixieset account for every client means your work lives in accounts you can't open, under a name that isn't yours."
 
 **The proof you show (always a screen recording, never just words):**
 1. Open a gallery on a phone. It loads instantly with blur placeholders.
@@ -81,6 +109,7 @@ Rwanda is a small, tightly connected market. Instagram has about 600k ad-reachab
 
 | Task | Why |
 |---|---|
+| Ship "Find my photos" (the client gets their galleries back by email; see the field note in section 1) | It is the reason photographers open a Pixieset account per client. Without it, the Pixieset pitch doesn't hold. |
 | Fix the copy on the pricing page and FAQ (remove or "Coming soon" for custom domains, watermarks, invoices and calendars) | Trust is everything in a small market. |
 | Turn on Save to Google Photos in production if it is stable | It is your most "wow" local feature. |
 | Make the Free-plan gallery footer a tasteful "Delivered with ifotoset · Get your own gallery" link with `?utm_source=gallery_footer` | Client-led growth, explained in section 6.1. |
@@ -124,11 +153,17 @@ Pic-Time openly calls its strategy "photography-led growth": the photographer's 
 2. Search Instagram for #kigaliwedding, #rwandaweddings, #gusaba, #kigaliphotographer and #rwandanphotographer. Shortlist people with 1k to 20k followers who post consistently.
 3. Check Google Maps for "photo studio Kigali" (many listings include a WhatsApp number).
 4. Look at the people who tag or follow Kigali Centre for Photography and Cameras Africa Rwanda.
+5. Search Google for `site:mypixieset.com Kigali` and `site:mypixieset.com Rwanda`, and look for `mypixieset.com` links in Instagram bios and story highlights. These photographers already deliver online galleries.
 
 **DM template (English; get the Kinyarwanda version checked by a native speaker):**
 > Hi [name], I love your [specific shoot] work. I'm a Rwandan developer and I built ifotoset, a way to deliver client photos in a private gallery (full quality, one-tap download, MoMo payment) instead of WhatsApp or Drive.
 > I'm picking 20 Kigali photographers as Founding Photographers: Pro free for 6 months, I set it up for you, you just tell me what's annoying.
 > Here's what your client would see: [demo gallery link]. Interested? No pressure at all 🙏
+
+**Pixieset variant** (for photographers who open a free Pixieset account per client):
+> Hi [name], quick question: do you still open a new Pixieset account for each client? I hear that a lot in Kigali. I built ifotoset so you keep **one account for all your clients**: every gallery under your name, full quality, and you pay in RWF with MoMo, no card needed.
+> And if your client loses the link, they type their email on ifotoset and get all their galleries back themselves. No calls to you.
+> I'm picking 20 Founding Photographers (Pro free for 6 months, and I'll upload your last few galleries for you). Demo: [demo gallery link]. Interested? 🙏
 
 Send 10 a day, Monday to Thursday. Expect roughly a 20 to 30% reply rate, which gives 15 to 20 founders from 60 to 80 DMs.
 
@@ -276,6 +311,8 @@ Also consider adding a `share_gallery` / `gallery_viewed_by_client` GA4 event. T
 |---|---|
 | Overpromising (custom domains and so on) damages trust | Fix the copy first (section 4). Only market what works today. |
 | Photographers say "Drive is free" | Use the quality before/after content, the "one wedding pays for a year" framing, and the fact that clients see a professional brand. |
+| Photographers say "Pixieset is free" | Agree, then name what the per-client habit costs them: no access to old galleries, no client list, and someone else's brand on their work. Paying with MoMo removes the reason they avoided a paid plan. |
+| Photographers open one free ifotoset account per client | Make Free valuable as *one home for all your clients*, not as free storage. Watch for repeat signups from the same phone number or MoMo account. |
 | Free founders never convert | Set the 6-month end date clearly at signup, offer locked-in founder pricing, and keep the Free plan's 2 GB limit real. |
 | Storage costs from free Pro accounts | Watch B2 weekly and cap founders at 20. |
 | A key creator posts something off-brand | Brief them, but let them speak in their own voice. Only pay people who genuinely liked the product. |
