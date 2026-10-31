@@ -18,6 +18,7 @@ if (token) {
  | The initial class is applied by an inline <head> script to avoid a flash.
  * ---------------------------------------------------------------------- */
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+const forcedTheme = document.documentElement.dataset.forceTheme || null;
 
 function readThemePreference() {
     try {
@@ -28,6 +29,7 @@ function readThemePreference() {
 }
 
 function applyTheme(mode) {
+    if (forcedTheme) mode = forcedTheme;
     const dark = mode === 'dark' || (mode === 'system' && prefersDark.matches);
     document.documentElement.classList.toggle('dark', dark);
 }

@@ -1,4 +1,4 @@
-@props(['name', 'alt', 'url' => null, 'width' => 1600, 'height' => 1000, 'dark' => true, 'priority' => false])
+@props(['name', 'alt', 'url' => null, 'width' => 1600, 'height' => 1000, 'dark' => false, 'priority' => false])
 @php
     $src = fn (string $theme) => asset("images/marketing/screens/{$name}-{$theme}.webp");
     $loading = $priority ? 'fetchpriority=high' : 'loading=lazy';

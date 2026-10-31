@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full scroll-pt-20">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full scroll-pt-20" @isset($forceTheme) data-force-theme="{{ $forceTheme }}" @endisset>
 <head>
-    @include('layouts.partials.head', ['defaultMode' => $defaultTheme ?? 'system'])
+    @include('layouts.partials.head', ['defaultMode' => $defaultTheme ?? 'system', 'forceTheme' => $forceTheme ?? null])
     <meta name="referrer" content="no-referrer-when-downgrade">
     @include('layouts.partials.seo')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -16,7 +16,9 @@
             <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 <x-brand.logo :href="url('/')" />
                 <nav class="flex items-center gap-1.5">
-                    <x-ui.theme-toggle />
+                    @unless(isset($forceTheme))
+                        <x-ui.theme-toggle />
+                    @endunless
                     @auth
                         <a href="{{ route('studio.dashboard') }}" class="btn btn-primary btn-sm">Open studio <x-icon name="arrow-right" /></a>
                     @else

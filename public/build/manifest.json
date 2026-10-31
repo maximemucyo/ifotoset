@@ -128,7 +128,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-B4gdKuz1.css",
+    "file": "assets/app-DwH3g0kC.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -138,13 +138,13 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-X8-x1cAP.js",
+    "file": "assets/app-EbcwrS2k.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-BE4rhDTB.js",
+    "file": "assets/gallery-_ZddJbHG.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
     "isEntry": true,

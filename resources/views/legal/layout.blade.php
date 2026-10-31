@@ -1,4 +1,4 @@
-@extends('layouts.public', ['title' => $pageTitle . ' · ifotoset', 'description' => $pageDescription])
+@extends('layouts.public', ['title' => $pageTitle . ' · ifotoset', 'description' => $pageDescription, 'forceTheme' => 'light'])
 
 @section('content')
 <article class="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:py-24">

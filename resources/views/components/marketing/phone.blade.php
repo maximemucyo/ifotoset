@@ -1,4 +1,4 @@
-@props(['name', 'alt', 'dark' => true])
+@props(['name', 'alt', 'dark' => false])
 @php($src = fn (string $theme) => asset("images/marketing/screens/{$name}-{$theme}.webp"))
 {{-- A real mobile screenshot in a phone frame --}}
 <figure {{ $attributes->merge(['class' => 'w-full max-w-[260px] rounded-[2.25rem] border border-border bg-background p-2 shadow-xl dark:shadow-black/40']) }}>

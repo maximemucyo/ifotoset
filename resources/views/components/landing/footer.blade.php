@@ -26,9 +26,6 @@
                 <p class="mt-4 text-[14px] leading-relaxed text-muted-foreground">
                     Client galleries, portfolio websites and studio management for photographers. Built in East Africa, for photographers everywhere.
                 </p>
-                <div class="mt-6 flex items-center gap-2">
-                    <x-ui.theme-toggle variant="segmented" />
-                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-8 sm:grid-cols-3">

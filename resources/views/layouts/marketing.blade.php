@@ -2,6 +2,7 @@
     'seo' => $seo ?? null,
     'hideNav' => true,
     'hideFooter' => true,
+    'forceTheme' => 'light',
 ])
 
 @section('content')

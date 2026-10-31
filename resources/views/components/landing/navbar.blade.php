@@ -29,8 +29,6 @@
         </div>
 
         <div class="flex items-center gap-1.5">
-            <x-ui.theme-toggle />
-
             <div class="hidden items-center gap-1.5 md:flex">
                 @auth
                     <form method="POST" action="{{ route('logout') }}">
