@@ -30,13 +30,7 @@
     $storageUsed = (int) ($account->storage_used_bytes ?? 0);
     $storageLimit = (int) ($account->plan->storage_limit ?? 0);
     $storagePct = $storageLimit > 0 ? min(100, round($storageUsed / $storageLimit * 100, 1)) : 0;
-    $fmtBytes = function (int $bytes): string {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $i = 0;
-        $value = (float) $bytes;
-        while ($value >= 1024 && $i < count($units) - 1) { $value /= 1024; $i++; }
-        return ($i === 0 ? (int) $value : number_format($value, $value >= 100 ? 0 : 1)) . ' ' . $units[$i];
-    };
+    $fmtBytes = fn (int $bytes): string => \App\Support\Bytes::format($bytes);
 
     // Command palette entries
     $commandItems = [];

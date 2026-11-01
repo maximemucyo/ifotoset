@@ -13,13 +13,7 @@
 
     <x-email.card title="Receipt & plan details">
         <x-email.detail-row label="Plan" :value="$plan->name" />
-        @php
-            $eLimit = $plan->storage_limit;
-            $eGb = ($eLimit % 1000000000 === 0 && ($eLimit % (1024 * 1024) !== 0))
-                ? round($eLimit / 1000000000, 1)
-                : round($eLimit / (1024 * 1024 * 1024), 1);
-        @endphp
-        <x-email.detail-row label="Storage limit" :value="($eGb >= 1000 ? round($eGb / 1000, 1) . ' TB' : $eGb . ' GB')" />
+        <x-email.detail-row label="Storage limit" :value="\App\Support\Bytes::format($plan->storage_limit)" />
         @if($plan->gallery_limit)
             <x-email.detail-row label="Galleries" :value="$plan->gallery_limit . ' Galleries'" />
         @else

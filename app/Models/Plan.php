@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Support\Bytes;
 use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -68,13 +69,11 @@ class Plan extends Model
     }
 
     /**
-     * Storage allowance for marketing copy, e.g. "5 GB" or "1 TB" (decimal TB, matching the admin form).
+     * Storage allowance for marketing copy, e.g. "5 GB" or "1.5 TB".
      */
     public function storageLabel(): string
     {
-        $gb = (int) round(($this->storage_limit ?? 0) / 1024 ** 3);
-
-        return $gb >= 1000 ? rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB' : $gb . ' GB';
+        return Bytes::format($this->storage_limit ?? 0);
     }
 
     /**

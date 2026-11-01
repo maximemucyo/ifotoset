@@ -1,11 +1,7 @@
 @extends('layouts.app', ['title' => 'Checkout · ' . $plan->name . ' · ifotoset'])
 
 @php
-    $fmtSize = function ($bytes): string {
-        $gb = ((float) $bytes) / (1024 ** 3);
-        if ($gb >= 1000) return rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB';
-        return ($gb >= 100 ? number_format($gb, 0) : rtrim(rtrim(number_format($gb, 1), '0'), '.')) . ' GB';
-    };
+    $fmtSize = fn ($bytes): string => \App\Support\Bytes::format($bytes);
     $videoSeconds = (int) $plan->video_limit_seconds;
     $videoLabel = $videoSeconds >= 3600
         ? rtrim(rtrim(number_format($videoSeconds / 3600, 1), '0'), '.') . ' h of video delivery'

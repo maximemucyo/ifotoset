@@ -101,11 +101,7 @@
             $suUsed = (int) ($su['used_bytes'] ?? 0);
             $suLimit = (int) ($su['limit_bytes'] ?? 0);
             $suPct = $suUnlimited || $suLimit <= 0 ? 0 : min(100, round($suUsed / $suLimit * 100));
-            $suFmt = function (int $bytes, int $precision = 1): string {
-                $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-                $i = $bytes > 0 ? min(count($units) - 1, (int) floor(log($bytes, 1024))) : 0;
-                return round($bytes / (1024 ** $i), $i === 0 ? 0 : $precision) . ' ' . $units[$i];
-            };
+            $suFmt = fn (int $bytes): string => \App\Support\Bytes::format($bytes);
         @endphp
         @if(!empty($su))
             <a href="{{ Gate::allows('studio.billing') ? route('studio.billing.index') : route('studio.trash.index') }}" class="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2 shadow-xs transition-colors hover:border-border-strong md:w-64" title="Storage used across all galleries">
@@ -114,8 +110,8 @@
                     <div class="flex items-center justify-between gap-2 text-[11px]">
                         <span class="font-medium text-foreground">Storage</span>
                         <span class="tabular-nums text-muted-foreground">
-                            {{ $suFmt($suUsed, 1) }}
-                            @unless($suUnlimited) / {{ $suFmt($suLimit, 0) }} @endunless
+                            {{ $suFmt($suUsed) }}
+                            @unless($suUnlimited) / {{ $suFmt($suLimit) }} @endunless
                         </span>
                     </div>
                     @unless($suUnlimited)

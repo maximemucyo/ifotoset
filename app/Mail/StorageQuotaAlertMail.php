@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\User;
+use App\Support\Bytes;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -52,10 +53,6 @@ class StorageQuotaAlertMail extends Mailable implements ShouldQueue
 
     protected function formatBytes(int $bytes): string
     {
-        if ($bytes <= 0) return '0 B';
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $i = (int) floor(log($bytes, 1024));
-        $val = round($bytes / pow(1024, $i), 1);
-        return "{$val} {$units[$i]}";
+        return Bytes::format($bytes);
     }
 }

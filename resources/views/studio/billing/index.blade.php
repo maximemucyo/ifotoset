@@ -1,23 +1,7 @@
 @extends('layouts.app', ['title' => 'Billing & plans · ifotoset'])
 
 @php
-    // Decimal (marketing) sizes: 50 GB, 1 TB, 3 TB, matching how plans are sold.
-    $fmtSize = function ($bytes): string {
-        $bytes = (float) $bytes;
-        $gb = $bytes / (1024 ** 3);
-        if ($gb >= 1000) {
-            $tb = $gb / 1000;
-            return rtrim(rtrim(number_format($tb, 1), '0'), '.') . ' TB';
-        }
-        if ($gb >= 1) {
-            return ($gb >= 100 ? number_format($gb, 0) : rtrim(rtrim(number_format($gb, 1), '0'), '.')) . ' GB';
-        }
-        $mb = $bytes / (1024 ** 2);
-        if ($mb >= 1) {
-            return number_format($mb, $mb >= 100 ? 0 : 1) . ' MB';
-        }
-        return number_format($bytes / 1024, 0) . ' KB';
-    };
+    $fmtSize = fn ($bytes): string => \App\Support\Bytes::format($bytes);
     $fmtDuration = function (int $seconds): string {
         if ($seconds <= 0) return '0 min';
         if ($seconds >= 3600) {

@@ -10,19 +10,7 @@
     $firstName = \Illuminate\Support\Str::before(trim($user->name ?? ''), ' ') ?: 'there';
 
     // ---- Storage --------------------------------------------------------
-    $fmtBytes = function ($bytes) {
-        // Binary units, matching how plan limits are defined (1 GB = 1024^3 bytes).
-        $bytes = (float) $bytes;
-        foreach (['TB' => 1024 ** 4, 'GB' => 1024 ** 3, 'MB' => 1024 ** 2, 'KB' => 1024] as $unit => $size) {
-            if ($bytes >= $size) {
-                $v = $bytes / $size;
-                $dec = $v < 10 ? 2 : ($v < 100 ? 1 : 0);
-                $out = number_format($v, $dec);
-                return ($dec > 0 ? rtrim(rtrim($out, '0'), '.') : $out) . ' ' . $unit;
-            }
-        }
-        return (int) $bytes . ' B';
-    };
+    $fmtBytes = fn ($bytes) => \App\Support\Bytes::format($bytes);
     $storagePct = (float) ($storage['percentage'] ?? $storage['percent_used'] ?? 0);
     $isUnlimited = (bool) ($storage['is_unlimited'] ?? false);
     $limitBytes = $storage['limit_bytes'] ?? null;

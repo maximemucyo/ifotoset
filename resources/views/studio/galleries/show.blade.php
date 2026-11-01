@@ -94,9 +94,7 @@
         'slug' => $p->slug,
         'name' => $p->name,
         'price' => number_format($p->monthly_price, 0) . ' RWF',
-        'storage' => $p->storage_limit >= 1099511627776
-            ? round($p->storage_limit / 1099511627776, 1) . ' TB'
-            : round($p->storage_limit / 1073741824, 0) . ' GB',
+        'storage' => \App\Support\Bytes::format($p->storage_limit),
         'video_limit' => $p->video_limit_seconds > 0
             ? ($p->video_limit_seconds >= 3600
                 ? round($p->video_limit_seconds / 3600, 1) . ' hrs video'

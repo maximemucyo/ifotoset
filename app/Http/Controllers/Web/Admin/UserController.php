@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Queries\Admin\AdminUserActivityQuery;
 use App\Queries\Admin\AdminUsersQuery;
 use App\Services\StorageStatisticsService;
+use App\Support\Bytes;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -121,7 +122,12 @@ class UserController extends Controller
                 'plan_slug' => $user->plan->slug ?? 'free',
                 'joined_at' => $user->created_at->format('M j, Y'),
                 'public_url' => $user->public_url,
-                'storage' => $storageStats,
+                'storage' => $storageStats + [
+                    'used_label' => Bytes::format($storageStats['used_bytes'] ?? 0),
+                    'limit_label' => ($storageStats['limit_bytes'] ?? null) ? Bytes::format($storageStats['limit_bytes']) : null,
+                    'active_label' => Bytes::format($storageStats['active_bytes'] ?? 0),
+                    'trash_label' => Bytes::format($storageStats['trash_bytes'] ?? 0),
+                ],
                 'video' => [
                     'has_video' => $user->hasVideoSupport(),
                     'used_seconds' => $videoUsed,

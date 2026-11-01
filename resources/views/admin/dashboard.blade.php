@@ -2,11 +2,7 @@
 
 @section('content')
 @php
-    $fmtBytes = function ($b) {
-        $b = (float) $b; $u = ['B', 'KB', 'MB', 'GB', 'TB']; $i = 0;
-        while ($b >= 1024 && $i < 4) { $b /= 1024; $i++; }
-        return ($i === 0 ? (int) $b : number_format($b, 1)) . ' ' . $u[$i];
-    };
+    $fmtBytes = fn ($b) => \App\Support\Bytes::format($b);
     $processing = (int) ($queueSummary['processing'] ?? 0);
     $queued = (int) ($queueSummary['queued'] ?? 0);
     $failedToday = (int) ($queueSummary['failed_today'] ?? 0);

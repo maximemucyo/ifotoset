@@ -161,15 +161,15 @@
                         <div>
                             <div class="flex items-center justify-between gap-3 text-[13px]">
                                 <span class="flex items-center gap-2 text-muted-foreground"><x-icon name="hard-drive" class="size-4" /> Storage</span>
-                                <span class="font-mono text-xs text-foreground" x-text="`${Math.round((user?.storage?.used_bytes || 0) / (1024*1024))} MB / ${user?.storage?.limit_bytes ? Math.round(user.storage.limit_bytes / (1024*1024*1024)) + ' GB' : 'Unlimited'}`"></span>
+                                <span class="font-mono text-xs text-foreground" x-text="`${user?.storage?.used_label || '0 B'} / ${user?.storage?.limit_label || 'Unlimited'}`"></span>
                             </div>
                             <div class="progress mt-2 !h-2">
                                 <span :class="(user?.storage?.percent_used || 0) >= 90 ? '!bg-destructive' : ((user?.storage?.percent_used || 0) >= 75 ? '!bg-warning' : '')"
                                       :style="`width: ${Math.min(user?.storage?.percent_used || 0, 100)}%`"></span>
                             </div>
                             <div class="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
-                                <span>Active <span class="tabular-nums text-foreground" x-text="Math.round((user?.storage?.active_bytes || 0) / (1024*1024))">0</span> MB</span>
-                                <span>Trash <span class="tabular-nums text-foreground" x-text="Math.round((user?.storage?.trash_bytes || 0) / (1024*1024))">0</span> MB</span>
+                                <span>Active <span class="tabular-nums text-foreground" x-text="user?.storage?.active_label || '0 B'">0 B</span></span>
+                                <span>Trash <span class="tabular-nums text-foreground" x-text="user?.storage?.trash_label || '0 B'">0 B</span></span>
                                 <span class="tabular-nums" x-text="`${user?.storage?.percent_used || 0}% used`"></span>
                             </div>
                         </div>

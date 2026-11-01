@@ -8,11 +8,7 @@
         ['label' => 'Admins', 'params' => array_filter(['search' => $search, 'role' => 'admin']), 'active' => $role === 'admin'],
         ['label' => 'Unverified', 'params' => array_filter(['search' => $search, 'verified' => 'unverified']), 'active' => $verified === 'unverified', 'dot' => true],
     ];
-    $fmtBytes = function ($b) {
-        $b = (float) $b; $u = ['B', 'KB', 'MB', 'GB', 'TB']; $i = 0;
-        while ($b >= 1024 && $i < 4) { $b /= 1024; $i++; }
-        return ($i === 0 ? (int) $b : number_format($b, 1)) . ' ' . $u[$i];
-    };
+    $fmtBytes = fn ($b) => \App\Support\Bytes::format($b);
 @endphp
 
 <x-ui.page-header eyebrow="Admin console" title="Users" description="Every photographer, client and administrator registered on the platform.">
@@ -200,14 +196,8 @@
                                                             <label class="label" for="plan-{{ $user->id }}">New plan</label>
                                                             <select id="plan-{{ $user->id }}" name="plan_slug" class="select">
                                                                 @foreach($plans as $p)
-                                                                    @php
-                                                                        $pLimit = $p->storage_limit;
-                                                                        $pGb = ($pLimit % 1000000000 === 0 && ($pLimit % (1024 * 1024) !== 0))
-                                                                            ? round($pLimit / 1000000000, 0)
-                                                                            : round($pLimit / (1024 * 1024 * 1024), 0);
-                                                                    @endphp
                                                                     <option value="{{ $p->slug }}" {{ $user->plan_id === $p->id ? 'selected' : '' }}>
-                                                                        {{ $p->name }} ({{ $pGb >= 1000 ? round($pGb / 1000, 1) . ' TB' : $pGb . ' GB' }}, Unlimited Galleries)
+                                                                        {{ $p->name }} ({{ \App\Support\Bytes::format($p->storage_limit) }}, Unlimited Galleries)
                                                                     </option>
                                                                 @endforeach
                                                             </select>

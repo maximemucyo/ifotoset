@@ -410,12 +410,10 @@
                 <span class="min-w-0 flex-1">
                     <span class="block text-sm font-medium text-foreground">{{ $plan->name ?? 'Free' }} plan</span>
                     @php
-                        $usedGb = round(($storage['used_bytes'] ?? 0) / (1024 ** 3), 2);
-                        $limitB = $storage['limit_bytes'] ?? null;
-                        $limitGb = $limitB ? $limitB / (1024 ** 3) : null;
-                        $limitLabel = $limitGb ? ($limitGb >= 1000 ? rtrim(rtrim(number_format($limitGb / 1000, 1), '0'), '.') . ' TB' : round($limitGb) . ' GB') : 'Unlimited';
+                        $usedLabel = \App\Support\Bytes::format($storage['used_bytes'] ?? 0);
+                        $limitLabel = ($storage['limit_bytes'] ?? null) ? \App\Support\Bytes::format($storage['limit_bytes']) : 'Unlimited';
                     @endphp
-                    <span class="block text-[13px] tabular-nums text-muted-foreground">{{ $usedGb }} GB of {{ $limitLabel }} used · Manage billing and receipts</span>
+                    <span class="block text-[13px] tabular-nums text-muted-foreground">{{ $usedLabel }} of {{ $limitLabel }} used · Manage billing and receipts</span>
                 </span>
                 <x-icon name="chevron-right" class="size-4 text-muted-foreground" />
             </a>
