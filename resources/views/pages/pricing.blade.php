@@ -1,10 +1,6 @@
 @extends('layouts.marketing')
 
 @php
-    $formatStorage = function (?int $bytes): string {
-        $gb = (int) round(($bytes ?? 0) / 1024 ** 3);
-        return $gb >= 1000 ? rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB' : $gb . ' GB';
-    };
     $formatDuration = function (int $seconds): ?string {
         if ($seconds <= 0) {
             return null;
@@ -21,7 +17,7 @@
         ],
         'Galleries' => [
             'Client galleries' => fn ($p) => $p->gallery_limit ? (string) $p->gallery_limit : 'Unlimited',
-            'Storage' => fn ($p) => $formatStorage($p->storage_limit),
+            'Storage' => fn ($p) => $p->storageLabel(),
             'Hosted video' => fn ($p) => $formatDuration((int) $p->video_limit_seconds) ?? false,
             'Longest single video' => fn ($p) => $formatDuration((int) $p->max_single_video_duration_seconds) ?? false,
             'Privacy, PINs and expiry dates' => fn ($p) => true,
@@ -40,6 +36,8 @@
         ],
     ];
 
+    $freePlan = $plans->first(fn ($p) => $p->isFree());
+
     $faq = [
         [
             'question' => 'How do I pay for my plan?',
@@ -49,19 +47,22 @@
             'question' => 'Does my plan renew automatically?',
             'answer' => 'No. You pay for a month or a year at a time, and we email you before your plan ends so you can renew. Nothing is charged without your approval.',
         ],
-        [
-            'question' => 'Is the Free plan really free?',
-            'answer' => 'Yes, with no card and no time limit. You get a portfolio website, a booking page, unlimited galleries and 2 GB of storage. Upgrade when you need more space, video or Mobile Money deposits.',
-        ],
+        $freePlan ? [
+            'question' => 'Is the ' . $freePlan->name . ' plan really free?',
+            'answer' => 'Yes, with no card and no time limit. You get a portfolio website, a booking page, '
+                . ($freePlan->gallery_limit ? $freePlan->gallery_limit . ' ' . ($freePlan->gallery_limit === 1 ? 'gallery' : 'galleries') : 'unlimited galleries')
+                . ' and ' . $freePlan->storageLabel() . ' of storage. Upgrade when you need more space, video or Mobile Money deposits.',
+        ] : null,
         [
             'question' => 'What happens if my paid plan ends?',
-            'answer' => 'Your account moves to the Free plan. If you store more than the Free limit, uploads stop until you renew or free up space. After ' . config('billing.over_quota.restrict_after_days') . ' days new galleries and client downloads pause, after ' . config('billing.over_quota.archive_after_days') . ' days galleries go offline for clients, and after ' . config('billing.over_quota.delete_after_days') . ' days the oldest galleries are deleted until you are back within the limit. We email you before each step, and renewing lifts every restriction straight away.',
+            'answer' => 'Your account moves to the ' . ($freePlan?->name ?? 'Free') . ' plan. If you store more than the ' . ($freePlan ? $freePlan->storageLabel() . ' ' : '') . 'free limit, uploads stop until you renew or free up space. After ' . config('billing.over_quota.restrict_after_days') . ' days new galleries and client downloads pause, after ' . config('billing.over_quota.archive_after_days') . ' days galleries go offline for clients, and after ' . config('billing.over_quota.delete_after_days') . ' days the oldest galleries are deleted until you are back within the limit. We email you before each step, and renewing lifts every restriction straight away.',
         ],
         [
             'question' => 'Can I change plans later?',
             'answer' => 'Yes. You can upgrade, downgrade or cancel at any time from Billing in your studio. There are no setup fees and no long-term contracts.',
         ],
     ];
+    $faq = array_values(array_filter($faq));
 @endphp
 
 @section('page')

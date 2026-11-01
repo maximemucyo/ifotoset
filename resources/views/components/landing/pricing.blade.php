@@ -31,22 +31,6 @@
         ],
     ];
 
-    $formatStorage = function (?int $bytes): string {
-        $gb = (int) round(($bytes ?? 0) / 1024 ** 3);
-        return $gb >= 1000 ? rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB' : $gb . ' GB';
-    };
-    $formatVideo = function (int $seconds): string {
-        if ($seconds <= 0) {
-            return 'Photo galleries only';
-        }
-        if ($seconds < 3600) {
-            $m = (int) round($seconds / 60);
-            return "Up to {$m} " . ($m === 1 ? 'minute' : 'minutes') . ' of hosted video';
-        }
-        $h = round($seconds / 3600, 1);
-        $h = $h == (int) $h ? (int) $h : $h;
-        return "Up to {$h} " . ($h == 1 ? 'hour' : 'hours') . ' of hosted video';
-    };
     $money = fn ($amount, $currency) => trim(($currency ?: '') . ' ' . number_format((float) $amount, 0));
 
     // Whole months saved by paying yearly (e.g. annual = 10x monthly -> 2), or null when it isn't a clean number.
@@ -60,7 +44,7 @@
         return abs($months - round($months)) < 0.01 ? (int) round($months) : null;
     };
 
-    $cards = $plans->map(function ($plan) use ($copy, $formatStorage, $formatVideo, $money, $monthsFree) {
+    $cards = $plans->map(function ($plan) use ($copy, $money, $monthsFree) {
         $c = $copy[$plan->slug] ?? [
             'tagline' => $plan->name,
             'description' => null,
@@ -99,8 +83,8 @@
                 default => 'Billed monthly',
             },
             'features' => array_map(fn ($f) => match ($f) {
-                ':storage' => $formatStorage($plan->storage_limit) . ' optimized storage',
-                ':video' => $formatVideo((int) $plan->video_limit_seconds),
+                ':storage' => $plan->storageLabel() . ' optimized storage',
+                ':video' => $plan->videoLabel() ? 'Up to ' . $plan->videoLabel() . ' of hosted video' : 'Photo galleries only',
                 default => $f,
             }, $c['features']),
         ];

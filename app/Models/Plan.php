@@ -62,6 +62,41 @@ class Plan extends Model
         return (int) ($this->attributes['video_limit_seconds'] ?? $this->attributes['video_limit'] ?? 0);
     }
 
+    public function isFree(): bool
+    {
+        return (float) $this->monthly_price <= 0 && (float) $this->annual_price <= 0;
+    }
+
+    /**
+     * Storage allowance for marketing copy, e.g. "5 GB" or "1 TB" (decimal TB, matching the admin form).
+     */
+    public function storageLabel(): string
+    {
+        $gb = (int) round(($this->storage_limit ?? 0) / 1024 ** 3);
+
+        return $gb >= 1000 ? rtrim(rtrim(number_format($gb / 1000, 1), '0'), '.') . ' TB' : $gb . ' GB';
+    }
+
+    /**
+     * Hosted video allowance for marketing copy, e.g. "30 minutes" or "5 hours", or null when the plan has no video.
+     */
+    public function videoLabel(): ?string
+    {
+        $seconds = $this->video_limit_seconds;
+        if ($seconds <= 0) {
+            return null;
+        }
+        if ($seconds < 3600) {
+            $m = (int) round($seconds / 60);
+
+            return $m . ' ' . ($m === 1 ? 'minute' : 'minutes');
+        }
+        $h = round($seconds / 3600, 1);
+        $h = $h == (int) $h ? (int) $h : $h;
+
+        return $h . ' ' . ($h == 1 ? 'hour' : 'hours');
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

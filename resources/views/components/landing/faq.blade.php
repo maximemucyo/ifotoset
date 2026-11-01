@@ -1,5 +1,17 @@
-@props(['items' => null, 'description' => 'Everything you need to know about the platform, delivery features and studio plans.'])
+@props(['items' => null, 'plans' => collect(), 'description' => 'Everything you need to know about the platform, delivery features and studio plans.'])
 @php
+// "A, B and C"
+$sentenceList = fn ($parts) => collect($parts)->count() > 1 ? collect($parts)->slice(0, -1)->implode(', ') . ' and ' . collect($parts)->last() : (string) collect($parts)->first();
+
+// Storage and video answers are built from the live Plan records, so admin edits show up here.
+$storageAnswer = $plans->isEmpty() ? null : 'Every plan includes optimized storage for high-resolution photo delivery: '
+    . $sentenceList($plans->map(fn ($p) => $p->name . ' includes ' . $p->storageLabel())) . '.';
+$videoPlans = $plans->filter(fn ($p) => $p->videoLabel());
+$videoAnswer = $videoPlans->isEmpty() ? null : 'Video hosting is optimized for premium client delivery (such as highlight films, ceremony recordings, or commercial clips). '
+    . ucfirst($sentenceList($videoPlans->map(fn ($p) => $p->name . ' includes up to ' . $p->videoLabel()))) . ' of total hosted video'
+    . ($videoPlans->count() < $plans->count() ? ', and ' . $sentenceList($plans->reject(fn ($p) => $p->videoLabel())->pluck('name')) . ' ' . ($plans->count() - $videoPlans->count() === 1 ? 'is' : 'are') . ' for photo galleries only' : '')
+    . '. All uploads are optimized to ensure ultra-fast client playback.';
+
 $faqItems = $items ?? [
     [
         'question' => 'What is ifotoset?',
@@ -21,14 +33,14 @@ $faqItems = $items ?? [
         'question' => 'Can clients download their photos?',
         'answer' => 'Yes, if you allow it. For each gallery you decide whether clients can download single photos, the whole gallery as a ZIP file, or nothing at all.'
     ],
-    [
+    $storageAnswer ? [
         'question' => 'How much storage do I get?',
-        'answer' => 'The Free plan includes 2 GB of storage. Basic includes 50 GB, Professional includes 1 TB, and Business provides 3 TB of optimized storage to handle high-volume RAW and high-resolution JPEG delivery.'
-    ],
-    [
+        'answer' => $storageAnswer,
+    ] : null,
+    $videoAnswer ? [
         'question' => 'How does video hosting work?',
-        'answer' => 'Video hosting is optimized for premium client delivery (such as highlight films, ceremony recordings, or commercial clips). Basic includes up to 30 minutes, Professional includes up to 5 hours, and Business includes up to 15 hours of total hosted video. All uploads are optimized to ensure ultra-fast client playback.'
-    ],
+        'answer' => $videoAnswer,
+    ] : null,
     [
         'question' => 'Can I customize my portfolio?',
         'answer' => 'Yes. Your portfolio lives on your own ifotoset subdomain. You choose which galleries appear on it and add your logo or profile photo, bio, location, packages and a booking page. Custom domains are coming soon on the Professional plan.'
@@ -42,6 +54,7 @@ $faqItems = $items ?? [
         'answer' => 'Yes. ifotoset runs on a monthly or yearly subscription with no long-term contracts. You can cancel, upgrade, or downgrade your plan at any point in your billing settings.'
     ],
 ];
+$faqItems = array_values(array_filter($faqItems));
 @endphp
 
 <section id="faq" x-data="{ openIndex: 0 }" class="relative border-t border-border py-24 sm:py-32">

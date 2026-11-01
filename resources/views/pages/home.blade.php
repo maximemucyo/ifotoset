@@ -17,7 +17,7 @@
         <x-landing.how-it-works />
         <x-landing.brand-statement />
         <x-landing.pricing :plans="$plans ?? collect()" />
-        <x-landing.faq />
+        <x-landing.faq :plans="$plans ?? collect()" />
         <x-landing.cta />
     </div>
 
