@@ -1,9 +1,5 @@
 @extends('layouts.app', ['title' => 'Create your studio · ifotoset', 'containerClass' => 'max-w-2xl'])
 
-@php
-    $rootHost = config('app.public_root_host', 'ifotoset.com');
-@endphp
-
 @section('content')
 <x-ui.page-header title="Create your own studio"
     description="Get your own portfolio, galleries and booking page on the Free plan, using the login you already have." />
@@ -19,24 +15,11 @@
 @endunless
 
 <form method="POST" action="{{ route('studio.own.store') }}" class="card"
-      x-data="{ submitting: false, username: @js(old('username', '')), slugify(v) { return v.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50); } }"
+      x-data="{ submitting: false }"
       @submit="submitting = true">
     @csrf
     <div class="card-body space-y-5">
-        <div>
-            <label for="username" class="label">Studio URL</label>
-            <div class="flex items-stretch overflow-hidden rounded-lg border border-border bg-input shadow-xs transition focus-within:border-ring focus-within:ring-4 focus-within:ring-ring/15 {{ $errors->has('username') ? '!border-destructive' : '' }}">
-                <input type="text" name="username" id="username" required autofocus autocomplete="off" spellcheck="false" placeholder="yourstudio"
-                       x-model="username" @input="username = slugify($event.target.value)"
-                       class="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-subtle">
-                <span class="flex items-center border-l border-border bg-muted px-3 text-[13px] text-muted-foreground">.{{ $rootHost }}</span>
-            </div>
-            @error('username')
-                <p class="error-text">{{ $message }}</p>
-            @else
-                <p class="help">Your portfolio: <span class="font-medium text-foreground" x-text="(username || 'yourstudio') + '.{{ $rootHost }}'"></span></p>
-            @enderror
-        </div>
+        <x-studio-url-input :value="old('username', '')" autofocus />
         <ul class="space-y-2 text-[13px] text-muted-foreground">
             <li class="flex gap-2"><x-icon name="check" class="mt-0.5 size-4 shrink-0 text-success" /> Your studio and the team studios you work in stay completely separate.</li>
             <li class="flex gap-2"><x-icon name="check" class="mt-0.5 size-4 shrink-0 text-success" /> Switch between them from the menu at the bottom of the sidebar.</li>

@@ -242,7 +242,7 @@
             @can('studio.profile.manage')
             <section x-show="tab === 'public'" x-cloak class="card" aria-labelledby="public-heading">
                 <form method="POST" action="{{ route('studio.settings.public-profile') }}"
-                      x-data="{ username: @js(old('username', $user->username)), original: @js($user->username), isPublic: @js((bool) old('profile_public', $user->profile_public ?? false)) }">
+                      x-data="{ isPublic: @js((bool) old('profile_public', $user->profile_public ?? false)) }">
                     @csrf
                     <div class="card-header">
                         <div>
@@ -251,23 +251,7 @@
                         </div>
                     </div>
                     <div class="card-body space-y-6">
-                        <div>
-                            <label for="username" class="label">Portfolio address</label>
-                            <div class="flex h-10 items-stretch overflow-hidden rounded-lg border bg-input text-sm shadow-xs transition focus-within:border-ring focus-within:ring-4 focus-within:ring-ring/15 {{ $errors->has('username') ? 'border-destructive' : 'border-border' }}">
-                                <input type="text" id="username" name="username" required autocomplete="off" spellcheck="false"
-                                       x-model="username" @input="username = $event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50)"
-                                       class="min-w-0 flex-1 bg-transparent px-3 text-foreground outline-none placeholder:text-subtle">
-                                <span class="flex items-center border-l border-border bg-muted px-3 text-[13px] text-muted-foreground">.{{ $rootHost }}</span>
-                            </div>
-                            @error('username')
-                                <p class="error-text">{{ $message }}</p>
-                            @else
-                                <p class="help" x-show="username === original">This is the link clients use to find your portfolio and galleries.</p>
-                                <p class="help !text-warning" x-show="username !== original" x-cloak>
-                                    Changing your address updates every portfolio and gallery link. Links you've already shared will stop working.
-                                </p>
-                            @enderror
-                        </div>
+                        <x-studio-url-input label="Portfolio address" :value="old('username', $user->username)" :original="$user->username" />
 
                         @if($publicUrl)
                             <div class="rounded-xl border border-border p-4">

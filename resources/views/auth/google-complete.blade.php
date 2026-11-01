@@ -1,16 +1,8 @@
 @extends('layouts.guest', ['title' => 'Create your studio · ifotoset', 'heading' => 'Almost there', 'subheading' => 'A couple of details to finish creating your account.'])
 
-@php
-    $rootHost = config('app.public_root_host', 'ifotoset.com');
-@endphp
-
 @section('content')
 <form method="POST" action="{{ route('auth.google.complete') }}" class="space-y-4"
-      x-data="{
-          submitting: false,
-          username: @js(old('username', $suggestedUsername)),
-          slugify(v) { return v.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50); },
-      }"
+      x-data="{ submitting: false }"
       @submit="submitting = true">
     @csrf
 
@@ -29,20 +21,7 @@
                 placeholder="Alex Morgan"
                 :error="$errors->first('name')" />
 
-    <div>
-        <label for="username" class="label">Studio URL</label>
-        <div class="flex items-stretch overflow-hidden rounded-lg border border-border bg-input shadow-xs transition focus-within:border-ring focus-within:ring-4 focus-within:ring-ring/15 {{ $errors->has('username') ? '!border-destructive' : '' }}">
-            <input type="text" name="username" id="username" required autofocus autocomplete="username" placeholder="yourstudio"
-                   x-model="username" @input="username = slugify($event.target.value)"
-                   class="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-subtle">
-            <span class="flex items-center border-l border-border bg-muted px-3 text-[13px] text-muted-foreground">.{{ $rootHost }}</span>
-        </div>
-        @error('username')
-            <p class="error-text">{{ $message }}</p>
-        @else
-            <p class="help">Your portfolio: <span class="font-medium text-foreground" x-text="(username || 'yourstudio') + '.{{ $rootHost }}'"></span></p>
-        @enderror
-    </div>
+    <x-studio-url-input :value="old('username', $suggestedUsername)" autofocus />
 
     <x-ui.phone-input label="Phone number"
                       required

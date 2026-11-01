@@ -157,6 +157,65 @@ Alpine.magic('clipboard', () => async (text, message = 'Copied to clipboard') =>
 });
 
 /* -------------------------------------------------------------------------
+ | Studio URL field: x-data="studioUsername({ initial, original, url })"
+ | Asks the server whether the typed username is free, after a short pause.
+ * ---------------------------------------------------------------------- */
+Alpine.data('studioUsername', ({ initial = '', original = null, url }) => ({
+    username: initial || '',
+    original,
+    edited: false,
+    status: 'idle', // idle | checking | available | unavailable
+    message: '',
+    suggestion: null,
+    timer: null,
+    request: null,
+    init() {
+        // Prefilled suggestions (Google sign-up) or a value sent back after an error get checked straight away
+        if (this.username && this.username !== this.original) this.check();
+    },
+    onInput(e) {
+        this.username = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 50);
+        this.edited = true;
+        this.queue();
+    },
+    useSuggestion() {
+        this.username = this.suggestion;
+        this.edited = true;
+        this.check();
+    },
+    queue() {
+        clearTimeout(this.timer);
+        this.request?.abort();
+        this.status = 'idle';
+        // Too short to be valid yet: wait for more typing instead of showing an error
+        if (this.username.length < 3 || this.username === this.original) return;
+        this.timer = setTimeout(() => this.check(), 400);
+    },
+    async check() {
+        clearTimeout(this.timer);
+        this.request?.abort();
+        const value = this.username;
+        const request = (this.request = new AbortController());
+        this.status = 'checking';
+        try {
+            const res = await fetch(`${url}?username=${encodeURIComponent(value)}`, {
+                headers: { Accept: 'application/json' },
+                signal: request.signal,
+            });
+            if (!res.ok) throw new Error(res.status);
+            const data = await res.json();
+            if (value !== this.username) return;
+            this.status = data.available ? 'available' : 'unavailable';
+            this.message = data.message || '';
+            this.suggestion = data.suggestion;
+        } catch {
+            // Offline, throttled or aborted: say nothing, the form still validates on submit
+            if (value === this.username && !request.signal.aborted) this.status = 'idle';
+        }
+    },
+}));
+
+/* -------------------------------------------------------------------------
  | Dropdown menu: x-data="dropdown"
  * ---------------------------------------------------------------------- */
 Alpine.data('dropdown', () => ({

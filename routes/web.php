@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\HomeController;
 use App\Http\Controllers\Web\PublicBookingController;
 use App\Http\Controllers\Web\PublicGalleryController;
 use App\Http\Controllers\Web\PublicPhotographerController;
+use App\Http\Controllers\Web\UsernameAvailabilityController;
 use App\Http\Controllers\Web\Studio\AnalyticsController as StudioAnalyticsController;
 use App\Http\Controllers\Web\Studio\AvailabilityController as StudioAvailabilityController;
 use App\Http\Controllers\Web\Studio\BillingController as StudioBillingController;
@@ -118,6 +119,9 @@ Route::middleware('edge.cache')->group(function () {
 });
 Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 'index'])->name('sitemap');
 Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapController::class, 'section'])->name('sitemap.section');
+
+// Live "is this studio address free?" check for the sign-up and settings forms
+Route::get('/username-availability', UsernameAvailabilityController::class)->middleware('throttle:60,1')->name('username.availability');
 
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {

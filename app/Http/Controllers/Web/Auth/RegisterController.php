@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\User;
+use App\Rules\NotDisposableEmail;
 use App\Rules\StudioPhone;
 use App\Support\GoogleAnalytics;
 use App\Support\Phone;
@@ -13,9 +14,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Ramsey\Uuid\Uuid;
+use App\Support\StudioUsername;
 
 class RegisterController extends Controller
 {
@@ -48,18 +49,12 @@ class RegisterController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'username' => [
-                'required',
-                'string',
-                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
-                'unique:users,username',
-                Rule::notIn(config('reserved_usernames', []))
-            ],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'username' => StudioUsername::rules(),
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users', new NotDisposableEmail()],
             'phone_country' => ['nullable', 'string', 'size:2'],
             'phone' => ['required', 'string', 'max:30', new StudioPhone()],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        ], StudioUsername::messages());
 
         $freePlan = Plan::firstOrCreate([
             'slug' => 'free',

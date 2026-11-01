@@ -8,8 +8,8 @@ use App\Models\User;
 use App\Support\StudioAccount;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Support\StudioUsername;
 
 class StudioAccountController extends Controller
 {
@@ -70,17 +70,8 @@ class StudioAccountController extends Controller
         $request->merge(['username' => strtolower(trim((string) $request->input('username')))]);
 
         $validated = $request->validate([
-            'username' => [
-                'required',
-                'string',
-                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
-                'unique:users,username',
-                Rule::notIn(config('reserved_usernames', [])),
-            ],
-        ], [
-            'username.regex' => 'Use 3–50 lowercase letters, numbers or hyphens (no hyphen at the start or end).',
-            'username.not_in' => 'That address is reserved. Please choose another.',
-        ]);
+            'username' => StudioUsername::rules(),
+        ], StudioUsername::messages());
 
         $user->forceFill([
             'username' => $validated['username'],

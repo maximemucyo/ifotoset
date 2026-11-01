@@ -2,7 +2,7 @@ function ot(){const l=document.getElementById("gallery-header"),t=document.getEl
             <button type="button"
                     class="photo-card-open absolute inset-0 z-[1] size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
                     aria-label="View ${n?"video":"photo"} ${i}"></button>
-            <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-700"></canvas>
+            <canvas class="photo-blurhash-canvas pointer-events-none absolute inset-0 size-full transition-opacity duration-300"></canvas>
             <img src="${k(t.thumbnail)}"
                  ${t.srcset?`srcset="${k(t.srcset)}" sizes="${ct}"`:""}
                  alt="${k(t.title||t.caption||this.altFallback)}"
@@ -10,7 +10,7 @@ function ot(){const l=document.getElementById("gallery-header"),t=document.getEl
                  decoding="async"
                  width="${e}"
                  height="${s}"
-                 class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-700 ease-out group-hover:scale-[1.025]">
+                 class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.025]">
             ${n?`
             <div class="video-duration-badge pointer-events-none absolute bottom-2.5 left-2.5 z-[3] inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
                 ${D("play","size-3 shrink-0 fill-current")}

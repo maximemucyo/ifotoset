@@ -20,9 +20,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Ramsey\Uuid\Uuid;
+use App\Support\StudioUsername;
 
 /**
  * "Continue with Google" sign-in and sign-up (OpenID Connect, authorization code flow).
@@ -193,16 +193,10 @@ class GoogleAuthController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'username' => [
-                'required',
-                'string',
-                'regex:/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$/',
-                'unique:users,username',
-                Rule::notIn(config('reserved_usernames', [])),
-            ],
+            'username' => StudioUsername::rules(),
             'phone_country' => ['nullable', 'string', 'size:2'],
             'phone' => ['required', 'string', 'max:30', new StudioPhone()],
-        ]);
+        ], StudioUsername::messages());
 
         // The email or Google account may have registered in another tab since the callback
         if (User::withTrashed()->where('email', $profile['email'])->orWhere('google_id', $profile['sub'])->exists()) {
@@ -303,13 +297,7 @@ class GoogleAuthController extends Controller
             $base = 'studio';
         }
 
-        $reserved = config('reserved_usernames', []);
-        $candidate = $base;
-        for ($i = 2; in_array($candidate, $reserved, true) || User::withTrashed()->where('username', $candidate)->exists(); $i++) {
-            $candidate = $base . $i;
-        }
-
-        return $candidate;
+        return StudioUsername::suggest($base);
     }
 
     private function fail(string $message): RedirectResponse
