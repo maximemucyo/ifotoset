@@ -577,11 +577,12 @@
                     <button type="button" id="btn-choose-zip-download"
                             class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
                         <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-                            <x-icon name="download" class="size-[18px]" />
+                            <x-icon name="monitor-smartphone" class="size-[18px]" />
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-medium text-foreground">Download as ZIP</span>
+                            <span class="block text-sm font-medium text-foreground">Save to my device</span>
                         </span>
+                        <span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">ZIP</span>
                         <x-icon name="chevron-right" class="text-subtle transition-transform group-hover:translate-x-0.5" />
                     </button>
                 @endif
