@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class GooglePhotosController extends Controller
@@ -181,6 +182,12 @@ class GooglePhotosController extends Controller
         ]);
 
         if ($tokenResponse->failed() || empty($tokenResponse->json('access_token'))) {
+            Log::warning('Google Photos token exchange failed', [
+                'gallery_id' => $gallery->id,
+                'status' => $tokenResponse->status(),
+                'error' => $tokenResponse->json('error'),
+                'error_description' => $tokenResponse->json('error_description'),
+            ]);
             return redirect()->to($exportUrl(['error' => 'token']));
         }
 

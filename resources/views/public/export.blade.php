@@ -41,12 +41,12 @@
                 {{-- Step: email + start --}}
                 <div x-show="!exportId && !downloadUrl" class="p-6 sm:p-8">
                     <div class="flex items-start gap-3.5">
-                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground">
+                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full text-foreground" :class="type === 'zip' ? 'bg-muted' : 'bg-white ring-1 ring-border'">
                             <template x-if="type === 'zip'"><x-icon name="download" class="size-[18px]" /></template>
-                            <template x-if="type === 'google-photos'"><x-icon name="images" class="size-[18px]" /></template>
+                            <template x-if="type === 'google-photos'"><img src="{{ asset('images/brands/google-photos.png') }}" srcset="{{ asset('images/brands/google-photos@2x.png') }} 2x" alt="" width="24" height="24" class="size-6"></template>
                         </div>
                         <div class="min-w-0">
-                            <h2 class="text-[15px] font-semibold text-foreground" x-text="type === 'zip' ? 'Download gallery (ZIP)' : 'Export to Google Photos'"></h2>
+                            <h2 class="text-[15px] font-semibold text-foreground" x-text="type === 'zip' ? 'Download gallery (ZIP)' : 'Save to Google Photos'"></h2>
                             <p class="mt-1 text-[13px] leading-relaxed text-muted-foreground" x-text="type === 'zip'
                                 ? 'All high-resolution photos bundled into one downloadable archive.'
                                 : 'Sync photos into a private album in your Google Photos account.'"></p>
@@ -73,7 +73,7 @@
 
                         <button type="submit" :disabled="submitting" class="btn btn-primary btn-lg w-full">
                             <x-icon name="loader-circle" class="animate-spin" x-show="submitting" x-cloak />
-                            <span x-text="submitting ? 'Starting…' : (type === 'zip' ? 'Prepare download' : 'Connect Google Photos')"></span>
+                            <span x-text="submitting ? 'Starting…' : (type === 'zip' ? 'Prepare download' : 'Save to Google Photos')"></span>
                         </button>
                     </form>
                 </div>

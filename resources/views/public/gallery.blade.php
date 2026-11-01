@@ -590,8 +590,9 @@
                 @if($gallery->googlePhotosExportEnabled())
                     <button type="button" id="btn-choose-google-sync"
                             class="group flex w-full items-center gap-3.5 rounded-xl border border-border p-3.5 text-left transition-colors hover:border-border-strong hover:bg-muted/60">
-                        <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-                            <x-icon name="images" class="size-[18px]" />
+                        {{-- Google Photos UX guidelines: full-colour icon on white, at least 24px --}}
+                        <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-border">
+                            <img src="{{ asset('images/brands/google-photos.png') }}" srcset="{{ asset('images/brands/google-photos@2x.png') }} 2x" alt="" width="24" height="24" class="size-6">
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="block text-sm font-medium text-foreground">Save to Google Photos</span>

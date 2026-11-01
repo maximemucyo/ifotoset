@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
 use Tests\TestCase;
 
@@ -100,6 +101,21 @@ class GoogleAuthTest extends TestCase
 
         $this->assertGuest();
         Http::assertNothingSent();
+    }
+
+    public function test_rejected_client_secret_is_logged(): void
+    {
+        Http::fake([
+            'oauth2.googleapis.com/token' => Http::response(['error' => 'invalid_client', 'error_description' => 'The provided client secret is invalid.'], 401),
+        ]);
+        Log::spy();
+
+        $this->googleCallback()->assertRedirect(route('login'))->assertSessionHas('error');
+
+        $this->assertGuest();
+        Log::shouldHaveReceived('warning')->once()->withArgs(fn ($message, $context) => $message === 'Google sign-in token exchange failed'
+            && $context['error'] === 'invalid_client'
+            && !str_contains(json_encode($context), 'client-secret'));
     }
 
     public function test_existing_user_signs_in_and_gets_linked(): void

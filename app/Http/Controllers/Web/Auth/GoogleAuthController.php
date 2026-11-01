@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -263,11 +264,21 @@ class GoogleAuthController extends Controller
 
         $accessToken = $tokenResponse->json('access_token');
         if ($tokenResponse->failed() || empty($accessToken)) {
+            // Google's error code only: "invalid_client" means the client secret in .env is wrong
+            Log::warning('Google sign-in token exchange failed', [
+                'status' => $tokenResponse->status(),
+                'error' => $tokenResponse->json('error'),
+                'error_description' => $tokenResponse->json('error_description'),
+            ]);
             return null;
         }
 
         $userInfo = Http::withToken($accessToken)->get('https://openidconnect.googleapis.com/v1/userinfo');
         if ($userInfo->failed() || !$userInfo->json('sub') || !$userInfo->json('email')) {
+            Log::warning('Google sign-in profile request failed', [
+                'status' => $userInfo->status(),
+                'error' => $userInfo->json('error'),
+            ]);
             return null;
         }
 
