@@ -581,7 +581,6 @@
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="block text-sm font-medium text-foreground">Download as ZIP</span>
-                            <span class="block text-xs text-muted-foreground">Full-resolution files in a single archive.</span>
                         </span>
                         <x-icon name="chevron-right" class="text-subtle transition-transform group-hover:translate-x-0.5" />
                     </button>
@@ -596,7 +595,6 @@
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="block text-sm font-medium text-foreground">Save to Google Photos</span>
-                            <span class="block text-xs text-muted-foreground">Import straight into your Google account.</span>
                         </span>
                         <x-icon name="chevron-right" class="text-subtle transition-transform group-hover:translate-x-0.5" />
                     </button>
