@@ -236,6 +236,41 @@ class WebFullStackTest extends TestCase
         $this->get("{$galleryUrl}/export?type=google-photos")->assertOk()->assertViewHas('type', 'google-photos');
     }
 
+    public function test_admin_export_settings_switch_google_photos_and_zip(): void
+    {
+        $galleryUrl = app(\App\Services\PublicUrlService::class)->galleryUrl('alexmorgan', 'serengeti-safari-collection');
+        $zipUrl = route('api.public.gallery.zip', ['username' => 'alexmorgan', 'slug' => 'serengeti-safari-collection']);
+        config(['services.google.photos_export' => false]);
+
+        $save = fn (array $settings) => $this->actingAs($this->admin)
+            ->put('/admin/settings/exports', $settings + ['zip_downloads_enabled' => '1'])
+            ->assertRedirect(route('admin.settings.index'));
+
+        $this->actingAs($this->admin)->get('/admin/settings')->assertOk()->assertSee('Client exports');
+
+        // A test-studio list is required in "studios" mode
+        $this->actingAs($this->admin)
+            ->put('/admin/settings/exports', ['zip_downloads_enabled' => '1', 'google_photos_mode' => 'studios'])
+            ->assertSessionHasErrors('google_photos_studios');
+
+        $save(['google_photos_mode' => 'studios', 'google_photos_studios' => 'someone-else']);
+        auth()->logout();
+        $this->get($galleryUrl)->assertOk()->assertDontSee('Save to Google Photos');
+
+        $save(['google_photos_mode' => 'studios', 'google_photos_studios' => 'someone-else, @AlexMorgan']);
+        auth()->logout();
+        $this->get($galleryUrl)->assertOk()->assertSee('Save to Google Photos');
+
+        $save(['google_photos_mode' => 'everyone', 'google_photos_studios' => '']);
+        auth()->logout();
+        $this->get($galleryUrl)->assertOk()->assertSee('Save to Google Photos');
+
+        $save(['google_photos_mode' => 'off', 'zip_downloads_enabled' => '0']);
+        auth()->logout();
+        $this->get($galleryUrl)->assertOk()->assertDontSee('Save to Google Photos');
+        $this->postJson($zipUrl)->assertStatus(403)->assertJsonPath('code', 'DOWNLOADS_DISABLED');
+    }
+
     public function test_public_gallery_export_route_and_access_protection(): void
     {
         $urlService = app(\App\Services\PublicUrlService::class);

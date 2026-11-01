@@ -379,6 +379,7 @@ Route::middleware(['auth', 'active', 'admin', 'impersonation.prevent_admin'])->p
     Route::put('/settings/smtp', [AdminSettingsController::class, 'updateSmtp'])->name('settings.smtp');
     Route::post('/settings/smtp/test', [AdminSettingsController::class, 'testSmtp'])->name('settings.smtp.test');
     Route::put('/settings/general', [AdminSettingsController::class, 'updateGeneral'])->name('settings.general');
+    Route::put('/settings/exports', [AdminSettingsController::class, 'updateExports'])->name('settings.exports');
     Route::put('/settings/password', [AdminSettingsController::class, 'updatePassword'])->name('settings.password');
     Route::post('/settings/email/request-code', [AdminSettingsController::class, 'requestEmailVerificationCode'])->name('settings.email.request');
     Route::put('/settings/email/verify', [AdminSettingsController::class, 'verifyAndChangeEmail'])->name('settings.email.verify');

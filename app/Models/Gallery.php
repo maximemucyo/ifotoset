@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\UuidBinaryCast;
+use App\Support\ClientExports;
 use App\Traits\HasBinaryUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -207,11 +208,11 @@ class Gallery extends Model
     }
 
     /**
-     * "Save to Google Photos" needs both the gallery setting and the platform switch (GOOGLE_PHOTOS_EXPORT).
+     * "Save to Google Photos" needs both the gallery setting and the platform switch (Admin → Settings → Client exports).
      */
     public function googlePhotosExportEnabled(): bool
     {
-        return $this->allow_google_photos && config('services.google.photos_export') && !$this->clientDownloadsPaused();
+        return $this->allow_google_photos && ClientExports::googlePhotosEnabledFor($this->user) && !$this->clientDownloadsPaused();
     }
 
     /**
@@ -229,7 +230,7 @@ class Gallery extends Model
 
     public function galleryDownloadsAllowed(): bool
     {
-        return $this->allow_gallery_downloads && !$this->clientDownloadsPaused();
+        return $this->allow_gallery_downloads && ClientExports::zipEnabled() && !$this->clientDownloadsPaused();
     }
 
     /**

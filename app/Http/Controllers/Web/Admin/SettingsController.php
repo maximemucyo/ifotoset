@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\SystemSetting;
 use App\Services\SmtpSettingsService;
+use App\Support\ClientExports;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -32,7 +33,14 @@ class SettingsController extends Controller
             'maintenance_notice'  => SystemSetting::getOption('maintenance_notice', ''),
         ];
 
-        return view('admin.settings', compact('smtp', 'general'));
+        $exports = [
+            'zip_downloads_enabled' => ClientExports::zipEnabled(),
+            'google_photos_mode'    => ClientExports::googlePhotosMode(),
+            'google_photos_studios' => implode(', ', ClientExports::googlePhotosStudios()),
+            'google_configured'     => filled(config('services.google.client_id')) && filled(config('services.google.client_secret')),
+        ];
+
+        return view('admin.settings', compact('smtp', 'general', 'exports'));
     }
 
     /**
@@ -159,6 +167,41 @@ class SettingsController extends Controller
         return redirect()->route('admin.settings.index')->with('toast', [
             'type'    => 'success',
             'message' => 'Platform general configuration updated successfully.',
+        ]);
+    }
+
+    /**
+     * Turn ZIP downloads and Google Photos export on or off across the platform.
+     */
+    public function updateExports(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'zip_downloads_enabled' => ['required', 'boolean'],
+            'google_photos_mode'    => ['required', 'string', 'in:' . implode(',', ClientExports::GOOGLE_MODES)],
+            'google_photos_studios' => ['nullable', 'string', 'max:1000', 'required_if:google_photos_mode,' . ClientExports::GOOGLE_STUDIOS],
+        ]);
+
+        $studios = ClientExports::parseUsernames($validated['google_photos_studios'] ?? '');
+
+        SystemSetting::setOption('zip_downloads_enabled', $request->boolean('zip_downloads_enabled') ? '1' : '0');
+        SystemSetting::setOption('google_photos_mode', $validated['google_photos_mode']);
+        SystemSetting::setOption('google_photos_studios', implode(',', $studios));
+
+        AdminAuditLog::record(
+            $request->user(),
+            'settings.exports_updated',
+            'SystemSetting',
+            'exports',
+            [
+                'zip_downloads_enabled' => $request->boolean('zip_downloads_enabled'),
+                'google_photos_mode'    => $validated['google_photos_mode'],
+                'google_photos_studios' => $studios,
+            ]
+        );
+
+        return redirect()->route('admin.settings.index')->with('toast', [
+            'type'    => 'success',
+            'message' => 'Client export settings updated.',
         ]);
     }
 

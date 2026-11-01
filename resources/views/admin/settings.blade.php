@@ -6,9 +6,12 @@
         ? 'security'
         : ($errors->hasAny(['host', 'port', 'username', 'encryption', 'from_address', 'from_name', 'test_email'])
             ? 'smtp'
-            : ($errors->hasAny(['platform_name', 'support_email', 'support_phone', 'default_currency', 'momo_merchant_code', 'momo_account_name', 'announcement_banner']) ? 'general' : null));
+            : ($errors->hasAny(['platform_name', 'support_email', 'support_phone', 'default_currency', 'momo_merchant_code', 'momo_account_name', 'announcement_banner'])
+                ? 'general'
+                : ($errors->hasAny(['zip_downloads_enabled', 'google_photos_mode', 'google_photos_studios']) ? 'exports' : null)));
     $sections = [
         'general' => ['label' => 'General', 'icon' => 'globe', 'hint' => 'Brand, support & payments'],
+        'exports' => ['label' => 'Client exports', 'short' => 'Exports', 'icon' => 'download', 'hint' => 'ZIP & Google Photos'],
         'smtp' => ['label' => 'Email delivery', 'short' => 'Email', 'icon' => 'mail', 'hint' => 'SMTP server & test'],
         'security' => ['label' => 'Security', 'icon' => 'shield', 'hint' => 'Password & login email'],
     ];
@@ -130,6 +133,88 @@
                         <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
                             <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
                             Save general settings
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            {{-- ============ Client exports ============ --}}
+            <section x-show="activeTab === 'exports'" x-cloak class="space-y-6">
+                <form method="POST" action="{{ route('admin.settings.exports') }}" class="card" x-data="{ busy: false, googleMode: @js(old('google_photos_mode', $exports['google_photos_mode'])) }" @submit="busy = true">
+                    @csrf
+                    @method('PUT')
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Client exports</h2>
+                            <p class="card-description mt-0.5">Platform-wide switches. When a feature is on, each studio can still turn it off per gallery.</p>
+                        </div>
+                    </div>
+
+                    <label class="flex cursor-pointer items-start justify-between gap-4 border-b border-border p-5">
+                        <span class="flex items-start gap-3">
+                            <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="package" class="size-4" /></span>
+                            <span>
+                                <span class="block text-sm font-medium text-foreground">ZIP downloads</span>
+                                <span class="mt-0.5 block text-xs text-muted-foreground">Clients can download a whole gallery, or their favourites, as one ZIP file. Single-photo downloads are not affected.</span>
+                            </span>
+                        </span>
+                        <span class="switch mt-1.5">
+                            <input type="hidden" name="zip_downloads_enabled" value="0">
+                            <input type="checkbox" name="zip_downloads_enabled" value="1" class="sr-only" @checked(old('zip_downloads_enabled', $exports['zip_downloads_enabled']))>
+                            <span></span>
+                        </span>
+                    </label>
+
+                    <div class="card-body space-y-4">
+                        <div class="flex items-start gap-3">
+                            <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="cloud-upload" class="size-4" /></span>
+                            <div>
+                                <h3 class="text-sm font-medium text-foreground">Save to Google Photos</h3>
+                                <p class="mt-0.5 text-xs text-muted-foreground">Until Google verifies the app, keep it off or limited to test studios. Other visitors would see Google's "unverified app" screen.</p>
+                            </div>
+                        </div>
+
+                        @unless($exports['google_configured'])
+                            <div class="alert alert-warning">
+                                <x-icon name="triangle-alert" />
+                                <p class="text-[13px]">GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set, so the export cannot connect to Google yet.</p>
+                            </div>
+                        @endunless
+
+                        <fieldset class="grid gap-2 sm:grid-cols-3">
+                            <legend class="sr-only">Who can use Save to Google Photos</legend>
+                            @foreach([
+                                'off' => ['Off', 'Hidden on every gallery.'],
+                                'studios' => ['Test studios only', 'Only galleries of the studios listed below.'],
+                                'everyone' => ['Everyone', 'All galleries that allow it.'],
+                            ] as $value => [$label, $hint])
+                                <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-3 transition-colors"
+                                       :class="googleMode === @js($value) ? 'border-brand bg-brand/5' : 'hover:bg-muted/50'">
+                                    <input type="radio" name="google_photos_mode" value="{{ $value }}" x-model="googleMode" class="mt-0.5">
+                                    <span>
+                                        <span class="block text-[13px] font-medium text-foreground">{{ $label }}</span>
+                                        <span class="block text-xs text-muted-foreground">{{ $hint }}</span>
+                                    </span>
+                                </label>
+                            @endforeach
+                        </fieldset>
+                        @error('google_photos_mode') <p class="error-text">{{ $message }}</p> @enderror
+
+                        <div x-show="googleMode === 'studios'" x-cloak>
+                            <label class="label" for="google_photos_studios">Test studio usernames</label>
+                            <div class="input-group">
+                                <x-icon name="users" />
+                                <input id="google_photos_studios" type="text" name="google_photos_studios" value="{{ old('google_photos_studios', $exports['google_photos_studios']) }}"
+                                       placeholder="e.g. alexmorgan, demo-studio" class="input font-mono text-[13px] @error('google_photos_studios') input-error @enderror">
+                            </div>
+                            @error('google_photos_studios') <p class="error-text">{{ $message }}</p> @else <p class="help">Separate usernames with commas. Add the same Google accounts as test users in Google Cloud.</p> @enderror
+                        </div>
+                    </div>
+
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-primary btn-sm" :disabled="busy">
+                            <x-icon name="loader-circle" class="animate-spin" x-show="busy" x-cloak />
+                            Save export settings
                         </button>
                     </div>
                 </form>

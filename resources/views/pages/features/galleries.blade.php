@@ -1,7 +1,7 @@
 @extends('layouts.marketing')
 
 @php
-    $googlePhotos = config('services.google.photos_export');
+    $googlePhotos = \App\Support\ClientExports::googlePhotosPublic();
     $faq = [
         [
             'question' => 'How do I send a gallery to my client?',
