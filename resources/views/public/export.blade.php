@@ -1,9 +1,9 @@
 @extends('layouts.public', [
-    'title' => 'Export ' . $gallery->title . ' - ' . $photographer->name . ' | ifotoset',
-    'description' => "Export photo archive for '{$gallery->title}'.",
+    'title' => 'Save ' . $gallery->title . ' - ' . $photographer->name . ' | ifotoset',
+    'description' => "Save the photos from '{$gallery->title}'.",
     'hideNav' => true,
-    'hideFooter' => true,
     'robots' => 'noindex, nofollow',
+    'defaultTheme' => 'light',
 ])
 
 @section('content')
@@ -19,15 +19,40 @@
          'initialError' => $errorMessage,
          'csrfToken' => csrf_token(),
      ]))">
-    <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+    @if($coverUrl)
+        {{-- The gallery cover, blurred and washed into the page background so the card stays readable in both themes --}}
+        <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <img src="{{ $coverUrl }}" alt="" decoding="async" class="size-full scale-110 object-cover opacity-60 blur-2xl">
+            <div class="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background"></div>
+        </div>
+    @else
+        <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
+    @endif
 
-    {{-- Top bar --}}
-    <header class="relative z-10 flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
-        <a href="{{ $gallery->public_url }}"
-           class="btn btn-ghost btn-sm -ml-2" aria-label="Back to Gallery">
-            <x-icon name="arrow-left" /> <span class="max-w-[50vw] truncate">{{ $gallery->title }}</span>
+    {{-- Top bar: same identity block and theme button as the gallery header --}}
+    <header class="relative z-10 flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" style="padding-top: env(safe-area-inset-top);">
+        <a href="{{ $photographer->public_url }}" class="group flex min-w-0 items-center gap-2.5">
+            <x-ui.avatar :name="$photographer->name" :src="$photographer->avatar_url" size="sm" class="ring-1 ring-white/20" />
+            <span class="min-w-0">
+                <span class="block truncate text-[13px] font-semibold tracking-tight">{{ $photographer->name }}</span>
+                <span class="block truncate text-[11px] text-muted-foreground">Photography</span>
+            </span>
         </a>
-        <x-ui.theme-toggle />
+
+        <div class="flex shrink-0 items-center gap-1">
+            <a href="{{ $gallery->public_url }}"
+               class="inline-flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                <x-icon name="arrow-left" class="size-4" /> <span class="hidden sm:inline">Back to gallery</span><span class="sm:hidden">Gallery</span>
+            </a>
+            <button type="button"
+                    x-data
+                    @click="$store.theme.toggle()"
+                    class="inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-muted"
+                    aria-label="Toggle theme" title="Toggle theme">
+                <x-icon name="sun" class="hidden size-[18px] dark:block" />
+                <x-icon name="moon" class="block size-[18px] dark:hidden" />
+            </button>
+        </div>
     </header>
 
     <div class="relative z-10 flex flex-1 items-center justify-center px-4 pb-16 pt-4 sm:px-6">
@@ -41,14 +66,14 @@
                 {{-- Step: email + start --}}
                 <div x-show="!exportId && !downloadUrl" class="p-6 sm:p-8">
                     <div class="flex items-start gap-3.5">
-                        <div class="flex size-10 shrink-0 items-center justify-center rounded-full text-foreground" :class="type === 'zip' ? 'bg-muted' : 'bg-white ring-1 ring-border'">
-                            <template x-if="type === 'zip'"><x-icon name="download" class="size-[18px]" /></template>
+                        <div class="flex size-10 shrink-0 items-center justify-center rounded-lg text-foreground" :class="type === 'zip' ? 'bg-muted' : 'bg-white ring-1 ring-border'">
+                            <template x-if="type === 'zip'"><x-icon name="monitor-smartphone" class="size-[18px]" /></template>
                             <template x-if="type === 'google-photos'"><img src="{{ asset('images/brands/google-photos.png') }}" srcset="{{ asset('images/brands/google-photos@2x.png') }} 2x" alt="" width="24" height="24" class="size-6"></template>
                         </div>
                         <div class="min-w-0">
-                            <h2 class="text-[15px] font-semibold text-foreground" x-text="type === 'zip' ? 'Download gallery (ZIP)' : 'Save to Google Photos'"></h2>
+                            <h2 class="text-[15px] font-semibold text-foreground" x-text="type === 'zip' ? 'Save to my device' : 'Save to Google Photos'">{{ $type === 'zip' ? 'Save to my device' : 'Save to Google Photos' }}</h2>
                             <p class="mt-1 text-[13px] leading-relaxed text-muted-foreground" x-text="type === 'zip'
-                                ? 'All high-resolution photos bundled into one downloadable archive.'
+                                ? 'Every high-resolution photo in one ZIP file.'
                                 : 'Sync photos into a private album in your Google Photos account.'"></p>
                             @if($target === 'favorites')
                                 <span class="badge badge-brand mt-2.5"><x-icon name="heart" /> Favorites only</span>
@@ -103,13 +128,9 @@
                         <p class="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground" x-text="statusDisplaySubtitle"></p>
                     </div>
 
-                    <div x-show="status === 'processing' || status === 'uploading' || status === 'pending'" class="mt-7 space-y-2">
-                        <div class="progress"><span :style="'width: ' + percentage + '%'"></span></div>
-                        <div class="flex justify-between text-xs tabular-nums text-muted-foreground">
-                            <span x-text="percentage + '% complete'"></span>
-                            <span x-text="processedPhotos + ' / ' + totalPhotos + ' photos'"></span>
-                        </div>
-                    </div>
+                    <p x-show="['processing', 'uploading', 'pending'].includes(status) && totalPhotos > 0" x-cloak
+                       class="mt-4 text-center text-xs tabular-nums text-muted-foreground"
+                       x-text="processedPhotos + ' of ' + totalPhotos + ' photos'"></p>
 
                     <div x-show="(status === 'completed' || status === 'ready') && downloadUrl" class="mt-7">
                         <a :href="downloadUrl" class="btn btn-primary btn-lg w-full">
@@ -130,10 +151,6 @@
                     </div>
                 </div>
             </div>
-
-            <p class="mt-6 text-center text-xs text-muted-foreground">
-                <a href="{{ $gallery->public_url }}" class="transition-colors hover:text-foreground">Back to gallery</a>
-            </p>
         </div>
     </div>
 </div>
@@ -391,4 +408,8 @@ document.addEventListener('alpine:init', () => {
     });
 });
 </script>
+@endsection
+
+@section('footer')
+    @include('public.partials.gallery-footer')
 @endsection

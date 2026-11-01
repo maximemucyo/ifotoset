@@ -309,9 +309,15 @@ class PublicGalleryController extends Controller
 
         $syncUuid = $request->query('sync');
 
+        // Same cover as the gallery hero, shown blurred behind the card
+        $coverPhoto = ($gallery->coverPhoto && !$gallery->coverPhoto->is_hidden)
+            ? $gallery->coverPhoto
+            : ($this->photoQuery->getPaginatedForGallery($gallery, 1)->items()[0] ?? null);
+
         return view('public.export', [
             'gallery' => $gallery,
             'photographer' => $gallery->user,
+            'coverUrl' => $coverPhoto?->getThumbnailUrl('md') ?: $coverPhoto?->getThumbnailUrl('lg'),
             'type' => $type === 'google-photos' && $gallery->googlePhotosExportEnabled() ? $type : 'zip',
             'target' => in_array($target, ['all', 'favorites']) ? $target : 'all',
             'syncUuid' => is_string($syncUuid) && \Illuminate\Support\Str::isUuid($syncUuid) ? $syncUuid : null,

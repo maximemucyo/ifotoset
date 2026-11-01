@@ -281,7 +281,7 @@ class WebFullStackTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Prepare download');
         $response->assertSee('Serengeti Safari Collection');
-        $response->assertSee('Download gallery (ZIP)');
+        $response->assertSee('Save to my device');
 
         // 2. Private gallery export redirects when locked
         $privateGallery = Gallery::create([
