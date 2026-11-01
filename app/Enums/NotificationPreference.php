@@ -24,7 +24,7 @@ enum NotificationPreference: string
         return match ($this) {
             self::NewBookings => 'New booking requests',
             self::PaymentReceived => 'Payments received',
-            self::GalleryActivity => 'Daily gallery activity',
+            self::GalleryActivity => 'Weekly gallery activity',
         };
     }
 
@@ -33,7 +33,7 @@ enum NotificationPreference: string
         return match ($this) {
             self::NewBookings => 'When a client books a session through your portfolio.',
             self::PaymentReceived => 'When a client pays a booking deposit.',
-            self::GalleryActivity => 'One daily summary of client downloads and favorites.',
+            self::GalleryActivity => 'One weekly summary of client downloads and favorites.',
         };
     }
 

@@ -21,7 +21,7 @@ class GalleryActivityDigestMail extends NoticeMail
         $downloads = array_sum(array_column($this->galleries, 'downloads'));
         $favorites = array_sum(array_column($this->galleries, 'favorites'));
 
-        return "Yesterday on ifotoset: {$downloads} downloads, {$favorites} favorites";
+        return "Last week on ifotoset: {$downloads} downloads, {$favorites} favorites";
     }
 
     protected function notice(): array
@@ -32,11 +32,11 @@ class GalleryActivityDigestMail extends NoticeMail
         }
 
         return [
-            'eyebrow' => 'Daily activity',
-            'title' => 'Your galleries in the last 24 hours',
+            'eyebrow' => 'Weekly activity',
+            'title' => 'Your galleries in the last 7 days',
             'preheader' => $this->subjectLine(),
             'greeting' => $this->user->name,
-            'paragraphs' => ['Here is what your clients did in your galleries yesterday.'],
+            'paragraphs' => ['Here is what your clients did in your galleries over the past week.'],
             'detailsTitle' => 'By gallery',
             'details' => $details,
             'button' => ['label' => 'Open analytics', 'url' => route('studio.analytics.index')],

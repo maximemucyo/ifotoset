@@ -183,11 +183,12 @@ class TransactionalEmailTest extends TestCase
         ]);
         DB::table('activity_logs')->insert([
             ['gallery_id' => $gallery->id, 'event' => 'photo_downloaded', 'created_at' => now()->subHours(2)],
-            ['gallery_id' => $gallery->id, 'event' => 'photo_favorited', 'created_at' => now()->subHours(3)],
+            ['gallery_id' => $gallery->id, 'event' => 'photo_favorited', 'created_at' => now()->subDays(5)],
+            ['gallery_id' => $gallery->id, 'event' => 'photo_downloaded', 'created_at' => now()->subDays(8)],
         ]);
 
         $this->artisan('notifications:gallery-activity-digest')->assertSuccessful();
-        Mail::assertQueued(GalleryActivityDigestMail::class, fn ($mail) => $mail->galleries[0]['downloads'] === 1);
+        Mail::assertQueued(GalleryActivityDigestMail::class, fn ($mail) => $mail->galleries[0]['downloads'] === 1 && $mail->galleries[0]['favorites'] === 1);
 
         $this->user->forceFill(['notification_preferences' => ['gallery_activity' => false]])->save();
         Mail::fake();

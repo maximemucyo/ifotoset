@@ -13,11 +13,11 @@ class SendGalleryActivityDigest extends Command
 {
     protected $signature = 'notifications:gallery-activity-digest';
 
-    protected $description = 'Email each photographer one summary of the last 24 hours of downloads and favorites';
+    protected $description = 'Email each photographer one summary of the last 7 days of downloads and favorites';
 
     public function handle(): int
     {
-        $since = now()->subDay();
+        $since = now()->subWeek();
 
         $rows = DB::table('activity_logs')
             ->join('galleries', 'galleries.id', '=', 'activity_logs.gallery_id')
