@@ -38,7 +38,7 @@ class BookingDepositPaidPhotographerMail extends Mailable implements ShouldQueue
 
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset'),
-            subject: "Deposit Received: {$this->booking->title} from {$this->booking->client->name}",
+            subject: "Deposit received: {$this->booking->title} from {$this->booking->client->name}",
         );
     }
 

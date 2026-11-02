@@ -37,7 +37,6 @@ class BookingReminderMail extends NoticeMail
 
         return $this->forPhotographer
             ? [
-                'eyebrow' => 'Booking reminder',
                 'title' => 'Session tomorrow',
                 'preheader' => "{$booking->title} is on {$when}.",
                 'greeting' => $booking->user?->name,
@@ -46,7 +45,6 @@ class BookingReminderMail extends NoticeMail
                 'button' => ['label' => 'View bookings', 'url' => route('studio.bookings.index')],
             ]
             : [
-                'eyebrow' => 'Booking reminder',
                 'title' => 'Your session is tomorrow',
                 'preheader' => "Your session with {$booking->user?->name} is on {$when}.",
                 'greeting' => $booking->client?->name,

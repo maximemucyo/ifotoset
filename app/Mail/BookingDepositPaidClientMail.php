@@ -46,7 +46,7 @@ class BookingDepositPaidClientMail extends Mailable implements ShouldQueue
             replyTo: [
                 new Address($photographer->email, $photographer->name)
             ],
-            subject: "Deposit Receipt: {$this->booking->title} with {$photographer->name}",
+            subject: "Deposit receipt: {$this->booking->title} with {$photographer->name}",
         );
     }
 

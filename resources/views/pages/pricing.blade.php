@@ -69,13 +69,13 @@
     <x-landing.pricing :plans="$plans" heading-tag="h1" />
 
     @if($plans->isNotEmpty())
-        <section class="border-t border-border py-24 sm:py-32">
+        <section class="border-t border-border py-16 sm:py-24">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <x-landing.section-heading eyebrow="Compare plans" description="Every plan includes client galleries, a portfolio website and online booking. Paid plans add storage, video and Mobile Money deposits.">
-                    What's in each <em class="font-serif font-normal italic tracking-normal">plan</em>.
+                <x-landing.section-heading description="Every plan includes client galleries, a portfolio website and online booking. Paid plans add storage, video and Mobile Money deposits.">
+                    What's in each plan.
                 </x-landing.section-heading>
 
-                <div class="mt-14 overflow-x-auto rounded-2xl border border-border bg-card" data-reveal>
+                <div class="mt-10 overflow-x-auto rounded-2xl border border-border bg-card">
                     <table class="w-full min-w-[640px] text-left text-[14px]">
                         <thead>
                             <tr class="border-b border-border">
@@ -97,7 +97,7 @@
                                             @php $value = $resolve($plan); @endphp
                                             <td class="px-4 py-3.5 text-center tabular-nums">
                                                 @if($value === true)
-                                                    <x-icon name="check" class="mx-auto size-4.5 text-brand" /><span class="sr-only">Included</span>
+                                                    <x-icon name="check" class="mx-auto size-4.5 text-brand-strong" /><span class="sr-only">Included</span>
                                                 @elseif($value === false)
                                                     <span class="text-subtle" aria-hidden="true">–</span><span class="sr-only">Not included</span>
                                                 @else

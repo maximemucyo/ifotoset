@@ -25,7 +25,6 @@ class SubscriptionExpiringMail extends NoticeMail
         $endsOn = $subscription->ends_at->format('F j, Y');
 
         return [
-            'eyebrow' => 'Subscription',
             'title' => $this->daysLeft <= 1 ? 'Your plan ends tomorrow' : "Your plan ends in {$this->daysLeft} days",
             'preheader' => "Your {$plan} ends on {$endsOn}. Renew to keep your storage and features.",
             'greeting' => $subscription->user?->name,

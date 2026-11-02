@@ -39,7 +39,6 @@ class OverQuotaNoticeMail extends NoticeMail
 
         if ($this->kind === 'deleted') {
             return [
-                'eyebrow' => 'Storage',
                 'title' => 'Galleries deleted',
                 'preheader' => 'Your oldest galleries were permanently deleted to bring your account within the Free plan.',
                 'greeting' => $user->name,
@@ -62,7 +61,6 @@ class OverQuotaNoticeMail extends NoticeMail
         };
 
         return [
-            'eyebrow' => 'Storage',
             'title' => $title,
             'preheader' => "You are using {$used} of the Free plan's {$limit}. Upgrade or free up space to keep your galleries.",
             'greeting' => $user->name,

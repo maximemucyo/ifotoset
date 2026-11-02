@@ -106,6 +106,9 @@
         default => null,
     };
 
+    // Phones show one plan at a time, starting on the featured one
+    $startIndex = max(0, (int) $cards->search(fn ($c) => $c['featured']));
+
     $cols = match (true) {
         $cards->count() >= 4 => 'md:grid-cols-2 xl:grid-cols-4',
         $cards->count() === 3 => 'md:grid-cols-3',
@@ -114,99 +117,106 @@
     };
 @endphp
 
-<section id="pricing" x-data="{ billingPeriod: 'yearly' }" class="relative py-24 sm:py-32">
-    <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-dots opacity-50 mask-fade-b"></div>
-
+<section id="pricing" x-data="{ billingPeriod: 'yearly', plan: {{ $startIndex }} }" class="scroll-mt-16 border-t border-border py-16 sm:py-24">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <x-landing.section-heading :tag="$headingTag" eyebrow="Pricing" description="Start free and upgrade when your studio grows. No setup fees, no long-term contracts.">
-            Simple pricing. <em class="font-serif font-normal italic tracking-normal">No surprises.</em>
-        </x-landing.section-heading>
+        <div class="max-w-2xl">
+            <{{ $headingTag }} class="headline">Start free. Upgrade when the bookings come in.</{{ $headingTag }}>
+            <p class="mt-4 text-[17px] leading-relaxed text-muted-foreground">No setup fees and no long-term contracts.</p>
+        </div>
 
         @if($cards->isEmpty())
-            <div class="mx-auto mt-12 max-w-md text-center" data-reveal>
+            <div class="mt-10 max-w-md">
                 <p class="text-muted-foreground">Plans are being updated. You can still start for free today.</p>
-                <a href="{{ route('register') }}" class="btn btn-primary btn-lg mt-6">Start free <x-icon name="arrow-right" /></a>
+                <a href="{{ route('register') }}" class="btn btn-primary btn-lg mt-6">Start free</a>
             </div>
         @else
             {{-- Billing toggle --}}
-            <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row" data-reveal>
-                <div class="relative inline-grid grid-cols-2 rounded-full border border-border bg-muted/70 p-1" role="radiogroup" aria-label="Billing period">
+            <div class="mt-8 flex flex-wrap items-center gap-3">
+                <div class="relative inline-grid grid-cols-2 rounded-full border border-border bg-muted p-1" role="radiogroup" aria-label="Billing period">
                     <span aria-hidden="true" class="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-card shadow-sm ring-1 ring-border transition-transform duration-300 ease-out"
                         :class="billingPeriod === 'yearly' ? 'translate-x-full' : 'translate-x-0'"></span>
                     <button type="button" role="radio" :aria-checked="(billingPeriod === 'monthly').toString()" @click="billingPeriod = 'monthly'"
-                        class="relative z-10 h-9 rounded-full px-5 text-[13.5px] font-medium transition-colors"
+                        class="relative z-10 h-10 rounded-full px-5 text-[15px] font-medium transition-colors"
                         :class="billingPeriod === 'monthly' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">Monthly</button>
                     <button type="button" role="radio" :aria-checked="(billingPeriod === 'yearly').toString()" @click="billingPeriod = 'yearly'"
-                        class="relative z-10 h-9 rounded-full px-5 text-[13.5px] font-medium transition-colors"
+                        class="relative z-10 h-10 rounded-full px-5 text-[15px] font-medium transition-colors"
                         :class="billingPeriod === 'yearly' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'">Yearly</button>
                 </div>
                 @if($savingBadge)
-                    <span class="badge badge-brand rounded-full px-2.5 py-1 text-[12px]"><x-icon name="sparkles" /> {{ $savingBadge }}</span>
+                    <span class="text-[14px] font-medium text-brand-strong">{{ $savingBadge }}</span>
                 @endif
             </div>
 
-            <div class="mt-12 grid items-stretch gap-5 {{ $cols }}">
+            {{-- Plan picker for phones; from md every plan is visible --}}
+            @if($cards->count() > 1)
+                <div class="mt-6 flex gap-1 rounded-xl bg-muted p-1 md:hidden" role="tablist" aria-label="Plans">
+                    @foreach($cards as $i => $card)
+                        <button type="button" role="tab" id="plan-tab-{{ $card['slug'] }}" aria-controls="plan-{{ $card['slug'] }}"
+                            :aria-selected="(plan === {{ $i }}).toString()" @click="plan = {{ $i }}"
+                            @class(['h-11 flex-auto whitespace-nowrap rounded-lg px-2 text-[14px] font-medium transition-colors', 'bg-card text-foreground shadow-sm' => $i === $startIndex, 'text-muted-foreground' => $i !== $startIndex])
+                            {{-- Object syntax: Alpine then also removes the server-rendered classes --}}
+                            :class="{ 'bg-card text-foreground shadow-sm': plan === {{ $i }}, 'text-muted-foreground': plan !== {{ $i }} }">{{ $card['name'] }}</button>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="mt-4 grid gap-x-5 gap-y-5 md:mt-10 {{ $cols }}">
                 @foreach($cards as $i => $card)
-                    <div @class([
-                            'relative flex flex-col rounded-2xl border p-7 transition-[border-color,box-shadow] duration-300',
-                            'border-brand/50 bg-card shadow-xl shadow-brand/5 ring-1 ring-brand/40 dark:shadow-black/40' => $card['featured'],
-                            'border-border bg-card shadow-xs hover:border-border-strong hover:shadow-md' => !$card['featured'],
+                    <div id="plan-{{ $card['slug'] }}" role="tabpanel" aria-labelledby="plan-tab-{{ $card['slug'] }}"
+                        @class([
+                            {{-- From md the cards share rows (subgrid), so names, prices and buttons line up --}}
+                            'relative flex-col rounded-2xl border bg-card p-6 sm:p-7 md:row-span-6 md:grid md:grid-rows-subgrid md:gap-0',
+                            'border-brand-strong ring-1 ring-brand-strong' => $card['featured'],
+                            'border-border' => !$card['featured'],
+                            'flex' => $i === $startIndex,
+                            'hidden' => $i !== $startIndex,
                         ])
-                        data-reveal style="--reveal-delay: {{ $i * 70 }}ms">
+                        :class="{ 'flex': plan === {{ $i }}, 'hidden': plan !== {{ $i }} }">
                         @if($card['featured'])
-                            <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-0 h-32 rounded-t-2xl bg-gradient-to-b from-brand/10 to-transparent"></div>
-                            <span class="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-brand-strong px-2.5 py-1 text-[11px] font-semibold text-brand-foreground shadow-sm">
-                                <x-icon name="star" class="size-3 fill-current" /> Most popular
-                            </span>
+                            <span class="absolute -top-3 left-6 whitespace-nowrap rounded-full bg-brand-strong px-2.5 py-1 text-[12px] font-semibold text-brand-foreground sm:left-7">Most popular</span>
                         @endif
+                        <h3 class="text-[22px] font-semibold">{{ $card['name'] }}</h3>
+                        <p class="mt-1 text-[14px] font-medium text-brand-strong">{{ $card['tagline'] }}</p>
+                        {{-- Always rendered: each card needs the same six rows --}}
+                        <p class="mt-3 text-[15px] leading-relaxed text-muted-foreground">{{ $card['description'] }}</p>
 
-                        <div class="relative">
-                            <h3 class="text-lg font-semibold tracking-tight">{{ $card['name'] }}</h3>
-                            <p class="mt-1 text-[13px] font-medium text-brand">{{ $card['tagline'] }}</p>
-                            @if($card['description'])
-                                <p class="mt-3 min-h-[44px] text-[13.5px] leading-relaxed text-muted-foreground">{{ $card['description'] }}</p>
-                            @endif
-
-                            <div class="mt-6">
-                                {{-- Always rendered so every card's price block has the same height. --}}
-                                <p class="h-5 text-[13px] tabular-nums text-muted-foreground line-through decoration-muted-foreground/60"
-                                    @if($card['yearlyCompare']) :class="billingPeriod === 'yearly' ? 'visible' : 'invisible'" @else aria-hidden="true" @endif>
-                                    {{ $card['yearlyCompare'] ?? '' }}
-                                </p>
-                                <div class="mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
-                                    <span class="text-[14px] font-medium text-muted-foreground">{{ $card['currency'] }}</span>
-                                    @if($card['free'])
-                                        <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums">{{ $card['monthly'] }}</span>
-                                        <span class="text-[13px] text-muted-foreground">/month</span>
-                                    @else
-                                        <span class="font-display text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums"
-                                            x-text="billingPeriod === 'monthly' ? @js($card['monthly']) : @js($card['yearly'])">{{ $card['yearly'] }}</span>
-                                        <span class="text-[13px] text-muted-foreground"
-                                            x-text="billingPeriod === 'monthly' ? '/month' : @js($card['yearlyUnit'])">{{ $card['yearlyUnit'] }}</span>
-                                    @endif
-                                </div>
-                                <p class="mt-2 text-[12px] text-muted-foreground">
-                                    @if($card['free'])
-                                        Free forever
-                                    @else
-                                        <span x-text="billingPeriod === 'yearly' ? @js($card['yearlyNote']) : 'Billed monthly'">{{ $card['yearlyNote'] }}</span>
-                                    @endif
-                                </p>
+                        <div class="mt-6">
+                            {{-- Always rendered so every card's price block has the same height. --}}
+                            <p class="h-5 text-[14px] tabular-nums text-muted-foreground line-through decoration-muted-foreground/60"
+                                @if($card['yearlyCompare']) :class="billingPeriod === 'yearly' ? 'visible' : 'invisible'" @else aria-hidden="true" @endif>
+                                {{ $card['yearlyCompare'] ?? '' }}
+                            </p>
+                            <div class="mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
+                                <span class="text-[15px] font-medium text-muted-foreground">{{ $card['currency'] }}</span>
+                                @if($card['free'])
+                                    <span class="font-headline text-[38px] font-semibold leading-none tabular-nums">{{ $card['monthly'] }}</span>
+                                    <span class="text-[14px] text-muted-foreground">/month</span>
+                                @else
+                                    <span class="font-headline text-[38px] font-semibold leading-none tabular-nums"
+                                        x-text="billingPeriod === 'monthly' ? @js($card['monthly']) : @js($card['yearly'])">{{ $card['yearly'] }}</span>
+                                    <span class="text-[14px] text-muted-foreground"
+                                        x-text="billingPeriod === 'monthly' ? '/month' : @js($card['yearlyUnit'])">{{ $card['yearlyUnit'] }}</span>
+                                @endif
                             </div>
-
-                            <a href="{{ route('register') }}" @class([
-                                'btn btn-lg mt-6 w-full',
-                                'btn-brand' => $card['featured'],
-                                'btn-outline' => !$card['featured'],
-                            ])>{{ $card['cta'] }}</a>
+                            <p class="mt-2 text-[13px] text-muted-foreground">
+                                @if($card['free'])
+                                    Free forever
+                                @else
+                                    <span x-text="billingPeriod === 'yearly' ? @js($card['yearlyNote']) : 'Billed monthly'">{{ $card['yearlyNote'] }}</span>
+                                @endif
+                            </p>
                         </div>
 
-                        <ul class="relative mt-7 space-y-3 border-t border-border pt-6">
+                        <a href="{{ route('register') }}" @class([
+                            'btn btn-lg mt-6 w-full self-start',
+                            'btn-primary' => $card['featured'],
+                            'btn-outline' => !$card['featured'],
+                        ])>{{ $card['cta'] }}</a>
+
+                        <ul class="mt-6 space-y-3 border-t border-border pt-6">
                             @foreach($card['features'] as $feature)
-                                <li class="flex items-start gap-2.5 text-[13.5px] leading-snug text-foreground">
-                                    <span class="mt-px inline-flex size-4.5 shrink-0 items-center justify-center rounded-full {{ $card['featured'] ? 'bg-brand/15 text-brand' : 'bg-muted text-foreground' }}">
-                                        <x-icon name="check" class="size-3" stroke-width="3" />
-                                    </span>
+                                <li class="flex items-start gap-2.5 text-[15px] leading-snug">
+                                    <x-icon name="check" class="mt-0.5 size-4 shrink-0 {{ $card['featured'] ? 'text-brand-strong' : 'text-muted-foreground' }}" stroke-width="2.5" />
                                     {{ $feature }}
                                 </li>
                             @endforeach
@@ -215,9 +225,14 @@
                 @endforeach
             </div>
 
-            <p class="mx-auto mt-10 max-w-2xl text-center text-[12.5px] leading-relaxed text-muted-foreground">
+            <p class="mt-8 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
                 Prices in {{ $plans->first()->currency }}. Large videos are optimized automatically. Storage and video allowances are subject to fair use.
             </p>
+            @unless(request()->routeIs('pricing'))
+                <a href="{{ route('pricing') }}" class="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[15px] font-medium underline decoration-brand decoration-2 underline-offset-4 hover:decoration-foreground">
+                    Compare every plan in detail <x-icon name="chevron-right" class="size-4" />
+                </a>
+            @endunless
         @endif
     </div>
 </section>

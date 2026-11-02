@@ -21,7 +21,7 @@ abstract class NoticeMail extends Mailable implements ShouldQueue
     abstract protected function subjectLine(): string;
 
     /**
-     * @return array{title: string, eyebrow?: string, subtitle?: string, preheader?: string, greeting?: string,
+     * @return array{title: string, subtitle?: string, preheader?: string, greeting?: string,
      *     paragraphs?: list<string>, callout?: array{variant: string, text: string}, detailsTitle?: string,
      *     details?: array<string, string>, button?: array{label: string, url: string}, footnotes?: list<string>}
      */

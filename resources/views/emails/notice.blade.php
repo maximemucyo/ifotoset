@@ -1,7 +1,6 @@
 {{-- Shared template for short transactional notices (see App\Mail\NoticeMail). --}}
 <x-email.layout :title="$notice['title']" :preheader="$notice['preheader'] ?? null">
     <x-email.heading
-        :eyebrow="$notice['eyebrow'] ?? null"
         :title="$notice['title']"
         :subtitle="$notice['subtitle'] ?? null"
     />

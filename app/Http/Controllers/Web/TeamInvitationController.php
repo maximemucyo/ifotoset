@@ -96,7 +96,8 @@ class TeamInvitationController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            // No confirmation field: the form has a show-password toggle
+            'password' => ['required', 'string', 'min:8'],
         ]);
 
         $user = self::createInvitedUser($invitation, $validated['name'], Hash::make($validated['password']));

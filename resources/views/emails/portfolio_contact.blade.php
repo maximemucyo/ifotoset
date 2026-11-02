@@ -1,20 +1,18 @@
 <x-email.layout title="New message from your portfolio" :preheader="$inquiry['name'] . ' sent you a message from your portfolio.'">
     <x-email.heading
-        eyebrow="Portfolio"
-        title="New message"
-        subtitle="{{ $inquiry['name'] }} contacted you through your portfolio's contact page."
+        :title="'Message from ' . $inquiry['name']"
+        subtitle="Sent from the contact form on your portfolio."
     />
 
-    <x-email.text>Hi {{ $photographer->name }},</x-email.text>
+    <x-email.callout>{!! nl2br(e($inquiry['message'])) !!}</x-email.callout>
 
-    <x-email.text>Reply to this email to answer {{ $inquiry['name'] }} directly.</x-email.text>
-
-    <x-email.card title="Message">
+    <x-email.card title="Contact details">
         <x-email.detail-row label="Name" :value="$inquiry['name']" />
         <x-email.detail-row label="Email" :value="$inquiry['email']" />
         @if(!empty($inquiry['phone']))
-            <x-email.detail-row label="Phone / WhatsApp" :value="$inquiry['phone']" />
+            <x-email.detail-row label="Phone or WhatsApp" :value="$inquiry['phone']" />
         @endif
-        <x-email.detail-row label="Message" :value="$inquiry['message']" />
     </x-email.card>
+
+    <x-email.text muted spacing="0">Reply to this email to answer {{ $inquiry['name'] }} directly.</x-email.text>
 </x-email.layout>

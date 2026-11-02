@@ -40,7 +40,7 @@ class GalleryInvitation extends Mailable implements ShouldQueue
             replyTo: [
                 new \Illuminate\Mail\Mailables\Address($this->gallery->user->email, $this->photographerName)
             ],
-            subject: "Invitation to view gallery: " . $this->gallery->title,
+            subject: $this->photographerName . " shared a gallery with you: " . $this->gallery->title,
         );
     }
 

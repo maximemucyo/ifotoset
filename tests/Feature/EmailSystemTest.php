@@ -139,14 +139,14 @@ class EmailSystemTest extends TestCase
         $notification = new QueuedVerifyEmail();
         $mailMessage = $notification->toMail($user);
 
-        $this->assertEquals('Verify Email Address - ifotoset', $mailMessage->subject);
+        $this->assertEquals('Verify your email for ifotoset', $mailMessage->subject);
         $this->assertEquals('emails.verify_email', $mailMessage->view);
         $this->assertEquals(120, $mailMessage->viewData['expireMinutes']);
         $this->assertEquals('Alice Photographer', $mailMessage->viewData['userName']);
 
         $renderedHtml = view($mailMessage->view, $mailMessage->viewData)->render();
         $this->assertStringContainsString('120 minutes', $renderedHtml);
-        $this->assertStringContainsString('Verify email address', $renderedHtml);
+        $this->assertStringContainsString('Verify email', $renderedHtml);
     }
 
     // --- 2. Password Reset Account Enumeration & Template ---
@@ -173,13 +173,13 @@ class EmailSystemTest extends TestCase
         $notification = new QueuedResetPassword('fake-token-12345');
         $mailMessage = $notification->toMail($user);
 
-        $this->assertEquals('Reset Password Notification - ifotoset', $mailMessage->subject);
+        $this->assertEquals('Reset your ifotoset password', $mailMessage->subject);
         $this->assertEquals('emails.reset_password', $mailMessage->view);
         $this->assertEquals(45, $mailMessage->viewData['expireMinutes']);
 
         $renderedHtml = view($mailMessage->view, $mailMessage->viewData)->render();
         $this->assertStringContainsString('45 minutes', $renderedHtml);
-        $this->assertStringContainsString('Reset password', $renderedHtml);
+        $this->assertStringContainsString('Choose a new password', $renderedHtml);
     }
 
     // --- 3. Booking Creation & Preferences ---

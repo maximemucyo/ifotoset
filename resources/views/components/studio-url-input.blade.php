@@ -7,7 +7,7 @@
 {{-- The studio username field, checked against taken and reserved addresses while the person types. --}}
 <div x-data="studioUsername({ initial: @js($value), original: @js($original), url: @js(route('username.availability')) })">
     <label for="username" class="label">{{ $label }}</label>
-    <div class="flex h-10 items-stretch overflow-hidden rounded-lg border bg-input text-sm shadow-xs transition focus-within:ring-4"
+    <div class="field-h flex items-stretch overflow-hidden rounded-lg border bg-input text-sm shadow-xs transition focus-within:ring-4"
          :class="status === 'unavailable' || (!edited && @js((bool) $error)) ? 'border-destructive focus-within:border-destructive focus-within:ring-destructive/15' : 'border-border focus-within:border-ring focus-within:ring-ring/15'">
         <input type="text" name="username" id="username" required @if($autofocus) autofocus @endif
                autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore placeholder="yourstudio"

@@ -31,7 +31,6 @@
     <button type="submit" class="btn btn-primary btn-lg w-full !mt-6" :disabled="submitting">
         <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
         <span>Create studio</span>
-        <x-icon name="arrow-right" x-show="!submitting" />
     </button>
 
     <p class="text-center text-xs leading-relaxed text-muted-foreground">

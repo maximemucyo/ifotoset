@@ -129,8 +129,8 @@ class WebFullStackTest extends TestCase
         $response = $this->get('/');
         $response->assertStatus(200);
         $response->assertSee('ifotoset');
-        $response->assertSee('Galleries your clients');
-        $response->assertSee('A studio that runs itself.');
+        $response->assertSee('Galleries your clients love to open.');
+        $response->assertSee('This is what your client opens.');
     }
 
     public function test_login_flow(): void

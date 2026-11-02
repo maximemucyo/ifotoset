@@ -76,8 +76,7 @@
 @endpush
 
 @php
-    $prov = strtolower($payment->provider ?? '');
-    $method = str_contains($prov, 'mtn') ? 'MTN Mobile Money' : (str_contains($prov, 'airtel') ? 'Airtel Money' : 'Mobile Money');
+    $method = $payment->providerLabel();
     $months = $payment->metadata['months'] ?? null;
     if ($months) {
         $durationLabel = $months . ' ' . \Illuminate\Support\Str::plural('month', (int) $months);

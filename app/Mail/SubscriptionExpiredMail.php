@@ -23,7 +23,6 @@ class SubscriptionExpiredMail extends NoticeMail
         $user = $subscription->user;
 
         $notice = [
-            'eyebrow' => 'Subscription',
             'title' => 'Your plan has ended',
             'preheader' => "Your {$plan} has ended and your account is now on the Free plan.",
             'greeting' => $user?->name,

@@ -23,7 +23,6 @@ class AdminAlertMail extends NoticeMail
     protected function notice(): array
     {
         return array_filter([
-            'eyebrow' => 'Admin alert',
             'title' => $this->headline,
             'preheader' => $this->summary,
             'paragraphs' => [$this->summary],

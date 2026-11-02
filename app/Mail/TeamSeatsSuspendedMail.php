@@ -21,7 +21,6 @@ class TeamSeatsSuspendedMail extends NoticeMail
         $count = count($this->memberNames);
 
         return [
-            'eyebrow' => 'Team',
             'title' => 'Team access paused',
             'preheader' => 'Your plan has fewer team seats than your team uses.',
             'greeting' => $this->owner->name,

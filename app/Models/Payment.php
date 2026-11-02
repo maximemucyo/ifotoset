@@ -55,6 +55,20 @@ class Payment extends Model
     }
 
     /**
+     * The payment method as people know it ("MTN MoMo"), not the provider code ("MTN_MOMO_RWA").
+     */
+    public function providerLabel(): string
+    {
+        $provider = strtolower($this->provider ?? '');
+
+        return match (true) {
+            str_contains($provider, 'mtn') => 'MTN MoMo',
+            str_contains($provider, 'airtel') => 'Airtel Money',
+            default => 'Mobile Money',
+        };
+    }
+
+    /**
      * Scope to payments safe to expose publicly (booking deposits only).
      */
     public function scopePubliclyAccessible(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder

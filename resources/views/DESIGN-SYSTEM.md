@@ -1,7 +1,7 @@
 # ifotoset design system (Blade + Tailwind v4 + Alpine)
 
 The UI is a modern, minimal SaaS aesthetic (think Linear / Vercel / Pixieset):
-neutral ink-on-paper surfaces, one warm **brand** accent (ember orange), generous
+cool paper and green-grey neutrals, one **brand** accent (ember orange) kept for actions, generous
 whitespace, crisp 1px borders, soft shadows, and real photography as the hero.
 
 Everything lives in `resources/css/app.css`. Tailwind v4 scans `resources/views`
@@ -13,7 +13,8 @@ and `resources/js`, so any utility you use in a Blade file is compiled.
 | --- | --- |
 | `font-sans` (Inter Variable) | Default UI text |
 | `font-display` (Inter Tight) | Headings, big numbers. `h1–h6` use it automatically |
-| `font-serif` (Instrument Serif) | Editorial accents on marketing / public pages only (`<em class="font-serif italic">`) |
+| `font-serif` (Instrument Serif) | Editorial accents on public pages only |
+| `font-headline` (Bricolage Grotesque, width axis) | Marketing headings. Anything inside `.marketing` gets it on `h1–h3`; use `.headline-cover` (cover photo) and `.headline` (section titles), which run condensed on phones |
 
 Scale: page titles `text-2xl sm:text-[28px] font-semibold tracking-tight`; section
 titles `text-[15px] font-semibold`; body `text-sm`; secondary `text-[13px] text-muted-foreground`;
@@ -22,7 +23,8 @@ meta `text-xs text-muted-foreground`. Use `tabular-nums` for numbers.
 ## Color tokens (light + dark automatically)
 
 `background, foreground, card, popover, primary (ink), secondary, muted, muted-foreground,
-subtle (placeholder grey), accent, brand, brand-soft, brand-foreground, destructive,
+subtle (placeholder grey), accent, brand, brand-soft, brand-foreground, kivu (deep lake blue for dark
+marketing bands, with kivu-foreground), hill (soft green-grey surface), destructive,
 success, warning, info, border, border-strong, input, ring, sidebar*`.
 
 Use them as Tailwind colors: `bg-card`, `text-muted-foreground`, `border-border`,
@@ -76,7 +78,7 @@ Use them as Tailwind colors: `bg-card`, `text-muted-foreground`, `border-border`
   main panel + top bar + ⌘K command palette. Pages `@extends('layouts.app', ['title' => 'Galleries · ifotoset'])`
   and fill `@section('content')`. Optional sections: `breadcrumbs`, `topbar-actions`. Use `@push('scripts')` / `@push('modals')`.
   Content is already inside `max-w-7xl` with padding: don't add another outer container or padding.
-- `layouts.guest` is the split-screen auth layout (`heading`, `subheading`, `icon` params).
+- `layouts.guest` is the split-screen auth layout (`heading`, `subheading`, `icon` params). Like the marketing pages it is always light; only the studio and admin follow the visitor's theme.
 - `layouts.public` is for marketing and public pages.
 - Global toasts: `window.toast('Saved', 'success'|'error'|'warning'|'info')`. Session flashes (`success`, `error`, …) show automatically.
 - Clipboard: `@click="$clipboard(url)"` (Alpine magic) copies and toasts.

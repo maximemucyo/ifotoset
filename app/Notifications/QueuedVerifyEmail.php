@@ -24,7 +24,7 @@ class QueuedVerifyEmail extends VerifyEmail implements ShouldQueue
         $expireMinutes = (int) config('auth.verification.expire', 60);
 
         return (new MailMessage)
-            ->subject('Verify Email Address - ifotoset')
+            ->subject('Verify your email for ifotoset')
             ->action('Verify Email Address', $verificationUrl)
             ->view('emails.verify_email', [
                 'userName' => $notifiable->name ?? 'there',

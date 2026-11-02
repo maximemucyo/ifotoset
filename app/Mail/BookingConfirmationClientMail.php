@@ -32,7 +32,7 @@ class BookingConfirmationClientMail extends Mailable implements ShouldQueue
             replyTo: [
                 new Address($photographer->email, $photographer->name)
             ],
-            subject: "Booking Request Received: {$this->booking->title} with {$photographer->name}",
+            subject: "Booking request sent: {$this->booking->title} with {$photographer->name}",
         );
     }
 

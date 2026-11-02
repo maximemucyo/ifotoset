@@ -11,7 +11,7 @@
 @section('content')
 @if($state === 'invalid')
     <a href="{{ auth()->check() ? route('studio.dashboard') : route('login') }}" class="btn btn-primary btn-lg w-full">
-        {{ auth()->check() ? 'Go to my studio' : 'Log in' }} <x-icon name="arrow-right" />
+        {{ auth()->check() ? 'Go to my studio' : 'Log in' }}
     </a>
 @else
     <div class="mb-5 flex items-center gap-3 rounded-xl border border-border bg-muted/50 p-4">
@@ -27,7 +27,7 @@
             @csrf
             <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="submitting">
                 <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
-                Join {{ $studioName }} <x-icon name="arrow-right" x-show="!submitting" />
+                Join {{ $studioName }}
             </button>
         </form>
         <p class="mt-4 text-center text-[13px] text-muted-foreground">You can switch between studios from the menu at the bottom of the sidebar.</p>
@@ -56,12 +56,10 @@
                         placeholder="Alex Morgan" :error="$errors->first('name')" />
             <x-ui.input label="Password" type="password" name="password" id="password" required autocomplete="new-password"
                         placeholder="At least 8 characters" :error="$errors->first('password')" />
-            <x-ui.input label="Confirm password" type="password" name="password_confirmation" id="password_confirmation" required autocomplete="new-password" />
 
             <button type="submit" class="btn btn-primary btn-lg w-full !mt-6" :disabled="submitting">
                 <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
                 <span>Join {{ $studioName }}</span>
-                <x-icon name="arrow-right" x-show="!submitting" />
             </button>
 
             <p class="text-center text-xs leading-relaxed text-muted-foreground">

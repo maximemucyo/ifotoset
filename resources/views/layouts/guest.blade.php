@@ -1,37 +1,43 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
+{{-- Auth pages stay light, like the marketing site they are reached from; the studio follows the visitor's theme --}}
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full" data-force-theme="light">
 <head>
-    @include('layouts.partials.head')
+    @include('layouts.partials.head', ['forceTheme' => 'light'])
     <title>{{ $title ?? 'Sign in · ifotoset' }}</title>
     <meta name="robots" content="noindex, follow">
-    {{-- The showcase image is only shown from lg up; don't make phones download it --}}
+    {{-- The photo is only shown from lg up; don't make phones download it --}}
     <link rel="preload" as="image" href="{{ asset('images/marketing/auth.webp') }}" media="(min-width: 1024px)" fetchpriority="high">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="min-h-full bg-background text-foreground antialiased">
+<body class="marketing min-h-full bg-background text-foreground antialiased">
     <x-ui.skip-link />
-    <div class="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    <div class="lg:grid lg:min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 
         {{-- Form column --}}
-        <div class="relative flex flex-col px-6 py-6 sm:px-10">
-            <div class="flex items-center justify-between">
+        <div class="flex min-h-dvh flex-col px-4 sm:px-10">
+            <div class="flex h-16 items-center justify-between">
                 <x-brand.logo :href="url('/')" />
-                <x-ui.theme-toggle />
+                {{-- The other way in, so nobody has to scroll past the form to find it --}}
+                @guest
+                    @if(request()->routeIs('login'))
+                        <a href="{{ route('register') }}" class="btn btn-ghost h-11 px-3 text-[15px] text-foreground">Start free</a>
+                    @elseif(!request()->routeIs('auth.google.*', 'team.invitation.*'))
+                        <a href="{{ route('login') }}" class="btn btn-ghost h-11 px-3 text-[15px] text-foreground">Sign in</a>
+                    @endif
+                @endguest
             </div>
 
-            <main id="main" tabindex="-1" class="flex flex-1 items-center justify-center py-12 outline-none">
-                <div class="w-full max-w-[380px] animate-fade-up">
+            <main id="main" tabindex="-1" class="flex flex-1 justify-center pb-12 pt-6 outline-none sm:items-center sm:pt-12">
+                <div class="w-full max-w-[400px]">
                     @isset($icon)
-                        <div class="mb-6 flex size-11 items-center justify-center rounded-xl border border-border bg-card shadow-sm">
-                            <x-icon :name="$icon" class="size-5 text-foreground" />
-                        </div>
+                        <x-icon :name="$icon" class="mb-5 size-6 text-brand-strong" />
                     @endisset
-                    <h1 class="font-display text-[28px] font-semibold leading-tight tracking-tight text-foreground">
+                    <h1 class="font-headline text-[32px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground [font-stretch:90%] sm:text-[36px]">
                         {{ $heading ?? 'Welcome back' }}
                     </h1>
                     @isset($subheading)
-                        <p class="mt-2 text-[15px] text-muted-foreground">{{ $subheading }}</p>
+                        <p class="mt-3 text-[16px] leading-relaxed text-muted-foreground">{{ $subheading }}</p>
                     @endisset
 
                     <div class="mt-8 space-y-4">
@@ -66,40 +72,29 @@
                 </div>
             </main>
 
-            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <p>&copy; {{ date('Y') }} ifotoset</p>
-                <div class="flex items-center gap-4">
-                    <a href="{{ url('/') }}#pricing" class="transition hover:text-foreground">Pricing</a>
-                    <a href="{{ url('/') }}#faq" class="transition hover:text-foreground">Help</a>
-                    <a href="{{ route('legal.privacy') }}" class="transition hover:text-foreground">Privacy</a>
-                </div>
+            <div class="flex flex-wrap items-center gap-x-5 border-t border-border text-[14px] text-muted-foreground">
+                <p class="py-3">&copy; {{ date('Y') }} ifotoset</p>
+                <a href="{{ route('pricing') }}" class="inline-flex min-h-11 items-center transition hover:text-foreground">Pricing</a>
+                <a href="{{ route('pricing') }}#faq" class="inline-flex min-h-11 items-center transition hover:text-foreground">Help</a>
+                <a href="{{ route('legal.privacy') }}" class="inline-flex min-h-11 items-center transition hover:text-foreground">Privacy</a>
             </div>
         </div>
 
-        {{-- Showcase column --}}
-        <div class="relative hidden p-3 lg:block">
-            <div class="noise relative h-full overflow-hidden rounded-[22px] bg-foreground dark:bg-card">
-                <img src="{{ asset('images/marketing/auth.webp') }}" alt="" class="absolute inset-0 size-full object-cover opacity-90" decoding="async" fetchpriority="high">
-                <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/10"></div>
+        {{-- Photo column: stays in view while a long form scrolls --}}
+        <div class="sticky top-0 hidden h-dvh p-3 lg:block">
+            <div class="relative isolate flex h-full flex-col justify-end overflow-hidden rounded-2xl bg-kivu p-10 text-white xl:p-14">
+                <img src="{{ asset('images/marketing/auth.webp') }}" alt="" class="absolute inset-0 -z-10 size-full object-cover" decoding="async" fetchpriority="high">
+                <div aria-hidden="true" class="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
 
-                {{-- Floating UI hints --}}
-                <div class="absolute right-8 top-8 flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md">
-                    <span class="relative flex size-2"><span class="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60"></span><span class="relative inline-flex size-2 rounded-full bg-success"></span></span>
-                    Gallery delivered · 412 photos
-                </div>
-
-                <div class="absolute inset-x-8 bottom-8 xl:inset-x-12 xl:bottom-12">
-                    <p class="eyebrow !text-white/60">The studio platform for photographers</p>
-                    <h2 class="mt-4 max-w-lg font-serif text-[38px] leading-[1.08] tracking-tight text-white xl:text-[46px]">
-                        Deliver galleries your clients will <em class="italic text-[color-mix(in_oklab,var(--brand)_45%,white)]">remember</em>.
-                    </h2>
-                    <ul class="mt-8 grid max-w-lg gap-3 text-sm text-white/80 sm:grid-cols-2">
-                        <li class="flex items-center gap-2.5"><x-icon name="images" class="size-4 text-white/60" /> Beautiful client galleries</li>
-                        <li class="flex items-center gap-2.5"><x-icon name="calendar-check" class="size-4 text-white/60" /> Bookings &amp; availability</li>
-                        <li class="flex items-center gap-2.5"><x-icon name="smartphone" class="size-4 text-white/60" /> Mobile money payments</li>
-                        <li class="flex items-center gap-2.5"><x-icon name="lock" class="size-4 text-white/60" /> Private, PIN-protected delivery</li>
-                    </ul>
-                </div>
+                <p class="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-[13px] text-white/90 backdrop-blur">
+                    <x-icon name="lock" class="size-3.5" /> yourstudio.ifotoset.com/golden-light
+                </p>
+                <p class="mt-5 max-w-md font-headline text-[44px] font-bold leading-[0.98] tracking-[-0.03em] [font-stretch:85%] xl:text-[52px]">
+                    Every gallery you send is part of your brand.
+                </p>
+                <p class="mt-4 max-w-sm text-[16px] leading-relaxed text-white/80">
+                    Client galleries, a portfolio website and bookings with Mobile Money deposits, in one studio.
+                </p>
             </div>
         </div>
     </div>

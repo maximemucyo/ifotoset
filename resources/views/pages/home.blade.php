@@ -6,18 +6,17 @@
 ])
 
 @section('content')
-<div class="flex min-h-screen flex-col bg-background">
-    <x-landing.navbar />
+<div class="marketing flex min-h-screen flex-col bg-background">
+    <x-landing.navbar overlay />
 
     <div class="flex-1">
         <x-landing.hero />
         <x-landing.product-suite />
-        <x-landing.showcase-tabs />
+        <x-landing.mobile-money :plans="$plans ?? collect()" />
         <x-landing.feature-grid />
         <x-landing.how-it-works />
-        <x-landing.brand-statement />
         <x-landing.pricing :plans="$plans ?? collect()" />
-        <x-landing.faq :plans="$plans ?? collect()" />
+        <x-landing.faq :plans="$plans ?? collect()" :limit="5" />
         <x-landing.cta />
     </div>
 

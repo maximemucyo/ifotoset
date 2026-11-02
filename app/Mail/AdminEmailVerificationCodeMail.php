@@ -23,7 +23,7 @@ class AdminEmailVerificationCodeMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your Admin Email Verification Code: ' . $this->code
+            subject: 'Your ifotoset admin verification code: ' . $this->code
         );
     }
 

@@ -32,7 +32,6 @@ class GalleryActivityDigestMail extends NoticeMail
         }
 
         return [
-            'eyebrow' => 'Weekly activity',
             'title' => 'Your galleries in the last 7 days',
             'preheader' => $this->subjectLine(),
             'greeting' => $this->user->name,

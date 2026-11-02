@@ -29,12 +29,11 @@ class GooglePhotosSyncCompletedMail extends Mailable implements ShouldQueue
      */
     public function envelope(): Envelope
     {
-        $statusText = $this->sync->failed_photos > 0 ? "finished with errors" : "completed";
         $fromAddress = config('mail.notifications.address');
 
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset Notifications'),
-            subject: "Google Photos export for gallery \"" . $this->sync->gallery->title . "\" has " . $statusText,
+            subject: "Your photos from " . $this->sync->gallery->title . " are in Google Photos",
         );
     }
 

@@ -22,7 +22,6 @@ class TeamInvitationMail extends NoticeMail
     protected function notice(): array
     {
         return [
-            'eyebrow' => 'Team invitation',
             'title' => "Join {$this->owner->name}",
             'preheader' => "{$this->inviter->name} invited you to work in their studio on ifotoset.",
             'paragraphs' => [

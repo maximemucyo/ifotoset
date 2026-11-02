@@ -1,19 +1,18 @@
-<x-email.layout title="Admin Email Verification Code" :preheader="'Your verification code is ' . $code . '. It expires in ' . $expiresInMinutes . ' minutes.'">
+<x-email.layout title="Your verification code" :preheader="'Your verification code is ' . $code . '. It works for ' . $expiresInMinutes . ' minutes.'">
     <x-email.heading
-        eyebrow="Security"
         title="Confirm your new admin email"
-        subtitle="A request was made to update the administrator login email for your ifotoset account."
+        subtitle="Someone asked to change the email you use to sign in to the ifotoset admin."
     />
 
     <x-email.text>Hi {{ $admin->name }},</x-email.text>
 
     <x-email.text>
-        Enter this 6-digit code in your administrative settings to confirm <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $newEmail }}</strong> as your new login email.
+        Enter this code in the admin settings to make <strong class="em-h" style="color: #1c201e; font-weight: 600;">{{ $newEmail }}</strong> your sign-in email.
     </x-email.text>
 
     <x-email.code :code="$code" />
 
-    <x-email.text muted size="13px" spacing="0">
-        This code expires in <strong>{{ $expiresInMinutes }} minutes</strong>. For your security, this request required current administrative credentials. If you did not request this email change, log in immediately and rotate your administrator password.
+    <x-email.text muted spacing="0">
+        The code works for {{ $expiresInMinutes }} minutes. If you didn't ask for this change, sign in now and change your admin password.
     </x-email.text>
 </x-email.layout>

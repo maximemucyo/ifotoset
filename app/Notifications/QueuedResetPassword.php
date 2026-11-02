@@ -23,7 +23,7 @@ class QueuedResetPassword extends ResetPasswordNotification implements ShouldQue
         $expireMinutes = (int) config('auth.passwords.users.expire', 60);
 
         return (new MailMessage)
-            ->subject('Reset Password Notification - ifotoset')
+            ->subject('Reset your ifotoset password')
             ->action('Reset Password', $resetUrl)
             ->view('emails.reset_password', [
                 'userName' => $notifiable->name ?? 'there',

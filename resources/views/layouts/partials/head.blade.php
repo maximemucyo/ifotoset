@@ -11,10 +11,10 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @if(($forceTheme ?? null) === 'light')
     <meta name="color-scheme" content="light">
-    <meta name="theme-color" content="#fdf8f4">
+    <meta name="theme-color" content="#f5f6f3">
 @else
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#fdf8f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#f5f6f3" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#131316" media="(prefers-color-scheme: dark)">
 @endif
 <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">

@@ -1,4 +1,16 @@
 {
+  "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-ext-wdth-normal.woff2": {
+    "file": "assets/bricolage-grotesque-latin-ext-wdth-normal-DoS1gVTC.woff2",
+    "src": "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-ext-wdth-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wdth-normal.woff2": {
+    "file": "assets/bricolage-grotesque-latin-wdth-normal-Dtb2a5nO.woff2",
+    "src": "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wdth-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-vietnamese-wdth-normal.woff2": {
+    "file": "assets/bricolage-grotesque-vietnamese-wdth-normal-BKE08zty.woff2",
+    "src": "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-vietnamese-wdth-normal.woff2"
+  },
   "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-ext-wght-normal.woff2": {
     "file": "assets/inter-tight-cyrillic-ext-wght-normal-okcGN4Nq.woff2",
     "src": "node_modules/@fontsource-variable/inter-tight/files/inter-tight-cyrillic-ext-wght-normal.woff2"
@@ -128,7 +140,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-ryeE7jwV.css",
+    "file": "assets/app-C-8dz6E2.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },

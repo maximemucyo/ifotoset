@@ -5,6 +5,8 @@
 @import '@fontsource-variable/inter-tight';
 @import '@fontsource/instrument-serif/400.css';
 @import '@fontsource/instrument-serif/400-italic.css';
+/* Width axis lets marketing headlines run condensed on narrow phones */
+@import '@fontsource-variable/bricolage-grotesque/wdth.css';
 
 @source '../views';
 @source '../js';
@@ -19,6 +21,7 @@
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Inter Tight Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-headline: 'Bricolage Grotesque Variable', 'Inter Tight Variable', ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -39,6 +42,9 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  --color-kivu: var(--kivu);
+  --color-kivu-foreground: var(--kivu-foreground);
+  --color-hill: var(--hill);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
@@ -81,46 +87,49 @@
   color-scheme: light;
   --radius: 0.75rem;
 
-  /* Warm, sunlit neutrals so the brand orange reads as part of the palette, not an outlier */
-  --background: #fdf8f4;
-  --foreground: #17110e;
+  /* Cool paper and green-grey hill neutrals; the brand orange is kept for actions */
+  --background: #f5f6f3;
+  --foreground: #1c201e;
   --card: #ffffff;
-  --card-foreground: #17110e;
+  --card-foreground: #1c201e;
   --popover: #ffffff;
-  --popover-foreground: #17110e;
-  /* Primary actions carry the brand in light mode (ink-black CTAs felt flat on a light page) */
-  /* #cc4019 keeps white button text above WCAG AA (4.87:1); #ea4a1f was 3.82 */
+  --popover-foreground: #1c201e;
+  /* #cc4019 keeps white button text above WCAG AA (4.87:1) */
   --primary: #cc4019;
   --primary-foreground: #ffffff;
-  --secondary: #f8efe8;
-  --secondary-foreground: #2a1d16;
-  --muted: #f7efe9;
-  --muted-foreground: #6e6159;
-  --subtle: #73645a; /* >= 4.5:1 on background, muted and card */
-  --accent: #fde9df;
-  --accent-foreground: #17110e;
+  --secondary: #eef0eb;
+  --secondary-foreground: #262b28;
+  --muted: #eef0eb;
+  --muted-foreground: #5b635e;
+  --subtle: #646c67; /* >= 4.5:1 on background, muted and card */
+  --accent: #e6eae2;
+  --accent-foreground: #1c201e;
   --brand: #f0532a;
   --brand-foreground: #ffffff;
   /* Background for text set on the brand colour (white on #f0532a is only 3.5:1) */
   --brand-strong: #cc4019;
   --brand-soft: #ffece3;
+  /* Lake Kivu blue for dark marketing bands; white text is 9.6:1 */
+  --kivu: #1e4a58;
+  --kivu-foreground: #ffffff;
+  --hill: #dde4d8;
   --destructive: #e5383b;
   --destructive-foreground: #ffffff;
   --success: #16a34a;
   --warning: #d97706;
   --info: #2563eb;
-  --border: #eee3db;
-  --border-strong: #dfcfc4;
+  --border: #e2e5df;
+  --border-strong: #cdd3ca;
   --input: #ffffff;
   --ring: #f0532a;
 
-  --sidebar: #fbf3ed;
-  --sidebar-foreground: #4a3d35;
-  --sidebar-primary: #17110e;
+  --sidebar: #f0f2ee;
+  --sidebar-foreground: #444b47;
+  --sidebar-primary: #1c201e;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #ffffff;
-  --sidebar-accent-foreground: #17110e;
-  --sidebar-border: #f0e4db;
+  --sidebar-accent-foreground: #1c201e;
+  --sidebar-border: #e3e6e0;
   --sidebar-ring: #f0532a;
 }
 
@@ -148,6 +157,9 @@
   --brand-foreground: #0c0c0e;
   --brand-strong: #ff6a3d;
   --brand-soft: #3a1b11;
+  --kivu: #17323b;
+  --kivu-foreground: #fafaf9;
+  --hill: #26262b;
   --destructive: #f05252;
   --destructive-foreground: #ffffff;
   --success: #22c55e;
@@ -198,6 +210,12 @@
     font-family: var(--font-display);
     letter-spacing: -0.02em;
     text-wrap: balance;
+  }
+
+  /* Marketing pages (home, features, pricing) set headings in Bricolage Grotesque */
+  .marketing :is(h1, h2, h3) {
+    font-family: var(--font-headline);
+    letter-spacing: -0.02em;
   }
 
   p {
@@ -276,13 +294,12 @@
     @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary/88;
     box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.12), var(--shadow-sm);
   }
-  /* Light mode: warm brand gradient with a soft glow */
+  /* Light mode: flat brand fill (a lighter gradient top dropped white text below AA) */
   :root:not(.dark) .btn-primary {
-    background-image: linear-gradient(180deg, #f6643a 0%, #e8461b 100%);
-    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.22), 0 1px 2px 0 rgb(234 74 31 / 0.28), 0 6px 16px -6px rgb(234 74 31 / 0.5);
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 1px 2px 0 rgb(204 64 25 / 0.3);
   }
   :root:not(.dark) .btn-primary:hover {
-    filter: brightness(1.06);
+    filter: brightness(1.08);
   }
   .btn-brand {
     @apply bg-brand-strong text-brand-foreground hover:brightness-[1.06];
@@ -335,6 +352,12 @@
   .glass {
     @apply bg-background/70 backdrop-blur-xl backdrop-saturate-150;
   }
+  /* Header resting on a cover photo: retint the tokens its children use */
+  .on-photo {
+    --foreground: #ffffff;
+    --muted-foreground: rgb(255 255 255 / 0.85);
+    --muted: rgb(255 255 255 / 0.16);
+  }
 
   /* ---- Forms ------------------------------------------------------------ */
   .label {
@@ -356,8 +379,17 @@
     @apply disabled:cursor-not-allowed disabled:opacity-60;
   }
   .input,
-  .select {
+  .select,
+  .field-h {
     @apply h-10;
+  }
+  /* Touchscreens get 44px fields, the minimum comfortable tap height */
+  @media (pointer: coarse) {
+    .input:not(.input-sm),
+    .select:not(.input-sm),
+    .field-h {
+      height: 2.75rem;
+    }
   }
   .textarea {
     @apply py-2.5 min-h-24 leading-relaxed;
@@ -532,6 +564,28 @@
 
   .eyebrow {
     @apply text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  /* Marketing headlines: condensed on phones, opening up as the screen widens */
+  .headline-cover {
+    font-family: var(--font-headline);
+    font-size: clamp(2.75rem, 8vw + 1rem, 5.75rem);
+    font-stretch: 80%;
+    font-weight: 700;
+    line-height: 0.94;
+    letter-spacing: -0.03em;
+  }
+  .headline {
+    font-family: var(--font-headline);
+    font-size: clamp(2rem, 4.5vw + 1rem, 3.5rem);
+    font-stretch: 85%;
+    font-weight: 650;
+    line-height: 1;
+    letter-spacing: -0.025em;
+  }
+  @media (min-width: 640px) {
+    .headline-cover { font-stretch: 90%; }
+    .headline { font-stretch: 95%; }
   }
   .avatar {
     @apply inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-medium text-muted-foreground ring-1 ring-border;

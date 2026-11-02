@@ -1,37 +1,35 @@
-<x-email.layout title="Booking Confirmation" :preheader="'Your request for ' . $booking->title . ' on ' . $booking->localStartsAt()->format('M j') . ' has been sent to ' . $photographer->name . '.'">
+<x-email.layout title="Booking request sent" :preheader="'Your request for ' . $booking->title . ' on ' . $booking->localStartsAt()->format('j M') . ' was sent to ' . $photographer->name . '.'">
     <x-email.heading
-        eyebrow="Booking request"
-        title="Booking request received"
-        subtitle="Your booking request has been delivered to {{ $photographer->name }}."
+        title="Booking request sent"
+        :subtitle="$photographer->name . ' has your request and will get back to you.'"
     />
 
     <x-email.text>Hi {{ $client->name }},</x-email.text>
 
     <x-email.text>
-        Thank you for booking with {{ $photographer->name }}. Your request has been recorded. Here is a summary of the session you requested:
+        Thanks for booking with {{ $photographer->name }}. You'll get another email as soon as they accept. Here's what you asked for:
     </x-email.text>
 
-    <x-email.card title="Your booking details">
+    <x-email.card title="Your request">
         <x-email.detail-row label="Photographer" :value="$photographer->name" />
         <x-email.detail-row label="Session" :value="$booking->title" />
         @if($package)
             <x-email.detail-row label="Package" :value="$package->name" />
         @endif
-        <x-email.detail-row label="Date & time" :value="$booking->whenLabel()" />
+        <x-email.detail-row label="Date and time" :value="$booking->whenLabel()" />
         @if($booking->location)
             <x-email.detail-row label="Location" :value="$booking->location" />
         @endif
         @if($booking->price)
             <x-email.detail-row label="Total" :value="number_format((float)$booking->price) . ' ' . $booking->currency" />
         @endif
-        <x-email.detail-row label="Status" :value="ucfirst($booking->status instanceof \BackedEnum ? $booking->status->value : (string) $booking->status)" />
     </x-email.card>
 
     <x-email.text muted spacing="0">
-        {{ $photographer->name }} will review your request and you'll receive another email once it's accepted. Questions or need to reschedule? Reply to this email or contact the photographer at <x-email.link :href="'mailto:' . $photographer->email">{{ $photographer->email }}</x-email.link>.
+        Need to change something? Reply to this email or write to {{ $photographer->name }} at <x-email.link :href="'mailto:' . $photographer->email">{{ $photographer->email }}</x-email.link>.
     </x-email.text>
 
     @if($portfolioUrl)
-        <x-email.button :url="$portfolioUrl" label="Visit photographer portfolio" :showFallback="false" />
+        <x-email.button :url="$portfolioUrl" :label="'See ' . $photographer->name . '\'s work'" :showFallback="false" />
     @endif
 </x-email.layout>

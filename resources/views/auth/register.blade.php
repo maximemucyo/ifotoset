@@ -65,31 +65,22 @@
                           :class="i <= strength ? (strength <= 1 ? 'bg-destructive' : strength === 2 ? 'bg-warning' : 'bg-success') : 'bg-muted'"></span>
                 </template>
             </div>
-            <span class="w-14 text-right text-[11px] font-medium text-muted-foreground" x-text="strengthLabel"></span>
+            <span class="w-16 text-right text-[12px] font-medium text-muted-foreground" x-text="strengthLabel"></span>
         </div>
     </div>
-
-    <x-ui.input label="Confirm password"
-                type="password"
-                name="password_confirmation"
-                id="password_confirmation"
-                required
-                autocomplete="new-password"
-                placeholder="Repeat your password" />
 
     <button type="submit" class="btn btn-primary btn-lg w-full !mt-6" :disabled="submitting">
         <x-icon name="loader" class="animate-spin" x-show="submitting" x-cloak />
         <span>Create studio</span>
-        <x-icon name="arrow-right" x-show="!submitting" />
     </button>
 
-    <p class="text-center text-xs leading-relaxed text-muted-foreground">
+    <p class="text-[13px] leading-relaxed text-muted-foreground">
         By creating an account you agree to our <a href="{{ route('legal.terms') }}" class="link">Terms of Service</a> and <a href="{{ route('legal.privacy') }}" class="link">Privacy Policy</a>.
     </p>
 
-    <p class="border-t border-border pt-5 text-center text-[13px] text-muted-foreground">
+    <p class="border-t border-border pt-3 text-[15px] text-muted-foreground">
         Already have an account?
-        <a href="{{ route('login') }}" class="link">Sign in</a>
+        <a href="{{ route('login') }}" class="link inline-flex min-h-11 items-center">Sign in</a>
     </p>
 </form>
 @endsection

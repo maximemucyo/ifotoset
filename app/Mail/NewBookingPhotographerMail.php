@@ -24,7 +24,7 @@ class NewBookingPhotographerMail extends Mailable implements ShouldQueue
 
         return new Envelope(
             from: new \Illuminate\Mail\Mailables\Address($fromAddress, 'ifotoset'),
-            subject: "New Booking Request: {$this->booking->title} from {$this->booking->client->name}",
+            subject: "New booking request: {$this->booking->title} from {$this->booking->client->name}",
         );
     }
 

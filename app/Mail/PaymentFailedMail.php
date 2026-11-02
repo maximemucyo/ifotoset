@@ -19,7 +19,6 @@ class PaymentFailedMail extends NoticeMail
         $amount = number_format((float) $payment->amount) . ' ' . $payment->currency;
 
         return [
-            'eyebrow' => 'Billing',
             'title' => 'Payment not completed',
             'preheader' => "Your mobile money payment of {$amount} was not completed. No money was taken.",
             'greeting' => $payment->user?->name,

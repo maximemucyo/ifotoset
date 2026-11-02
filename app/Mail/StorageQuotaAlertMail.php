@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\Plan;
 use App\Models\User;
 use App\Support\Bytes;
 use Illuminate\Bus\Queueable;
@@ -25,8 +26,8 @@ class StorageQuotaAlertMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         $subject = ($this->threshold >= 100)
-            ? 'Action Required: Your ifotoset storage is 100% full'
-            : "Notice: You've reached 75% of your ifotoset storage quota";
+            ? 'Your ifotoset storage is full'
+            : "You've used 75% of your ifotoset storage";
 
         return new Envelope(subject: $subject);
     }
@@ -47,6 +48,8 @@ class StorageQuotaAlertMail extends Mailable implements ShouldQueue
                 'upgradeUrl' => route('studio.billing.index'),
                 'galleriesUrl' => route('studio.galleries.index'),
                 'trashUrl' => route('studio.trash.index'),
+                // The smallest plan with more room, so the email never names a stale plan or size
+                'nextPlan' => Plan::where('storage_limit', '>', $this->limitBytes)->orderBy('storage_limit')->first(),
             ]
         );
     }

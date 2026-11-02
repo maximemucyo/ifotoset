@@ -16,7 +16,6 @@ class WelcomeMail extends NoticeMail
     protected function notice(): array
     {
         return [
-            'eyebrow' => 'Welcome',
             'title' => 'Your studio is ready',
             'preheader' => 'Create your first gallery and share it with a client in a few minutes.',
             'greeting' => $this->user->name,

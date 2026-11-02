@@ -31,7 +31,7 @@
         </div>
         <input type="tel" name="{{ $name }}" id="{{ $id }}" value="{{ $current['national'] }}" autocomplete="tel-national" inputmode="tel"
                @if($error) aria-invalid="true" aria-describedby="{{ $id }}-error" @endif
-               {{ $attributes->merge(['class' => 'h-10 min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-subtle']) }}>
+               {{ $attributes->merge(['class' => 'field-h min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-subtle']) }}>
     </div>
     @if($error)
         <p id="{{ $id }}-error" class="error-text">{{ $error }}</p>

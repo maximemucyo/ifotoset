@@ -6,7 +6,7 @@
 ])
 
 @section('content')
-<div class="flex min-h-screen flex-col bg-background">
+<div class="marketing flex min-h-screen flex-col bg-background">
     <x-landing.navbar />
 
     <div class="flex-1">

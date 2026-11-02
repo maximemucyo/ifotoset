@@ -25,7 +25,6 @@ class BookingStatusUpdatedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         $photographer = $this->booking->user;
-        $statusLabel = ucfirst($this->newStatus);
 
         return new Envelope(
             from: new Address(
@@ -35,7 +34,7 @@ class BookingStatusUpdatedMail extends Mailable implements ShouldQueue
             replyTo: [
                 new Address($photographer->email, $photographer->name)
             ],
-            subject: "Booking {$statusLabel}: {$this->booking->title} with {$photographer->name}",
+            subject: "Your booking is {$this->newStatus}: {$this->booking->title} with {$photographer->name}",
         );
     }
 

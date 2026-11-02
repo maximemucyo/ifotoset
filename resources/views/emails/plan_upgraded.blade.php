@@ -1,38 +1,23 @@
-<x-email.layout title="Subscription Upgrade Confirmation" :preheader="'Payment received. Your account is now on the ' . $plan->name . ' and new limits are active.'">
+<x-email.layout :title="'You\'re on ' . $plan->name . ' now'" :preheader="'Payment received. Your studio is on the ' . $plan->name . ' plan and the new limits are active.'">
     <x-email.heading
-        eyebrow="Subscription"
-        title="Subscription upgraded"
-        :subtitle="'Welcome to the ifotoset ' . $plan->name . '! Your subscription payment was successful.'"
+        :title="'You\'re on ' . $plan->name . ' now'"
+        subtitle="Your payment went through and the new limits are already active."
     />
 
     <x-email.text>Hi {{ $user->name }},</x-email.text>
 
     <x-email.text>
-        Thank you for your payment. Your ifotoset account has been upgraded to the <strong class="em-h" style="color: #17110e; font-weight: 600;">{{ $plan->name }}</strong>. All upgraded features and expanded limits are active immediately.
+        Thanks for upgrading. Your studio is now on the <strong class="em-h" style="color: #1c201e; font-weight: 600;">{{ $plan->name }}</strong> plan.
     </x-email.text>
 
-    <x-email.card title="Receipt & plan details">
+    <x-email.card title="Receipt">
         <x-email.detail-row label="Plan" :value="$plan->name" />
-        <x-email.detail-row label="Storage limit" :value="\App\Support\Bytes::format($plan->storage_limit)" />
-        @if($plan->gallery_limit)
-            <x-email.detail-row label="Galleries" :value="$plan->gallery_limit . ' Galleries'" />
-        @else
-            <x-email.detail-row label="Galleries" value="Unlimited" />
-        @endif
-        @php
-            $cleanProvider = str_contains(strtolower($payment->provider ?? ''), 'airtel')
-                ? 'Airtel Money'
-                : (str_contains(strtolower($payment->provider ?? ''), 'mtn') ? 'MTN Mobile Money' : 'Mobile Money');
-            $ref = $payment->provider_transaction_id ?? substr($payment->uuid, 0, 13);
-        @endphp
-        <x-email.detail-row label="Payment method" :value="$cleanProvider" />
-        <x-email.detail-row label="Transaction ref" :value="$ref" />
-        <x-email.detail-row label="Date" :value="now()->format('F j, Y \a\t g:i A')" />
+        <x-email.detail-row label="Storage" :value="\App\Support\Bytes::format($plan->storage_limit)" />
+        <x-email.detail-row label="Galleries" :value="$plan->gallery_limit ? (string) $plan->gallery_limit : 'Unlimited'" />
+        <x-email.detail-row label="Paid with" :value="$payment->providerLabel()" />
+        <x-email.detail-row label="Reference" :value="$payment->provider_transaction_id ?? substr($payment->uuid, 0, 13)" />
+        <x-email.detail-row label="Date" :value="now()->format('j F Y, g:i A')" />
     </x-email.card>
 
-    <x-email.text muted spacing="0">
-        Manage your galleries, upload high-resolution photos and customize your portfolio from your Studio dashboard.
-    </x-email.text>
-
-    <x-email.button :url="$dashboardUrl" label="Go to Studio" />
+    <x-email.button :url="$dashboardUrl" label="Open your studio" :showFallback="false" />
 </x-email.layout>

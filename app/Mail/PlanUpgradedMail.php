@@ -37,7 +37,7 @@ class PlanUpgradedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Subscription Payment Confirmed: Welcome to ifotoset {$this->plan->name}!",
+            subject: "You're on ifotoset {$this->plan->name} now",
         );
     }
 

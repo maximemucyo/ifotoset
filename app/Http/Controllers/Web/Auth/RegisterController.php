@@ -53,7 +53,8 @@ class RegisterController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users', new NotDisposableEmail()],
             'phone_country' => ['nullable', 'string', 'size:2'],
             'phone' => ['required', 'string', 'max:30', new StudioPhone()],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            // No confirmation field: the form has a show-password toggle
+            'password' => ['required', 'string', 'min:8'],
         ], StudioUsername::messages());
 
         $freePlan = Plan::firstOrCreate([

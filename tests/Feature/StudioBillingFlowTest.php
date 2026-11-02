@@ -231,7 +231,7 @@ class StudioBillingFlowTest extends TestCase
         $receiptResponse->assertStatus(200);
         $receiptResponse->assertSee('3 months');
         $receiptResponse->assertSee('89,997 RWF');
-        $receiptResponse->assertSee('MTN Mobile Money');
+        $receiptResponse->assertSee('MTN MoMo');
         $receiptResponse->assertDontSee('pawapay');
     }
 

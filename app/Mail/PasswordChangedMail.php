@@ -16,7 +16,6 @@ class PasswordChangedMail extends NoticeMail
     protected function notice(): array
     {
         return [
-            'eyebrow' => 'Security',
             'title' => 'Password changed',
             'preheader' => 'The password for your ifotoset account was just changed.',
             'greeting' => $this->user->name,

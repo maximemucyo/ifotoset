@@ -414,8 +414,7 @@
                         <tbody>
                             @foreach($payments as $payment)
                                 @php
-                                    $prov = strtolower($payment->provider ?? '');
-                                    $method = str_contains($prov, 'mtn') ? 'MTN MoMo' : (str_contains($prov, 'airtel') ? 'Airtel Money' : 'Mobile Money');
+                                    $method = $payment->providerLabel();
                                     $pMonths = $payment->metadata['months'] ?? ($payment->billing_cycle === 'annual' ? 12 : (preg_match('/^(\d+)_months$/', (string) $payment->billing_cycle, $m) ? (int) $m[1] : 1));
                                     $statusMap = [
                                         'completed' => ['success', 'Paid'],
