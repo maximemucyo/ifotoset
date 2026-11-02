@@ -196,6 +196,19 @@ class GalleryDownloadPinTest extends TestCase
             ->assertJsonPath('code', 'DOWNLOAD_PIN_REQUIRED');
     }
 
+    public function test_zip_download_works_after_unlocking_from_the_gallery_subdomain(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $this->createPhoto();
+        $this->postJson($this->galleryUrl() . '/download-unlock', ['pin' => '4821'])->assertOk();
+
+        // The export page calls the API from the gallery's host; Sanctum only starts a session for stateful origins
+        $this->withHeader('Referer', $this->galleryUrl() . '/export?type=zip')
+            ->postJson("/api/v1/public/galleries/{$this->user->username}/{$this->gallery->slug}/download-zip", ['email' => 'client@example.com'])
+            ->assertOk()
+            ->assertJsonPath('status', 'pending');
+    }
+
     public function test_existing_zip_cannot_be_fetched_by_id_while_locked(): void
     {
         $download = GalleryDownload::create([
