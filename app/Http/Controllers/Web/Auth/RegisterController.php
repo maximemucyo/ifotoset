@@ -10,6 +10,7 @@ use App\Rules\StudioPhone;
 use App\Support\GoogleAnalytics;
 use App\Support\Phone;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,19 @@ class RegisterController extends Controller
     }
 
     /**
+     * Check the email from the first sign-up step, so a taken or temporary address
+     * is caught before the person fills in the rest of the form.
+     */
+    public function checkEmail(Request $request): JsonResponse
+    {
+        $this->rejectStudiolessMember($request);
+
+        $request->validate(['email' => self::emailRules()]);
+
+        return response()->json(['ok' => true])->header('Cache-Control', 'no-store');
+    }
+
+    /**
      * Handle user signup request.
      */
     public function register(Request $request): RedirectResponse
@@ -39,18 +53,12 @@ class RegisterController extends Controller
             ]);
         }
 
-        // Team members who joined by invite already have a login, just no studio yet
-        $email = strtolower(trim((string) $request->input('email')));
-        if ($email !== '' && User::where('email', $email)->whereNull('username')->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'email' => 'You already have an account. Log in, then choose "Create my own studio" from the studio menu.',
-            ]);
-        }
+        $this->rejectStudiolessMember($request);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => StudioUsername::rules(),
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users', new NotDisposableEmail()],
+            'email' => self::emailRules(),
             'phone_country' => ['nullable', 'string', 'size:2'],
             'phone' => ['required', 'string', 'max:30', new StudioPhone()],
             // No confirmation field: the form has a show-password toggle
@@ -85,5 +93,26 @@ class RegisterController extends Controller
         GoogleAnalytics::track($request, $user, 'sign_up', ['method' => 'email']);
 
         return redirect()->intended(route('studio.dashboard'))->with('success', 'Welcome to ifotoset! Your account has been created.');
+    }
+
+    /**
+     * Rules for a new studio owner's email.
+     */
+    private static function emailRules(): array
+    {
+        return ['required', 'string', 'email', 'max:255', 'unique:users', new NotDisposableEmail()];
+    }
+
+    /**
+     * Team members who joined by invite already have a login, just no studio yet.
+     */
+    private function rejectStudiolessMember(Request $request): void
+    {
+        $email = strtolower(trim((string) $request->input('email')));
+        if ($email !== '' && User::where('email', $email)->whereNull('username')->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'email' => 'You already have an account. Log in, then choose "Create my own studio" from the studio menu.',
+            ]);
+        }
     }
 }

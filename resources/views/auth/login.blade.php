@@ -12,7 +12,6 @@
                 id="email"
                 :value="old('email')"
                 required
-                autofocus
                 autocomplete="username email"
                 placeholder="you@studio.com"
                 :error="$errors->first('email')" />

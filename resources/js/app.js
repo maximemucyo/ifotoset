@@ -216,6 +216,87 @@ Alpine.data('studioUsername', ({ initial = '', original = null, url }) => ({
 }));
 
 /* -------------------------------------------------------------------------
+ | Email sign-up: x-data="signupForm({ step, emailError, checkUrl })"
+ | Step 1 asks only for the email and checks it with the server; step 2 has the
+ | rest of the details. Both steps are one form, so a single POST creates the studio.
+ * ---------------------------------------------------------------------- */
+Alpine.data('signupForm', ({ step = 1, emailError = '', checkUrl }) => ({
+    step,
+    email: '',
+    emailError,
+    checking: false,
+    submitting: false,
+    password: '',
+    init() {
+        this.email = this.$refs.email.value;
+        // The page heading sits outside the form and follows the step
+        this.$watch('step', (value) => window.dispatchEvent(new CustomEvent('signup-step', { detail: value })));
+        // Browser back from step 2 returns to step 1 instead of leaving the page
+        window.addEventListener('popstate', () => {
+            if (this.step === 2) this.showEmailStep();
+        });
+    },
+    get strength() {
+        let s = 0;
+        if (this.password.length >= 8) s++;
+        if (/[A-Z]/.test(this.password) && /[a-z]/.test(this.password)) s++;
+        if (/\d/.test(this.password)) s++;
+        if (/[^A-Za-z0-9]/.test(this.password) || this.password.length >= 14) s++;
+        return s;
+    },
+    get strengthLabel() {
+        return ['Too short', 'Weak', 'Fair', 'Good', 'Strong'][this.strength];
+    },
+    onSubmit(e) {
+        // Never submit a half-filled form from step 1
+        if (this.step === 1) {
+            e.preventDefault();
+            this.continueWithEmail();
+            return;
+        }
+        this.submitting = true;
+    },
+    async continueWithEmail() {
+        const input = this.$refs.email;
+        this.emailError = '';
+        if (!input.reportValidity() || this.checking) return;
+
+        this.checking = true;
+        try {
+            const res = await fetch(checkUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.csrfToken },
+                body: JSON.stringify({ email: this.email }),
+            });
+            if (res.status === 422) {
+                this.emailError = (await res.json()).errors?.email?.[0] || 'Enter a different email address.';
+                this.$nextTick(() => input.focus());
+                return;
+            }
+        } catch {
+            // Offline or throttled: carry on, the final submit validates the email again
+        } finally {
+            this.checking = false;
+        }
+        this.showDetailsStep();
+    },
+    showDetailsStep() {
+        this.step = 2;
+        history.pushState({ signupStep: 2 }, '');
+        this.$nextTick(() => this.$refs.name.focus());
+    },
+    changeEmail() {
+        // Undo our own history entry when there is one, so back doesn't step through it again
+        if (history.state?.signupStep) history.back();
+        else this.showEmailStep();
+    },
+    showEmailStep() {
+        this.step = 1;
+        this.$nextTick(() => this.$refs.email.focus());
+    },
+}));
+
+/* -------------------------------------------------------------------------
  | Dropdown menu: x-data="dropdown"
  * ---------------------------------------------------------------------- */
 Alpine.data('dropdown', () => ({

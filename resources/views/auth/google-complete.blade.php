@@ -27,6 +27,7 @@
     <x-ui.phone-input label="Phone number"
                       required
                       placeholder="788 123 456"
+                      hint="For mobile money payments and help with your account."
                       :error="$errors->first('phone')" />
 
     <button type="submit" class="btn btn-primary btn-lg w-full !mt-6" :disabled="submitting">

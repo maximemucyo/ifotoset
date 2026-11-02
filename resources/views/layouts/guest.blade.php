@@ -30,15 +30,20 @@
 
             <main id="main" tabindex="-1" class="flex flex-1 justify-center pb-12 pt-6 outline-none sm:items-center sm:pt-12">
                 <div class="w-full max-w-[400px]">
-                    @isset($icon)
-                        <x-icon :name="$icon" class="mb-5 size-6 text-brand-strong" />
-                    @endisset
-                    <h1 class="font-headline text-[32px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground [font-stretch:90%] sm:text-[36px]">
-                        {{ $heading ?? 'Welcome back' }}
-                    </h1>
-                    @isset($subheading)
-                        <p class="mt-3 text-[16px] leading-relaxed text-muted-foreground">{{ $subheading }}</p>
-                    @endisset
+                    {{-- A page whose heading changes between steps provides its own --}}
+                    @hasSection('heading')
+                        @yield('heading')
+                    @else
+                        @isset($icon)
+                            <x-icon :name="$icon" class="mb-5 size-6 text-brand-strong" />
+                        @endisset
+                        <h1 class="font-headline text-[32px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground [font-stretch:90%] sm:text-[36px]">
+                            {{ $heading ?? 'Welcome back' }}
+                        </h1>
+                        @isset($subheading)
+                            <p class="mt-3 text-[16px] leading-relaxed text-muted-foreground">{{ $subheading }}</p>
+                        @endisset
+                    @endif
 
                     <div class="mt-8 space-y-4">
                         @if ($errors->any() && $errors->count() > 1)
