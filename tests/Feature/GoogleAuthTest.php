@@ -186,7 +186,9 @@ class GoogleAuthTest extends TestCase
         $this->get(route('auth.google.complete'))
             ->assertOk()
             ->assertSee('alex@example.com')
-            ->assertSee('alexmorgan2');
+            // Nothing prefilled from the Google profile name
+            ->assertDontSee('value="Alex Morgan"', false)
+            ->assertDontSee('alexmorgan');
 
         $this->post(route('auth.google.complete'), ['name' => 'Alex Morgan', 'username' => 'AlexStudio', 'phone' => '0788 123 456'])
             ->assertRedirect(route('studio.dashboard'));

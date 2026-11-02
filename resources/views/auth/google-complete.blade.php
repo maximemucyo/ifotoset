@@ -15,13 +15,14 @@
                 type="text"
                 name="name"
                 id="name"
-                :value="old('name', $profile['name'])"
+                :value="old('name')"
                 required
+                autofocus
                 autocomplete="name"
                 placeholder="Alex Morgan"
                 :error="$errors->first('name')" />
 
-    <x-studio-url-input :value="old('username', $suggestedUsername)" autofocus />
+    <x-studio-url-input :value="old('username')" />
 
     <x-ui.phone-input label="Phone number"
                       required

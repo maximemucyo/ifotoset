@@ -173,10 +173,8 @@ class GoogleAuthController extends Controller
             return redirect()->route('register');
         }
 
-        return view('auth.google-complete', [
-            'profile' => $profile,
-            'suggestedUsername' => $this->suggestUsername($profile),
-        ]);
+        // Name and studio URL start empty: the Google profile name is a person, not a studio
+        return view('auth.google-complete', ['profile' => $profile]);
     }
 
     /**
@@ -282,22 +280,6 @@ class GoogleAuthController extends Controller
             'email_verified' => (bool) $userInfo->json('email_verified'),
             'name' => (string) ($userInfo->json('name') ?: Str::before($userInfo->json('email'), '@')),
         ];
-    }
-
-    /**
-     * A free, valid username derived from the Google name or email, to prefill the form.
-     */
-    private function suggestUsername(array $profile): string
-    {
-        $base = Str::of(Str::ascii($profile['name']))->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(40, '')->toString();
-        if (strlen($base) < 3) {
-            $base = Str::of(Str::before($profile['email'], '@'))->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(40, '')->toString();
-        }
-        if (strlen($base) < 3) {
-            $base = 'studio';
-        }
-
-        return StudioUsername::suggest($base);
     }
 
     private function fail(string $message): RedirectResponse
