@@ -5,6 +5,12 @@
     'forceTheme' => 'light',
 ])
 
+{{-- iOS Safari tints the status bar strip from the body background; match the top of the cover photo.
+     The .marketing wrapper keeps the page itself light. --}}
+@push('styles')
+    <style>body { background-color: #3b3420; }</style>
+@endpush
+
 @section('content')
 <div class="marketing flex min-h-screen flex-col bg-background">
     <x-landing.navbar overlay />

@@ -19,8 +19,9 @@
     ];
 @endphp
 
-{{-- Cover: the page opens the way an ifotoset gallery does. -mt-16 slides it under the sticky header. --}}
-<section class="relative isolate -mt-16 flex min-h-[100svh] flex-col justify-end overflow-hidden bg-kivu text-white">
+{{-- Cover: the page opens the way an ifotoset gallery does. The negative margin slides it under the sticky
+     header: h-16 plus its 1px bottom border, or a light hairline shows above the photo. --}}
+<section class="relative isolate -mt-[calc(4rem+1px)] flex min-h-[100svh] flex-col justify-end overflow-hidden bg-kivu text-white">
     <img
         src="{{ $img(8) }}"
         width="1200" height="800"
@@ -30,7 +31,8 @@
     >
     <div aria-hidden="true" class="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/25 to-black/35"></div>
 
-    <div class="mx-auto w-full max-w-7xl px-4 pb-10 pt-28 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">
+    {{-- iOS 26 Safari floats its toolbar over the bottom of the viewport, so leave room above it on phones --}}
+    <div class="mx-auto w-full max-w-7xl px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-28 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20">
         <p class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-[13px] text-white/90 backdrop-blur">
             <x-icon name="lock" class="size-3.5 shrink-0" />
             <span class="truncate">yourstudio.ifotoset.com/golden-hour</span>
