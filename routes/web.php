@@ -65,7 +65,7 @@ Route::domain('www.' . $rootHost)->group(function () {
 // Fresh CSRF token for pages served from Cloudflare's cache, which carry no session (any host,
 // so it is registered before the subdomain gallery catch-all)
 Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
-    ->middleware(['noindex', 'throttle:30,1'])
+    ->middleware(['noindex', 'throttle:120,1'])
     ->name('csrf-token');
 
 // 2. Subdomain Photographer & Gallery Routes ({username}.{rootDomain}/{slug})
@@ -74,12 +74,12 @@ Route::domain('{username}.' . $rootHost)
     ->group(function () {
         // Booking (before the gallery catch-all so /book never resolves as a gallery slug)
         Route::get('/book', [PublicBookingController::class, 'page'])->name('subdomain.booking');
-        Route::get('/book/availability', [PublicBookingController::class, 'availability'])->middleware(['noindex', 'throttle:60,1'])->name('subdomain.booking.availability');
-        Route::get('/book/slots', [PublicBookingController::class, 'slots'])->middleware(['noindex', 'throttle:60,1'])->name('subdomain.booking.slots');
-        Route::post('/book', [PublicBookingController::class, 'book'])->middleware('throttle:5,1')->name('subdomain.photographer.book');
+        Route::get('/book/availability', [PublicBookingController::class, 'availability'])->middleware(['noindex', 'throttle:120,1'])->name('subdomain.booking.availability');
+        Route::get('/book/slots', [PublicBookingController::class, 'slots'])->middleware(['noindex', 'throttle:120,1'])->name('subdomain.booking.slots');
+        Route::post('/book', [PublicBookingController::class, 'book'])->middleware('throttle:10,1')->name('subdomain.photographer.book');
         Route::get('/book/{booking}', [PublicBookingController::class, 'show'])->middleware('noindex')->whereUuid('booking')->name('subdomain.booking.show');
-        Route::get('/book/{booking}/status', [PublicBookingController::class, 'status'])->middleware(['noindex', 'throttle:60,1'])->whereUuid('booking')->name('subdomain.booking.status');
-        Route::post('/book/{booking}/pay', [PublicBookingController::class, 'pay'])->middleware('throttle:5,1')->whereUuid('booking')->name('subdomain.booking.pay');
+        Route::get('/book/{booking}/status', [PublicBookingController::class, 'status'])->middleware(['noindex', 'throttle:240,1'])->whereUuid('booking')->name('subdomain.booking.status');
+        Route::post('/book/{booking}/pay', [PublicBookingController::class, 'pay'])->middleware('throttle:10,1')->whereUuid('booking')->name('subdomain.booking.pay');
 
         // Portfolio pages (also before the gallery catch-all; Gallery::RESERVED_SLUGS keeps galleries off these)
         Route::get('/about', [PublicPhotographerController::class, 'about'])->middleware('edge.cache')->name('subdomain.about');
@@ -97,11 +97,11 @@ Route::domain('{username}.' . $rootHost)
                 \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
                 \App\Http\Middleware\HandleImpersonationState::class,
             ])
-            ->middleware(['noindex', 'throttle:60,1'])
+            ->middleware(['noindex', 'throttle:120,1'])
             ->name('subdomain.gallery.viewed');
         Route::get('/{slug}/share.jpg', [PublicGalleryController::class, 'shareImage'])->middleware('noindex')->name('subdomain.gallery.share-image');
-        Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('subdomain.gallery.unlock');
-        Route::post('/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('subdomain.gallery.download-unlock');
+        Route::post('/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:30,1')->name('subdomain.gallery.unlock');
+        Route::post('/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:30,1')->name('subdomain.gallery.download-unlock');
         Route::get('/{slug}', [PublicGalleryController::class, 'show'])->middleware('edge.cache')->name('subdomain.gallery');
 
         Route::get('/', [PublicPhotographerController::class, 'show'])->middleware('edge.cache')->name('subdomain.photographer');
@@ -121,16 +121,16 @@ Route::get('/sitemap.xml', [\App\Http\Controllers\Web\SitemapController::class, 
 Route::get('/sitemaps/{section}.xml', [\App\Http\Controllers\Web\SitemapController::class, 'section'])->name('sitemap.section');
 
 // Live "is this studio address free?" check for the sign-up and settings forms
-Route::get('/username-availability', UsernameAvailabilityController::class)->middleware('throttle:60,1')->name('username.availability');
+Route::get('/username-availability', UsernameAvailabilityController::class)->middleware('throttle:120,1')->name('username.availability');
 
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:20,1');
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:60,1');
 
     Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:5,1');
-    Route::post('/register/check-email', [RegisterController::class, 'checkEmail'])->middleware('throttle:20,1')->name('register.check-email');
+    Route::post('/register', [RegisterController::class, 'register'])->middleware('throttle:10,1');
+    Route::post('/register/check-email', [RegisterController::class, 'checkEmail'])->middleware('throttle:60,1')->name('register.check-email');
 
     Route::get('/forgot-password', [PasswordResetController::class, 'showLinkRequestForm'])->name('password.request');
     Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail'])->middleware('throttle:5,1')->name('password.email');
@@ -139,10 +139,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:10,1')->name('password.update');
 
     // Sign in / sign up with Google
-    Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:20,1')->name('auth.google');
-    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:20,1')->name('auth.google.callback');
+    Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->middleware('throttle:60,1')->name('auth.google');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->middleware('throttle:60,1')->name('auth.google.callback');
     Route::get('/auth/google/complete', [GoogleAuthController::class, 'showCompleteForm'])->name('auth.google.complete');
-    Route::post('/auth/google/complete', [GoogleAuthController::class, 'complete'])->middleware('throttle:5,1');
+    Route::post('/auth/google/complete', [GoogleAuthController::class, 'complete'])->middleware('throttle:10,1');
 });
 
 // Authenticated Logout & Email Verification
@@ -182,8 +182,8 @@ Route::get('/p/{username}/{slug}', function (Request $request, string $username,
 Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('public.gallery.photos');
 Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('public.gallery.photo.download');
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('public.gallery.export');
-Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:10,1')->name('public.gallery.unlock');
-Route::post('/p/{username}/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:10,1')->name('public.gallery.download-unlock');
+Route::post('/p/{username}/{slug}/unlock', [PublicGalleryController::class, 'unlock'])->middleware('throttle:30,1')->name('public.gallery.unlock');
+Route::post('/p/{username}/{slug}/download-unlock', [PublicGalleryController::class, 'unlockDownloads'])->middleware('throttle:30,1')->name('public.gallery.download-unlock');
 
 // Shortlink Redirect (/g/{username}/{slug} -> canonical subdomain URL via 301)
 Route::get('/g/{username}/{slug}', function (Request $request, string $username, string $slug) {

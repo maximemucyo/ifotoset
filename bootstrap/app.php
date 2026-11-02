@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'noindex' => \App\Http\Middleware\NoIndex::class,
             'edge.cache' => \App\Http\Middleware\MarkEdgeCacheable::class,
             'studio.account' => \App\Http\Middleware\ResolveStudioAccount::class,
+            'throttle' => \App\Http\Middleware\ThrottleRequests::class,
         ]);
         $middleware->replace(
             \Illuminate\Http\Middleware\TrustProxies::class,

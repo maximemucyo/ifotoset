@@ -522,10 +522,20 @@ class PlatformHardeningTest extends TestCase
     public function test_throttled_requests_get_the_styled_429_page(): void
     {
         $bookUrl = app(\App\Services\PublicUrlService::class)->photographerUrl('alexmorgan') . '/book';
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $this->post($bookUrl, ['website' => 'x']);
         }
 
         $this->post($bookUrl, ['website' => 'x'])->assertStatus(429)->assertSee('Slow down a little');
+    }
+
+    public function test_throttled_routes_do_not_share_one_bucket(): void
+    {
+        // Laravel's default key is only domain|ip, so these checks used to spend register's 10/min
+        for ($i = 0; $i < 15; $i++) {
+            $this->getJson(route('username.availability', ['username' => "studio{$i}"]))->assertOk();
+        }
+
+        $this->post('/register', [])->assertStatus(302);
     }
 }
