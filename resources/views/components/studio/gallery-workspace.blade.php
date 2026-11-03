@@ -2,9 +2,10 @@
     Gallery workspace: the frame around a gallery's Photos, Design, Clients and Settings tabs. A top bar with the
     title, status and Share, and a rail with the cover, the tabs and the Settings sections with what each is set to.
     Pages using it extend layouts.app with 'workspace' => true and wrap it in an Alpine scope with `coverThumb` and
-    `totalPhotos`. The slot can read `section`, the Settings section picked from the URL hash.
+    `totalPhotos`. The slot can read `section`, the Settings section picked from the URL hash. A `rail` slot
+    replaces the Settings sections in the rail, as the Photos tab does with its sets.
 --}}
-@props(['gallery', 'active' => 'photos'])
+@props(['gallery', 'active' => 'photos', 'rail' => null])
 @php
     $publicUrl = $gallery->public_url;
     $previewUrl = route('studio.galleries.preview', $gallery->uuid);
@@ -181,6 +182,9 @@
                 @endforeach
             </nav>
 
+            @if($rail)
+                <div x-show="railOpen" class="hidden min-h-0 px-2 py-3 lg:block">{{ $rail }}</div>
+            @else
             {{-- Settings sections and what each is set to --}}
             <nav x-show="railOpen" class="hidden px-2 py-3 lg:block" aria-label="Settings">
                 @foreach($sections as $key => $label)
@@ -192,6 +196,7 @@
                     </a>
                 @endforeach
             </nav>
+            @endif
 
             <div class="mt-auto hidden shrink-0 p-3 lg:block">
                 <div x-show="railOpen" class="mb-3">

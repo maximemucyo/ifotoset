@@ -46,6 +46,9 @@
     'csrfToken' => csrf_token(),
     'photosUrl' => route('studio.galleries.photos', $gallery->uuid),
     'coverUrl' => route('studio.galleries.cover', $gallery->uuid),
+    'sets' => $sets,
+    'setsUrl' => route('studio.galleries.sets.store', $gallery->uuid),
+    'moveToSetUrl' => route('studio.galleries.photos.set', $gallery->uuid),
     'toggleHideUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'deletePhotoUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'initialTotalCount' => $totalPhotosCount,
@@ -101,6 +104,50 @@
      @dragenter.window="if ($event.dataTransfer && Array.from($event.dataTransfer.types || []).includes('Files')) isDragging = true">
 
     <x-studio.gallery-workspace :gallery="$gallery" active="photos">
+    <x-slot:rail>
+        {{-- Sets: pick one to show only its photos; drag to reorder --}}
+        <nav aria-label="Sets">
+            <div class="flex items-center justify-between px-3 pb-1">
+                <h2 class="text-[13px] font-medium text-foreground">Sets</h2>
+                <button type="button" class="btn btn-ghost btn-icon btn-xs text-muted-foreground" @click="startAddSet()" title="Add set" aria-label="Add set">
+                    <x-icon name="plus" class="size-4" />
+                </button>
+            </div>
+            <ul>
+                <li>
+                    <button type="button" @click="showSet('')" :aria-current="activeSet === '' && 'true'"
+                            class="flex w-full items-baseline justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-colors"
+                            :class="activeSet === '' ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'">
+                        <span>All photos</span>
+                        <span class="tabular-nums" x-text="totalPhotos">{{ $totalPhotosCount }}</span>
+                    </button>
+                </li>
+                <template x-for="set in sets" :key="set.uuid">
+                    <li draggable="true"
+                        @dragstart="draggingSet = set.uuid; $event.dataTransfer.effectAllowed = 'move'"
+                        @dragend="draggingSet = null"
+                        @dragover.prevent="$event.dataTransfer.dropEffect = 'move'"
+                        @drop.prevent="draggingSet && moveSet(draggingSet, set.uuid); draggingSet = null"
+                        :class="draggingSet === set.uuid && 'opacity-40'">
+                        <button type="button" @click="showSet(set.uuid)" :aria-current="activeSet === set.uuid && 'true'"
+                                class="group/set flex w-full cursor-grab items-baseline justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-colors active:cursor-grabbing"
+                                :class="activeSet === set.uuid ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'">
+                            <span class="truncate" x-text="set.name"></span>
+                            <span class="tabular-nums" x-text="set.count"></span>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+            <form x-show="addingSet" x-cloak class="px-1 pt-1" @submit.prevent="addSet()">
+                <input id="new-set-name" type="text" class="input h-8 text-[13px]" maxlength="80" placeholder="e.g. Ceremony"
+                       x-model="setName" @keydown.escape.stop="addingSet = false" @blur="addSet()" aria-label="New set name">
+            </form>
+            <p x-show="!sets.length && !addingSet" class="px-3 pt-2 text-[12px] leading-relaxed text-muted-foreground"
+               @if(count($sets)) style="display: none;" @endif>
+                Split the gallery into parts, like Ceremony and Reception. Clients see them as tabs.
+            </p>
+        </nav>
+    </x-slot:rail>
 
     {{-- ============ Photos tab ============ --}}
     <section aria-label="Photos and videos">
@@ -141,16 +188,57 @@
             </div>
         </div>
 
+        <!-- Sets on phones, where the rail is hidden -->
+        <div x-show="totalPhotos > 0" class="-mx-4 mb-3 overflow-x-auto px-4 [scrollbar-width:none] lg:hidden"
+             style="{{ $photos->isEmpty() ? 'display: none;' : '' }}">
+            <div class="flex w-max gap-1.5">
+                <button type="button" class="h-8 rounded-full px-3.5 text-[13px] transition-colors" @click="showSet('')"
+                        :class="activeSet === '' ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'">All</button>
+                <template x-for="set in sets" :key="set.uuid">
+                    <button type="button" class="h-8 rounded-full px-3.5 text-[13px] transition-colors" @click="showSet(set.uuid)" x-text="set.name"
+                            :class="activeSet === set.uuid ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'"></button>
+                </template>
+                <form x-show="addingSet" x-cloak @submit.prevent="addSet()">
+                    <input type="text" class="input h-8 w-40 rounded-full text-[13px]" maxlength="80" placeholder="Set name"
+                           x-model="setName" @keydown.escape.stop="addingSet = false" @blur="addSet()" aria-label="New set name"
+                           x-effect="addingSet && $nextTick(() => $el.focus())">
+                </form>
+                <button type="button" x-show="!addingSet" class="inline-flex h-8 items-center gap-1 rounded-full px-3 text-[13px] text-muted-foreground" @click="addingSet = true; setName = ''">
+                    <x-icon name="plus" class="size-3.5" /> Set
+                </button>
+            </div>
+        </div>
+
         <!-- Grid toolbar -->
         <div x-show="totalPhotos > 0"
              class="mb-4 flex flex-wrap items-center justify-between gap-3"
              style="{{ $photos->isEmpty() ? 'display: none;' : '' }}">
             <div class="flex min-w-0 items-center gap-2.5">
-                <h2 class="text-[15px] font-semibold text-foreground">Media</h2>
-                <span class="badge badge-neutral tabular-nums" x-text="totalPhotos">{{ $totalPhotosCount }}</span>
-                <span class="hidden text-xs text-subtle md:inline">Drag across photos, or shift-click, to select several</span>
+                <form x-show="renamingSet" x-cloak @submit.prevent="renameSet()">
+                    <input id="rename-set-name" type="text" class="input h-8 w-56 text-[14px] font-semibold" maxlength="80"
+                           x-model="setName" @keydown.escape.stop="renamingSet = false" @blur="renameSet()" aria-label="Set name">
+                </form>
+                <h2 x-show="!renamingSet" class="truncate text-[15px] font-semibold text-foreground" x-text="currentSet ? currentSet.name : 'All photos'">All photos</h2>
+                <span class="badge badge-neutral tabular-nums" x-show="!search.trim()" x-text="viewCount">{{ $totalPhotosCount }}</span>
+                <div x-show="currentSet && !renamingSet" x-cloak x-data="dropdown" class="relative" @click.outside="close()" @keydown.escape="close()">
+                    <button type="button" class="btn btn-ghost btn-icon btn-sm" @click="toggle()" :aria-expanded="open" aria-haspopup="menu" aria-label="Set actions">
+                        <x-icon name="ellipsis" />
+                    </button>
+                    <div x-show="open" x-cloak x-transition.opacity.duration.100ms class="menu absolute left-0 top-full z-30 mt-2 w-48" role="menu">
+                        <button type="button" class="menu-item" role="menuitem" @click="close(); startRenameSet()"><x-icon name="pencil" /> Rename</button>
+                        <button type="button" class="menu-item" role="menuitem" x-show="sets[0]?.uuid !== activeSet" @click="close(); moveSet(activeSet, -1)"><x-icon name="arrow-up" /> Move up</button>
+                        <button type="button" class="menu-item" role="menuitem" x-show="sets[sets.length - 1]?.uuid !== activeSet" @click="close(); moveSet(activeSet, 1)"><x-icon name="arrow-down" /> Move down</button>
+                        <div class="menu-separator"></div>
+                        <button type="button" class="menu-item menu-item-danger" role="menuitem" @click="close(); deleteSet()"><x-icon name="trash-2" /> Delete set</button>
+                    </div>
+                </div>
             </div>
             <div class="flex items-center gap-2">
+                <div class="input-group w-40 sm:w-52" role="search">
+                    <x-icon name="search" class="input-icon" />
+                    <input type="search" class="input h-8 text-[13px]" placeholder="Find by file name" aria-label="Find photos by file name"
+                           x-model="search" @input="searchChanged()" @keydown.escape.stop="clearSearch(); $el.blur()" maxlength="100">
+                </div>
                 <div class="tabs" role="tablist" aria-label="Grid density">
                     <button type="button" class="tab" role="tab" :aria-selected="density === 'comfortable'" @click="density = 'comfortable'" title="Comfortable grid" aria-label="Comfortable grid">
                         <x-icon name="layout-grid" class="size-4" />
@@ -182,6 +270,24 @@
             @foreach($photos as $photo)
                 @include('studio.galleries.partials.photo-card', ['photo' => $photo])
             @endforeach
+        </div>
+
+        <!-- A search with no matches -->
+        <div x-show="search.trim() && !loadingPhotos && !hasMore && photos.length === 0" x-cloak
+             class="rounded-xl border border-dashed border-border-strong/70 px-6 py-14 text-center">
+            <p class="text-sm font-medium text-foreground">No file names contain “<span x-text="search.trim()"></span>”</p>
+            <p class="mt-1 text-[13px] text-muted-foreground" x-show="currentSet">This only looks inside <span x-text="currentSet?.name"></span>.</p>
+            <button type="button" class="btn btn-outline btn-sm mt-4" @click="clearSearch()">Clear search</button>
+        </div>
+
+        <!-- An open set with nothing in it yet -->
+        <div x-show="currentSet && !search.trim() && !loadingPhotos && !hasMore && photos.length === 0" x-cloak
+             class="rounded-xl border border-dashed border-border-strong/70 px-6 py-14 text-center">
+            <p class="text-sm font-medium text-foreground">No photos in this set yet</p>
+            <p class="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">Add photos here, or select photos in All photos and choose Move to set.</p>
+            <button type="button" class="btn btn-outline btn-sm mt-4" @click="$dispatch('open-modal', 'upload-photos-modal')">
+                <x-icon name="plus" /> Add photos
+            </button>
         </div>
 
         <!-- Infinite Scroll Sentinel -->

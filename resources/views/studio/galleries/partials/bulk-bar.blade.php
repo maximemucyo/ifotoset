@@ -1,4 +1,4 @@
-{{-- Selection action bar (uses the existing per-photo hide / cover / delete endpoints). --}}
+{{-- Selection action bar: cover, move to set, hide, show and delete for the selected photos. --}}
 @php
     $bbBtn = 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-background/85 transition-colors hover:bg-background/10 hover:text-background focus-visible:outline-2 focus-visible:outline-background disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4';
 @endphp
@@ -21,13 +21,29 @@
             </button>
             <div x-show="open" x-cloak x-transition.opacity.duration.100ms class="menu absolute bottom-full left-0 mb-2 w-48" role="menu">
                 <button type="button" class="menu-item" role="menuitem" @click="close(); selectAll()">
-                    Select all <span class="ml-auto tabular-nums text-muted-foreground" x-text="totalPhotos"></span>
+                    Select all <span class="ml-auto tabular-nums text-muted-foreground" x-text="viewCount"></span>
                 </button>
                 <button type="button" class="menu-item" role="menuitem" @click="close(); setSelection([])">Select none</button>
             </div>
         </div>
 
         <div class="mx-1 h-5 w-px shrink-0 bg-background/20" aria-hidden="true"></div>
+
+        {{-- Outside the scrolling strip below, which would clip its menu --}}
+        <div x-show="sets.length" x-data="dropdown" class="relative" @click.outside="close()" @keydown.escape.stop="close()">
+            <button type="button" class="{{ $bbBtn }}" @click="toggle()" :aria-expanded="open" aria-haspopup="menu" :disabled="bulkBusy || selectedCount === 0" title="Move to set">
+                <x-icon name="folder-input" /> <span class="hidden sm:inline">Move to set</span>
+            </button>
+            <div x-show="open" x-cloak x-transition.opacity.duration.100ms class="menu absolute bottom-full left-0 mb-2 max-h-72 w-56 overflow-y-auto" role="menu">
+                <template x-for="set in sets" :key="set.uuid">
+                    <button type="button" class="menu-item" role="menuitem" @click="close(); moveSelectedToSet(set.uuid)" :disabled="set.uuid === activeSet">
+                        <span class="truncate" x-text="set.name"></span>
+                    </button>
+                </template>
+                <div class="menu-separator"></div>
+                <button type="button" class="menu-item" role="menuitem" @click="close(); moveSelectedToSet('')">Remove from set</button>
+            </div>
+        </div>
 
         <div class="flex min-w-0 items-center gap-0.5 overflow-x-auto">
             <button type="button" class="{{ $bbBtn }}" x-show="selectedCount === 1"

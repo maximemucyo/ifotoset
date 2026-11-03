@@ -2,6 +2,10 @@
 <x-ui.modal name="upload-photos-modal" title="Upload photos & videos" description="Files upload straight to secure storage and appear in the grid as they finish." maxWidth="2xl">
     <div class="space-y-4">
 
+        <p x-show="currentSet" x-cloak class="text-[13px] text-muted-foreground">
+            New photos go into <span class="font-medium text-foreground" x-text="currentSet?.name"></span>.
+        </p>
+
         <!-- Upgraded Plan Celebration Banner -->
         <template x-if="upgradedCelebration">
             <div class="alert alert-success flex items-start justify-between gap-3">

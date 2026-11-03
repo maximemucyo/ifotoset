@@ -248,33 +248,8 @@ class GalleryController extends Controller
         $paginated = app(\App\Queries\GalleryPhotoQuery::class)->studio($gallery, 50);
         $coverId = $gallery->cover_photo_id;
 
-        $initialPhotosData = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
-            $isVideo = $photo->isVideo();
-            return [
-                'id' => $photo->id,
-                'uuid' => $photo->uuid,
-                'media_type' => $photo->media_type ?? 'photo',
-                'is_video' => $isVideo,
-                'duration' => $photo->duration_formatted,
-                'status' => $photo->status,
-                'original_filename' => $photo->original_filename,
-                'filename' => $photo->filename,
-                'thumbnail_url' => $photo->getThumbnailUrl('sm'),
-                'medium_url' => $isVideo ? ($photo->getPosterUrl('md') ?? $photo->getUrl('md')) : $photo->getUrl('md'),
-                'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
-                'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
-                'original_url' => $photo->getOriginalDownloadUrl(),
-                'delivery_url' => $isVideo ? $photo->getStreamUrl() : null,
-                'size' => $photo->size,
-                'width' => $photo->width,
-                'height' => $photo->height,
-                'blurhash' => $photo->blurhash,
-                'is_hidden' => (bool) $photo->is_hidden,
-                'is_cover' => $coverId === $photo->id,
-                'taken_label' => $photo->taken_at?->format('j M Y, H:i:s'),
-                'created_at' => $photo->created_at?->toIso8601String(),
-            ];
-        })->values();
+        $setUuids = $gallery->sets()->pluck('uuid', 'id');
+        $initialPhotosData = collect($paginated->items())->map(fn (Photo $photo) => $this->studioPhotoData($photo, $coverId, $setUuids))->values();
 
         $storageService = app(\App\Services\StorageStatisticsService::class);
         $userStorage = $storageService->getStorageStats($request->account());
@@ -294,6 +269,7 @@ class GalleryController extends Controller
             'userStorage' => $userStorage,
             'upgradePlans' => $upgradePlans,
             'billingReturnSuccess' => $billingReturnSuccess,
+            'sets' => GallerySetController::summary($gallery),
         ]);
     }
 
@@ -306,42 +282,55 @@ class GalleryController extends Controller
         $this->authorize('view', $gallery);
 
         $perPage = $request->integer('per_page', 50);
-        $paginated = app(\App\Queries\GalleryPhotoQuery::class)->studio($gallery, $perPage);
+        $set = $request->filled('set')
+            ? \App\Models\GallerySet::where('gallery_id', $gallery->id)->where('uuid', (string) $request->query('set'))->firstOrFail()
+            : null;
+        $search = mb_substr((string) $request->query('q', ''), 0, 100);
+        $paginated = app(\App\Queries\GalleryPhotoQuery::class)->studio($gallery, $perPage, $set, $search);
         $coverId = $gallery->cover_photo_id;
+        $setUuids = $gallery->sets()->pluck('uuid', 'id');
 
-        $data = collect($paginated->items())->map(function (Photo $photo) use ($coverId) {
-            $isVideo = $photo->isVideo();
-            return [
-                'id' => $photo->id,
-                'uuid' => $photo->uuid,
-                'media_type' => $photo->media_type ?? 'photo',
-                'is_video' => $isVideo,
-                'duration' => $photo->duration_formatted,
-                'status' => $photo->status,
-                'original_filename' => $photo->original_filename,
-                'filename' => $photo->filename,
-                'thumbnail_url' => $photo->getThumbnailUrl('sm'),
-                'medium_url' => $isVideo ? ($photo->getPosterUrl('md') ?? $photo->getUrl('md')) : $photo->getUrl('md'),
-                'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
-                'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
-                'original_url' => $photo->getOriginalDownloadUrl(),
-                'delivery_url' => $isVideo ? $photo->getStreamUrl() : null,
-                'size' => $photo->size,
-                'width' => $photo->width,
-                'height' => $photo->height,
-                'blurhash' => $photo->blurhash,
-                'is_hidden' => (bool) $photo->is_hidden,
-                'is_cover' => $coverId === $photo->id,
-                'taken_label' => $photo->taken_at?->format('j M Y, H:i:s'),
-                'created_at' => $photo->created_at?->toIso8601String(),
-            ];
-        });
+        $data = collect($paginated->items())->map(fn (Photo $photo) => $this->studioPhotoData($photo, $coverId, $setUuids));
 
         return response()->json([
             'data' => $data,
             'next_cursor' => $paginated->nextCursor()?->encode(),
             'has_more' => $paginated->hasMorePages(),
         ]);
+    }
+
+    /**
+     * One photo as the studio grid and lightbox read it. $setUuids maps set ids to uuids.
+     */
+    private function studioPhotoData(Photo $photo, ?int $coverId, \Illuminate\Support\Collection $setUuids): array
+    {
+        $isVideo = $photo->isVideo();
+
+        return [
+            'id' => $photo->id,
+            'uuid' => $photo->uuid,
+            'media_type' => $photo->media_type ?? 'photo',
+            'is_video' => $isVideo,
+            'duration' => $photo->duration_formatted,
+            'status' => $photo->status,
+            'original_filename' => $photo->original_filename,
+            'filename' => $photo->filename,
+            'thumbnail_url' => $photo->getThumbnailUrl('sm'),
+            'medium_url' => $isVideo ? ($photo->getPosterUrl('md') ?? $photo->getUrl('md')) : $photo->getUrl('md'),
+            'large_url' => $isVideo ? ($photo->getPosterUrl('lg') ?? $photo->getUrl('lg')) : $photo->getUrl('lg'),
+            'full_url' => $isVideo ? ($photo->getPosterUrl('xl') ?? $photo->getUrl('xl')) : $photo->getUrl('xl'),
+            'original_url' => $photo->getOriginalDownloadUrl(),
+            'delivery_url' => $isVideo ? $photo->getStreamUrl() : null,
+            'size' => $photo->size,
+            'width' => $photo->width,
+            'height' => $photo->height,
+            'blurhash' => $photo->blurhash,
+            'is_hidden' => (bool) $photo->is_hidden,
+            'is_cover' => $coverId === $photo->id,
+            'taken_label' => $photo->taken_at?->format('j M Y, H:i:s'),
+            'created_at' => $photo->created_at?->toIso8601String(),
+            'set' => $setUuids[$photo->set_id] ?? null,
+        ];
     }
 
     /**

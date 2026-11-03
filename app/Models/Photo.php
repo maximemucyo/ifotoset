@@ -41,6 +41,7 @@ class Photo extends Model
     protected $fillable = [
         'uuid',
         'gallery_id',
+        'set_id',
         'disk_id',
         'media_type',
         'path',
@@ -83,6 +84,11 @@ class Photo extends Model
     public function gallery(): BelongsTo
     {
         return $this->belongsTo(Gallery::class);
+    }
+
+    public function gallerySet(): BelongsTo
+    {
+        return $this->belongsTo(GallerySet::class, 'set_id');
     }
 
     /**

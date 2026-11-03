@@ -63,10 +63,13 @@ class PublicGalleryController extends Controller
         $hasMore = false;
         $deepLinkedPhoto = null;
         $cover = $this->coverViewData(null, $gallery);
+        $sets = collect();
+        $activeSet = null;
 
         // Zero-leak security invariant: only query and hydrate photo data when access is granted
         if ($decision->isGranted()) {
-            $paginated = $this->photoQuery->getPaginatedForGallery($gallery, 24);
+            [$sets, $activeSet] = $this->setsFor($gallery, $request);
+            $paginated = $this->photoQuery->getPaginatedForGallery($gallery, 24, null, $activeSet);
             $initialPhotos = collect($paginated->items());
             $nextCursor = $paginated->nextCursor()?->encode();
             $hasMore = $paginated->hasMorePages();
@@ -112,6 +115,8 @@ class PublicGalleryController extends Controller
 
         return view('public.gallery', $cover + [
             'gallery' => $gallery,
+            'sets' => $sets,
+            'activeSet' => $activeSet,
             'photographer' => $gallery->user,
             'photos' => $initialPhotos,
             'nextCursor' => $nextCursor,
@@ -140,7 +145,8 @@ class PublicGalleryController extends Controller
         $this->authorize('update', $gallery);
         $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
-        $initialPhotos = collect($this->photoQuery->getPaginatedForGallery($gallery, 24)->items());
+        [$sets, $activeSet] = $this->setsFor($gallery, $request);
+        $initialPhotos = collect($this->photoQuery->getPaginatedForGallery($gallery, 24, null, $activeSet)->items());
 
         $coverPhoto = ($gallery->coverPhoto && !$gallery->coverPhoto->is_hidden) ? $gallery->coverPhoto : $initialPhotos->first();
         if ($coverUuid = $request->query('cover')) {
@@ -152,6 +158,8 @@ class PublicGalleryController extends Controller
 
         return view('public.gallery', $this->coverViewData($coverPhoto, $gallery, $focal[0], $focal[1]) + [
             'gallery' => $gallery,
+            'sets' => $sets,
+            'activeSet' => $activeSet,
             'photographer' => $gallery->user,
             'photos' => $initialPhotos,
             'nextCursor' => null,
@@ -166,6 +174,19 @@ class PublicGalleryController extends Controller
             'title' => 'Preview: ' . $gallery->title,
             'robots' => 'noindex, nofollow',
         ]);
+    }
+
+    /**
+     * The sets clients can open, and the one picked with ?set=<uuid> (an unknown or empty set shows everything).
+     *
+     * @return array{0: \Illuminate\Support\Collection<int, \App\Models\GallerySet>, 1: ?\App\Models\GallerySet}
+     */
+    private function setsFor(Gallery $gallery, Request $request): array
+    {
+        $sets = $this->photoQuery->publicSets($gallery);
+        $picked = (string) $request->query('set', '');
+
+        return [$sets, $picked === '' ? null : $sets->firstWhere('uuid', $picked)];
     }
 
     /**
@@ -286,7 +307,8 @@ class PublicGalleryController extends Controller
             $uuids = array_filter(explode(',', $uuids));
         }
 
-        $paginated = $this->photoQuery->getPaginatedForGallery($gallery, $perPage, is_array($uuids) ? $uuids : null);
+        [, $activeSet] = $this->setsFor($gallery, $request);
+        $paginated = $this->photoQuery->getPaginatedForGallery($gallery, $perPage, is_array($uuids) ? $uuids : null, $activeSet);
 
         $withOriginals = $this->exposesOriginals($gallery, $request);
         $data = collect($paginated->items())->map(fn (Photo $photo) => $this->photoPayload($photo, $gallery, $withOriginals));

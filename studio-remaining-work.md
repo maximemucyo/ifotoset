@@ -10,7 +10,8 @@ Already shipped:
 - uncropped photo tiles and the new selection;
 - downloads as a single Download PIN switch;
 - Settings split into sections that save as you change them, and a Design tab for the cover with the live preview;
-- the password hint (P1-11).
+- the password hint (P1-11);
+- sets inside a gallery, shown to clients as tabs, and search by file name.
 
 **Rules for every item**
 - Migrations must be additive (nullable or defaulted). The deploy runs them before the code switches.
@@ -19,22 +20,12 @@ Already shipped:
 
 ---
 
-## Next: sets and search (§4.5, workspace items 4–5)
-
-- [ ] **Sets**, such as "Ceremony / Reception / Portraits".
-  - Needs a `gallery_sets` table and a nullable `photos.set_id`.
-  - Sets are listed in the side panel, with drag to reorder and an "Add set" button.
-  - Photos without a set appear under "All photos".
-  - In the bottom bar: "Move to set".
-  - The client gallery shows sets as chips.
-- [ ] **Search by filename** in the top bar, so the photographer can find "IMG_0412" when a client asks for it.
-
 ## Left over from creation (§4.1)
 
 - [ ] **Folder drop.** Drop a folder on the dashboard or the Galleries page: this creates a gallery named after the folder and starts the upload.
 - [ ] **New gallery like this one**: copy one gallery's settings into a new one (P2).
 
-## Proofing (§4.4)
+## Next: Proofing (§4.4)
 
 - [ ] Store favourites on the server instead of only in the client's browser, in a `gallery_favorites` table keyed by gallery, photo and email.
 - [ ] Add a **Favourites** tab in the gallery workspace, grouped by person, with "Copy filenames" for Lightroom and a CSV download.

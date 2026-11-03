@@ -142,6 +142,8 @@ class UploadController extends Controller
 
         $validated = $request->validate([
             'upload_session_id' => ['required', 'string'],
+            // The set the photographer was looking at when they added the photos
+            'set' => ['nullable', 'string', 'max:64'],
         ]);
 
         try {
@@ -149,6 +151,13 @@ class UploadController extends Controller
                 $request->account(),
                 $validated['upload_session_id']
             );
+
+            if (!empty($validated['set']) && !$photo->set_id) {
+                $set = \App\Models\GallerySet::where('gallery_id', $photo->gallery_id)->where('uuid', $validated['set'])->first();
+                if ($set) {
+                    $photo->update(['set_id' => $set->id]);
+                }
+            }
 
             return (new PhotoResource($photo))->response();
         } catch (Exception $e) {

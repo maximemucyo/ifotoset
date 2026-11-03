@@ -427,6 +427,14 @@ class Gallery extends Model
         return $this->getCoverUrl('md');
     }
 
+    /**
+     * Parts of the gallery such as "Ceremony" and "Reception", in the photographer's order.
+     */
+    public function sets(): HasMany
+    {
+        return $this->hasMany(GallerySet::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);

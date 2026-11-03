@@ -243,8 +243,12 @@ Step 3 made creating and sharing a gallery easy. The manager page they land on a
   - Switches and choices save as they change, with a "Saved" toast. Text fields keep a Save button. Each section posts only its own fields.
   - The live preview moved to a **Design** tab (cover, focal point, later templates), where it's useful. Privacy settings don't change how the gallery looks. The focal point saves shortly after it stops moving.
   - Favourites waits for Proofing (§4.4), since there is nothing to set yet.
-- **Sets (promoted from P2 in §4.2).** Pixieset collections always have at least one set, so photographers already sort their photos this way. It needs one additive `gallery_sets` table and a nullable `photos.set_id`. Photos without a set appear under "All photos".
-- **Search by filename (P2).** For when a client asks for "IMG_0412".
+- **Sets (promoted from P2 in §4.2, done).** Pixieset collections always have at least one set, so photographers already sort their photos this way.
+  - One additive `gallery_sets` table and a nullable `photos.set_id`. A photo is in at most one set; "All photos" shows every photo.
+  - The Photos tab's rail lists the sets with their counts: add with +, drag to reorder, and rename, move or delete from the ⋯ beside the set's title. Phones get the sets as chips above the grid.
+  - Picking a set filters the grid in place, so uploads in progress keep going, and new uploads go into the open set. The bottom bar has "Move to set".
+  - Clients see sets that have visible photos as tabs under the gallery title. Each tab is a plain `?set=` link, so it is its own cached page.
+- **Search by filename (P2, done).** A box in the grid toolbar finds "IMG_0412" inside whatever the grid shows.
 - **Not copied:** Store. Pixieset's Activity tab becomes our **Favourites** tab (§4.4).
 
 ---
@@ -282,9 +286,9 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
      1. Rail shell and status pill. *(Done.)*
      2. Uncropped tiles, the new selection and the bottom bar. *(Done.)* Downloads as one PIN switch. *(Done.)*
      3. Settings sections with their state, autosave, and the Design tab with the preview. *(Done.)*
-     4. **Next:** sets.
-     5. Search.
-4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom.
+     4. Sets. *(Done.)*
+     5. Search. *(Done.)*
+4. **Next: Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom.
 5. **Dashboard "Needs you" redesign.** Needs steps 1 and 4 to have real signals to show.
 6. **Templates, gallery defaults and branding.**
 7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).

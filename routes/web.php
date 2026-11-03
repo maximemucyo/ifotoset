@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\Studio\BookingController as StudioBookingController
 use App\Http\Controllers\Web\Studio\ClientController as StudioClientController;
 use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardController;
 use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController;
+use App\Http\Controllers\Web\Studio\GallerySetController as StudioGallerySetController;
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
 use App\Http\Controllers\Web\Studio\StudioAccountController;
@@ -223,6 +224,11 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
     Route::delete('/galleries/{uuid}', [StudioGalleryController::class, 'destroy'])->name('galleries.destroy');
     Route::post('/galleries/{uuid}/cover', [StudioGalleryController::class, 'setCover'])->name('galleries.cover');
+    Route::post('/galleries/{uuid}/sets', [StudioGallerySetController::class, 'store'])->name('galleries.sets.store');
+    Route::post('/galleries/{uuid}/sets/order', [StudioGallerySetController::class, 'reorder'])->name('galleries.sets.reorder');
+    Route::patch('/galleries/{uuid}/sets/{setUuid}', [StudioGallerySetController::class, 'update'])->name('galleries.sets.update');
+    Route::delete('/galleries/{uuid}/sets/{setUuid}', [StudioGallerySetController::class, 'destroy'])->name('galleries.sets.destroy');
+    Route::post('/galleries/{uuid}/photos/set', [StudioGallerySetController::class, 'movePhotos'])->name('galleries.photos.set');
     Route::get('/galleries/{uuid}/photos', [StudioGalleryController::class, 'photos'])->name('galleries.photos');
     Route::get('/galleries/{uuid}/photos/{photoUuid}/status', [\App\Http\Controllers\Web\Studio\ProcessingStatusController::class, 'show'])->name('galleries.photos.status');
     Route::patch('/galleries/{uuid}/photos/{photoUuid}/hide', [StudioGalleryController::class, 'toggleHidePhoto'])->name('galleries.photos.hide');

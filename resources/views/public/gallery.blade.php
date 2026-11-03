@@ -1,7 +1,11 @@
 @php
     $isGranted = $accessDecision->isGranted();
     $eventDate = $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date) : null;
-    $photoTotal = $isGranted ? $gallery->public_photo_count : 0;
+    $sets ??= collect();
+    $activeSet ??= null;
+    $photoTotal = $isGranted ? ($activeSet?->visible_count ?? $gallery->public_photo_count) : 0;
+    // Sets are plain links, so each one is its own page (and cache entry) that opens at the photos
+    $setUrl = fn ($set = null) => $gallery->public_url . ($set ? '?set=' . $set->uuid : '') . '#gallery-action-bar';
     $allowPhotoDownloads = $gallery->photoDownloadsAllowed();
     $downloadPinRequired = $gallery->requiresDownloadPin() && ! $downloadsUnlocked;
     $iconBtn = 'inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-full px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
@@ -308,6 +312,24 @@
                 @endif
             </div>
         </div>
+
+        @if($isGranted && $sets->isNotEmpty())
+            <nav aria-label="Sets" class="-mt-1 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:px-6 lg:px-10">
+                <ul class="flex w-max gap-1.5">
+                    @foreach([null, ...$sets] as $set)
+                        @php($current = $set ? $activeSet?->id === $set->id : ! $activeSet)
+                        <li>
+                            <a href="{{ $setUrl($set) }}" @if($current) aria-current="page" @endif
+                               @class([
+                                   'inline-flex h-8 items-center rounded-full px-3.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring',
+                                   'bg-foreground text-background' => $current,
+                                   'text-muted-foreground hover:bg-muted hover:text-foreground' => ! $current,
+                               ])>{{ $set ? $set->name : 'All' }}</a>
+                        </li>
+                    @endforeach
+                </ul>
+            </nav>
+        @endif
     </div>
 
     {{-- ===================== Photo grid ===================== --}}
@@ -316,7 +338,7 @@
          data-slug="{{ $gallery->slug }}"
          data-username="{{ $photographer->username }}"
          data-gallery-url="{{ $gallery->public_url }}"
-         data-photos-url="{{ route('subdomain.gallery.photos', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
+         data-photos-url="{{ route('subdomain.gallery.photos', ['username' => $photographer->username, 'slug' => $gallery->slug] + ($activeSet ? ['set' => $activeSet->uuid] : [])) }}"
          data-export-url="{{ route('subdomain.gallery.export', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
          data-total-photos="{{ $photoTotal }}"
          data-next-cursor="{{ $nextCursor }}"

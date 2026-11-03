@@ -280,6 +280,29 @@ window.studioGalleryManager = function(inlineConfig) {
         loadingPhotos: false,
         observer: null,
 
+        // Sets: '' shows every photo in the gallery
+        sets: config.sets || [],
+        setsUrl: config.setsUrl || '',
+        moveToSetUrl: config.moveToSetUrl || '',
+        activeSet: '',
+        // Part of a file name; narrows whatever the grid shows
+        search: '',
+        searchTimer: null,
+        addingSet: false,
+        renamingSet: false,
+        setName: '',
+        savingSet: false,
+        draggingSet: null,
+
+        get currentSet() {
+            return this.sets.find(s => s.uuid === this.activeSet) || null;
+        },
+
+        // Photos in what the grid shows: the gallery, or the open set
+        get viewCount() {
+            return this.currentSet ? this.currentSet.count : this.totalPhotos;
+        },
+
         // Lightbox State
         lightboxOpen: false,
         lightboxIndex: 0,
@@ -401,15 +424,20 @@ window.studioGalleryManager = function(inlineConfig) {
             });
         },
 
-        async fetchNextBatch() {
-            if (this.loadingPhotos || !this.hasMore || !this.nextCursor) return;
+        // `first` loads the opening page of a newly chosen set, which has no cursor yet
+        async fetchNextBatch(first = false) {
+            if (this.loadingPhotos || (!first && (!this.hasMore || !this.nextCursor))) return;
 
             this.loadingPhotos = true;
+            const set = this.activeSet;
+            const search = this.search.trim();
 
             try {
                 const url = new URL(this.photosUrl, window.location.origin);
-                url.searchParams.set('cursor', this.nextCursor);
+                if (this.nextCursor) url.searchParams.set('cursor', this.nextCursor);
                 url.searchParams.set('per_page', '50');
+                if (set) url.searchParams.set('set', set);
+                if (search) url.searchParams.set('q', search);
 
                 const res = await fetch(url.toString(), {
                     headers: {
@@ -421,6 +449,8 @@ window.studioGalleryManager = function(inlineConfig) {
                 if (!res.ok) throw new Error('Failed to load photos');
 
                 const data = await res.json();
+                // Another set or search was chosen while this page loaded
+                if (set !== this.activeSet || search !== this.search.trim()) return;
                 const incomingPhotos = data.data || [];
 
                 // Deduplicate by UUID via internal Set
@@ -443,8 +473,10 @@ window.studioGalleryManager = function(inlineConfig) {
                 this.nextCursor = data.next_cursor || null;
                 this.hasMore = Boolean(data.has_more && this.nextCursor);
 
-                if (!this.hasMore && this.observer && this.$refs.sentinel) {
+                if (this.observer && this.$refs.sentinel) {
                     this.observer.unobserve(this.$refs.sentinel);
+                    // Re-observing re-checks a sentinel that is still in view after a short page
+                    if (this.hasMore) this.observer.observe(this.$refs.sentinel);
                 }
             } catch (err) {
                 console.error('Failed to load more photos:', err);
@@ -893,6 +925,8 @@ window.studioGalleryManager = function(inlineConfig) {
 
                 const deletedIdx = this.photos.findIndex(p => p.uuid === photoUuid);
                 if (deletedIdx !== -1) {
+                    const set = this.sets.find(s => s.uuid === this.photos[deletedIdx].set);
+                    if (set) set.count = Math.max(0, set.count - 1);
                     this.photos.splice(deletedIdx, 1);
                 }
                 photoUuids.delete(photoUuid);
@@ -1178,7 +1212,8 @@ window.studioGalleryManager = function(inlineConfig) {
                     progress: 0,
                     retryCount: 0,
                     errorMessage: '',
-                    isQuotaError: false
+                    isQuotaError: false,
+                    set: this.activeSet
                 };
             });
 
@@ -1388,7 +1423,8 @@ window.studioGalleryManager = function(inlineConfig) {
                     },
                     body: JSON.stringify({
                         upload_session_id: sessionId,
-                        session_id: sessionId
+                        session_id: sessionId,
+                        set: item.set || null
                     })
                 });
 
@@ -1411,6 +1447,7 @@ window.studioGalleryManager = function(inlineConfig) {
 
                 // Live Background Gallery Insertion!
                 const photoData = (confirmData && confirmData.data) ? confirmData.data : confirmData;
+                if (photoData) photoData.set = this.sets.some(s => s.uuid === item.set) ? item.set : null;
                 this.handlePhotoUploaded(photoData);
 
                 if (item.isVideo && photoData && photoData.status === 'processing') {
@@ -1471,9 +1508,16 @@ window.studioGalleryManager = function(inlineConfig) {
             }
             photoUuids.add(photo.uuid);
 
+            this.totalPhotos++;
+            const set = this.sets.find(s => s.uuid === photo.set);
+            if (set) set.count++;
+            // Only shown when it belongs in what the grid shows
+            if (this.activeSet && photo.set !== this.activeSet) return;
+            const search = this.search.trim().toLowerCase();
+            if (search && !(photo.original_filename || '').toLowerCase().includes(search)) return;
+
             // 1. Update canonical photo data source
             this.photos.unshift(photo);
-            this.totalPhotos++;
 
             // 2. Insert card into DOM (rendering optimization)
             this.insertPhotoCard(photo);
@@ -1797,6 +1841,141 @@ window.studioGalleryManager = function(inlineConfig) {
                 drag = null;
                 box.classList.add('hidden');
             });
+        },
+
+        // --- Sets ---
+        async showSet(uuid) {
+            if (uuid === this.activeSet) return;
+            this.activeSet = uuid;
+            this.addingSet = this.renamingSet = false;
+            await this.reloadGrid();
+        },
+
+        searchChanged() {
+            clearTimeout(this.searchTimer);
+            this.searchTimer = setTimeout(() => this.reloadGrid(), 250);
+        },
+
+        clearSearch() {
+            if (!this.search) return;
+            this.search = '';
+            this.reloadGrid();
+        },
+
+        // Empties the grid and loads the first page of what it should now show
+        async reloadGrid() {
+            clearTimeout(this.searchTimer);
+            this.clearSelection();
+            document.getElementById('studio-photos-grid')?.replaceChildren();
+            this.photos = [];
+            photoUuids.clear();
+            this.nextCursor = null;
+            this.hasMore = true;
+            this.loadingPhotos = false;
+            document.getElementById('gallery-workspace-content')?.scrollTo(0, 0);
+            await this.fetchNextBatch(true);
+        },
+
+        async setsRequest(url, method, body = null) {
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body ? JSON.stringify(body) : null
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    window.toast?.(data.errors ? Object.values(data.errors)[0][0] : (data.message || "Couldn't save. Try again."), 'error');
+                    return null;
+                }
+                if (data.sets) this.sets = data.sets;
+                if (data.message) window.toast?.(data.message, 'success', 2500);
+                return data;
+            } catch (_) {
+                window.toast?.("Couldn't save. Check your connection and try again.", 'error');
+                return null;
+            }
+        },
+
+        startAddSet() {
+            this.renamingSet = false;
+            this.setName = '';
+            this.addingSet = true;
+            this.$nextTick(() => document.getElementById('new-set-name')?.focus());
+        },
+
+        // Enter submits and the blur that follows would too: savingSet keeps it to one request
+        async addSet() {
+            const name = this.setName.trim();
+            if (this.savingSet) return;
+            if (!name) return (this.addingSet = false);
+            this.savingSet = true;
+            const data = await this.setsRequest(this.setsUrl, 'POST', { name });
+            this.savingSet = false;
+            if (!data) return;
+            this.addingSet = false;
+            this.setName = '';
+            this.showSet(data.set);
+        },
+
+        startRenameSet() {
+            if (!this.currentSet) return;
+            this.addingSet = false;
+            this.setName = this.currentSet.name;
+            this.renamingSet = true;
+            this.$nextTick(() => document.getElementById('rename-set-name')?.select());
+        },
+
+        async renameSet() {
+            const name = this.setName.trim();
+            if (this.savingSet) return;
+            if (!name || name === this.currentSet?.name) return (this.renamingSet = false);
+            this.savingSet = true;
+            if (await this.setsRequest(`${this.setsUrl}/${this.activeSet}`, 'PATCH', { name })) this.renamingSet = false;
+            this.savingSet = false;
+        },
+
+        async deleteSet() {
+            const set = this.currentSet;
+            if (!set || !confirm(`Delete the set "${set.name}"? Its photos stay in the gallery.`)) return;
+            if (await this.setsRequest(`${this.setsUrl}/${set.uuid}`, 'DELETE')) this.showSet('');
+        },
+
+        // Moves a set one place up (-1) or down (1), or drops the dragged set onto another
+        async moveSet(uuid, to) {
+            const order = this.sets.map(s => s.uuid);
+            const from = order.indexOf(uuid);
+            const target = typeof to === 'number' ? from + to : order.indexOf(to);
+            if (from < 0 || target < 0 || target >= order.length || target === from) return;
+            order.splice(target, 0, order.splice(from, 1)[0]);
+            this.sets = order.map(u => this.sets.find(s => s.uuid === u));
+            await this.setsRequest(`${this.setsUrl}/order`, 'POST', { sets: order });
+        },
+
+        async moveSelectedToSet(uuid) {
+            const photos = [...this.selected];
+            if (!photos.length || this.bulkBusy) return;
+            this.bulkBusy = true;
+            try {
+                const data = await this.setsRequest(this.moveToSetUrl, 'POST', { photos, set: uuid || null });
+                if (!data) return;
+                const moved = new Set(photos);
+                this.photos.forEach(p => { if (moved.has(p.uuid)) p.set = uuid || null; });
+                // Photos that left the open set leave the grid too
+                if (this.activeSet && uuid !== this.activeSet) {
+                    photos.forEach(u => document.getElementById(`photo-card-${u}`)?.remove());
+                    this.photos = this.photos.filter(p => !moved.has(p.uuid));
+                    photos.forEach(u => photoUuids.delete(u));
+                }
+                this.clearSelection();
+            } finally {
+                this.bulkBusy = false;
+            }
         },
 
         async bulkSetHidden(hidden) {
