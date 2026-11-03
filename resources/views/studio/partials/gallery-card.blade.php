@@ -15,7 +15,7 @@
     <a href="{{ $showUrl }}" class="relative block aspect-[4/3] overflow-hidden rounded-t-[11px] bg-muted" aria-label="Open {{ $gallery->title }}">
         @if($coverUrl)
             <img src="{{ $coverUrl }}" alt="" loading="lazy" decoding="async"
-                 class="absolute inset-0 size-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]">
+                 class="absolute inset-0 size-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]" style="object-position: {{ $gallery->coverObjectPosition() }}">
             <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/10"></div>
         @else
             <div class="absolute inset-0 bg-dots opacity-60 mask-radial"></div>

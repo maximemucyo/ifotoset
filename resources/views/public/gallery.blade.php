@@ -29,6 +29,11 @@
     #gallery-header[data-state="overlay"] .gallery-header-sub { color: rgb(255 255 255 / .75); }
     #gallery-header[data-state="overlay"] .gallery-header-btn:hover { background: rgb(255 255 255 / .14); color: #fff; }
     @media (prefers-reduced-motion: reduce) { .gallery-hero-img, .gallery-cue-line { animation: none; } }
+    @if($isPreview ?? false)
+        {{-- Studio preview: reloads on every cover change, so it starts settled; clicks would act as a client --}}
+        .gallery-hero-img, .animate-fade-up { animation: none !important; }
+        body * { pointer-events: none !important; }
+    @endif
 
     /* Locking scroll for the lightbox must not change the page width (it would re-flow the masonry under it) */
     html { scrollbar-gutter: stable; }
@@ -192,7 +197,8 @@
                  alt="{{ $gallery->title }}"
                  fetchpriority="high"
                  decoding="async"
-                 class="gallery-hero-img absolute inset-0 size-full object-cover object-center">
+                 class="gallery-hero-img absolute inset-0 size-full object-cover"
+                 style="object-position: {{ $coverPosition ?? '50% 50%' }}">
             <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/5 to-black/65"></div>
 
             <div class="relative z-10 mx-auto w-full max-w-5xl px-6 pb-[18vh] text-center sm:pb-[16vh]">

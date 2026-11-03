@@ -10,7 +10,7 @@
 <div x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
     @include('studio.galleries.partials.header', ['activeTab' => 'settings'])
 
-    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="mt-8"
+    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="mt-8" id="gallery-settings-form"
           x-data="{ visibility: '{{ old('visibility', $gallery->visibility) }}', submitting: false }" @submit="submitting = true">
         @csrf
         @method('PATCH')
@@ -42,6 +42,7 @@
             <div class="flex items-center justify-between gap-3">
                 <p class="hidden text-[13px] text-muted-foreground sm:block">Last updated {{ $gallery->updated_at->diffForHumans() }}</p>
                 <div class="flex flex-1 items-center justify-end gap-2">
+                    <button type="button" class="btn btn-outline" @click="$dispatch('open-gallery-preview')"><x-icon name="eye" /> Preview</button>
                     <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-ghost">Cancel</a>
                     <button type="submit" class="btn btn-primary" :disabled="submitting">
                         <x-icon name="loader-circle" class="animate-spin" x-show="submitting" x-cloak />
@@ -51,6 +52,11 @@
             </div>
         </div>
     </form>
+
+    @include('studio.galleries.partials.preview-sheet', [
+        'formId' => 'gallery-settings-form',
+        'previewUrl' => route('studio.galleries.preview', $gallery->uuid),
+    ])
 
     <form id="delete-gallery-form" method="POST" action="{{ route('studio.galleries.destroy', $gallery->uuid) }}" class="hidden">
         @csrf

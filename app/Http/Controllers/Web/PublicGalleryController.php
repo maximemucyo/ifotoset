@@ -62,9 +62,7 @@ class PublicGalleryController extends Controller
         $nextCursor = null;
         $hasMore = false;
         $deepLinkedPhoto = null;
-        $coverUrl = null;
-        $coverSrcset = null;
-        $coverSizes = null;
+        $cover = $this->coverViewData(null, $gallery);
 
         // Zero-leak security invariant: only query and hydrate photo data when access is granted
         if ($decision->isGranted()) {
@@ -106,26 +104,16 @@ class PublicGalleryController extends Controller
                 }
             }
 
-            // Hero cover image
             $coverPhoto = ($gallery->coverPhoto && !$gallery->coverPhoto->is_hidden)
                 ? $gallery->coverPhoto
                 : $initialPhotos->first();
-            if ($coverPhoto) {
-                $coverUrl = $coverPhoto->getThumbnailUrl('xl') ?: $coverPhoto->getThumbnailUrl('lg');
-                $coverSrcset = $coverPhoto->getSrcset(['md', 'lg', 'xl']);
-                // object-cover: when the viewport is narrower than the photo, height drives the rendered width
-                $coverRatio = ($coverPhoto->width && $coverPhoto->height) ? $coverPhoto->width / $coverPhoto->height : 1.5;
-                $coverSizes = sprintf('(max-aspect-ratio: %d/%d) %svh, 100vw', $coverPhoto->width ?: 3, $coverPhoto->height ?: 2, round($coverRatio * 100, 1));
-            }
+            $cover = $this->coverViewData($coverPhoto, $gallery);
         }
 
-        return view('public.gallery', [
+        return view('public.gallery', $cover + [
             'gallery' => $gallery,
             'photographer' => $gallery->user,
             'photos' => $initialPhotos,
-            'coverUrl' => $coverUrl,
-            'coverSrcset' => $coverSrcset,
-            'coverSizes' => $coverSizes,
             'nextCursor' => $nextCursor,
             'hasMore' => $hasMore,
             'accessDecision' => $decision,
@@ -142,9 +130,69 @@ class PublicGalleryController extends Controller
     }
 
     /**
-     * Resolve a gallery for an HTML page: 410 Gone when it was deleted, so
-     * search engines drop it, and 404 when it never existed.
+     * The client gallery as the photographer's client will see it, with unsaved cover settings applied
+     * from the query (?cover=<photo uuid>&focal=0.3,0.6). Studio only: skips the access gate, records
+     * nothing and ignores clicks, so the photographer's own visits stay out of their analytics.
      */
+    public function preview(Request $request, string $uuid): View
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+        $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
+
+        $initialPhotos = collect($this->photoQuery->getPaginatedForGallery($gallery, 24)->items());
+
+        $coverPhoto = ($gallery->coverPhoto && !$gallery->coverPhoto->is_hidden) ? $gallery->coverPhoto : $initialPhotos->first();
+        if ($coverUuid = $request->query('cover')) {
+            $coverPhoto = Photo::where('gallery_id', $gallery->id)->where('uuid', $coverUuid)->where('is_hidden', false)->first() ?? $coverPhoto;
+        }
+
+        $focal = array_map('floatval', explode(',', (string) $request->query('focal', '')));
+        $focal = count($focal) === 2 ? array_map(fn ($v) => max(0.0, min(1.0, $v)), $focal) : [null, null];
+
+        return view('public.gallery', $this->coverViewData($coverPhoto, $gallery, $focal[0], $focal[1]) + [
+            'gallery' => $gallery,
+            'photographer' => $gallery->user,
+            'photos' => $initialPhotos,
+            'nextCursor' => null,
+            'hasMore' => false,
+            'accessDecision' => GalleryAccessDecision::granted(),
+            'downloadsUnlocked' => !$gallery->requiresDownloadPin(),
+            'passwordHint' => null,
+            'deepLinkedPhoto' => null,
+            'trackViewInBrowser' => false,
+            'isPreview' => true,
+            'seo' => null,
+            'title' => 'Preview: ' . $gallery->title,
+            'robots' => 'noindex, nofollow',
+        ]);
+    }
+
+    /**
+     * Hero cover image variables for public/gallery: url, responsive srcset and sizes, and focal position.
+     */
+    private function coverViewData(?Photo $coverPhoto, Gallery $gallery, ?float $focalX = null, ?float $focalY = null): array
+    {
+        if (!$coverPhoto) {
+            return ['coverUrl' => null, 'coverSrcset' => null, 'coverSizes' => null, 'coverPosition' => null];
+        }
+
+        // object-cover: when the viewport is narrower than the photo, height drives the rendered width
+        $coverRatio = ($coverPhoto->width && $coverPhoto->height) ? $coverPhoto->width / $coverPhoto->height : 1.5;
+
+        // The saved focal point belongs to the saved cover; a fallback cover stays centred
+        $isSavedCover = $coverPhoto->id === $gallery->cover_photo_id;
+
+        return [
+            'coverUrl' => $coverPhoto->getThumbnailUrl('xl') ?: $coverPhoto->getThumbnailUrl('lg'),
+            'coverSrcset' => $coverPhoto->getSrcset(['md', 'lg', 'xl']),
+            'coverSizes' => sprintf('(max-aspect-ratio: %d/%d) %svh, 100vw', $coverPhoto->width ?: 3, $coverPhoto->height ?: 2, round($coverRatio * 100, 1)),
+            'coverPosition' => $isSavedCover || $focalX !== null
+                ? $gallery->coverObjectPosition($focalX, $focalY)
+                : $gallery->coverObjectPosition(0.5, 0.5),
+        ];
+    }
+
     /**
      * View beacon sent by gallery pages served from Cloudflare's cache.
      */
@@ -189,6 +237,10 @@ class PublicGalleryController extends Controller
         ]);
     }
 
+    /**
+     * Resolve a gallery for an HTML page: 410 Gone when it was deleted, so
+     * search engines drop it, and 404 when it never existed.
+     */
     private function resolveGallery(string $username, string $slug): Gallery
     {
         try {

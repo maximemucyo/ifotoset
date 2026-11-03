@@ -34,6 +34,8 @@ class Gallery extends Model
         'user_id',
         'cover_photo_id',
         'has_explicit_cover',
+        'cover_focal_x',
+        'cover_focal_y',
         'title',
         'slug',
         'client_name',
@@ -66,6 +68,14 @@ class Gallery extends Model
 
     protected static function booted(): void
     {
+        // A focal point belongs to one photo: a new cover starts centred unless the same save places it
+        static::updating(function (Gallery $gallery) {
+            if ($gallery->isDirty('cover_photo_id') && !$gallery->isDirty(['cover_focal_x', 'cover_focal_y'])) {
+                $gallery->cover_focal_x = null;
+                $gallery->cover_focal_y = null;
+            }
+        });
+
         // Cached public pages (portfolio and galleries) show gallery details: clear them on change
         static::updated(fn (Gallery $gallery) => app(\App\Services\GalleryCachePurgeService::class)->queuePhotographer($gallery->user));
         static::deleted(fn (Gallery $gallery) => app(\App\Services\GalleryCachePurgeService::class)->queuePhotographer($gallery->user));
@@ -92,6 +102,8 @@ class Gallery extends Model
         'version' => 'integer',
         'featured_order' => 'integer',
         'has_explicit_cover' => 'boolean',
+        'cover_focal_x' => 'float',
+        'cover_focal_y' => 'float',
         'show_on_profile' => 'boolean',
         'allow_photo_downloads' => 'boolean',
         'allow_gallery_downloads' => 'boolean',
@@ -339,6 +351,17 @@ class Gallery extends Model
             return $this->coverPhoto->getSrcset($sizes);
         }
         return null;
+    }
+
+    /**
+     * CSS object-position that keeps the cover's subject in frame at any crop.
+     */
+    public function coverObjectPosition(?float $x = null, ?float $y = null): string
+    {
+        $x ??= $this->cover_focal_x ?? 0.5;
+        $y ??= $this->cover_focal_y ?? 0.5;
+
+        return sprintf('%s%% %s%%', round($x * 100, 1), round($y * 100, 1));
     }
 
     public function getCoverUrlAttribute(): ?string

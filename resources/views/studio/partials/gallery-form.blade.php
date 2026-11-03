@@ -23,6 +23,16 @@
     $todayLocal = now($expiryTz)->format('Y-m-d');
     $timezoneLabel = str_replace('_', ' ', $expiryTz);
     $expiresOn = old('expires_on', $isEdit && $gallery->expires_at ? $gallery->expires_at->copy()->setTimezone($expiryTz)->format('Y-m-d') : '');
+    $coverPhoto = $isEdit && $gallery->coverPhoto && ! $gallery->coverPhoto->is_hidden ? $gallery->coverPhoto : null;
+    $coverConfig = $coverPhoto ? [
+        'uuid' => $coverPhoto->uuid,
+        'url' => $coverPhoto->isVideo() ? ($coverPhoto->getPosterUrl('lg') ?? $coverPhoto->getUrl('lg')) : $coverPhoto->getUrl('lg'),
+        'width' => $coverPhoto->width ?: 3,
+        'height' => $coverPhoto->height ?: 2,
+        'x' => (float) old('cover_focal_x', $gallery->cover_focal_x ?? 0.5),
+        'y' => (float) old('cover_focal_y', $gallery->cover_focal_y ?? 0.5),
+        'photosUrl' => route('studio.galleries.photos', ['uuid' => $gallery->uuid, 'per_page' => 60]),
+    ] : null;
     $photoOrder = old('photo_order', $isEdit ? $gallery->photo_order : 'taken');
     $photoOrderHints = [
         'taken'    => 'Follows the camera clock, so the day reads in sequence. Burst shots fall back to file number.',
@@ -72,7 +82,26 @@
 
     <div class="divider"></div>
 
-    {{-- Privacy & access (anchor: #invitations, linked from the gallery manager) --}}
+    @if($isEdit)
+        {{-- Cover and focal point --}}
+        <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <div class="lg:pt-5">
+                <h2 class="text-[15px] font-semibold text-foreground">Cover</h2>
+                <p class="mt-1 text-[13px] text-muted-foreground">The first thing your client sees. Click the photo where the subject is, so phones and computers both keep it in view.</p>
+            </div>
+            @if($coverConfig)
+                @include('studio.galleries.partials.cover-editor', ['cover' => $coverConfig])
+            @else
+                <div class="card p-5 text-[13px] text-muted-foreground sm:p-6">
+                    Upload photos and the first one becomes the cover. You can choose a different one here after that.
+                </div>
+            @endif
+        </section>
+
+        <div class="divider"></div>
+    @endif
+
+    {{-- Privacy & access --}}
     <section id="invitations" class="group/inv grid scroll-mt-20 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <div class="lg:pt-5">
             <h2 class="text-[15px] font-semibold text-foreground">Privacy and access</h2>

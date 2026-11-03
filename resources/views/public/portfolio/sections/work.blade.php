@@ -53,7 +53,7 @@
                                 <div class="relative overflow-hidden bg-muted {{ $template === 'bold' ? 'rounded-xl' : '' }} {{ $template === 'grid' ? 'aspect-square' : ($featureFirst ? 'aspect-[4/3] sm:aspect-[21/9]' : 'aspect-[4/3]') }}">
                                     @if($cover)
                                         <img src="{{ $cover }}" @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="{{ $featureFirst ? '100vw' : ($template === 'grid' ? '(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw' : '(min-width: 640px) 50vw, 100vw') }}" @endif alt="{{ $gallery->title }}" loading="lazy" decoding="async"
-                                             class="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]">
+                                             class="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" style="object-position: {{ $gallery->coverObjectPosition() }}">
                                     @else
                                         <div class="flex size-full items-center justify-center bg-gradient-to-br from-muted to-secondary">
                                             <span class="pf-heading text-6xl leading-none text-foreground/15">{{ mb_strtoupper(mb_substr($gallery->title, 0, 1)) }}</span>
@@ -74,7 +74,7 @@
                                 <div class="relative overflow-hidden bg-muted {{ $template === 'minimal' ? 'aspect-[3/2] rounded-lg' : 'aspect-[4/5] rounded-xl' }}">
                                     @if($cover)
                                         <img src="{{ $cover }}" @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="{{ $template === 'minimal' ? '(min-width: 768px) 50vw, 100vw' : '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw' }}" @endif alt="{{ $gallery->title }}" loading="lazy" decoding="async"
-                                             class="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]">
+                                             class="size-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]" style="object-position: {{ $gallery->coverObjectPosition() }}">
                                         <div class="absolute inset-0 bg-black/0 transition-colors duration-500 group-hover:bg-black/15"></div>
                                     @else
                                         <div class="flex size-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-muted to-secondary p-8 text-center">

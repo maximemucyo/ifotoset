@@ -396,6 +396,9 @@ class GalleryController extends Controller
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             // An already-past date may be kept as is; a changed date must be today or later
             'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($gallery->user, $gallery)],
+            'cover_photo_uuid' => ['nullable', 'string', 'max:64'],
+            'cover_focal_x' => ['nullable', 'numeric', 'between:0,1'],
+            'cover_focal_y' => ['nullable', 'numeric', 'between:0,1'],
         ], [
             'password.required' => 'Choose a password for a password-protected gallery.',
             'password.min' => 'The password must be at least 6 characters.',
@@ -428,6 +431,19 @@ class GalleryController extends Controller
             $updateData['password_hash'] = Hash::make($validated['password']);
         } elseif ($validated['visibility'] !== 'password') {
             $updateData['password_hash'] = null;
+        }
+
+        // Cover chosen in Settings; the focal point below was placed on it
+        if (!empty($validated['cover_photo_uuid'])) {
+            $coverPhoto = Photo::where('gallery_id', $gallery->id)->where('uuid', $validated['cover_photo_uuid'])->firstOrFail();
+            if ($coverPhoto->id !== $gallery->cover_photo_id) {
+                $this->authorize('setCover', $coverPhoto);
+                $gallery = app(\App\Actions\Studio\SetGalleryCoverAction::class)->execute($gallery, $coverPhoto);
+            }
+        }
+        if ($request->has('cover_focal_x')) {
+            $updateData['cover_focal_x'] = $validated['cover_focal_x'] ?? null;
+            $updateData['cover_focal_y'] = $validated['cover_focal_y'] ?? null;
         }
 
         $gallery->update($updateData);

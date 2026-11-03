@@ -397,4 +397,71 @@ class StudioGalleryManagementTest extends TestCase
         $this->assertTrue($active->fresh()->isValid());
         $this->assertFalse($revoked->fresh()->isValid());
     }
+
+    public function test_cover_focal_point_is_saved_and_used_by_the_client_hero(): void
+    {
+        $photo = $this->createPhoto($this->gallery);
+        $this->gallery->update(['cover_photo_id' => $photo->id]);
+
+        $this->actingAs($this->user)->patch("/studio/galleries/{$this->gallery->uuid}", [
+            'title' => $this->gallery->title,
+            'visibility' => 'public',
+            'cover_focal_x' => '0.250',
+            'cover_focal_y' => '0.700',
+        ])->assertSessionHasNoErrors();
+
+        $gallery = $this->gallery->fresh();
+        $this->assertSame(0.25, $gallery->cover_focal_x);
+        $this->assertSame('25% 70%', $gallery->coverObjectPosition());
+
+        $url = app(\App\Services\PublicUrlService::class)->galleryUrl($this->user->username, $gallery->slug);
+        $this->get($url)->assertOk()->assertSee('object-position: 25% 70%', false);
+    }
+
+    public function test_choosing_a_new_cover_starts_it_centred(): void
+    {
+        $first = $this->createPhoto($this->gallery);
+        $second = $this->createPhoto($this->gallery);
+        $this->gallery->update(['cover_photo_id' => $first->id, 'cover_focal_x' => 0.1, 'cover_focal_y' => 0.9]);
+
+        $this->actingAs($this->user)
+            ->postJson("/studio/galleries/{$this->gallery->uuid}/cover", ['photo_uuid' => $second->uuid])
+            ->assertOk();
+
+        $this->assertNull($this->gallery->fresh()->cover_focal_x);
+
+        // From Settings, the new cover and its focal point arrive together
+        $this->patch("/studio/galleries/{$this->gallery->uuid}", [
+            'title' => $this->gallery->title,
+            'visibility' => 'public',
+            'cover_photo_uuid' => $first->uuid,
+            'cover_focal_x' => '0.300',
+            'cover_focal_y' => '0.400',
+        ])->assertSessionHasNoErrors();
+
+        $gallery = $this->gallery->fresh();
+        $this->assertSame($first->id, $gallery->cover_photo_id);
+        $this->assertTrue($gallery->has_explicit_cover);
+        $this->assertSame('30% 40%', $gallery->coverObjectPosition());
+    }
+
+    public function test_preview_shows_unsaved_cover_settings_without_recording_a_view(): void
+    {
+        $photo = $this->createPhoto($this->gallery);
+        $other = $this->createPhoto($this->gallery);
+        $this->gallery->update(['cover_photo_id' => $photo->id, 'visibility' => 'public']);
+
+        $response = $this->actingAs($this->user)
+            ->get("/studio/galleries/{$this->gallery->uuid}/preview?cover={$other->uuid}&focal=0.2,0.8")
+            ->assertOk()
+            ->assertSee('object-position: 20% 80%', false)
+            ->assertSee('noindex', false)
+            ->assertSee('pointer-events: none !important', false);
+
+        $this->assertDatabaseMissing('activity_logs', ['gallery_id' => $this->gallery->id]);
+
+        $this->actingAs($this->otherUser)
+            ->get("/studio/galleries/{$this->gallery->uuid}/preview")
+            ->assertForbidden();
+    }
 }

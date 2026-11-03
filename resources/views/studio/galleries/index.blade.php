@@ -116,7 +116,7 @@
                         <li class="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/40">
                             <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="relative block aspect-[4/3] w-16 shrink-0 overflow-hidden rounded-md bg-muted sm:w-20">
                                 @if($cover)
-                                    <img src="{{ $cover }}" alt="" loading="lazy" decoding="async" class="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105">
+                                    <img src="{{ $cover }}" alt="" loading="lazy" decoding="async" class="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" style="object-position: {{ $gallery->coverObjectPosition() }}">
                                 @else
                                     <span class="absolute inset-0 flex items-center justify-center text-muted-foreground"><x-icon name="images" /></span>
                                 @endif
