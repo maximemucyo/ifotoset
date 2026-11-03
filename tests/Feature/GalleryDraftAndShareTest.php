@@ -160,4 +160,27 @@ class GalleryDraftAndShareTest extends TestCase
             ->assertSee('Draft: clients can')
             ->assertSee(route('studio.galleries.publish', $gallery->uuid), false);
     }
+
+    public function test_saving_settings_keeps_an_unlinked_client_name_without_creating_a_client(): void
+    {
+        $gallery = $this->draft(['client_name' => 'Kigali University']);
+
+        $this->actingAs($this->user)->patch(route('studio.galleries.update', $gallery->uuid), [
+            'title' => $gallery->title,
+            'visibility' => 'public',
+            'client_name' => 'Kigali University',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull($gallery->fresh()->client_id);
+        $this->assertSame('Kigali University', $gallery->fresh()->client_name);
+        $this->assertSame(0, Client::count());
+
+        // Editing the name links it like any new client
+        $this->patch(route('studio.galleries.update', $gallery->uuid), [
+            'title' => $gallery->title,
+            'visibility' => 'public',
+            'client_name' => 'University of Rwanda',
+        ]);
+        $this->assertSame('University of Rwanda', $gallery->fresh()->client->name);
+    }
 }

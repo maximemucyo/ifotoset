@@ -41,8 +41,8 @@
 
 <div class="space-y-6">
     {{-- Details --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Details</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">The title and date appear at the top of the client's gallery. Only you see the client name.</p>
         </div>
@@ -73,8 +73,8 @@
     <div class="divider"></div>
 
     {{-- Cover and focal point --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Cover</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">The first thing your client sees. Click the photo where the subject is, so phones and computers both keep it in view.</p>
         </div>
@@ -90,8 +90,8 @@
     <div class="divider"></div>
 
     {{-- Privacy & access --}}
-    <section id="invitations" class="group/inv grid scroll-mt-20 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section id="invitations" class="group/inv grid scroll-mt-20 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Privacy and access</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">Choose who can open this gallery. You can change this any time.</p>
         </div>
@@ -165,8 +165,8 @@
     <div class="divider"></div>
 
     {{-- Expiry --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Expiry</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">After this date the link stops working, including invitations. Extend it any time to reopen the gallery.</p>
         </div>
@@ -205,8 +205,8 @@
     <div class="divider"></div>
 
     {{-- Photo order --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Photo order</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">How photos are arranged for you and your client.</p>
         </div>
@@ -225,8 +225,8 @@
     <div class="divider"></div>
 
     {{-- Downloads --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <div class="lg:pt-5">
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+        <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Downloads</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">Control what your client can take home.</p>
         </div>

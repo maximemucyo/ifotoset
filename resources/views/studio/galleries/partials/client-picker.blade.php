@@ -5,6 +5,8 @@
 <div x-data="{
         name: @js($name ?? ''),
         uuid: @js($uuid ?? ''),
+        // An unlinked name saved before clients were linked stays as it is until it's edited
+        savedName: @js($uuid ? '' : ($name ?? '')),
         results: [],
         open: false,
         active: -1,
@@ -26,7 +28,8 @@
         },
         get isNew() {
             const typed = this.name.trim().toLowerCase();
-            return typed !== '' && !this.uuid && !this.results.some(c => c.name.toLowerCase() === typed);
+            return typed !== '' && !this.uuid && typed !== this.savedName.trim().toLowerCase()
+                && !this.results.some(c => c.name.toLowerCase() === typed);
         },
      }"
      @click.outside="open = false">

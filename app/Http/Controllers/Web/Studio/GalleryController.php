@@ -474,7 +474,10 @@ class GalleryController extends Controller
 
         $showOnProfile = ($validated['visibility'] === 'public') && $request->boolean('show_on_profile');
 
-        $client = $this->resolveClient($gallery->user, $validated, $createClient);
+        // A free-text client from before clients were linked stays as it is until it's edited
+        $keepsLegacyName = !$gallery->client_id && empty($validated['client_uuid'])
+            && trim((string) ($validated['client_name'] ?? '')) === trim((string) $gallery->client_name);
+        $client = $keepsLegacyName ? null : $this->resolveClient($gallery->user, $validated, $createClient);
 
         $updateData = [
             'title' => $validated['title'],

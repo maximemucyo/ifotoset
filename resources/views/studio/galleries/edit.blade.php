@@ -10,7 +10,26 @@
 <div x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
     @include('studio.galleries.partials.header', ['activeTab' => 'settings'])
 
-    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="mt-8" id="gallery-settings-form"
+    {{-- Wide screens: the real client gallery stays beside the form; smaller ones use the Preview button --}}
+    <div class="mt-8 xl:grid xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:items-start xl:gap-8">
+    <aside class="sticky top-6 hidden h-[calc(100dvh-8rem)] xl:block" aria-label="Preview of the client gallery">
+        <div class="flex h-full flex-col rounded-xl border border-border bg-muted/40 p-3">
+            <div class="flex items-center justify-between gap-2 px-1 pb-2">
+                <h2 class="text-[13px] font-medium text-foreground">What your client sees</h2>
+                <button type="button" class="btn btn-ghost btn-xs" @click="$dispatch('open-gallery-preview')">Full screen</button>
+            </div>
+            <div class="min-h-0 flex-1">
+                @include('studio.galleries.partials.preview-device', [
+                    'name' => 'docked',
+                    'previewUrl' => route('studio.galleries.preview', $gallery->uuid),
+                    'tone' => 'light',
+                    'autoload' => true,
+                ])
+            </div>
+        </div>
+    </aside>
+
+    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="min-w-0" id="gallery-settings-form"
           x-data="{ visibility: '{{ old('visibility', $gallery->visibility) }}', submitting: false }" @submit="submitting = true">
         @csrf
         @method('PATCH')
@@ -20,8 +39,8 @@
         <div class="divider my-6"></div>
 
         {{-- Danger zone --}}
-        <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <div class="lg:pt-5">
+        <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+            <div class="lg:pt-5 xl:pt-0">
                 <h2 class="text-[15px] font-semibold text-foreground">Danger zone</h2>
                 <p class="mt-1 text-[13px] text-muted-foreground">Trashed galleries can be restored from Trash.</p>
             </div>
@@ -42,7 +61,7 @@
             <div class="flex items-center justify-between gap-3">
                 <p class="hidden text-[13px] text-muted-foreground sm:block">Last updated {{ $gallery->updated_at->diffForHumans() }}</p>
                 <div class="flex flex-1 items-center justify-end gap-2">
-                    <button type="button" class="btn btn-outline" @click="$dispatch('open-gallery-preview')"><x-icon name="eye" /> Preview</button>
+                    <button type="button" class="btn btn-outline xl:hidden" @click="$dispatch('open-gallery-preview')"><x-icon name="eye" /> Preview</button>
                     <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-ghost">Cancel</a>
                     <button type="submit" class="btn btn-primary" :disabled="submitting">
                         <x-icon name="loader-circle" class="animate-spin" x-show="submitting" x-cloak />
@@ -52,6 +71,7 @@
             </div>
         </div>
     </form>
+    </div>
 
     @include('studio.galleries.partials.preview-sheet', [
         'formId' => 'gallery-settings-form',

@@ -40,6 +40,11 @@
                 this.loadingPhotos = false;
             }
         },
+        init() {
+            // Docked preview: move the client's cover as the focal point moves, without a reload
+            this.$watch('position', () => this.$dispatch('gallery-preview-cover', { url: this.cover.url, position: this.position }));
+            this.$watch('cover', () => this.$dispatch('gallery-preview-cover', { url: this.cover.url, position: this.position }));
+        },
         choose(photo) {
             this.cover = { ...this.cover, uuid: photo.uuid, url: photo.large_url, width: photo.width || 3, height: photo.height || 2 };
             this.x = 0.5;
