@@ -249,8 +249,9 @@
                             <x-icon name="globe" /> Portfolio
                         </a>
                     @endif
-                    @if(!$isAdminContext && !request()->routeIs('studio.galleries.create'))
-                        <a href="{{ route('studio.galleries.create') }}" class="btn btn-primary btn-sm ml-1">
+                    @if(!$isAdminContext)
+                        <a href="{{ route('studio.galleries.create') }}" class="btn btn-primary btn-sm ml-1"
+                           @click.prevent="$dispatch('open-modal', 'new-gallery')">
                             <x-icon name="plus" /> <span class="hidden sm:inline">New gallery</span>
                         </a>
                     @endif
@@ -280,6 +281,10 @@
         </div>
     </div>
 </div>
+
+@if(!$isAdminContext && $user)
+    @include('studio.galleries.partials.new-gallery-dialog')
+@endif
 
 {{-- ================= Command palette ================= --}}
 <div x-data="commandPalette" x-show="open" x-cloak class="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label="Command menu"

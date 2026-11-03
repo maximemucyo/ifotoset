@@ -22,6 +22,9 @@
     $coverThumbUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('sm') : null;
     $invitationsCount = $gallery->invitations()->count();
     $publicUrl = $gallery->public_url;
+    $isDraft = $gallery->isDraft();
+    // A draft's link doesn't open for anyone, the photographer included: show the preview instead
+    $clientViewUrl = $isDraft ? route('studio.galleries.preview', $gallery->uuid) : $publicUrl;
     $tabs = [
         'photos' => ['label' => 'Photos', 'icon' => 'images', 'url' => route('studio.galleries.show', $gallery->uuid)],
         'clients' => ['label' => 'Clients', 'icon' => 'users', 'url' => route('studio.galleries.clients', $gallery->uuid)],
@@ -48,6 +51,9 @@
 
             <div class="min-w-0">
                 <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    @if($isDraft)
+                        <x-ui.badge variant="neutral">Draft</x-ui.badge>
+                    @endif
                     <x-ui.badge :variant="$visibilityVariant" dot>{{ $visibilityLabel }}</x-ui.badge>
                     @if(!empty($gallery->password_hash) && $gallery->visibility !== 'password')
                         <x-ui.badge variant="warning"><x-icon name="lock" class="size-3" /> Password</x-ui.badge>
@@ -82,18 +88,21 @@
         </div>
 
         <div class="flex shrink-0 flex-wrap items-center gap-2">
-            <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+            <a href="{{ $clientViewUrl }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
                 <x-icon name="eye" /> View as client
             </a>
             @if($activeTab === 'photos')
-                <button type="button" class="btn btn-primary btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
+                <button type="button" class="btn btn-outline btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
                     <x-icon name="upload" /> Upload
                 </button>
             @else
-                <a href="{{ route('studio.galleries.show', ['uuid' => $gallery->uuid, 'upload' => 1]) }}" class="btn btn-primary btn-sm">
+                <a href="{{ route('studio.galleries.show', ['uuid' => $gallery->uuid, 'upload' => 1]) }}" class="btn btn-outline btn-sm">
                     <x-icon name="upload" /> Upload
                 </a>
             @endif
+            <button type="button" class="btn btn-primary btn-sm" @click="$dispatch('open-share-panel')">
+                <x-icon name="share-2" /> Share
+            </button>
             <div x-data="dropdown" class="relative" @click.outside="close()" @keydown.escape="close()">
                 <button type="button" class="btn btn-outline btn-icon btn-sm" @click="toggle()" :aria-expanded="open" aria-haspopup="menu" aria-label="More actions">
                     <x-icon name="ellipsis" />
@@ -106,7 +115,7 @@
                     <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="menu-item" role="menuitem"><x-icon name="user-plus" /> Invite clients</a>
                     <div class="menu-separator"></div>
                     <button type="button" class="menu-item" role="menuitem" @click="$clipboard(@js($publicUrl), 'Gallery link copied'); close()"><x-icon name="link" /> Copy gallery link</button>
-                    <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open client view</a>
+                    <a href="{{ $clientViewUrl }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open client view</a>
                     <div class="menu-separator"></div>
                     <form method="POST" action="{{ route('studio.galleries.destroy', $gallery->uuid) }}"
                           onsubmit="return confirm('Move this gallery to trash? Clients will immediately lose access.');">
@@ -121,15 +130,22 @@
 
     {{-- Share link + storage --}}
     <div class="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div class="flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card p-1.5 pl-3 shadow-xs">
-            <x-icon name="link" class="size-4 text-subtle" />
-            <a href="{{ $publicUrl }}" target="_blank" rel="noopener"
-               class="min-w-0 flex-1 truncate font-mono text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
-               title="{{ $publicUrl }}">{{ preg_replace('#^https?://#', '', $publicUrl) }}</a>
-            <button type="button" class="btn btn-secondary btn-xs shrink-0" @click="$clipboard(@js($publicUrl), 'Gallery link copied')">
-                <x-icon name="copy" /> Copy
-            </button>
-        </div>
+        @if($isDraft)
+            <div class="flex min-w-0 items-center gap-3 rounded-xl border border-dashed border-border-strong px-3 py-2">
+                <p class="min-w-0 flex-1 text-[13px] text-muted-foreground">Draft: clients can't open the link until you share the gallery.</p>
+                <button type="button" class="btn btn-secondary btn-xs shrink-0" @click="$dispatch('open-share-panel')">Share</button>
+            </div>
+        @else
+            <div class="flex min-w-0 items-center gap-2 rounded-xl border border-border bg-card p-1.5 pl-3 shadow-xs">
+                <x-icon name="link" class="size-4 text-subtle" />
+                <a href="{{ $publicUrl }}" target="_blank" rel="noopener"
+                   class="min-w-0 flex-1 truncate font-mono text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+                   title="{{ $publicUrl }}">{{ preg_replace('#^https?://#', '', $publicUrl) }}</a>
+                <button type="button" class="btn btn-secondary btn-xs shrink-0" @click="$clipboard(@js($publicUrl), 'Gallery link copied')">
+                    <x-icon name="copy" /> Copy
+                </button>
+            </div>
+        @endif
         @php
             $su = $userStorage ?? [];
             $suUnlimited = (bool) ($su['is_unlimited'] ?? false);
@@ -173,3 +189,5 @@
         @endforeach
     </nav>
 </header>
+
+@include('studio.galleries.partials.share-panel')

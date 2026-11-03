@@ -1,29 +1,21 @@
 {{--
-    Shared sections for the gallery create / edit forms.
-    Expects: $gallery (Gallery|null), $invitations (Collection|null). Must be rendered inside a
+    Sections of the gallery Settings tab. Expects $gallery. Must be rendered inside a
     <form x-data="{ visibility: ... }"> so the `visibility` state is available.
 --}}
 @php
-    $isEdit = isset($gallery) && $gallery;
-    $visibilityValue = old('visibility', $isEdit ? $gallery->visibility : 'public');
-    $visibilityOptions = [
-        'public'   => ['label' => 'Public',        'icon' => 'globe', 'description' => 'Anyone with the direct link.'],
-        'password' => ['label' => 'Password',      'icon' => 'key',   'description' => 'Anyone with the link and the password.'],
-        'private'  => ['label' => 'Private',       'icon' => 'lock',  'description' => 'Only invited client emails can open it.'],
-    ];
-    $eventDate = old('event_date', $isEdit
-        ? ($gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date)->format('Y-m-d') : '')
-        : date('Y-m-d'));
-    $photoDownloads = $isEdit ? (bool) $gallery->allow_photo_downloads : true;
-    $galleryDownloads = $isEdit ? (bool) $gallery->allow_gallery_downloads : true;
-    $downloadPinEnabled = $isEdit && $gallery->requiresDownloadPin();
+    $visibilityValue = old('visibility', $gallery->visibility);
+    $visibilityOptions = \App\Models\Gallery::VISIBILITIES;
+    $eventDate = old('event_date', $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date)->format('Y-m-d') : '');
+    $photoDownloads = (bool) $gallery->allow_photo_downloads;
+    $galleryDownloads = (bool) $gallery->allow_gallery_downloads;
+    $downloadPinEnabled = $gallery->requiresDownloadPin();
     // Suggest a fresh PIN so turning the switch on is all it takes
-    $downloadPin = $isEdit && $gallery->download_pin ? $gallery->download_pin : str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+    $downloadPin = $gallery->download_pin ?: str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     $expiryTz = \App\Models\Gallery::expiryTimezone(request()->account());
     $todayLocal = now($expiryTz)->format('Y-m-d');
     $timezoneLabel = str_replace('_', ' ', $expiryTz);
-    $expiresOn = old('expires_on', $isEdit && $gallery->expires_at ? $gallery->expires_at->copy()->setTimezone($expiryTz)->format('Y-m-d') : '');
-    $coverPhoto = $isEdit && $gallery->coverPhoto && ! $gallery->coverPhoto->is_hidden ? $gallery->coverPhoto : null;
+    $expiresOn = old('expires_on', $gallery->expires_at ? $gallery->expires_at->copy()->setTimezone($expiryTz)->format('Y-m-d') : '');
+    $coverPhoto = $gallery->coverPhoto && ! $gallery->coverPhoto->is_hidden ? $gallery->coverPhoto : null;
     $coverConfig = $coverPhoto ? [
         'uuid' => $coverPhoto->uuid,
         'url' => $coverPhoto->isVideo() ? ($coverPhoto->getPosterUrl('lg') ?? $coverPhoto->getUrl('lg')) : $coverPhoto->getUrl('lg'),
@@ -33,7 +25,7 @@
         'y' => (float) old('cover_focal_y', $gallery->cover_focal_y ?? 0.5),
         'photosUrl' => route('studio.galleries.photos', ['uuid' => $gallery->uuid, 'per_page' => 60]),
     ] : null;
-    $photoOrder = old('photo_order', $isEdit ? $gallery->photo_order : 'taken');
+    $photoOrder = old('photo_order', $gallery->photo_order);
     $photoOrderHints = [
         'taken'    => 'Follows the camera clock, so the day reads in sequence. Burst shots fall back to file number.',
         'filename' => 'Follows camera file numbers (e.g. IMG_0100, IMG_0103). Useful when camera clocks were out of sync.',
@@ -58,18 +50,16 @@
             <x-ui.input label="Gallery title"
                         name="title"
                         required
-                        :autofocus="! $isEdit"
                         placeholder="e.g. Wedding of Diane & Kevin"
-                        :value="old('title', $isEdit ? $gallery->title : '')"
+                        :value="old('title', $gallery->title)"
                         :error="$errors->first('title')" />
 
             <div class="grid gap-5 sm:grid-cols-2">
-                <x-ui.input label="Client name (optional)"
-                            name="client_name"
-                            icon="user"
-                            placeholder="Diane Mukamisha"
-                            :value="old('client_name', $isEdit ? $gallery->client_name : '')"
-                            :error="$errors->first('client_name')" />
+                @include('studio.galleries.partials.client-picker', [
+                    'id' => 'gallery-client',
+                    'name' => old('client_name', $gallery->client_name),
+                    'uuid' => old('client_uuid', $gallery->client?->uuid),
+                ])
 
                 <x-ui.input label="Event date"
                             type="date"
@@ -82,24 +72,22 @@
 
     <div class="divider"></div>
 
-    @if($isEdit)
-        {{-- Cover and focal point --}}
-        <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <div class="lg:pt-5">
-                <h2 class="text-[15px] font-semibold text-foreground">Cover</h2>
-                <p class="mt-1 text-[13px] text-muted-foreground">The first thing your client sees. Click the photo where the subject is, so phones and computers both keep it in view.</p>
+    {{-- Cover and focal point --}}
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <div class="lg:pt-5">
+            <h2 class="text-[15px] font-semibold text-foreground">Cover</h2>
+            <p class="mt-1 text-[13px] text-muted-foreground">The first thing your client sees. Click the photo where the subject is, so phones and computers both keep it in view.</p>
+        </div>
+        @if($coverConfig)
+            @include('studio.galleries.partials.cover-editor', ['cover' => $coverConfig])
+        @else
+            <div class="card p-5 text-[13px] text-muted-foreground sm:p-6">
+                Upload photos and the first one becomes the cover. You can choose a different one here after that.
             </div>
-            @if($coverConfig)
-                @include('studio.galleries.partials.cover-editor', ['cover' => $coverConfig])
-            @else
-                <div class="card p-5 text-[13px] text-muted-foreground sm:p-6">
-                    Upload photos and the first one becomes the cover. You can choose a different one here after that.
-                </div>
-            @endif
-        </section>
+        @endif
+    </section>
 
-        <div class="divider"></div>
-    @endif
+    <div class="divider"></div>
 
     {{-- Privacy & access --}}
     <section id="invitations" class="group/inv grid scroll-mt-20 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -137,12 +125,10 @@
                 </fieldset>
             </div>
 
-            @if($isEdit)
-                <p class="border-t border-border px-5 py-3 text-xs text-muted-foreground sm:px-6">
-                    <span x-show="visibility === 'private'" @if($visibilityValue !== 'private') style="display: none;" @endif>Only people you invite can open it.</span>
-                    Invite people and see who opened the gallery on the <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Clients tab</a>.
-                </p>
-            @endif
+            <p class="border-t border-border px-5 py-3 text-xs text-muted-foreground sm:px-6">
+                <span x-show="visibility === 'private'" @if($visibilityValue !== 'private') style="display: none;" @endif>Only people you invite can open it.</span>
+                Invite people and see who opened the gallery on the <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Clients tab</a>.
+            </p>
 
             {{-- Public: Show on profile --}}
             <div x-show="visibility === 'public'" x-cloak class="border-t border-border bg-muted/30 p-5 sm:px-6"
@@ -153,7 +139,7 @@
                         <span class="mt-0.5 block text-xs text-muted-foreground">When off, the gallery is reachable by direct link only and won't appear on your profile.</span>
                     </span>
                     <span class="switch mt-0.5">
-                        <input type="checkbox" name="show_on_profile" value="1" class="sr-only" @checked(old('show_on_profile', $isEdit ? $gallery->show_on_profile : false))>
+                        <input type="checkbox" name="show_on_profile" value="1" class="sr-only" @checked(old('show_on_profile', $gallery->show_on_profile))>
                         <span></span>
                     </span>
                 </label>
@@ -163,34 +149,16 @@
             <div x-show="visibility === 'password'" class="border-t border-border bg-muted/30 p-5 sm:px-6"
                  style="{{ $visibilityValue === 'password' ? '' : 'display: none;' }}">
                 <div class="max-w-sm">
-                    <x-ui.input :label="$isEdit && $gallery->password_hash ? 'New gallery password' : 'Gallery password'"
+                    <x-ui.input :label="$gallery->password_hash ? 'New gallery password' : 'Gallery password'"
                                 type="password"
                                 name="password"
                                 icon="key"
                                 autocomplete="new-password"
-                                :placeholder="$isEdit && $gallery->password_hash ? 'Leave blank to keep the current password' : 'At least 6 characters'"
-                                :hint="$isEdit && $gallery->password_hash ? 'A password is already set. Enter a new one only to change it.' : 'Send this password to your client with the gallery link.'"
+                                :placeholder="$gallery->password_hash ? 'Leave blank to keep the current password' : 'At least 6 characters'"
+                                :hint="$gallery->password_hash ? 'A password is already set. Enter a new one only to change it.' : 'Send this password to your client with the gallery link.'"
                                 :error="$errors->first('password')" />
                 </div>
             </div>
-
-            {{-- Private: email invitations at creation; later they live on the Clients tab --}}
-            @unless($isEdit)
-                <div x-show="visibility === 'private'" class="space-y-4 border-t border-border bg-muted/30 p-5 sm:px-6"
-                     style="{{ $visibilityValue === 'private' ? '' : 'display: none;' }}">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <h3 class="text-sm font-medium text-foreground">Invite people</h3>
-                            <p class="mt-0.5 text-xs text-muted-foreground">Each person gets a personal link by email. You can also invite people later.</p>
-                        </div>
-                        <a href="{{ route('studio.galleries.invitations.template') }}" class="btn btn-ghost btn-xs self-start text-muted-foreground">
-                            <x-icon name="download" /> CSV template
-                        </a>
-                    </div>
-
-                    @include('studio.galleries.partials.invite-fields')
-                </div>
-            @endunless
         </div>
     </section>
 
@@ -219,7 +187,7 @@
                 <div class="sm:w-52">
                     <label for="expires_on" class="label">Expires on</label>
                     <input id="expires_on" type="date" name="expires_on" class="input" x-model="expiresOn"
-                           value="{{ $expiresOn }}" @if(! $isEdit || ! $gallery->expires_at?->isPast()) min="{{ $todayLocal }}" @endif>
+                           value="{{ $expiresOn }}" @unless($gallery->expires_at?->isPast()) min="{{ $todayLocal }}" @endunless>
                 </div>
                 <div class="flex flex-wrap gap-1.5" role="group" aria-label="Quick picks">
                     <button type="button" class="btn btn-outline btn-sm" @click="pick(1)">1 month</button>

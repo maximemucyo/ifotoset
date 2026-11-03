@@ -15,6 +15,7 @@ class StudioClientsQuery
     {
         $query = Client::where('user_id', $user->id)
             ->withCount('bookings')
+            ->with(['galleries' => fn ($q) => $q->select('id', 'uuid', 'client_id', 'title')->latest()])
             ->orderBy('created_at', 'desc');
 
         if (! empty($search)) {

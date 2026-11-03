@@ -198,6 +198,12 @@ class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
                     'status' => PhotoStatus::Ready->value,
                 ]);
 
+                // A gallery created without a date takes it from the first photo that has one
+                if ($photo->taken_at) {
+                    \App\Models\Gallery::whereKey($photo->gallery_id)->whereNull('event_date')
+                        ->update(['event_date' => $photo->taken_at->toDateString()]);
+                }
+
                 PhotoMetadata::updateOrCreate([
                     'photo_id' => $photo->id,
                 ], [

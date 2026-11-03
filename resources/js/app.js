@@ -396,6 +396,18 @@ function initReveal() {
     els.forEach((el) => io.observe(el));
 }
 
+/* -------------------------------------------------------------------------
+ | QR codes for gallery links (printed cards, event displays). The encoder
+ | loads on first use, so pages without a QR code don't download it.
+ * ---------------------------------------------------------------------- */
+window.qrCodeSvg = async (text) => {
+    const { default: qrcode } = await import('qrcode-generator');
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    return qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true });
+};
+
 // Alpine.start() dispatches `alpine:init`, so inline page components can register beforehand
 Alpine.start();
 

@@ -1096,10 +1096,41 @@ window.studioGalleryManager = function(inlineConfig) {
             }
         },
 
+        /**
+         * Drops can hold whole folders (a card dump, "Ceremony/", "Reception/"): read them recursively.
+         * Entries must be taken synchronously, before the browser clears the drop data.
+         */
+        async addDropped(dataTransfer) {
+            const entries = Array.from(dataTransfer?.items || []).map(item => item.webkitGetAsEntry?.()).filter(Boolean);
+            if (!entries.some(entry => entry.isDirectory)) {
+                this.addFiles(dataTransfer?.files);
+                return;
+            }
+
+            const files = [];
+            const walk = async (entry) => {
+                if (entry.isFile) {
+                    files.push(await new Promise((resolve, reject) => entry.file(resolve, reject)));
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    let batch;
+                    do {
+                        batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+                        for (const child of batch) await walk(child);
+                    } while (batch.length);
+                }
+            };
+            for (const entry of entries) {
+                try { await walk(entry); } catch (_) {}
+            }
+            this.addFiles(files);
+        },
+
         addFiles(fileList) {
             if (!fileList || fileList.length === 0) return;
 
-            const filesArray = Array.from(fileList).filter(f => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name));
+            // Hidden files (macOS "._IMG_0001.JPG" resource forks) look like photos by name but aren't
+            const filesArray = Array.from(fileList).filter(f => !f.name.startsWith('.') && (f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(f.name)));
             if (filesArray.length === 0) return;
 
             // Preflight batch size check against remaining quota

@@ -42,4 +42,9 @@ class Client extends Model
     {
         return $this->hasMany(Booking::class);
     }
+
+    public function galleries(): HasMany
+    {
+        return $this->hasMany(Gallery::class);
+    }
 }

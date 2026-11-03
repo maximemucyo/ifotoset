@@ -146,7 +146,7 @@
              :class="isDragging ? 'border-brand bg-brand/5 ring-4 ring-brand/10' : 'border-border-strong/70'"
              @dragover.prevent="isDragging = true"
              @dragleave.prevent="isDragging = false"
-             @drop.prevent="isDragging = false; addFiles($event.dataTransfer.files)">
+             @drop.prevent="isDragging = false; addDropped($event.dataTransfer)">
             <input type="file"
                    id="photo-file-input"
                    multiple
@@ -162,6 +162,10 @@
             </p>
             <p class="pointer-events-none mt-1 text-xs text-muted-foreground">Photos up to 50 MB · MP4, MOV and WebM videos up to your plan limit</p>
         </div>
+        <p class="-mt-2 text-center text-xs text-muted-foreground">
+            Or <label for="photo-folder-input" class="cursor-pointer font-medium text-foreground underline underline-offset-2">choose a whole folder</label>, including subfolders.
+            <input type="file" id="photo-folder-input" webkitdirectory multiple class="sr-only" @change="handleFileInput($event)">
+        </p>
 
         <!-- Global Status Alert Banner -->
         <template x-if="statusSummary">

@@ -37,6 +37,11 @@ trait VerifiesGalleryAccess
             return GalleryAccessDecision::denied('This gallery is temporarily unavailable. Please contact the photographer.', 'GALLERY_ARCHIVED');
         }
 
+        // Drafts stay closed until the photographer shares them
+        if ($gallery->isDraft()) {
+            return GalleryAccessDecision::denied("This gallery isn't ready yet.", 'GALLERY_DRAFT');
+        }
+
         // 3. Check if gallery is expired
         if ($gallery->expires_at && $gallery->expires_at->isPast()) {
             return GalleryAccessDecision::expired();

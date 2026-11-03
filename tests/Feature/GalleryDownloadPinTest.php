@@ -261,10 +261,12 @@ class GalleryDownloadPinTest extends TestCase
         ])->assertSessionHasErrors('download_pin');
     }
 
-    public function test_new_gallery_form_defaults_to_public(): void
+    public function test_new_gallery_defaults_to_a_public_draft(): void
     {
-        $this->actingAs($this->user)->get(route('studio.galleries.create'))
-            ->assertOk()
-            ->assertSee("visibility: 'public'", false);
+        $this->actingAs($this->user)->post(route('studio.galleries.store'), ['title' => 'Quick one'])->assertRedirect();
+
+        $gallery = Gallery::where('title', 'Quick one')->firstOrFail();
+        $this->assertSame('public', $gallery->visibility);
+        $this->assertTrue($gallery->isDraft());
     }
 }

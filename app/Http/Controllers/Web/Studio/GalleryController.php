@@ -73,7 +73,7 @@ class GalleryController extends Controller
     }
 
     /**
-     * Show form to create new gallery.
+     * The galleries list with the New gallery dialog open (old links to the create page land here).
      */
     public function create(Request $request): View|RedirectResponse
     {
@@ -81,7 +81,7 @@ class GalleryController extends Controller
             return $redirect;
         }
 
-        return view('studio.galleries.create');
+        return $this->index($request)->with('openNewGallery', true);
     }
 
     /**
@@ -98,9 +98,10 @@ class GalleryController extends Controller
     }
 
     /**
-     * Store a newly created gallery.
+     * Create a draft gallery from the New gallery dialog (title, date, client) and go straight to uploading.
+     * Sharing settings may be sent too; clients can't open the gallery until it is shared.
      */
-    public function store(Request $request, RecipientEmailImportService $importService): RedirectResponse
+    public function store(Request $request, \App\Actions\Studio\CreateClient $createClient): RedirectResponse
     {
         $user = $request->account();
 
@@ -110,9 +111,10 @@ class GalleryController extends Controller
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'client_uuid' => ['nullable', 'string', 'max:64'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'event_date' => ['nullable', 'date'],
-            'visibility' => ['required', 'string', 'in:public,private,password'],
+            'visibility' => ['nullable', 'string', 'in:public,private,password'],
             'password' => ['nullable', 'string', 'min:6', 'max:64', 'required_if:visibility,password'],
             'show_on_profile' => ['nullable', 'boolean'],
             'allow_photo_downloads' => ['nullable', 'boolean'],
@@ -121,14 +123,15 @@ class GalleryController extends Controller
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($user)],
-            'invite_emails' => ['nullable', 'string'],
-            'invite_file' => ['nullable', 'file', 'mimes:csv,tsv,txt', 'max:2048'],
         ], [
             'password.required_if' => 'Choose a password for a password-protected gallery.',
             'password.min' => 'The password must be at least 6 characters.',
             'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
             'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
         ]);
+
+        $client = $this->resolveClient($user, $validated, $createClient);
+        $visibility = $validated['visibility'] ?? 'public';
 
         $baseSlug = Str::slug($validated['title']);
         $slug = $baseSlug;
@@ -137,43 +140,105 @@ class GalleryController extends Controller
             $slug = "{$baseSlug}-" . time();
         }
 
-        $showOnProfile = ($validated['visibility'] === 'public') && $request->boolean('show_on_profile');
-
         $gallery = Gallery::create([
             'uuid' => Uuid::uuid7()->toString(),
             'user_id' => $user->id,
             'title' => $validated['title'],
             'slug' => $slug,
-            'client_name' => $validated['client_name'] ?? null,
+            'client_id' => $client?->id,
+            'client_name' => $client?->name ?? ($validated['client_name'] ?? null),
             'event_date' => $validated['event_date'] ?? null,
-            'visibility' => $validated['visibility'],
-            'show_on_profile' => $showOnProfile,
-            'password_hash' => ($validated['visibility'] === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
+            'visibility' => $visibility,
+            'show_on_profile' => $visibility === 'public' && $request->boolean('show_on_profile'),
+            'password_hash' => ($visibility === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
             'allow_photo_downloads' => $request->boolean('allow_photo_downloads', true),
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
             'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
             'photo_order' => $validated['photo_order'] ?? 'taken',
             'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
+            // A draft until the photographer presses Share
+            'published_at' => null,
             'version' => 1,
         ]);
 
-        // Process invitations if created as private
-        if ($validated['visibility'] === 'private') {
-            $emailsFromText = $importService->parseFromText($request->input('invite_emails'));
-            $emailsFromFile = $request->hasFile('invite_file')
-                ? $importService->parseFromFile($request->file('invite_file'))
-                : [];
-            $allEmails = array_values(array_unique(array_merge($emailsFromText, $emailsFromFile)));
+        GoogleAnalytics::track($request, $user, 'create_gallery', ['visibility' => $visibility]);
 
-            if (!empty($allEmails)) {
-                $this->inviteRecipients($gallery, $allEmails);
-            }
+        return redirect()->route('studio.galleries.show', ['uuid' => $gallery->uuid, 'upload' => 1])
+            ->with('success', 'Gallery created. Add your photos, then share it when it\'s ready.');
+    }
+
+    /**
+     * A CRM client picked in the dialog, or a new one for a name that isn't in the list yet.
+     */
+    private function resolveClient(\App\Models\User $user, array $validated, \App\Actions\Studio\CreateClient $createClient): ?\App\Models\Client
+    {
+        if (!empty($validated['client_uuid'])) {
+            return \App\Models\Client::where('user_id', $user->id)->where('uuid', $validated['client_uuid'])->first();
         }
 
-        GoogleAnalytics::track($request, $user, 'create_gallery', ['visibility' => $validated['visibility']]);
+        $name = trim((string) ($validated['client_name'] ?? ''));
+        if ($name === '') {
+            return null;
+        }
 
-        return redirect()->route('studio.galleries.show', $gallery->uuid)
-            ->with('success', 'Gallery created successfully! You can now upload photos.');
+        return \App\Models\Client::where('user_id', $user->id)->where('name', $name)->first()
+            ?? $createClient->execute($user, ['name' => $name]);
+    }
+
+    /**
+     * Share a draft: choose who can open it, then clients can reach the link.
+     */
+    public function publish(Request $request, string $uuid): RedirectResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        $validated = $request->validate([
+            'visibility' => ['required', 'string', 'in:public,private,password'],
+            'password' => [
+                'nullable', 'string', 'min:6', 'max:64',
+                Rule::requiredIf(fn () => $request->input('visibility') === 'password' && empty($gallery->password_hash)),
+            ],
+            'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($gallery->user, $gallery)],
+        ], [
+            'password.required' => 'Choose a password for a password-protected gallery.',
+            'password.min' => 'The password must be at least 6 characters.',
+        ]);
+
+        $update = [
+            'visibility' => $validated['visibility'],
+            'show_on_profile' => $validated['visibility'] === 'public' && $gallery->show_on_profile,
+            'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $gallery->user),
+            'published_at' => now(),
+        ];
+        if (!empty($validated['password'])) {
+            $update['password_hash'] = Hash::make($validated['password']);
+        } elseif ($validated['visibility'] !== 'password') {
+            $update['password_hash'] = null;
+        }
+
+        $gallery->update($update);
+        if ($gallery->wasChanged('expires_at')) {
+            $gallery->invitations()->whereNull('revoked_at')->update(['expires_at' => $gallery->expires_at]);
+        }
+
+        return redirect()->route('studio.galleries.show', ['uuid' => $gallery->uuid, 'share' => 1])
+            ->with('success', $validated['visibility'] === 'private'
+                ? 'Gallery shared. Invite people from the Clients tab so they can open it.'
+                : 'Gallery shared. Send the link to your client.');
+    }
+
+    /**
+     * Back to draft: the link stops working until the gallery is shared again.
+     */
+    public function unpublish(string $uuid): RedirectResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        $gallery->update(['published_at' => null]);
+
+        return back()->with('success', 'Gallery is a draft again. The link stops working until you share it.');
     }
 
     /**
@@ -371,13 +436,14 @@ class GalleryController extends Controller
     /**
      * Update gallery metadata.
      */
-    public function update(Request $request, string $uuid): RedirectResponse
+    public function update(Request $request, string $uuid, \App\Actions\Studio\CreateClient $createClient): RedirectResponse
     {
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('update', $gallery);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'client_uuid' => ['nullable', 'string', 'max:64'],
             'client_name' => ['nullable', 'string', 'max:255'],
             'event_date' => ['nullable', 'date'],
             'visibility' => ['required', 'string', 'in:public,private,password'],
@@ -408,9 +474,12 @@ class GalleryController extends Controller
 
         $showOnProfile = ($validated['visibility'] === 'public') && $request->boolean('show_on_profile');
 
+        $client = $this->resolveClient($gallery->user, $validated, $createClient);
+
         $updateData = [
             'title' => $validated['title'],
-            'client_name' => $validated['client_name'] ?? null,
+            'client_id' => $client?->id,
+            'client_name' => $client?->name ?? ($validated['client_name'] ?? null),
             'event_date' => $validated['event_date'] ?? null,
             'visibility' => $validated['visibility'],
             'show_on_profile' => $showOnProfile,

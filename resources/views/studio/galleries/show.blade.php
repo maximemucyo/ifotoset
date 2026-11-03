@@ -117,7 +117,7 @@
              class="group/drop relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border-strong/70 bg-card/60 px-6 py-16 text-center transition-all hover:border-foreground/30 hover:bg-card sm:py-20"
              @dragover.prevent="isDragging = true"
              @dragleave.prevent="isDragging = false"
-             @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addFiles($event.dataTransfer.files)"
+             @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addDropped($event.dataTransfer)"
              @click="$dispatch('open-modal', 'upload-photos-modal')"
              :class="isDragging ? '!border-brand bg-brand/5 ring-4 ring-brand/10' : ''"
              style="{{ $photos->isEmpty() ? '' : 'display: none;' }}">
@@ -214,7 +214,7 @@
          class="fixed inset-0 z-[70] flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm"
          @dragover.prevent="isDragging = true"
          @dragleave.self="isDragging = false"
-         @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addFiles($event.dataTransfer.files)">
+         @drop.prevent="isDragging = false; $dispatch('open-modal', 'upload-photos-modal'); addDropped($event.dataTransfer)">
         <div class="pointer-events-none flex w-full max-w-lg flex-col items-center rounded-3xl border-2 border-dashed border-brand bg-card/90 px-8 py-14 text-center shadow-xl">
             <div class="mb-4 flex size-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                 <x-icon name="cloud-upload" class="size-7" />

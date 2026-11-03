@@ -217,6 +217,8 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
     Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
     Route::get('/galleries/{uuid}/preview', [PublicGalleryController::class, 'preview'])->middleware('noindex')->name('galleries.preview');
+    Route::post('/galleries/{uuid}/publish', [StudioGalleryController::class, 'publish'])->name('galleries.publish');
+    Route::post('/galleries/{uuid}/unpublish', [StudioGalleryController::class, 'unpublish'])->name('galleries.unpublish');
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
     Route::delete('/galleries/{uuid}', [StudioGalleryController::class, 'destroy'])->name('galleries.destroy');
     Route::post('/galleries/{uuid}/cover', [StudioGalleryController::class, 'setCover'])->name('galleries.cover');
@@ -253,6 +255,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
 
     // Clients CRM
     Route::get('/clients', [StudioClientController::class, 'index'])->name('clients.index');
+    Route::get('/clients/lookup', [StudioClientController::class, 'lookup'])->name('clients.lookup');
     Route::post('/clients', [StudioClientController::class, 'store'])->name('clients.store');
     Route::patch('/clients/{uuid}', [StudioClientController::class, 'update'])->name('clients.update');
     Route::post('/clients/{uuid}/delete', [StudioClientController::class, 'destroy'])->middleware('can:studio.clients.delete')->name('clients.destroy');

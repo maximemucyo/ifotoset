@@ -449,7 +449,7 @@ class WebFullStackTest extends TestCase
 
         $gallery = Gallery::where('title', 'New Studio Wedding 2026')->first();
         $this->assertNotNull($gallery);
-        $response->assertRedirect("/studio/galleries/{$gallery->uuid}");
+        $response->assertRedirect(route('studio.galleries.show', ['uuid' => $gallery->uuid, 'upload' => 1]));
         $this->assertDatabaseHas('gallery_stats', [
             'gallery_id' => $gallery->id,
         ]);

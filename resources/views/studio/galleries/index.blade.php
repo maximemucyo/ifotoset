@@ -129,7 +129,11 @@
                                 </p>
                             </div>
                             <div class="hidden w-32 shrink-0 md:block">
-                                <x-ui.badge :variant="$vm['variant']"><x-icon :name="$vm['icon']" class="size-3" /> {{ $vm['label'] }}</x-ui.badge>
+                                @if($gallery->isDraft())
+                                    <x-ui.badge variant="neutral">Draft</x-ui.badge>
+                                @else
+                                    <x-ui.badge :variant="$vm['variant']"><x-icon :name="$vm['icon']" class="size-3" /> {{ $vm['label'] }}</x-ui.badge>
+                                @endif
                             </div>
                             <div class="hidden w-20 shrink-0 text-right text-[13px] tabular-nums text-foreground sm:block">
                                 {{ number_format($gallery->photo_count) }} <span class="text-xs text-muted-foreground">{{ \Illuminate\Support\Str::plural('photo', $gallery->photo_count) }}</span>

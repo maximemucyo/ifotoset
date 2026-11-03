@@ -28,6 +28,9 @@
         @endif
 
         <div class="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+            @if($gallery->isDraft())
+                <span class="inline-flex items-center rounded-md bg-white/95 px-1.5 py-0.5 text-[11px] font-medium text-black">Draft</span>
+            @endif
             <span class="inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
                 <x-icon :name="$vis['icon']" class="size-3" /> {{ $vis['label'] }}
             </span>

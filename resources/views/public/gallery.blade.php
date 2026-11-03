@@ -170,6 +170,8 @@
                 @php
                     if ($accessDecision->requiresInvitation()) {
                         [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['mail', 'Invitation only', 'This gallery is for invited guests', 'Please open the personal invitation link that was emailed to you to view this collection.', 'text-foreground'];
+                    } elseif ($accessDecision->errorCode === 'GALLERY_DRAFT') {
+                        [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['clock', 'Not shared yet', 'This gallery isn\'t ready yet', $photographer->name . ' is still preparing it. Check back soon.', 'text-foreground'];
                     } elseif ($accessDecision->isInvitationInvalid()) {
                         [$gateIcon, $gateEyebrow, $gateTitle, $gateText, $gateTone] = ['link', 'Invitation unavailable', 'This link is no longer valid', 'The invitation may have expired or been revoked. Contact the photographer to request a new one.', 'text-warning'];
                     } else {

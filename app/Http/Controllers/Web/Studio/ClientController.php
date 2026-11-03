@@ -33,6 +33,27 @@ class ClientController extends Controller
     }
 
     /**
+     * Clients matching a name or email, for the client picker on galleries. Most recent first when empty.
+     */
+    public function lookup(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $search = trim($request->string('q')->toString());
+
+        $clients = Client::where('user_id', $request->account()->id)
+            ->when($search !== '', function ($query) use ($search) {
+                $term = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+                $query->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
+            })
+            ->latest()
+            ->limit(8)
+            ->get(['uuid', 'name', 'email']);
+
+        return response()->json([
+            'data' => $clients->map(fn (Client $c) => ['uuid' => $c->uuid, 'name' => $c->name, 'email' => $c->email])->values(),
+        ]);
+    }
+
+    /**
      * Store a new client.
      */
     public function store(Request $request, CreateClient $action): RedirectResponse

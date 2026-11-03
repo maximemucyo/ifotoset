@@ -1,4 +1,13 @@
 {
+  "_preload-helper-DPi8upcZ.js": {
+    "file": "assets/preload-helper-DPi8upcZ.js",
+    "name": "preload-helper"
+  },
+  "_qrcode-ugH5ju3R.js": {
+    "file": "assets/qrcode-ugH5ju3R.js",
+    "name": "qrcode",
+    "isDynamicEntry": true
+  },
   "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-ext-wdth-normal.woff2": {
     "file": "assets/bricolage-grotesque-latin-ext-wdth-normal-DoS1gVTC.woff2",
     "src": "node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-ext-wdth-normal.woff2"
@@ -140,7 +149,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-fgOPyAAR.css",
+    "file": "assets/app-CkevF7QH.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -150,16 +159,25 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-DGF7iukE.js",
+    "file": "assets/app-BP4z-R4q.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_preload-helper-DPi8upcZ.js"
+    ],
+    "dynamicImports": [
+      "_qrcode-ugH5ju3R.js"
+    ]
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-B0OPeM5f.js",
+    "file": "assets/gallery-WvZUb-MO.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
     "isEntry": true,
+    "imports": [
+      "_preload-helper-DPi8upcZ.js"
+    ],
     "dynamicImports": [
       "node_modules/artplayer/dist/artplayer.mjs",
       "node_modules/hls.js/dist/hls.mjs"

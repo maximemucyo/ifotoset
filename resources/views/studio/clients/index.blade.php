@@ -101,6 +101,7 @@
                                 <th>Contact</th>
                                 <th class="hidden lg:table-cell">Company & location</th>
                                 <th>Sessions</th>
+                                <th class="hidden lg:table-cell">Galleries</th>
                                 <th class="hidden xl:table-cell">Added</th>
                                 <th class="text-right"><span class="sr-only">Actions</span></th>
                             </tr>
@@ -150,6 +151,16 @@
                                             <x-ui.badge variant="neutral"><x-icon name="calendar-check" /> {{ $client->bookings_count }} {{ \Illuminate\Support\Str::plural('session', $client->bookings_count) }}</x-ui.badge>
                                         @else
                                             <span class="text-xs text-subtle">None yet</span>
+                                        @endif
+                                    </td>
+                                    <td class="hidden text-[13px] lg:table-cell">
+                                        @forelse($client->galleries->take(2) as $clientGallery)
+                                            <a href="{{ route('studio.galleries.show', $clientGallery->uuid) }}" class="block max-w-[200px] truncate text-foreground hover:underline">{{ $clientGallery->title }}</a>
+                                        @empty
+                                            <span class="text-xs text-subtle">None yet</span>
+                                        @endforelse
+                                        @if($client->galleries->count() > 2)
+                                            <span class="text-xs text-muted-foreground">and {{ $client->galleries->count() - 2 }} more</span>
                                         @endif
                                     </td>
                                     <td class="hidden whitespace-nowrap text-[13px] text-muted-foreground xl:table-cell" title="{{ $client->created_at->format('M j, Y g:i A') }}">

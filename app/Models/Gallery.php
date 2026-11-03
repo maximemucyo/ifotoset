@@ -29,6 +29,15 @@ class Gallery extends Model
         'uploaded' => 'Upload order',
     ];
 
+    /**
+     * Who can open a shared gallery, keyed by the stored `visibility` value. One vocabulary for every screen.
+     */
+    public const VISIBILITIES = [
+        'public' => ['label' => 'Public', 'icon' => 'globe', 'description' => 'Anyone with the link.'],
+        'password' => ['label' => 'Password', 'icon' => 'key', 'description' => 'Anyone with the link and the password.'],
+        'private' => ['label' => 'Private', 'icon' => 'lock', 'description' => 'Only people you invite by email.'],
+    ];
+
     protected $fillable = [
         'uuid',
         'user_id',
@@ -39,6 +48,7 @@ class Gallery extends Model
         'title',
         'slug',
         'client_name',
+        'client_id',
         'event_date',
         'visibility',
         'moderation_status',
@@ -57,6 +67,7 @@ class Gallery extends Model
         'password_hint',
         'invite_token',
         'expires_at',
+        'published_at',
         'version',
         'featured_order',
         'portfolio_category',
@@ -97,6 +108,7 @@ class Gallery extends Model
         'uuid' => UuidBinaryCast::class,
         'event_date' => 'date',
         'expires_at' => 'datetime',
+        'published_at' => 'datetime',
         'taken_down_at' => 'datetime',
         'restored_at' => 'datetime',
         'version' => 'integer',
@@ -132,6 +144,21 @@ class Gallery extends Model
             ->utc();
     }
 
+    /**
+     * Drafts are being prepared: clients can't open them until the photographer shares them.
+     * Only an explicit null counts, so a gallery created without the column set (the database
+     * fills it in) is never mistaken for a draft before it is reloaded.
+     */
+    public function isDraft(): bool
+    {
+        return array_key_exists('published_at', $this->attributes) && $this->attributes['published_at'] === null;
+    }
+
+    public function scopePublished(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNotNull('published_at');
+    }
+
     public function isTakenDown(): bool
     {
         return $this->moderation_status === 'taken_down';
@@ -154,6 +181,7 @@ class Gallery extends Model
     public function scopeShownOnProfile(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('visibility', 'public')
+            ->whereNotNull('published_at')
             ->where('moderation_status', '!=', 'taken_down')
             ->where('show_on_profile', true)
             ->where(function ($q) {
@@ -186,6 +214,7 @@ class Gallery extends Model
     public function hasPublicLink(): bool
     {
         return !$this->trashed()
+            && !$this->isDraft()
             && $this->visibility === 'public'
             && empty($this->password_hash)
             && ($this->expires_at === null || $this->expires_at->isFuture())
@@ -198,7 +227,7 @@ class Gallery extends Model
      */
     public function isPubliclyIndexable(): bool
     {
-        if ($this->trashed() || $this->visibility !== 'public') {
+        if ($this->trashed() || $this->isDraft() || $this->visibility !== 'public') {
             return false;
         }
 
@@ -232,6 +261,7 @@ class Gallery extends Model
     public function scopePubliclyIndexable(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('visibility', 'public')
+            ->whereNotNull('published_at')
             ->where('moderation_status', '!=', 'taken_down')
             ->where(function ($q) {
                 $q->whereNull('password_hash')->orWhere('password_hash', '');
@@ -372,6 +402,11 @@ class Gallery extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function invitations(): HasMany
