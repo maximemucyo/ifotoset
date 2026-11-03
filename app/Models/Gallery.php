@@ -61,6 +61,8 @@ class Gallery extends Model
         'allow_photo_downloads',
         'allow_gallery_downloads',
         'allow_google_photos',
+        'favorites_enabled',
+        'favorites_limit',
         'photo_order',
         'download_pin',
         'password_hash',
@@ -75,6 +77,7 @@ class Gallery extends Model
 
     protected $attributes = [
         'photo_order' => 'taken',
+        'favorites_enabled' => true,
     ];
 
     protected static function booted(): void
@@ -120,6 +123,8 @@ class Gallery extends Model
         'allow_photo_downloads' => 'boolean',
         'allow_gallery_downloads' => 'boolean',
         'allow_google_photos' => 'boolean',
+        'favorites_enabled' => 'boolean',
+        'favorites_limit' => 'integer',
     ];
 
     /**
@@ -402,7 +407,7 @@ class Gallery extends Model
     /**
      * What each Settings section is set to, as shown beside it in the gallery workspace.
      *
-     * @return array{details: string, privacy: string, expiry: string, downloads: string}
+     * @return array{details: string, privacy: string, expiry: string, downloads: string, favorites: string}
      */
     public function settingsSummary(): array
     {
@@ -411,6 +416,11 @@ class Gallery extends Model
             'privacy' => (self::VISIBILITIES[$this->visibility] ?? self::VISIBILITIES['private'])['label'],
             'expiry' => $this->expires_at?->copy()->setTimezone(self::expiryTimezone($this->user))->format('M j, Y') ?? 'Never',
             'downloads' => $this->requiresDownloadPin() ? 'PIN ' . $this->download_pin : 'No PIN',
+            'favorites' => match (true) {
+                !$this->favorites_enabled => 'Off',
+                (bool) $this->favorites_limit => 'Up to ' . $this->favorites_limit,
+                default => 'On',
+            },
         ];
     }
 
@@ -443,6 +453,14 @@ class Gallery extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * Each client's favorites, one list per email.
+     */
+    public function favoriteLists(): HasMany
+    {
+        return $this->hasMany(GalleryFavoriteList::class);
     }
 
     public function invitations(): HasMany

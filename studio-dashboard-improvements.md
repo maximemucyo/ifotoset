@@ -184,11 +184,18 @@ Today every client gallery looks the same. There is a full-bleed `h-svh` cover w
 
 ### 4.4 Proofing: favourites the photographer can see
 
-This is the biggest functional gap against Pixieset, Pic-Time and ShootProof.
+This is the biggest functional gap against Pixieset, Pic-Time and ShootProof. *(Done, except the People panel.)*
 
 - Move favourites from localStorage to the server: a `gallery_favorites` table keyed by gallery, photo and visitor email. Email is already collected in the favourites modal.
 - Studio view: a **Favourites** tab in the gallery manager, grouped by person. Add a "Copy filenames" button for Lightroom (`IMG_0100 OR IMG_0103 …`) and a "Download list (CSV)" button.
 - Optional "Submit my selection" for the client, which notifies the photographer. Optionally add a selection limit ("Choose 30 for the album").
+
+What shipped:
+- Two additive tables. `gallery_favorite_lists` holds one row per gallery and email, with `submitted_at`. `gallery_favorites` holds the photos. Galleries get `favorites_enabled` (default on) and `favorites_limit` (nullable), so existing galleries behave as before.
+- The client's browser still keeps a fast copy. On load it fetches the server list by email, so picks follow the client to another phone. Picks that only the browser had from before this change are sent up once, without being counted again.
+- The limit is checked in the browser and on the server. A client who reaches it sees "You can pick up to 30 photos. Remove one to add another."
+- In the favourites view, a bar shows "12 of 30 picked" and a **Send my picks** button. Sending emails the photographer (Notifications: "Favorites sent to you", on by default). If the client changes their picks afterwards, the tab says "changed since".
+- **Favorites** tab: the rail lists Everyone and each person, with a sent mark. The page shows the file names exactly as they will be pasted, then the photos as a contact sheet. Copy file names joins them with commas, which Lightroom's Text filter reads as "or". The CSV has email, name, file name, set, picked on and sent on.
 
 ### 4.5 The gallery workspace photographers already know
 
@@ -288,8 +295,8 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
      3. Settings sections with their state, autosave, and the Design tab with the preview. *(Done.)*
      4. Sets. *(Done.)*
      5. Search. *(Done.)*
-4. **Next: Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom.
-5. **Dashboard "Needs you" redesign.** Needs steps 1 and 4 to have real signals to show.
+4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom. *(Done, except the People panel.)*
+5. **Next: Dashboard "Needs you" redesign.** Steps 1 and 4 have shipped, so the signals exist.
 6. **Templates, gallery defaults and branding.**
 7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
 

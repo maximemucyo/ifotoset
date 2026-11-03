@@ -13,6 +13,7 @@ enum NotificationPreference: string
     case NewBookings = 'new_bookings';
     case PaymentReceived = 'payment_received';
     case GalleryActivity = 'gallery_activity';
+    case FavoritesSubmitted = 'favorites_submitted';
 
     public function default(): bool
     {
@@ -25,6 +26,7 @@ enum NotificationPreference: string
             self::NewBookings => 'New booking requests',
             self::PaymentReceived => 'Payments received',
             self::GalleryActivity => 'Weekly gallery activity',
+            self::FavoritesSubmitted => 'Favorites sent to you',
         };
     }
 
@@ -34,6 +36,7 @@ enum NotificationPreference: string
             self::NewBookings => 'When a client books a session through your portfolio.',
             self::PaymentReceived => 'When a client pays a booking deposit.',
             self::GalleryActivity => 'One weekly summary of client downloads and favorites.',
+            self::FavoritesSubmitted => 'When a client sends you the photos they picked.',
         };
     }
 
@@ -42,7 +45,8 @@ enum NotificationPreference: string
         return match ($this) {
             self::NewBookings => 'calendar-check',
             self::PaymentReceived => 'wallet',
-            self::GalleryActivity => 'heart',
+            self::GalleryActivity => 'activity',
+            self::FavoritesSubmitted => 'heart',
         };
     }
 

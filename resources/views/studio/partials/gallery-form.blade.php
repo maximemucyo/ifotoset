@@ -1,5 +1,5 @@
 {{--
-    Sections of the gallery Settings tab: Details, Privacy, Expiry and Downloads. Expects $gallery, and the
+    Sections of the gallery Settings tab: Details, Privacy, Expiry, Downloads and Favorites. Expects $gallery, and the
     gallery workspace's `section` in scope. Wide screens show the section picked in the rail; phones show them all.
     Each form saves on its own through `settingsForm`: choices and switches as they change, text with a Save button.
 --}}
@@ -261,5 +261,52 @@
                 <p class="error-text px-5 pb-4 sm:px-6" x-show="error('download_pin')" x-text="error('download_pin')" x-cloak></p>
             </div>
         </form>
+    </section>
+    {{-- ============ Favorites ============ --}}
+    <section id="favorites" class="{{ $sectionClass }}" :class="section === 'favorites' ? '' : 'lg:hidden'" aria-labelledby="favorites-title">
+        <header class="mb-5">
+            <h2 id="favorites-title" class="text-lg font-semibold text-foreground">Favorites</h2>
+            <p class="mt-1 text-[13px] text-muted-foreground">Clients tap the heart on the photos they like and send you their picks. You see them on the
+                <a href="{{ route('studio.galleries.favorites', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Favorites tab</a>.</p>
+        </header>
+
+        <div class="card" x-data="{ enabled: @js((bool) $gallery->favorites_enabled) }">
+            <form method="POST" action="{{ $updateUrl }}" x-data="settingsForm" @submit.prevent="save()">
+                @csrf
+                @method('PATCH')
+                <label class="flex cursor-pointer items-center justify-between gap-4 p-5 sm:px-6">
+                    <span>
+                        <span class="block text-sm font-medium text-foreground">Favorites</span>
+                        <span class="mt-0.5 block text-xs text-muted-foreground"
+                              x-text="enabled ? 'On: clients can pick photos.' : 'Off: clients can\'t pick photos.'">{{ $gallery->favorites_enabled ? 'On: clients can pick photos.' : "Off: clients can't pick photos." }}</span>
+                    </span>
+                    <span class="switch">
+                        <input type="hidden" name="favorites_enabled" value="0">
+                        <input type="checkbox" name="favorites_enabled" value="1" class="sr-only" x-model="enabled"
+                               @change="$nextTick(() => save(enabled ? 'Favorites on' : 'Favorites off'))" @checked($gallery->favorites_enabled)>
+                        <span></span>
+                    </span>
+                </label>
+            </form>
+
+            <form method="POST" action="{{ $updateUrl }}" x-data="settingsForm" x-show="enabled" novalidate
+                  class="border-t border-border px-5 py-4 sm:px-6" @submit.prevent="save('Limit saved')"
+                  @unless($gallery->favorites_enabled) style="display: none;" @endunless>
+                @csrf
+                @method('PATCH')
+                <label for="favorites_limit" class="label">Most photos each client can pick</label>
+                <div class="flex items-center gap-2">
+                    <input id="favorites_limit" type="number" name="favorites_limit" min="1" max="5000" inputmode="numeric"
+                           class="input w-28" placeholder="No limit" value="{{ $gallery->favorites_limit }}"
+                           :class="error('favorites_limit') && 'input-error'">
+                    <button type="submit" class="btn btn-outline" :disabled="saving">
+                        <x-icon name="loader-circle" class="animate-spin" x-show="saving" x-cloak />
+                        Save
+                    </button>
+                </div>
+                <p class="error-text" x-show="error('favorites_limit')" x-text="error('favorites_limit')" x-cloak></p>
+                <p class="help" x-show="!error('favorites_limit')">For example 30 for an album. Leave it empty for no limit.</p>
+            </form>
+        </div>
     </section>
 </div>

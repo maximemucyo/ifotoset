@@ -459,6 +459,8 @@ class GalleryController extends Controller
             'show_on_profile' => ['nullable', 'boolean'],
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
+            'favorites_enabled' => ['nullable', 'boolean'],
+            'favorites_limit' => ['nullable', 'integer', 'between:1,5000'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             // An already-past date may be kept as is; a changed date must be today or later
             'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($gallery->user, $gallery)],
@@ -470,6 +472,8 @@ class GalleryController extends Controller
             'password.min' => 'The password must be at least 6 characters.',
             'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
             'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
+            'favorites_limit.integer' => 'Enter a number, or leave it empty for no limit.',
+            'favorites_limit.between' => 'Enter a number from 1 to 5000, or leave it empty for no limit.',
         ]);
 
         $updateData = [];
@@ -505,6 +509,13 @@ class GalleryController extends Controller
 
         if ($request->has('download_pin_enabled')) {
             $updateData += Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null);
+        }
+
+        if ($request->has('favorites_enabled')) {
+            $updateData['favorites_enabled'] = $request->boolean('favorites_enabled');
+        }
+        if ($request->has('favorites_limit')) {
+            $updateData['favorites_limit'] = $validated['favorites_limit'] ?? null;
         }
 
         // Only a changed date is written, so re-saving keeps an expiry set elsewhere to the minute

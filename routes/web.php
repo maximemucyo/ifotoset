@@ -25,6 +25,7 @@ use App\Http\Controllers\Web\Studio\BookingController as StudioBookingController
 use App\Http\Controllers\Web\Studio\ClientController as StudioClientController;
 use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardController;
 use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController;
+use App\Http\Controllers\Web\Studio\GalleryFavoritesController as StudioGalleryFavoritesController;
 use App\Http\Controllers\Web\Studio\GallerySetController as StudioGallerySetController;
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
@@ -218,6 +219,8 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
     Route::get('/galleries/{uuid}/design', [StudioGalleryController::class, 'design'])->name('galleries.design');
     Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
+    Route::get('/galleries/{uuid}/favorites', [StudioGalleryFavoritesController::class, 'index'])->name('galleries.favorites');
+    Route::get('/galleries/{uuid}/favorites/export', [StudioGalleryFavoritesController::class, 'export'])->name('galleries.favorites.export');
     Route::get('/galleries/{uuid}/preview', [PublicGalleryController::class, 'preview'])->middleware('noindex')->name('galleries.preview');
     Route::post('/galleries/{uuid}/publish', [StudioGalleryController::class, 'publish'])->name('galleries.publish');
     Route::post('/galleries/{uuid}/unpublish', [StudioGalleryController::class, 'unpublish'])->name('galleries.unpublish');

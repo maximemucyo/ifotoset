@@ -88,7 +88,10 @@ export function bootstrapGallery() {
     // 3. Initialize Favorites Manager
     const favorites = new GalleryFavorites({
         slug,
-        username
+        username,
+        enabled: container.dataset.favoritesEnabled !== 'false',
+        limit: parseInt(container.dataset.favoritesLimit || '0', 10) || null,
+        photographerName: container.dataset.photographerName || ''
     });
 
     // 4. Initialize Share Manager

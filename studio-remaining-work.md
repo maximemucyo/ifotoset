@@ -11,7 +11,8 @@ Already shipped:
 - downloads as a single Download PIN switch;
 - Settings split into sections that save as you change them, and a Design tab for the cover with the live preview;
 - the password hint (P1-11);
-- sets inside a gallery, shown to clients as tabs, and search by file name.
+- sets inside a gallery, shown to clients as tabs, and search by file name;
+- Proofing: favourites stored on the server per email, a Favourites tab with "Copy file names" and CSV, a Favourites settings section (on/off, limit), and "Send my picks" with an email to the photographer.
 
 **Rules for every item**
 - Migrations must be additive (nullable or defaulted). The deploy runs them before the code switches.
@@ -25,22 +26,22 @@ Already shipped:
 - [ ] **Folder drop.** Drop a folder on the dashboard or the Galleries page: this creates a gallery named after the folder and starts the upload.
 - [ ] **New gallery like this one**: copy one gallery's settings into a new one (P2).
 
-## Next: Proofing (§4.4)
+## Proofing (§4.4)
 
-- [ ] Store favourites on the server instead of only in the client's browser, in a `gallery_favorites` table keyed by gallery, photo and email.
-- [ ] Add a **Favourites** tab in the gallery workspace, grouped by person, with "Copy filenames" for Lightroom and a CSV download.
-- [ ] Add a **Favourites** section to Settings (on/off, selection limit). It was left out of the Settings split because there was nothing to set yet.
-- [ ] Optional "Submit my selection" for clients. It notifies the photographer and can have a limit ("Choose 30").
-- [ ] Add a **People** panel listing the emails clients gave when they favourited or downloaded, with "Save to Clients" (P1-10).
+- [x] Store favourites on the server: one `gallery_favorite_lists` row per gallery and email, and `gallery_favorites` rows for the photos.
+- [x] **Favourites** tab in the gallery workspace, grouped by person, with "Copy file names" for Lightroom and a CSV download.
+- [x] **Favourites** section in Settings: on/off and a limit per client.
+- [x] "Send my picks" for clients. It emails the photographer (a new switch under Notifications) and shows "Sent" or "changed since" on the tab.
+- [ ] Next: a **People** panel listing the emails clients gave when they favourited or downloaded, with "Save to Clients" (P1-10). The Favourites tab already shows names from Clients when the email matches.
 
 ## Dashboard "Needs you" (§1)
 
-This step needs Proofing first, so the list has real signals to show.
+Proofing has shipped, so "new favourites" and "picks sent" are real signals now.
 
 - [ ] Replace the greeting and the four stat cards with a "Needs you" list:
   - bookings to confirm;
   - empty galleries;
-  - new favourites;
+  - favourites clients sent (`gallery_favorite_lists.submitted_at`);
   - galleries expiring within 7 days;
   - invites nobody opened.
 - [ ] When the list is empty, say "Nothing needs you right now."

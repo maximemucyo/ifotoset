@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\NotificationPreference;
 use App\Http\Controllers\Controller;
+use App\Mail\FavoritesSubmittedMail;
+use App\Models\GalleryFavoriteList;
+use App\Models\Photo;
 use App\Queries\GalleryQuery;
 use App\Services\GalleryZipDownloadService;
 use App\Traits\VerifiesGalleryAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -75,7 +80,8 @@ class GalleryController extends Controller
     }
 
     /**
-     * Increment or decrement favorites count for a public gallery.
+     * Add or remove one photo from a client's favorites. The list is kept per email, so the photographer
+     * sees who picked what and the client gets their picks back on another device.
      * POST /api/v1/public/galleries/{username}/{slug}/favorite
      */
     public function toggleFavorite(Request $request, string $username, string $slug): JsonResponse
@@ -86,51 +92,174 @@ class GalleryController extends Controller
         if ($errorResponse) {
             return $errorResponse;
         }
+        if ($disabled = $this->favoritesDisabled($gallery)) {
+            return $disabled;
+        }
 
         $validated = $request->validate([
             'photo_uuid' => ['nullable', 'string'],
             'is_favorite' => ['required', 'boolean'],
-            'email' => ['nullable', 'string', 'email'],
+            'email' => ['nullable', 'string', 'email', 'max:191'],
+            // Picks saved in the browser before favorites were stored: already counted, so only stored now
+            'restore' => ['nullable', 'boolean'],
         ]);
 
         $isFavorite = $validated['is_favorite'];
         $email = isset($validated['email']) ? strtolower(trim($validated['email'])) : null;
 
-        if ($isFavorite) {
-            $gallery->stats()->increment('favorites_count');
-        } else {
-            // Ensure we don't decrement below 0
-            if ($gallery->stats->favorites_count > 0) {
-                $gallery->stats()->decrement('favorites_count');
+        $photo = !empty($validated['photo_uuid'])
+            ? Photo::where('gallery_id', $gallery->id)->where('uuid', $validated['photo_uuid'])->where('is_hidden', false)->first()
+            : null;
+
+        // Pages from before favorites were stored only send a count
+        $changed = true;
+        $list = null;
+        if ($email) {
+            if (!$photo) {
+                return response()->json(['code' => 'PHOTO_NOT_FOUND', 'message' => 'Photo not found.'], 404);
+            }
+            $list = GalleryFavoriteList::firstOrCreate(['gallery_id' => $gallery->id, 'email' => $email]);
+
+            if ($isFavorite) {
+                $exists = $list->favorites()->where('photo_id', $photo->id)->exists();
+                if (!$exists && $gallery->favorites_limit && $list->favorites()->count() >= $gallery->favorites_limit) {
+                    return response()->json([
+                        'code' => 'FAVORITES_LIMIT',
+                        'message' => "You can pick up to {$gallery->favorites_limit} photos. Remove one to add another.",
+                        'limit' => $gallery->favorites_limit,
+                    ], 422);
+                }
+                $changed = !$exists && $list->favorites()->insertOrIgnore([
+                    'list_id' => $list->id,
+                    'photo_id' => $photo->id,
+                    'created_at' => now(),
+                ]) > 0;
+            } else {
+                $changed = $list->favorites()->where('photo_id', $photo->id)->delete() > 0;
+            }
+
+            if ($changed) {
+                $list->touch();
             }
         }
-        $gallery->stats()->update(['updated_at' => now()]);
 
-        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
-        $source = $request->query('source') ?: $request->query('utm_source') ?: 'direct';
-        $referrer = $request->header('referer');
-        $campaign = $request->query('utm_campaign');
+        if ($changed && !$request->boolean('restore')) {
+            if ($isFavorite) {
+                $gallery->stats()->increment('favorites_count');
+            } elseif ($gallery->stats->favorites_count > 0) {
+                $gallery->stats()->decrement('favorites_count');
+            }
+            $gallery->stats()->update(['updated_at' => now()]);
 
-        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
-            'gallery_id' => $gallery->id,
-            'event' => $isFavorite ? 'photo_favorited' : 'photo_unfavorited',
-            'visitor_session_id' => $visitorSession,
-            'source' => $source,
-            'referrer' => $referrer,
-            'campaign' => $campaign,
-            'properties' => json_encode([
+            $this->logActivity($request, $gallery, $isFavorite ? 'photo_favorited' : 'photo_unfavorited', [
                 'photo_uuid' => $validated['photo_uuid'] ?? null,
                 'email' => $email,
                 'action' => $isFavorite ? 'favorite' : 'unfavorite',
-            ]),
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'created_at' => now(),
-        ]);
+            ]);
+        }
 
         return response()->json([
             'message' => $isFavorite ? 'Favorite added.' : 'Favorite removed.',
             'favorites_count' => $gallery->stats->fresh()->favorites_count,
+            'count' => $list?->favorites()->count(),
+        ]);
+    }
+
+    /**
+     * A client's favorites, so they come back on another phone or after clearing the browser.
+     * GET /api/v1/public/galleries/{username}/{slug}/favorites?email=
+     */
+    public function favorites(Request $request, string $username, string $slug): JsonResponse
+    {
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+        if ($disabled = $this->favoritesDisabled($gallery)) {
+            return $disabled;
+        }
+
+        $validated = $request->validate(['email' => ['required', 'string', 'email', 'max:191']]);
+
+        $list = $gallery->favoriteLists()->where('email', strtolower(trim($validated['email'])))->first();
+        $uuids = $list
+            ? $list->photos()->where('photos.is_hidden', false)->get(['photos.id', 'photos.uuid'])->pluck('uuid')->values()
+            : collect();
+
+        return response()->json([
+            'photos' => $uuids,
+            'submitted_at' => $list?->submitted_at?->toIso8601String(),
+            'changed' => (bool) $list?->changedSinceSubmitted(),
+            'limit' => $gallery->favorites_limit,
+        ]);
+    }
+
+    /**
+     * The client is done choosing: tell the photographer.
+     * POST /api/v1/public/galleries/{username}/{slug}/favorites/submit
+     */
+    public function submitFavorites(Request $request, string $username, string $slug): JsonResponse
+    {
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+        if ($disabled = $this->favoritesDisabled($gallery)) {
+            return $disabled;
+        }
+
+        $validated = $request->validate(['email' => ['required', 'string', 'email', 'max:191']]);
+        $email = strtolower(trim($validated['email']));
+
+        $list = $gallery->favoriteLists()->where('email', $email)->first();
+        $count = $list?->favorites()->count() ?? 0;
+        if ($count === 0) {
+            return response()->json([
+                'code' => 'FAVORITES_EMPTY',
+                'message' => 'Tap the heart on the photos you like first.',
+            ], 422);
+        }
+
+        $list->forceFill(['submitted_at' => now(), 'updated_at' => now()])->save();
+
+        $this->logActivity($request, $gallery, 'favorites_submitted', ['email' => $email, 'count' => $count]);
+
+        $photographer = $gallery->user;
+        if ($photographer && NotificationPreference::FavoritesSubmitted->enabledFor($photographer)) {
+            Mail::to($photographer->email)->queue(new FavoritesSubmittedMail($photographer, $gallery, $email, $count));
+        }
+
+        return response()->json([
+            'message' => 'Selection sent.',
+            'submitted_at' => $list->submitted_at->toIso8601String(),
+        ]);
+    }
+
+    private function favoritesDisabled(\App\Models\Gallery $gallery): ?JsonResponse
+    {
+        return $gallery->favorites_enabled ? null : response()->json([
+            'code' => 'FAVORITES_DISABLED',
+            'message' => 'Favorites are turned off for this gallery.',
+        ], 403);
+    }
+
+    private function logActivity(Request $request, \App\Models\Gallery $gallery, string $event, array $properties): void
+    {
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => $event,
+            'visitor_session_id' => $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId(),
+            'source' => $request->query('source') ?: $request->query('utm_source') ?: 'direct',
+            'referrer' => $request->header('referer'),
+            'campaign' => $request->query('utm_campaign'),
+            'properties' => json_encode($properties),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
         ]);
     }
 

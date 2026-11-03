@@ -33,6 +33,9 @@
     #gallery-header[data-state="overlay"] .gallery-header-sub { color: rgb(255 255 255 / .75); }
     #gallery-header[data-state="overlay"] .gallery-header-btn:hover { background: rgb(255 255 255 / .14); color: #fff; }
     @media (prefers-reduced-motion: reduce) { .gallery-hero-img, .gallery-cue-line { animation: none; } }
+    @unless($gallery->favorites_enabled)
+        .btn-favorite, .favorite-badge, #lightbox-btn-favorite { display: none !important; }
+    @endunless
     @if($isPreview ?? false)
         {{-- Studio preview: reloads on every cover change, so it starts settled; clicks would act as a client --}}
         .gallery-hero-img, .animate-fade-up { animation: none !important; }
@@ -269,6 +272,7 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-0.5 sm:gap-1">
+                @if($gallery->favorites_enabled)
                 <button type="button"
                         id="btn-filter-favorites"
                         aria-label="Filter by favorites"
@@ -279,6 +283,7 @@
                     <span class="hidden lg:inline">Favorites</span>
                     <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums">0</span>
                 </button>
+                @endif
 
                 @if($gallery->galleryDownloadsAllowed() || $gallery->googlePhotosExportEnabled())
                     <button type="button"
@@ -347,6 +352,9 @@
          data-allow-gallery-downloads="{{ $gallery->galleryDownloadsAllowed() ? 'true' : 'false' }}"
          data-allow-google-photos="{{ $gallery->googlePhotosExportEnabled() ? 'true' : 'false' }}"
          data-download-pin-required="{{ $downloadPinRequired ? 'true' : 'false' }}"
+         data-favorites-enabled="{{ $gallery->favorites_enabled ? 'true' : 'false' }}"
+         data-favorites-limit="{{ $gallery->favorites_limit }}"
+         data-photographer-name="{{ $photographer->name }}"
          data-download-unlock-url="{{ route('subdomain.gallery.download-unlock', ['username' => $photographer->username, 'slug' => $gallery->slug]) }}"
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
@@ -398,6 +406,19 @@
                 Tap the heart on any photo to start your selection. Turn off the filter to browse the full gallery.
             </p>
         </div>
+
+        {{-- Favorites: how many are picked, and sending them to the photographer --}}
+        @if($gallery->favorites_enabled && $isGranted && !($isPreview ?? false))
+            <div id="favorites-bar" class="fixed inset-x-0 bottom-0 z-40 hidden px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6" role="region" aria-label="Your favorites">
+                <div class="mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-foreground py-2.5 pl-4 pr-2.5 text-background shadow-xl">
+                    <x-icon name="heart" class="size-4 shrink-0 fill-current" />
+                    <p id="favorites-bar-text" class="min-w-0 flex-1 text-[13px] leading-snug" aria-live="polite"></p>
+                    <button type="button" id="btn-submit-favorites" class="btn btn-sm shrink-0 bg-background text-foreground hover:bg-background/90">
+                        Send my picks
+                    </button>
+                </div>
+            </div>
+        @endif
 
         @if(count($photos) === 0)
             <div id="gallery-empty" class="mx-auto my-16 max-w-md px-4 text-center sm:my-28">
@@ -657,6 +678,7 @@
                             <span class="block text-xs text-muted-foreground">Every photo in this collection.</span>
                         </span>
                     </label>
+                    @if($gallery->favorites_enabled)
                     <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3.5 transition-colors hover:bg-muted/60 has-[:checked]:border-foreground/40 has-[:checked]:bg-muted/60">
                         <input type="radio" name="syncTarget" value="favorites" class="size-4">
                         <span>
@@ -664,6 +686,7 @@
                             <span class="block text-xs text-muted-foreground">Just the photos you've hearted.</span>
                         </span>
                     </label>
+                    @endif
                 </div>
                 <button type="submit" class="btn btn-primary w-full">Continue <x-icon name="arrow-right" /></button>
             </form>

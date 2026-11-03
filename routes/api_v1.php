@@ -26,6 +26,8 @@ Route::prefix('public/galleries/{username}/{slug}')
     ->group(function () {
         Route::post('/download', [GalleryController::class, 'recordDownload'])->middleware('throttle:120,1')->name('download');
         Route::post('/favorite', [GalleryController::class, 'toggleFavorite'])->middleware('throttle:120,1')->name('favorite');
+        Route::get('/favorites', [GalleryController::class, 'favorites'])->middleware('throttle:60,1')->name('favorites');
+        Route::post('/favorites/submit', [GalleryController::class, 'submitFavorites'])->middleware('throttle:10,1')->name('favorites.submit');
         Route::post('/share', [GalleryController::class, 'recordShare'])->middleware('throttle:120,1')->name('share');
 
         Route::post('/download-zip', [GalleryController::class, 'triggerZipDownload'])->middleware('throttle:60,1')->name('zip');

@@ -1,5 +1,5 @@
 {{--
-    Gallery workspace: the frame around a gallery's Photos, Design, Clients and Settings tabs. A top bar with the
+    Gallery workspace: the frame around a gallery's Photos, Favorites, Design, Clients and Settings tabs. A top bar with the
     title, status and Share, and a rail with the cover, the tabs and the Settings sections with what each is set to.
     Pages using it extend layouts.app with 'workspace' => true and wrap it in an Alpine scope with `coverThumb` and
     `totalPhotos`. The slot can read `section`, the Settings section picked from the URL hash. A `rail` slot
@@ -21,14 +21,16 @@
     };
     $coverUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('md') : null;
     $invitationsCount = $gallery->invitations()->count();
+    $favoritePeopleCount = $gallery->favoriteLists()->has('favorites')->count();
     $tabs = [
         'photos' => ['label' => 'Photos', 'icon' => 'images', 'url' => route('studio.galleries.show', $gallery->uuid)],
+        'favorites' => ['label' => 'Favorites', 'icon' => 'heart', 'url' => route('studio.galleries.favorites', $gallery->uuid), 'count' => $favoritePeopleCount ?: null],
         'design' => ['label' => 'Design', 'icon' => 'palette', 'url' => $designUrl],
         'clients' => ['label' => 'Clients', 'icon' => 'users', 'url' => route('studio.galleries.clients', $gallery->uuid), 'count' => $invitationsCount ?: null],
         'settings' => ['label' => 'Settings', 'icon' => 'settings', 'url' => $settingsUrl],
     ];
     // Settings sections, each shown in the rail with what it is set to
-    $sections = ['details' => 'Details', 'privacy' => 'Privacy', 'expiry' => 'Expiry', 'downloads' => 'Downloads'];
+    $sections = ['details' => 'Details', 'privacy' => 'Privacy', 'expiry' => 'Expiry', 'downloads' => 'Downloads', 'favorites' => 'Favorites'];
     $summary = $gallery->settingsSummary();
 @endphp
 <div class="flex min-h-0 flex-1 flex-col"
@@ -156,7 +158,7 @@
                 </span>
             </a>
 
-            {{-- Tabs: a row under the top bar on phones, a column of three in the rail --}}
+            {{-- Tabs: a row under the top bar on phones and in the open rail, a column in the collapsed rail --}}
             <nav class="group/tabs flex overflow-x-auto px-2 lg:shrink-0 lg:border-b lg:border-border lg:px-0"
                  :class="railOpen ? 'lg:flex-row' : 'lg:flex-col lg:py-2'"
                  :data-collapsed="!railOpen"

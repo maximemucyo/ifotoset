@@ -149,7 +149,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-DBf5uDOq.css",
+    "file": "assets/app-fvghTXcW.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -171,7 +171,7 @@
     ]
   },
   "resources/js/pages/gallery.js": {
-    "file": "assets/gallery-WvZUb-MO.js",
+    "file": "assets/gallery-ZyiN8w2p.js",
     "name": "gallery",
     "src": "resources/js/pages/gallery.js",
     "isEntry": true,

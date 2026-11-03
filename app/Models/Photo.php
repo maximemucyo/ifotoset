@@ -86,6 +86,19 @@ class Photo extends Model
         return $this->belongsTo(Gallery::class);
     }
 
+    public function set(): BelongsTo
+    {
+        return $this->belongsTo(GallerySet::class, 'set_id');
+    }
+
+    /**
+     * Clients who picked this photo, one row per client.
+     */
+    public function favorites(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(GalleryFavorite::class);
+    }
+
     public function gallerySet(): BelongsTo
     {
         return $this->belongsTo(GallerySet::class, 'set_id');
