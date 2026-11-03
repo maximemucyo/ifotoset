@@ -28,7 +28,7 @@
             @if($isExpired)
                 <p class="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
                     This gallery expired, so invitations won't open it. Change the expiry date in
-                    <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="font-medium underline underline-offset-2">Settings</a> to reopen it.
+                    <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}#expiry" class="font-medium underline underline-offset-2">Settings</a> to reopen it.
                 </p>
             @endif
 

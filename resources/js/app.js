@@ -157,6 +157,46 @@ Alpine.magic('clipboard', () => async (text, message = 'Copied to clipboard') =>
 });
 
 /* -------------------------------------------------------------------------
+ | Gallery settings form that saves without leaving the page:
+ | <form x-data="settingsForm" @submit.prevent="save()">. Switches call save() as they flip.
+ | The workspace rail listens for `gallery-settings-saved` to show the new values.
+ * ---------------------------------------------------------------------- */
+Alpine.data('settingsForm', () => ({
+    saving: false,
+    errors: {},
+    async save(message = 'Saved') {
+        const form = this.$el.closest('form') || this.$el.querySelector('form');
+        this.saving = true;
+        this.errors = {};
+        try {
+            const res = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const json = await res.json().catch(() => ({}));
+            if (res.status === 422) {
+                this.errors = json.errors || {};
+                window.toast(Object.values(this.errors)[0]?.[0] || 'Check the highlighted fields.', 'error');
+                return false;
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            window.dispatchEvent(new CustomEvent('gallery-settings-saved', { detail: json }));
+            window.toast(message, 'success', 2000);
+            return true;
+        } catch {
+            window.toast("Couldn't save. Check your connection and try again.", 'error');
+            return false;
+        } finally {
+            this.saving = false;
+        }
+    },
+    error(field) {
+        return this.errors[field]?.[0] || '';
+    },
+}));
+
+/* -------------------------------------------------------------------------
  | Studio URL field: x-data="studioUsername({ initial, original, url })"
  | Asks the server whether the typed username is free, after a short pause.
  * ---------------------------------------------------------------------- */

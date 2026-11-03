@@ -215,6 +215,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/invitations/template', [StudioGalleryController::class, 'downloadInvitationTemplate'])->name('galleries.invitations.template');
     Route::get('/galleries/{uuid}', [StudioGalleryController::class, 'show'])->name('galleries.show');
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
+    Route::get('/galleries/{uuid}/design', [StudioGalleryController::class, 'design'])->name('galleries.design');
     Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
     Route::get('/galleries/{uuid}/preview', [PublicGalleryController::class, 'preview'])->middleware('noindex')->name('galleries.preview');
     Route::post('/galleries/{uuid}/publish', [StudioGalleryController::class, 'publish'])->name('galleries.publish');

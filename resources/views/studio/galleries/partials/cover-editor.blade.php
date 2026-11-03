@@ -1,7 +1,8 @@
 {{--
-    Cover photo and focal point for the gallery settings form. Expects $cover: uuid, url, width, height, x, y
-    (focal point, 0..1) and photosUrl (studio photos JSON for the picker). Posts cover_photo_uuid, cover_focal_x
-    and cover_focal_y with the form; the crops beside the photo use the same object-position as the client's hero.
+    Cover photo and focal point on the Design tab. Expects $cover: uuid, url, width, height, x, y (focal point,
+    0..1) and photosUrl (studio photos JSON for the picker). Rendered inside a `settingsForm`, it saves
+    cover_photo_uuid, cover_focal_x and cover_focal_y shortly after each change. The crops beside the photo use the
+    same object-position as the client's hero; they hide on wide screens, where the live preview sits beside it.
 --}}
 <div class="card p-5 sm:p-6"
      x-data="{
@@ -10,6 +11,7 @@
         y: @js($cover['y']),
         changedCover: false,
         dragging: false,
+        saveTimer: null,
         photos: [],
         nextCursor: null,
         loadingPhotos: false,
@@ -42,8 +44,24 @@
         },
         init() {
             // Docked preview: move the client's cover as the focal point moves, without a reload
-            this.$watch('position', () => this.$dispatch('gallery-preview-cover', { url: this.cover.url, position: this.position }));
+            this.$watch('position', () => {
+                this.$dispatch('gallery-preview-cover', { url: this.cover.url, position: this.position });
+                this.queueSave();
+            });
             this.$watch('cover', () => this.$dispatch('gallery-preview-cover', { url: this.cover.url, position: this.position }));
+        },
+        // Saves once the focal point settles, not on every step of a drag
+        queueSave() {
+            clearTimeout(this.saveTimer);
+            this.saveTimer = setTimeout(() => {
+                if (this.dragging) return this.queueSave();
+                const url = this.cover.url;
+                this.save('Cover saved').then(ok => {
+                    if (!ok) return;
+                    this.changedCover = false;
+                    this.coverThumb = url;
+                });
+            }, 600);
         },
         choose(photo) {
             this.cover = { ...this.cover, uuid: photo.uuid, url: photo.large_url, width: photo.width || 3, height: photo.height || 2 };
@@ -51,6 +69,7 @@
             this.y = 0.5;
             this.changedCover = true;
             $dispatch('close-modal', 'cover-picker');
+            this.queueSave();
         },
      }">
     <input type="hidden" name="cover_photo_uuid" :value="changedCover ? cover.uuid : ''">
@@ -86,7 +105,7 @@
         </div>
 
         {{-- What the client's cover shows on each screen --}}
-        <div class="flex items-end justify-center gap-4 sm:flex-col sm:items-center sm:justify-start">
+        <div class="flex items-end justify-center gap-4 sm:flex-col sm:items-center sm:justify-start xl:hidden">
             <figure class="text-center">
                 <div class="w-[78px] overflow-hidden rounded-[12px] bg-black ring-1 ring-border" style="aspect-ratio: 390 / 844;">
                     <img :src="cover.url" src="{{ $cover['url'] }}" alt="" class="size-full object-cover" :style="`object-position: ${position}`">

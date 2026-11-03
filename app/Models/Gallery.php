@@ -399,6 +399,21 @@ class Gallery extends Model
     /**
      * CSS object-position that keeps the cover's subject in frame at any crop.
      */
+    /**
+     * What each Settings section is set to, as shown beside it in the gallery workspace.
+     *
+     * @return array{details: string, privacy: string, expiry: string, downloads: string}
+     */
+    public function settingsSummary(): array
+    {
+        return [
+            'details' => ($this->client?->name ?: $this->client_name) ?: 'No client',
+            'privacy' => (self::VISIBILITIES[$this->visibility] ?? self::VISIBILITIES['private'])['label'],
+            'expiry' => $this->expires_at?->copy()->setTimezone(self::expiryTimezone($this->user))->format('M j, Y') ?? 'Never',
+            'downloads' => $this->requiresDownloadPin() ? 'PIN ' . $this->download_pin : 'No PIN',
+        ];
+    }
+
     public function coverObjectPosition(?float $x = null, ?float $y = null): string
     {
         $x ??= $this->cover_focal_x ?? 0.5;

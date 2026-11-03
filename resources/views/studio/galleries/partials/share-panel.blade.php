@@ -127,7 +127,7 @@
                 <p class="text-[13px] text-muted-foreground">
                     {{ $vis['label'] ?? '' }}: {{ \Illuminate\Support\Str::lower($vis['description'] ?? '') }}
                     @if($expiresLabel) Open until {{ $expiresLabel }}. @endif
-                    <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Change</a>
+                    <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}#privacy" class="font-medium text-foreground underline underline-offset-2">Change</a>
                 </p>
 
                 {{-- Link --}}

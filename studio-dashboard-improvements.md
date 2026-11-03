@@ -237,11 +237,12 @@ Step 3 made creating and sharing a gallery easy. The manager page they land on a
   - Consequences:
     - There's no longer a "downloads off" setting. A gallery saved after this change allows downloads, so photographers who share proofs before payment will need the watermark (§5).
     - Google Photos stays on by default and gets no studio switch, so P1-12 is dropped.
-- **Settings sections that show their state (P1).**
+- **Settings sections that show their state (P1, done).**
   - Split the long settings form into rail sections: General, Privacy, Expiry, Downloads, Favourites.
-  - Show each section's state in the rail. The rail already shows a summary (who can open it, expiry, the download PIN, the client); each row links to its settings section.
-  - Save each toggle as it's switched.
-  - The live preview moves to a **Design** tab (cover, focal point, later templates), where it's useful. Privacy settings don't change how the gallery looks.
+  - The rail lists the sections (Details, Privacy, Expiry, Downloads) with what each is set to, such as "PIN 5513", and updates after each save. Wide screens show one section at a time; phones stack them.
+  - Switches and choices save as they change, with a "Saved" toast. Text fields keep a Save button. Each section posts only its own fields.
+  - The live preview moved to a **Design** tab (cover, focal point, later templates), where it's useful. Privacy settings don't change how the gallery looks. The focal point saves shortly after it stops moving.
+  - Favourites waits for Proofing (§4.4), since there is nothing to set yet.
 - **Sets (promoted from P2 in §4.2).** Pixieset collections always have at least one set, so photographers already sort their photos this way. It needs one additive `gallery_sets` table and a nullable `photos.set_id`. Photos without a set appear under "All photos".
 - **Search by filename (P2).** For when a client asks for "IMG_0412".
 - **Not copied:** Store. Pixieset's Activity tab becomes our **Favourites** tab (§4.4).
@@ -261,7 +262,7 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
 | **Client gallery branding** | Missing (P1) | See §4.3.4 |
 | **Contact button on the gallery** | Missing (P2) | WhatsApp or phone button on the client gallery ("Book again" / "Order prints"). The phone number is already collected |
 | **Welcome message per gallery** | Missing (P2) | A short note from the photographer under the cover. Needs a `description` column |
-| **Password hint** | Read but not writable (P1) | See P1-11 |
+| **Password hint** | Done | Under the password in Privacy |
 | **Save to Google Photos per gallery** | Read but not writable (P1) | See P1-12 |
 | **Email sender name / reply-to** | Missing (P2) | Invitations should come from "Studio Name via ifotoset", with replies going to the photographer |
 | **Notification granularity** | Partial (P2) | Three global switches today. Add "Email me when a client submits favourites" and "…downloads the full gallery" |
@@ -280,8 +281,8 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
    - **3b. Gallery workspace (§4.5).** In this order:
      1. Rail shell and status pill. *(Done.)*
      2. Uncropped tiles, the new selection and the bottom bar. *(Done.)* Downloads as one PIN switch. *(Done.)*
-     3. **Next:** settings sections with their state, autosave, and the Design tab with the preview.
-     4. Sets.
+     3. Settings sections with their state, autosave, and the Design tab with the preview. *(Done.)*
+     4. **Next:** sets.
      5. Search.
 4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom.
 5. **Dashboard "Needs you" redesign.** Needs steps 1 and 4 to have real signals to show.

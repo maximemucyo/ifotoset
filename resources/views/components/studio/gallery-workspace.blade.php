@@ -1,14 +1,15 @@
 {{--
-    Gallery workspace: the frame around a gallery's Photos, Clients and Settings tabs. A top bar with the title,
-    status and Share, and a rail with the cover, the tabs and what the gallery is set to. Pages using it extend
-    layouts.app with 'workspace' => true and wrap it in an Alpine scope with `coverThumb` and `totalPhotos`.
+    Gallery workspace: the frame around a gallery's Photos, Design, Clients and Settings tabs. A top bar with the
+    title, status and Share, and a rail with the cover, the tabs and the Settings sections with what each is set to.
+    Pages using it extend layouts.app with 'workspace' => true and wrap it in an Alpine scope with `coverThumb` and
+    `totalPhotos`. The slot can read `section`, the Settings section picked from the URL hash.
 --}}
 @props(['gallery', 'active' => 'photos'])
 @php
-    $tz = \App\Models\Gallery::expiryTimezone($gallery->user);
     $publicUrl = $gallery->public_url;
     $previewUrl = route('studio.galleries.preview', $gallery->uuid);
     $settingsUrl = route('studio.galleries.edit', $gallery->uuid);
+    $designUrl = route('studio.galleries.design', $gallery->uuid);
     $isDraft = $gallery->isDraft();
     $isTakenDown = $gallery->moderation_status === 'taken_down';
     $isExpired = $gallery->expires_at?->isPast() ?? false;
@@ -17,32 +18,44 @@
         $isExpired => ['label' => 'Expired', 'class' => 'bg-destructive/10 text-destructive', 'note' => 'The link stopped working when the gallery expired.'],
         default => ['label' => 'Shared', 'class' => 'bg-success/12 text-success', 'note' => 'Clients can open the link.'],
     };
-    $visibility = \App\Models\Gallery::VISIBILITIES[$gallery->visibility] ?? \App\Models\Gallery::VISIBILITIES['private'];
-    $clientName = $gallery->client?->name ?: $gallery->client_name;
     $coverUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('md') : null;
     $invitationsCount = $gallery->invitations()->count();
     $tabs = [
         'photos' => ['label' => 'Photos', 'icon' => 'images', 'url' => route('studio.galleries.show', $gallery->uuid)],
+        'design' => ['label' => 'Design', 'icon' => 'palette', 'url' => $designUrl],
         'clients' => ['label' => 'Clients', 'icon' => 'users', 'url' => route('studio.galleries.clients', $gallery->uuid), 'count' => $invitationsCount ?: null],
         'settings' => ['label' => 'Settings', 'icon' => 'settings', 'url' => $settingsUrl],
     ];
-    // What the gallery is set to, each row opening the matching settings section
-    $summary = [
-        ['label' => 'Who can open it', 'value' => $visibility['label'], 'anchor' => 'invitations'],
-        ['label' => 'Expires', 'value' => $gallery->expires_at?->copy()->setTimezone($tz)->format('M j, Y') ?? 'Never', 'anchor' => 'expiry'],
-        ['label' => 'Download PIN', 'value' => $gallery->download_pin ?: 'Off', 'anchor' => 'downloads'],
-        ['label' => 'Client', 'value' => $clientName ?: 'None', 'anchor' => 'details'],
-    ];
+    // Settings sections, each shown in the rail with what it is set to
+    $sections = ['details' => 'Details', 'privacy' => 'Privacy', 'expiry' => 'Expiry', 'downloads' => 'Downloads'];
+    $summary = $gallery->settingsSummary();
 @endphp
 <div class="flex min-h-0 flex-1 flex-col"
      x-data="{
         railOpen: (() => { try { return localStorage.getItem('gallery-rail') !== 'closed' } catch (e) { return true } })(),
+        title: @js($gallery->title),
+        summary: @js($summary),
+        section: 'details',
+        init() {
+            this.readSection();
+            window.addEventListener('hashchange', () => this.readSection());
+        },
+        // Older links point at #invitations, #photo-order and #cover
+        readSection() {
+            const hash = location.hash.slice(1);
+            if (hash === 'cover' && @js($active === 'settings')) return location.replace(@js($designUrl));
+            const key = { invitations: 'privacy', 'photo-order': 'details' }[hash] || hash;
+            this.section = @js(array_keys($sections)).includes(key) ? key : 'details';
+            // Wide screens show one section at a time, so start it at the top
+            if (window.matchMedia('(min-width: 1024px)').matches) document.getElementById('gallery-workspace-content')?.scrollTo(0, 0);
+        },
         toggleRail() {
             this.railOpen = !this.railOpen;
             try { localStorage.setItem('gallery-rail', this.railOpen ? 'open' : 'closed') } catch (e) {}
         },
      }"
-     :style="{ '--gw-rail': railOpen ? '272px' : '64px' }">
+     :style="{ '--gw-rail': railOpen ? '272px' : '64px' }"
+     @gallery-settings-saved.window="summary = $event.detail.summary; title = $event.detail.title">
 
     {{-- ============ Top bar ============ --}}
     <header class="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:gap-3 sm:px-4">
@@ -54,7 +67,7 @@
         </a>
 
         <div class="min-w-0 max-sm:flex-1">
-            <h1 class="truncate text-[15px] font-semibold leading-tight text-foreground sm:text-base">{{ $gallery->title }}</h1>
+            <h1 class="truncate text-[15px] font-semibold leading-tight text-foreground sm:text-base" x-text="title">{{ $gallery->title }}</h1>
             @if($gallery->event_date)
                 <p class="truncate text-[12px] text-muted-foreground">{{ $gallery->event_date->format('F j, Y') }}</p>
             @else
@@ -124,8 +137,8 @@
         <aside class="shrink-0 border-b border-border bg-background lg:flex lg:w-[var(--gw-rail)] lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r"
                aria-label="Gallery">
 
-            {{-- Cover: opens the cover and focal point settings --}}
-            <a href="{{ $settingsUrl }}#cover" x-show="railOpen"
+            {{-- Cover: opens the Design tab --}}
+            <a href="{{ $designUrl }}" x-show="railOpen"
                class="group/cover relative hidden aspect-[3/2] shrink-0 overflow-hidden bg-muted lg:block"
                title="Change cover">
                 <img x-show="coverThumb || {{ $coverUrl ? 'true' : 'false' }}"
@@ -168,15 +181,17 @@
                 @endforeach
             </nav>
 
-            {{-- What the gallery is set to --}}
-            <dl x-show="railOpen" class="hidden px-2 py-3 lg:block">
-                @foreach($summary as $row)
-                    <a href="{{ $settingsUrl }}#{{ $row['anchor'] }}" class="flex items-baseline justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
-                        <dt class="text-[13px] text-muted-foreground">{{ $row['label'] }}</dt>
-                        <dd class="truncate text-[13px] font-medium text-foreground">{{ $row['value'] }}</dd>
+            {{-- Settings sections and what each is set to --}}
+            <nav x-show="railOpen" class="hidden px-2 py-3 lg:block" aria-label="Settings">
+                @foreach($sections as $key => $label)
+                    <a href="{{ $settingsUrl }}#{{ $key }}"
+                       @if($active === 'settings') :aria-current="section === '{{ $key }}' && 'page'" :class="section === '{{ $key }}' ? 'bg-muted' : 'hover:bg-muted/60'" @endif
+                       @class(['flex items-baseline justify-between gap-3 rounded-lg px-3 py-2 transition-colors', 'hover:bg-muted/60' => $active !== 'settings'])>
+                        <span class="shrink-0 text-[13px] text-muted-foreground">{{ $label }}</span>
+                        <span class="truncate text-[13px] font-medium text-foreground" x-text="summary.{{ $key }}">{{ $summary[$key] }}</span>
                     </a>
                 @endforeach
-            </dl>
+            </nav>
 
             <div class="mt-auto hidden shrink-0 p-3 lg:block">
                 <div x-show="railOpen" class="mb-3">

@@ -464,4 +464,86 @@ class StudioGalleryManagementTest extends TestCase
             ->get("/studio/galleries/{$this->gallery->uuid}/preview")
             ->assertForbidden();
     }
+
+    public function test_a_settings_section_saves_only_its_own_fields(): void
+    {
+        $expires = now()->addMonths(2)->setTime(23, 59, 59);
+        $this->gallery->update(['client_name' => 'Diane', 'expires_at' => $expires, 'photo_order' => 'filename']);
+
+        // The Downloads section posts nothing but the PIN switch
+        $this->actingAs($this->user)
+            ->patchJson("/studio/galleries/{$this->gallery->uuid}", ['download_pin_enabled' => '1', 'download_pin' => '5513'])
+            ->assertOk()
+            ->assertJsonPath('summary.downloads', 'PIN 5513')
+            ->assertJsonPath('summary.details', 'Diane')
+            ->assertJsonPath('title', 'Wedding of Alice & Bob');
+
+        $gallery = $this->gallery->fresh();
+        $this->assertSame('5513', $gallery->download_pin);
+        $this->assertSame('Wedding of Alice & Bob', $gallery->title);
+        $this->assertSame('Diane', $gallery->client_name);
+        $this->assertSame('public', $gallery->visibility);
+        $this->assertSame('filename', $gallery->photo_order);
+        $this->assertEquals($expires->timestamp, $gallery->expires_at->timestamp);
+
+        // The Expiry section alone can clear the date
+        $this->patchJson("/studio/galleries/{$this->gallery->uuid}", ['expires_on' => ''])
+            ->assertOk()
+            ->assertJsonPath('summary.expiry', 'Never');
+        $this->assertNull($this->gallery->fresh()->expires_at);
+        $this->assertSame('5513', $this->gallery->fresh()->download_pin);
+    }
+
+    public function test_privacy_section_needs_a_password_once_and_saves_the_hint(): void
+    {
+        // Privacy moves the gallery's media; that job has its own tests
+        \Illuminate\Support\Facades\Queue::fake();
+
+        $this->actingAs($this->user)
+            ->patchJson("/studio/galleries/{$this->gallery->uuid}", ['visibility' => 'password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+        $this->assertSame('public', $this->gallery->fresh()->visibility);
+
+        $this->patchJson("/studio/galleries/{$this->gallery->uuid}", [
+            'visibility' => 'password',
+            'password' => 'kigali26',
+            'password_hint' => 'The wedding date',
+        ])->assertOk()->assertJsonPath('summary.privacy', 'Password');
+
+        $gallery = $this->gallery->fresh();
+        $this->assertTrue(Hash::check('kigali26', $gallery->password_hash));
+        $this->assertSame('The wedding date', $gallery->password_hint);
+
+        // Once set, switching back to it needs no new password
+        $this->patchJson("/studio/galleries/{$this->gallery->uuid}", ['visibility' => 'private'])->assertOk();
+        $this->assertNull($this->gallery->fresh()->password_hash);
+    }
+
+    public function test_title_cannot_be_saved_empty(): void
+    {
+        $this->actingAs($this->user)
+            ->patchJson("/studio/galleries/{$this->gallery->uuid}", ['title' => ''])
+            ->assertJsonValidationErrors('title');
+        $this->assertSame('Wedding of Alice & Bob', $this->gallery->fresh()->title);
+    }
+
+    public function test_settings_and_design_tabs_render(): void
+    {
+        $this->actingAs($this->user)
+            ->get("/studio/galleries/{$this->gallery->uuid}/edit")
+            ->assertOk()
+            ->assertSee('Save details')
+            ->assertSee('Download PIN')
+            ->assertDontSee('What your client sees');
+
+        $this->get("/studio/galleries/{$this->gallery->uuid}/design")
+            ->assertOk()
+            ->assertSee('What your client sees')
+            ->assertSee('Come back here to choose another one');
+
+        $this->actingAs($this->otherUser)
+            ->get("/studio/galleries/{$this->gallery->uuid}/design")
+            ->assertForbidden();
+    }
 }
