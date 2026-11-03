@@ -33,6 +33,8 @@
         {{-- Studio preview: reloads on every cover change, so it starts settled; clicks would act as a client --}}
         .gallery-hero-img, .animate-fade-up { animation: none !important; }
         body * { pointer-events: none !important; }
+        {{-- The studio frame can be taller than a screen; the cover stays one screen high --}}
+        #gallery-hero[data-variant="image"] { height: var(--preview-cover-height, 100svh); min-height: 0; }
     @endif
 
     /* Locking scroll for the lightbox must not change the page width (it would re-flow the masonry under it) */

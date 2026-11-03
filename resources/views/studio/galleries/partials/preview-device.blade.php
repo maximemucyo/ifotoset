@@ -15,7 +15,9 @@
         src: @js($autoload ?? false ? $previewUrl : ''),
         loading: @js($autoload ?? false),
         scale: 0.5,
-        get size() { return this.devices[this.device] },
+        // A computer screen keeps its width but runs down the whole panel, so photos show under the cover
+        desktopHeight: 900,
+        get size() { return this.device === 'desktop' ? { w: 1440, h: this.desktopHeight } : this.devices.phone },
         init() {
             // The stage has no size until it is shown, so measure whenever it changes
             new ResizeObserver(() => this.fit()).observe(this.$refs.stage);
@@ -23,12 +25,30 @@
         fit() {
             const stage = this.$refs.stage;
             if (!stage?.clientWidth || !stage.clientHeight) return;
-            this.scale = Math.max(0.1, Math.min(1, (stage.clientWidth - 24) / this.size.w, (stage.clientHeight - 24) / this.size.h));
+            const width = stage.clientWidth - 24, height = stage.clientHeight - 24;
+            if (this.device === 'desktop') {
+                const byWidth = Math.min(1, width / 1440);
+                // Wider than tall enough for one screen: show exactly one screen, scaled to the height
+                if (height / byWidth >= 900) {
+                    this.scale = byWidth;
+                    this.desktopHeight = Math.round(height / byWidth);
+                } else {
+                    this.scale = Math.max(0.1, height / 900);
+                    this.desktopHeight = 900;
+                }
+            } else {
+                this.scale = Math.max(0.1, Math.min(1, width / 390, height / 844));
+            }
+            this.pinCover();
+        },
+        // The cover fills one real screen, not the whole extended frame
+        pinCover() {
+            this.doc?.documentElement.style.setProperty('--preview-cover-height', this.device === 'desktop' ? '900px' : '844px');
         },
         setDevice(d) {
-            this.device = d;
             try { localStorage.setItem('studio.preview.device', d) } catch (e) {}
-            this.$nextTick(() => this.fit());
+            // The docked and full-screen previews show the same screen size
+            this.$dispatch('gallery-preview-device', d);
         },
         load(url) {
             this.loading = true;
@@ -55,7 +75,8 @@
         },
      }"
      @gallery-preview-load.window="$event.detail.target === @js($name) && load($event.detail.url)"
-     @gallery-preview-cover.window="applyCover($event.detail)">
+     @gallery-preview-cover.window="applyCover($event.detail)"
+     @gallery-preview-device.window="device = $event.detail; $nextTick(() => fit())">
     <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3">
         <div class="flex items-center gap-0.5 rounded-lg p-0.5 {{ $dark ? 'bg-white/10' : 'bg-muted' }}" role="group" aria-label="Screen size">
             @foreach(['phone' => 'Phone', 'desktop' => 'Computer'] as $key => $label)
@@ -77,7 +98,7 @@
             <iframe x-ref="frame" :src="src" title="Client gallery preview"
                     class="absolute left-0 top-0 origin-top-left border-0"
                     :style="`width: ${size.w}px; height: ${size.h}px; transform: scale(${scale})`"
-                    @load="loading = false"></iframe>
+                    @load="loading = false; pinCover()"></iframe>
             <div x-show="loading" class="absolute inset-0 flex items-center justify-center bg-neutral-100 text-[13px] text-neutral-500">
                 Loading preview…
             </div>
