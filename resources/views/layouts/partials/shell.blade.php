@@ -5,10 +5,13 @@
       $context   'studio' | 'admin'
       $navGroups array of ['label' => ?string, 'items' => [['label','route','icon','badge'?,'match'?]]]
       $homeRoute route name for the logo
+      $workspace optional; true for full-bleed pages (the gallery workspace) that bring their own top bar.
+                 The main nav then opens as a drawer at every width.
 --}}
 @php
     $user = auth()->user();
     $isAdminContext = $context === 'admin';
+    $workspace = (bool) ($workspace ?? false);
 
     // In the studio, plan, storage and the public site belong to the studio account,
     // which is someone else's when working in a team studio
@@ -61,18 +64,21 @@
 
 <script type="application/json" id="command-items">@json($commandItems)</script>
 
-<div class="flex min-h-dvh bg-sidebar lg:h-dvh lg:overflow-hidden" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+<div class="flex min-h-dvh bg-sidebar lg:h-dvh lg:overflow-clip" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
 
     {{-- Mobile backdrop --}}
     <div x-show="sidebarOpen" x-cloak
          x-transition:enter="transition-opacity duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
          x-transition:leave="transition-opacity duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
          @click="sidebarOpen = false"
-         class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] lg:hidden"></div>
+         @class(['fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]', 'lg:hidden' => !$workspace])></div>
 
     {{-- ================= Sidebar ================= --}}
     <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-           class="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-[cubic-bezier(.16,1,.3,1)] lg:static lg:w-[248px] lg:translate-x-0 lg:border-r-0">
+           @class([
+               'fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-[cubic-bezier(.16,1,.3,1)]',
+               'lg:static lg:w-[248px] lg:translate-x-0 lg:border-r-0' => !$workspace,
+           ])>
 
         {{-- Workspace header --}}
         <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-4">
@@ -82,7 +88,7 @@
             @else
                 <span class="badge badge-neutral capitalize">{{ $account->plan->name ?? 'Free' }}</span>
             @endif
-            <button type="button" @click="sidebarOpen = false" class="btn btn-ghost btn-icon btn-sm ml-auto lg:hidden" aria-label="Close menu">
+            <button type="button" @click="sidebarOpen = false" @class(['btn btn-ghost btn-icon btn-sm ml-auto', 'lg:hidden' => !$workspace]) aria-label="Close menu">
                 <x-icon name="x" />
             </button>
         </div>
@@ -220,10 +226,11 @@
     </aside>
 
     {{-- ================= Main panel ================= --}}
-    <div class="flex min-w-0 flex-1 flex-col lg:py-2 lg:pr-2">
-        <div class="flex min-h-0 flex-1 flex-col bg-background lg:overflow-hidden lg:rounded-xl lg:border lg:border-sidebar-border lg:shadow-sm">
+    <div @class(['flex min-w-0 flex-1 flex-col', 'lg:py-2 lg:pr-2' => !$workspace])>
+        <div @class(['flex min-h-0 flex-1 flex-col bg-background lg:overflow-clip', 'lg:rounded-xl lg:border lg:border-sidebar-border lg:shadow-sm' => !$workspace])>
 
             {{-- Top bar --}}
+            @unless($workspace)
             <header class="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border glass px-4 sm:px-6">
                 <button type="button" @click="sidebarOpen = true" class="btn btn-ghost btn-icon btn-sm -ml-1.5 lg:hidden" aria-label="Open menu">
                     <x-icon name="menu" />
@@ -257,6 +264,7 @@
                     @endif
                 </div>
             </header>
+            @endunless
 
             {{-- Unverified email notice --}}
             @if(!$isAdminContext && $user && !$user->hasVerifiedEmail())
@@ -272,12 +280,18 @@
                 </div>
             @endif
 
-            <main id="main" class="flex-1 overflow-y-auto">
-                <div class="mx-auto w-full {{ $containerClass ?? 'max-w-7xl' }} px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-                    {{ $slot ?? '' }}
+            @if($workspace)
+                <main id="main" class="flex min-h-0 flex-1 flex-col">
                     @yield('content')
-                </div>
-            </main>
+                </main>
+            @else
+                <main id="main" class="flex-1 overflow-y-auto">
+                    <div class="mx-auto w-full {{ $containerClass ?? 'max-w-7xl' }} px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+                        {{ $slot ?? '' }}
+                        @yield('content')
+                    </div>
+                </main>
+            @endif
         </div>
     </div>
 </div>

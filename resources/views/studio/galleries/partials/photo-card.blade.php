@@ -19,20 +19,19 @@
      data-id="{{ $photo->id }}"
      class="{{ $c['card'] }} {{ $isCover ? 'is-cover' : '' }} {{ $isHidden ? 'is-hidden' : '' }}">
 
-    <div class="photo-media relative aspect-square cursor-pointer overflow-hidden bg-muted"
-         @click="cardClick('{{ $photo->uuid }}')">
+    <div class="{{ $c['media'] }}"
+         @click="cardClick('{{ $photo->uuid }}', $event)">
         <img src="{{ $thumbUrl }}"
              alt="{{ $photo->original_filename }}"
              loading="lazy"
              decoding="async"
              onerror="this.style.visibility='hidden'"
+             draggable="false"
              class="{{ $c['img'] }}" />
-
-        <div class="{{ $c['scrim'] }}"></div>
 
         <!-- Select -->
         <button type="button"
-                @click.stop="toggleSelect('{{ $photo->uuid }}')"
+                @click.stop="checkboxClick('{{ $photo->uuid }}', $event)"
                 class="photo-select {{ $c['select'] }}"
                 aria-label="Select {{ $photo->original_filename }}">
             <x-icon name="check" class="size-3.5" stroke-width="3" />
@@ -89,15 +88,9 @@
     </div>
 
     <div class="{{ $c['footer'] }}">
-        <span class="truncate" title="{{ $photo->original_filename }}">{{ $photo->original_filename }}</span>
-        <span class="flex shrink-0 items-center gap-1.5">
-            <span class="hidden-label text-warning {{ $isHidden ? '' : 'hidden' }}" title="Hidden from client gallery">
-                <x-icon name="eye-off" class="size-3" />
-            </span>
-            @if($photo->size)
-                @php($sz = (int) $photo->size)
-                <span class="font-mono text-[10px] text-subtle">{{ $sz >= 1048576 ? round($sz / 1048576, 1) . ' MB' : ($sz >= 1024 ? round($sz / 1024, 1) . ' KB' : $sz . ' B') }}</span>
-            @endif
+        <span class="hidden-label text-warning {{ $isHidden ? '' : 'hidden' }}" title="Hidden from client gallery">
+            <x-icon name="eye-off" class="size-3" />
         </span>
+        <span class="truncate" title="{{ $photo->original_filename }}">{{ $photo->original_filename }}</span>
     </div>
 </div>

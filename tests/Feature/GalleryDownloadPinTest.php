@@ -251,6 +251,34 @@ class GalleryDownloadPinTest extends TestCase
         $this->assertNull($gallery->fresh()->download_pin);
     }
 
+    public function test_the_download_pin_covers_single_photos_and_the_whole_gallery(): void
+    {
+        $this->gallery->update(['allow_photo_downloads' => true, 'allow_gallery_downloads' => false, 'download_pin' => null]);
+
+        $this->actingAs($this->user)->patch(route('studio.galleries.update', $this->gallery->uuid), [
+            'title' => $this->gallery->title,
+            'visibility' => 'public',
+            'download_pin_enabled' => '1',
+            'download_pin' => '1357',
+        ])->assertSessionHasNoErrors();
+
+        $gallery = $this->gallery->fresh();
+        $this->assertTrue($gallery->allow_photo_downloads);
+        $this->assertTrue($gallery->allow_gallery_downloads);
+        $this->assertSame('1357', $gallery->download_pin);
+
+        $this->actingAs($this->user)->patch(route('studio.galleries.update', $this->gallery->uuid), [
+            'title' => $this->gallery->title,
+            'visibility' => 'public',
+            'download_pin_enabled' => '0',
+        ])->assertSessionHasNoErrors();
+
+        $gallery = $this->gallery->fresh();
+        $this->assertTrue($gallery->allow_photo_downloads);
+        $this->assertTrue($gallery->allow_gallery_downloads);
+        $this->assertNull($gallery->download_pin);
+    }
+
     public function test_download_pin_must_be_four_digits(): void
     {
         $this->actingAs($this->user)->post(route('studio.galleries.store'), [

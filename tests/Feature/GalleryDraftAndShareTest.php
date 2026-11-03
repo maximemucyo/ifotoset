@@ -157,7 +157,7 @@ class GalleryDraftAndShareTest extends TestCase
 
         $this->actingAs($this->user)->get(route('studio.galleries.show', $gallery->uuid))
             ->assertOk()
-            ->assertSee('Draft: clients can')
+            ->assertSee("Clients can't open the link until you share the gallery", false)
             ->assertSee(route('studio.galleries.publish', $gallery->uuid), false);
     }
 

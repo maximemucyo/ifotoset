@@ -88,6 +88,8 @@ class Icons
         'chevrons-up-down' => '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
         'arrow-right' => '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
         'arrow-left' => '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+        'arrow-left-to-line' => '<path d="M3 19V5"/><path d="m13 6-6 6 6 6"/><path d="M7 12h14"/>',
+        'arrow-right-to-line' => '<path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/>',
         'arrow-up' => '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
         'arrow-down' => '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
         'arrow-up-right' => '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',

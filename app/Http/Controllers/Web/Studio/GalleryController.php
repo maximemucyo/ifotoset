@@ -117,8 +117,6 @@ class GalleryController extends Controller
             'visibility' => ['nullable', 'string', 'in:public,private,password'],
             'password' => ['nullable', 'string', 'min:6', 'max:64', 'required_if:visibility,password'],
             'show_on_profile' => ['nullable', 'boolean'],
-            'allow_photo_downloads' => ['nullable', 'boolean'],
-            'allow_gallery_downloads' => ['nullable', 'boolean'],
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
@@ -151,9 +149,7 @@ class GalleryController extends Controller
             'visibility' => $visibility,
             'show_on_profile' => $visibility === 'public' && $request->boolean('show_on_profile'),
             'password_hash' => ($visibility === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
-            'allow_photo_downloads' => $request->boolean('allow_photo_downloads', true),
-            'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
-            'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
+            ...Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null),
             'photo_order' => $validated['photo_order'] ?? 'taken',
             'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
             // A draft until the photographer presses Share
@@ -455,8 +451,6 @@ class GalleryController extends Controller
                 Rule::requiredIf(fn() => $request->input('visibility') === 'password' && empty($gallery->password_hash)),
             ],
             'show_on_profile' => ['nullable', 'boolean'],
-            'allow_photo_downloads' => ['nullable', 'boolean'],
-            'allow_gallery_downloads' => ['nullable', 'boolean'],
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
@@ -486,11 +480,11 @@ class GalleryController extends Controller
             'event_date' => $validated['event_date'] ?? null,
             'visibility' => $validated['visibility'],
             'show_on_profile' => $showOnProfile,
-            'allow_photo_downloads' => $request->boolean('allow_photo_downloads'),
-            'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads'),
-            'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
             'photo_order' => $validated['photo_order'] ?? $gallery->photo_order,
         ];
+        if ($request->has('download_pin_enabled')) {
+            $updateData += Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null);
+        }
 
         // Only a changed date is written, so re-saving keeps an expiry set elsewhere to the minute
         $expiresOn = $validated['expires_on'] ?? null;

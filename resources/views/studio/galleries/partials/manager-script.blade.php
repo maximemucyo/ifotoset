@@ -52,7 +52,7 @@ function gmNotify(message, type = 'error') {
  */
 const GM_CARD_CLASS = @json($gmCardClasses['card']);
 const GM_IMG_CLASS = @json($gmCardClasses['img']);
-const GM_SCRIM_CLASS = @json($gmCardClasses['scrim']);
+const GM_MEDIA_CLASS = @json($gmCardClasses['media']);
 const GM_SELECT_CLASS = @json($gmCardClasses['select']);
 const GM_ACTIONS_CLASS = @json($gmCardClasses['actions']);
 const GM_ACTION_BTN = @json($gmCardClasses['actionBtn']);
@@ -306,6 +306,8 @@ window.studioGalleryManager = function(inlineConfig) {
         density: 'comfortable',
         selected: [],
         selectMode: false,
+        selectAnchor: null,
+        selectingAll: false,
         pendingDelete: [],
         bulkBusy: false,
 
@@ -366,6 +368,8 @@ window.studioGalleryManager = function(inlineConfig) {
             this.$watch('density', (v) => { try { localStorage.setItem('ifotoset.studio.gridDensity', v); } catch (_) {} });
             this.setupSpeedMeter();
             this.setupInfiniteScroll();
+            this.setupMarqueeSelection();
+            this.setupSelectionKeys();
             this.setupNetworkResilience();
             this.setupUnloadGuard();
             this.setupCrossTabBillingListener();
@@ -460,17 +464,15 @@ window.studioGalleryManager = function(inlineConfig) {
 
             const thumb = photo.thumbnail_url || photo.medium_url || photo.large_url || photo.original_url || photo.cdn_url || '';
             const filename = esc(photo.original_filename || photo.filename || 'Photo');
-            const sizeMb = photo.size ? formatBytes(photo.size) : '';
             const isVideo = photo.is_video || photo.media_type === 'video';
             const duration = esc(photo.duration || '');
             const isProcessing = isVideo && photo.status === 'processing';
             const uuid = esc(photo.uuid);
 
             card.innerHTML = `
-                <div class="photo-media relative aspect-square cursor-pointer overflow-hidden bg-muted" onclick="window._cardClick('${uuid}')">
-                    <img src="${esc(thumb)}" alt="${filename}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" class="${GM_IMG_CLASS}" />
-                    <div class="${GM_SCRIM_CLASS}"></div>
-                    <button type="button" onclick="event.stopPropagation(); window._toggleSelect('${uuid}')" class="photo-select ${GM_SELECT_CLASS}" aria-label="Select ${filename}">${I.check || ''}</button>
+                <div class="${GM_MEDIA_CLASS}" onclick="window._cardClick('${uuid}', event)">
+                    <img src="${esc(thumb)}" alt="${filename}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" draggable="false" class="${GM_IMG_CLASS}" />
+                    <button type="button" onclick="event.stopPropagation(); window._toggleSelect('${uuid}', event)" class="photo-select ${GM_SELECT_CLASS}" aria-label="Select ${filename}">${I.check || ''}</button>
                     <div class="${GM_ACTIONS_CLASS}" onclick="event.stopPropagation()">
                         <button type="button" onclick="window._setCover('${uuid}')" class="btn-set-cover ${GM_ACTION_BTN} ${photo.is_cover || photo.is_hidden ? 'hidden' : ''}" title="Set as cover" aria-label="Set as cover">${I.star || ''}</button>
                         <button type="button" onclick="window._toggleHide('${uuid}')" class="btn-toggle-hide ${GM_ACTION_BTN} group-[.is-hidden]:bg-warning group-[.is-hidden]:hover:bg-warning/90" title="${photo.is_hidden ? 'Show in client gallery' : 'Hide from client gallery'}" aria-label="Toggle visibility"><span class="contents group-[.is-hidden]:hidden">${I['eye-off'] || ''}</span><span class="hidden group-[.is-hidden]:contents">${I.eye || ''}</span></button>
@@ -484,11 +486,8 @@ window.studioGalleryManager = function(inlineConfig) {
                     ${isProcessing ? gmProcessingOverlayHtml() : ''}
                 </div>
                 <div class="${GM_FOOTER_CLASS}">
+                    <span class="hidden-label text-warning ${photo.is_hidden ? '' : 'hidden'}" title="Hidden from client gallery">${I.eyeOffSm || ''}</span>
                     <span class="truncate" title="${filename}">${filename}</span>
-                    <span class="flex shrink-0 items-center gap-1.5">
-                        <span class="hidden-label text-warning ${photo.is_hidden ? '' : 'hidden'}" title="Hidden from client gallery">${I.eyeOffSm || ''}</span>
-                        ${sizeMb ? `<span class="font-mono text-[10px] text-subtle">${sizeMb}</span>` : ''}
-                    </span>
                 </div>
             `;
             return card;
@@ -1639,30 +1638,165 @@ window.studioGalleryManager = function(inlineConfig) {
         },
 
         // --- Selection & bulk actions (built on the per-photo endpoints) ---
-        cardClick(photoUuid) {
-            if (this.selectMode || this.selected.length > 0) {
+        // Works like a file browser: click opens a photo (or toggles once something is selected),
+        // cmd/ctrl-click toggles, shift-click selects a range, dragging from empty space draws a box.
+        cardClick(photoUuid, event) {
+            if (event?.shiftKey && this.selectAnchor) {
+                this.selectRange(photoUuid);
+            } else if (event?.metaKey || event?.ctrlKey || this.selectMode || this.selected.length > 0) {
                 this.toggleSelect(photoUuid);
             } else {
                 this.openLightboxByUuid(photoUuid);
             }
         },
 
-        toggleSelect(photoUuid) {
-            const isSelected = this.selected.includes(photoUuid);
-            this.selected = isSelected ? this.selected.filter(u => u !== photoUuid) : [...this.selected, photoUuid];
-            const card = document.getElementById(`photo-card-${photoUuid}`);
-            if (card) card.classList.toggle('is-selected', !isSelected);
+        checkboxClick(photoUuid, event) {
+            if (event?.shiftKey && this.selectAnchor) {
+                this.selectRange(photoUuid);
+            } else {
+                this.toggleSelect(photoUuid);
+            }
         },
 
-        selectAllLoaded() {
-            this.selected = this.photos.map(p => p.uuid);
-            document.querySelectorAll('.photo-card').forEach(c => c.classList.add('is-selected'));
+        toggleSelect(photoUuid) {
+            const isSelected = this.selected.includes(photoUuid);
+            this.selectAnchor = photoUuid;
+            this.setSelection(isSelected ? this.selected.filter(u => u !== photoUuid) : [...this.selected, photoUuid]);
+        },
+
+        // Adds every photo between the last one clicked and this one, in grid order
+        selectRange(photoUuid) {
+            const order = this.photos.map(p => p.uuid);
+            const from = order.indexOf(this.selectAnchor);
+            const to = order.indexOf(photoUuid);
+            if (from < 0 || to < 0) return this.toggleSelect(photoUuid);
+            const range = order.slice(Math.min(from, to), Math.max(from, to) + 1);
+            this.setSelection([...new Set([...this.selected, ...range])]);
+        },
+
+        setSelection(uuids) {
+            this.selected = uuids;
+            const chosen = new Set(uuids);
+            document.querySelectorAll('#studio-photos-grid .photo-card').forEach(c => {
+                c.classList.toggle('is-selected', chosen.has(c.dataset.uuid));
+            });
+        },
+
+        // Selects the whole gallery, loading the photos that haven't scrolled into view yet
+        async selectAll() {
+            if (this.selectingAll) return;
+            this.selectingAll = true;
+            try {
+                while (this.hasMore && this.nextCursor) {
+                    if (this.loadingPhotos) {
+                        await new Promise(r => setTimeout(r, 100));
+                        continue;
+                    }
+                    const before = this.photos.length;
+                    await this.fetchNextBatch();
+                    if (this.photos.length === before) break;
+                }
+                this.setSelection(this.photos.map(p => p.uuid));
+            } finally {
+                this.selectingAll = false;
+            }
         },
 
         clearSelection() {
-            this.selected = [];
             this.selectMode = false;
-            document.querySelectorAll('.photo-card.is-selected').forEach(c => c.classList.remove('is-selected'));
+            this.selectAnchor = null;
+            this.setSelection([]);
+        },
+
+        setupSelectionKeys() {
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() !== 'a' || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+                const el = document.activeElement;
+                if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+                if (this.lightboxOpen || this.totalPhotos === 0 || document.querySelector('[role=dialog][aria-modal=true]:not([style*="display: none"])')) return;
+                e.preventDefault();
+                this.selectAll();
+            });
+        },
+
+        // Box selection: press on empty space around the photos and drag across them
+        setupMarqueeSelection() {
+            const area = document.getElementById('gallery-workspace-content');
+            const grid = document.getElementById('studio-photos-grid');
+            if (!area || !grid) return;
+            const emptySpace = (t) => t === area || t === area.firstElementChild || t === grid
+                || t.closest?.('section[aria-label="Photos and videos"]') === t || t.id === 'infinite-scroll-sentinel';
+            const box = document.createElement('div');
+            box.className = 'pointer-events-none fixed z-30 hidden border border-foreground/60 bg-foreground/10';
+            document.body.appendChild(box);
+
+            let drag = null;
+            const scrollTop = () => area.scrollTop + window.scrollY;
+            const scroller = () => (area.scrollHeight > area.clientHeight ? area : null);
+
+            const update = () => {
+                if (!drag) return;
+                const y0 = drag.startY - (scrollTop() - drag.startScroll);
+                const rect = {
+                    left: Math.min(drag.startX, drag.x), right: Math.max(drag.startX, drag.x),
+                    top: Math.min(y0, drag.y), bottom: Math.max(y0, drag.y),
+                };
+                Object.assign(box.style, {
+                    left: rect.left + 'px', top: rect.top + 'px',
+                    width: (rect.right - rect.left) + 'px', height: (rect.bottom - rect.top) + 'px',
+                });
+                const hits = [];
+                grid.querySelectorAll('.photo-card').forEach(c => {
+                    const r = c.getBoundingClientRect();
+                    if (r.right > rect.left && r.left < rect.right && r.bottom > rect.top && r.top < rect.bottom) hits.push(c.dataset.uuid);
+                });
+                this.setSelection([...new Set([...drag.base, ...hits])]);
+            };
+
+            const tick = () => {
+                if (!drag) return;
+                // Scroll while the pointer is held near the top or bottom edge
+                const el = scroller();
+                const bounds = el ? el.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+                const edge = 48;
+                const dy = drag.y < bounds.top + edge ? -14 : drag.y > bounds.bottom - edge ? 14 : 0;
+                if (dy && drag.moved) {
+                    el ? el.scrollBy(0, dy) : window.scrollBy(0, dy);
+                    update();
+                }
+                drag.frame = requestAnimationFrame(tick);
+            };
+
+            area.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || !emptySpace(e.target) || this.totalPhotos === 0) return;
+                e.preventDefault();
+                const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+                drag = {
+                    startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY,
+                    startScroll: scrollTop(), moved: false, additive,
+                    base: additive ? [...this.selected] : [],
+                };
+                drag.frame = requestAnimationFrame(tick);
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!drag) return;
+                drag.x = e.clientX;
+                drag.y = e.clientY;
+                if (!drag.moved && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 4) return;
+                drag.moved = true;
+                box.classList.remove('hidden');
+                update();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!drag) return;
+                cancelAnimationFrame(drag.frame);
+                // A plain click on empty space clears the selection, as in a file browser
+                if (!drag.moved && !drag.additive) this.clearSelection();
+                drag = null;
+                box.classList.add('hidden');
+            });
         },
 
         async bulkSetHidden(hidden) {
@@ -1749,14 +1883,14 @@ window._deletePhoto = function(uuid) {
     if (m) m.deletePhoto(uuid);
 };
 
-window._cardClick = function(uuid) {
+window._cardClick = function(uuid, event) {
     const m = gmManager();
-    if (m) m.cardClick(uuid);
+    if (m) m.cardClick(uuid, event);
 };
 
-window._toggleSelect = function(uuid) {
+window._toggleSelect = function(uuid, event) {
     const m = gmManager();
-    if (m) m.toggleSelect(uuid);
+    if (m) m.checkboxClick(uuid, event);
 };
 
 if (window.Alpine) {

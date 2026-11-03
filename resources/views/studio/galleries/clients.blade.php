@@ -1,10 +1,4 @@
-@extends('layouts.app', ['title' => 'Clients · ' . $gallery->title . ' · ifotoset'])
-
-@section('breadcrumbs')
-    <a href="{{ route('studio.galleries.index') }}" class="transition-colors hover:text-foreground">Galleries</a>
-    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
-    <span class="truncate font-medium text-foreground">{{ $gallery->title }}</span>
-@endsection
+@extends('layouts.app', ['title' => 'Clients · ' . $gallery->title . ' · ifotoset', 'workspace' => true])
 
 @php
     $inviteExplainer = match ($gallery->visibility) {
@@ -17,13 +11,13 @@
 @endphp
 
 @section('content')
-<div x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
-    @include('studio.galleries.partials.header', ['activeTab' => 'clients'])
+<div class="flex min-h-0 flex-1 flex-col" x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
+    <x-studio.gallery-workspace :gallery="$gallery" active="clients">
 
-    <div class="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         {{-- Invite form: first on phones, beside the list on wide screens --}}
         <form method="POST" action="{{ route('studio.galleries.invitations.store', $gallery->uuid) }}" enctype="multipart/form-data"
-              class="card space-y-4 p-5 sm:p-6 lg:sticky lg:top-20 lg:order-2"
+              class="card space-y-4 p-5 sm:p-6 lg:sticky lg:top-6 lg:order-2"
               x-data="{ submitting: false }" @submit="submitting = true">
             @csrf
             <div>
@@ -101,5 +95,6 @@
             @endif
         </section>
     </div>
+    </x-studio.gallery-workspace>
 </div>
 @endsection

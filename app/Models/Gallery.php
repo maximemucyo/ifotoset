@@ -308,6 +308,19 @@ class Gallery extends Model
     }
 
     /**
+     * Columns for the studio's download setting: clients can always download single photos and the whole
+     * gallery, and the photographer's only choice is whether that asks for a PIN.
+     */
+    public static function downloadAttributes(?string $pin): array
+    {
+        return [
+            'allow_photo_downloads' => true,
+            'allow_gallery_downloads' => true,
+            'download_pin' => $pin,
+        ];
+    }
+
+    /**
      * PIN-protected and private galleries keep their media under the token-only `protected-galleries/` prefix.
      */
     public function hasProtectedMedia(): bool

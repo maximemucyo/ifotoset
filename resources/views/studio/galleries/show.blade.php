@@ -1,10 +1,4 @@
-@extends('layouts.app', ['title' => $gallery->title . ' · Studio · ifotoset'])
-
-@section('breadcrumbs')
-    <a href="{{ route('studio.galleries.index') }}" class="transition-colors hover:text-foreground">Galleries</a>
-    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
-    <span class="truncate font-medium text-foreground">{{ $gallery->title }}</span>
-@endsection
+@extends('layouts.app', ['title' => $gallery->title . ' · Studio · ifotoset', 'workspace' => true])
 
 @php
     /*
@@ -14,15 +8,16 @@
      * .hidden on badges/buttons) style identically everywhere.
      */
     $gmCardClasses = [
-        'card' => 'photo-card group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs transition-[box-shadow,border-color,opacity,transform] duration-300 hover:shadow-md [&.is-cover]:border-brand/70 [&.is-cover]:ring-2 [&.is-cover]:ring-brand/25 [&.is-selected]:border-foreground/50 [&.is-selected]:ring-2 [&.is-selected]:ring-foreground/25',
-        'img' => 'size-full object-cover transition duration-500 ease-out group-hover:scale-[1.03] group-[.is-hidden]:opacity-40 group-[.is-hidden]:grayscale',
-        'scrim' => 'pointer-events-none absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-[.is-selected]:opacity-60',
-        'select' => 'absolute left-2 top-2 z-20 flex size-6 items-center justify-center rounded-md border-[1.5px] border-white/85 bg-black/25 text-transparent opacity-0 shadow-sm backdrop-blur-sm transition hover:bg-black/45 focus-visible:opacity-100 group-hover:opacity-100 group-[.is-selected]:border-white group-[.is-selected]:bg-white group-[.is-selected]:text-black group-[.is-selected]:opacity-100 group-data-[selecting=true]/grid:opacity-100 [@media(hover:none)]:opacity-100',
+        // Photos are the content: shown whole in a neutral square, no crop, radius or zoom
+        'card' => 'photo-card group relative flex flex-col transition-opacity',
+        'media' => 'photo-media relative flex aspect-square min-h-0 cursor-pointer overflow-hidden items-center justify-center bg-muted p-[7%] outline-2 outline-offset-2 outline-transparent transition-[background-color,outline-color] duration-150 hover:bg-border/70 group-[.is-selected]:bg-border/70 group-[.is-selected]:outline-foreground',
+        'img' => 'size-full object-contain group-[.is-hidden]:opacity-40 group-[.is-hidden]:grayscale',
+        'select' => 'absolute left-2 top-2 z-20 flex size-6 items-center justify-center rounded-md border-[1.5px] border-foreground/35 bg-background/90 text-transparent opacity-0 shadow-xs transition hover:border-foreground focus-visible:opacity-100 group-hover:opacity-100 group-[.is-selected]:border-foreground group-[.is-selected]:bg-foreground group-[.is-selected]:text-background group-[.is-selected]:opacity-100 group-data-[selecting=true]/grid:opacity-100 [@media(hover:none)]:opacity-100',
         'actions' => 'absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 transition duration-150 focus-within:opacity-100 group-hover:opacity-100 group-data-[selecting=true]/grid:invisible [@media(hover:none)]:opacity-100',
-        'actionBtn' => 'size-7 items-center justify-center rounded-md bg-black/45 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-white [&:not(.hidden)]:inline-flex',
+        'actionBtn' => 'size-7 items-center justify-center rounded-md bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-white [&:not(.hidden)]:inline-flex',
         'badgeLight' => 'items-center gap-1 rounded-md bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold text-black shadow-sm [&:not(.hidden)]:inline-flex',
-        'badgeDark' => 'items-center gap-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm [&:not(.hidden)]:inline-flex',
-        'footer' => 'flex items-center justify-between gap-2 border-t border-border px-2.5 py-2 text-[11px] font-medium text-muted-foreground group-data-[density=compact]/grid:hidden',
+        'badgeDark' => 'items-center gap-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white [&:not(.hidden)]:inline-flex',
+        'footer' => 'flex items-center gap-1.5 px-0.5 pt-1.5 text-[11px] text-muted-foreground group-data-[density=compact]/grid:hidden',
     ];
 
     $gmIconHtml = fn (string $name, string $class, $stroke = 2) => trim(\Illuminate\Support\Facades\Blade::render(
@@ -99,17 +94,16 @@
 @include('studio.galleries.partials.manager-script')
 
 <div id="studio-gallery-manager"
-     class="relative"
+     class="relative flex min-h-0 flex-1 flex-col"
      x-data="studioGalleryManager()"
      @keydown.escape.window="if (!lightboxOpen && (selectMode || selectedCount > 0)) clearSelection()"
      x-init="if (new URLSearchParams(location.search).has('upload')) $nextTick(() => $dispatch('open-modal', 'upload-photos-modal'))"
      @dragenter.window="if ($event.dataTransfer && Array.from($event.dataTransfer.types || []).includes('Files')) isDragging = true">
 
-    {{-- ============ Header ============ --}}
-    @include('studio.galleries.partials.header', ['activeTab' => 'photos'])
+    <x-studio.gallery-workspace :gallery="$gallery" active="photos">
 
     {{-- ============ Photos tab ============ --}}
-    <section class="mt-6" aria-label="Photos and videos">
+    <section aria-label="Photos and videos">
 
         <!-- Upload Dropzone Hero (when gallery is empty) -->
         <div x-show="totalPhotos === 0"
@@ -154,9 +148,7 @@
             <div class="flex min-w-0 items-center gap-2.5">
                 <h2 class="text-[15px] font-semibold text-foreground">Media</h2>
                 <span class="badge badge-neutral tabular-nums" x-text="totalPhotos">{{ $totalPhotosCount }}</span>
-                <span class="hidden items-center gap-1.5 text-xs text-subtle md:inline-flex">
-                    <x-icon name="mouse-pointer-click" class="size-3.5" /> Drop files anywhere to upload
-                </span>
+                <span class="hidden text-xs text-subtle md:inline">Drag across photos, or shift-click, to select several</span>
             </div>
             <div class="flex items-center gap-2">
                 <div class="tabs" role="tablist" aria-label="Grid density">
@@ -173,15 +165,15 @@
                     <x-icon name="check-check" />
                     <span x-text="(selectMode || selectedCount > 0) ? 'Done' : 'Select'">Select</span>
                 </button>
-                <button type="button" class="btn btn-primary btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
-                    <x-icon name="upload" /> <span class="hidden sm:inline">Upload</span>
+                <button type="button" class="btn btn-outline btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
+                    <x-icon name="plus" /> <span class="hidden sm:inline">Add photos</span>
                 </button>
             </div>
         </div>
 
         <!-- Photos Grid (Stable DOM container) -->
         <div x-show="totalPhotos > 0"
-             class="group/grid grid gap-3 sm:gap-4"
+             class="group/grid grid select-none gap-3 sm:gap-4"
              :class="density === 'compact' ? 'grid-cols-3 !gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'"
              :data-density="density"
              :data-selecting="(selectMode || selectedCount > 0) ? 'true' : 'false'"
@@ -251,6 +243,7 @@
             </button>
         </div>
     </x-ui.modal>
+    </x-studio.gallery-workspace>
 </div>
 @endsection
 

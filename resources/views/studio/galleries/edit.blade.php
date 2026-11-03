@@ -1,18 +1,12 @@
-@extends('layouts.app', ['title' => 'Settings · ' . $gallery->title . ' · ifotoset'])
-
-@section('breadcrumbs')
-    <a href="{{ route('studio.galleries.index') }}" class="transition-colors hover:text-foreground">Galleries</a>
-    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
-    <span class="truncate font-medium text-foreground">{{ $gallery->title }}</span>
-@endsection
+@extends('layouts.app', ['title' => 'Settings · ' . $gallery->title . ' · ifotoset', 'workspace' => true])
 
 @section('content')
-<div x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
-    @include('studio.galleries.partials.header', ['activeTab' => 'settings'])
+<div class="flex min-h-0 flex-1 flex-col" x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
+    <x-studio.gallery-workspace :gallery="$gallery" active="settings">
 
     {{-- Wide screens: the real client gallery stays beside the form; smaller ones use the Preview button --}}
-    <div class="mt-8 xl:grid xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:items-start xl:gap-8">
-    <aside class="sticky top-6 hidden h-[calc(100dvh-8rem)] xl:block" aria-label="Preview of the client gallery">
+    <div class="xl:grid xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:items-start xl:gap-8">
+    <aside class="sticky top-6 hidden h-[calc(100dvh-7rem)] xl:block" aria-label="Preview of the client gallery">
         <div class="flex h-full flex-col rounded-xl border border-border bg-muted/40 p-3">
             <div class="flex items-center justify-between gap-2 px-1 pb-2">
                 <h2 class="text-[13px] font-medium text-foreground">What your client sees</h2>
@@ -82,5 +76,6 @@
         @csrf
         @method('DELETE')
     </form>
+    </x-studio.gallery-workspace>
 </div>
 @endsection

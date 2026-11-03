@@ -6,10 +6,8 @@
     $visibilityValue = old('visibility', $gallery->visibility);
     $visibilityOptions = \App\Models\Gallery::VISIBILITIES;
     $eventDate = old('event_date', $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date)->format('Y-m-d') : '');
-    $photoDownloads = (bool) $gallery->allow_photo_downloads;
-    $galleryDownloads = (bool) $gallery->allow_gallery_downloads;
     $downloadPinEnabled = $gallery->requiresDownloadPin();
-    // Suggest a fresh PIN so turning the switch on is all it takes
+    // A PIN is ready the moment the switch goes on
     $downloadPin = $gallery->download_pin ?: str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
     $expiryTz = \App\Models\Gallery::expiryTimezone(request()->account());
     $todayLocal = now($expiryTz)->format('Y-m-d');
@@ -32,8 +30,6 @@
         'uploaded' => 'The order files finished uploading.',
     ];
     if (old('_token')) {
-        $photoDownloads = (bool) old('allow_photo_downloads');
-        $galleryDownloads = (bool) old('allow_gallery_downloads');
         $downloadPinEnabled = (bool) old('download_pin_enabled');
         $downloadPin = old('download_pin', $downloadPin);
     }
@@ -41,7 +37,7 @@
 
 <div class="space-y-6">
     {{-- Details --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="details" class="grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Details</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">The title and date appear at the top of the client's gallery. Only you see the client name.</p>
@@ -73,7 +69,7 @@
     <div class="divider"></div>
 
     {{-- Cover and focal point --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="cover" class="grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Cover</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">The first thing your client sees. Click the photo where the subject is, so phones and computers both keep it in view.</p>
@@ -90,7 +86,7 @@
     <div class="divider"></div>
 
     {{-- Privacy & access --}}
-    <section id="invitations" class="group/inv grid scroll-mt-20 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="invitations" class="group/inv grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Privacy and access</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">Choose who can open this gallery. You can change this any time.</p>
@@ -165,7 +161,7 @@
     <div class="divider"></div>
 
     {{-- Expiry --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="expiry" class="grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Expiry</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">After this date the link stops working, including invitations. Extend it any time to reopen the gallery.</p>
@@ -205,7 +201,7 @@
     <div class="divider"></div>
 
     {{-- Photo order --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="photo-order" class="grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Photo order</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">How photos are arranged for you and your client.</p>
@@ -225,71 +221,41 @@
     <div class="divider"></div>
 
     {{-- Downloads --}}
-    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
+    <section id="downloads" class="grid scroll-mt-6 gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-1">
         <div class="lg:pt-5 xl:pt-0">
             <h2 class="text-[15px] font-semibold text-foreground">Downloads</h2>
-            <p class="mt-1 text-[13px] text-muted-foreground">Control what your client can take home.</p>
+            <p class="mt-1 text-[13px] text-muted-foreground">Clients can download single photos and the whole gallery.</p>
         </div>
-        <div class="card divide-y divide-border">
-            <label class="flex cursor-pointer items-start justify-between gap-4 p-5 sm:px-6">
-                <span class="flex items-start gap-3">
-                    <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="image" class="size-4" /></span>
-                    <span>
-                        <span class="block text-sm font-medium text-foreground">Individual photo downloads</span>
-                        <span class="mt-0.5 block text-xs text-muted-foreground">Clients can download single photos in full resolution.</span>
-                    </span>
+        <div class="card" x-data="{ pinEnabled: @js($downloadPinEnabled), pin: @js((string) $downloadPin) }">
+            <label class="flex cursor-pointer items-center justify-between gap-4 p-5 sm:px-6">
+                <span>
+                    <span class="block text-sm font-medium text-foreground">Download PIN</span>
+                    <span class="mt-0.5 block text-xs text-muted-foreground"
+                          x-text="pinEnabled ? 'Clients enter this PIN to download.' : 'Off: anyone who opens the gallery can download.'">{{ $downloadPinEnabled ? 'Clients enter this PIN to download.' : 'Off: anyone who opens the gallery can download.' }}</span>
                 </span>
-                <span class="switch mt-1.5">
-                    <input type="hidden" name="allow_photo_downloads" value="0">
-                    <input type="checkbox" name="allow_photo_downloads" value="1" class="sr-only" @checked($photoDownloads)>
+                <span class="switch">
+                    <input type="hidden" name="download_pin_enabled" value="0">
+                    <input type="checkbox" name="download_pin_enabled" value="1" class="sr-only" x-model="pinEnabled" @checked($downloadPinEnabled)>
                     <span></span>
                 </span>
             </label>
-            <label class="flex cursor-pointer items-start justify-between gap-4 p-5 sm:px-6">
-                <span class="flex items-start gap-3">
-                    <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="download" class="size-4" /></span>
-                    <span>
-                        <span class="block text-sm font-medium text-foreground">Full gallery download</span>
-                        <span class="mt-0.5 block text-xs text-muted-foreground">Clients can download the entire collection as a ZIP file.</span>
-                    </span>
-                </span>
-                <span class="switch mt-1.5">
-                    <input type="hidden" name="allow_gallery_downloads" value="0">
-                    <input type="checkbox" name="allow_gallery_downloads" value="1" class="sr-only" @checked($galleryDownloads)>
-                    <span></span>
-                </span>
-            </label>
-            <div x-data="{ pinEnabled: @js($downloadPinEnabled) }">
-                <label class="flex cursor-pointer items-start justify-between gap-4 p-5 sm:px-6">
-                    <span class="flex items-start gap-3">
-                        <span class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><x-icon name="key" class="size-4" /></span>
-                        <span>
-                            <span class="block text-sm font-medium text-foreground">Require a download PIN</span>
-                            <span class="mt-0.5 block text-xs text-muted-foreground">Anyone can view the gallery, but downloading asks for this PIN. Share it only with the people who should take photos home.</span>
-                        </span>
-                    </span>
-                    <span class="switch mt-1.5">
-                        <input type="hidden" name="download_pin_enabled" value="0">
-                        <input type="checkbox" name="download_pin_enabled" value="1" class="sr-only" x-model="pinEnabled" @checked($downloadPinEnabled)>
-                        <span></span>
-                    </span>
-                </label>
-                <div x-show="pinEnabled" x-cloak class="-mt-1 px-5 pb-5 sm:px-6 sm:pl-[4.25rem]"
-                     style="{{ $downloadPinEnabled ? '' : 'display: none;' }}">
-                    <div class="max-w-[12rem]">
-                        <x-ui.input label="Download PIN"
-                                    name="download_pin"
-                                    inputmode="numeric"
-                                    maxlength="4"
-                                    pattern="[0-9]{4}"
-                                    autocomplete="off"
-                                    class="font-mono tracking-[0.3em]"
-                                    :value="$downloadPin"
-                                    hint="4 digits."
-                                    :error="$errors->first('download_pin')" />
-                    </div>
-                </div>
+            <div x-show="pinEnabled" x-cloak class="flex items-center gap-3 border-t border-border px-5 py-4 sm:px-6"
+                 style="{{ $downloadPinEnabled ? '' : 'display: none;' }}">
+                <input type="hidden" name="download_pin" value="{{ $downloadPin }}" :value="pin" :disabled="!pinEnabled">
+                <span class="font-mono text-2xl font-semibold tracking-[0.3em] text-foreground tabular-nums" x-text="pin">{{ $downloadPin }}</span>
+                <button type="button" class="btn btn-outline btn-sm" @click="$clipboard(pin, 'PIN copied')"><x-icon name="copy" /> Copy</button>
+                <button type="button" class="btn btn-ghost btn-sm"
+                        @click="pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0')">
+                    <x-icon name="refresh-cw" /> New PIN
+                </button>
             </div>
+            <p x-show="pinEnabled && pin !== @js((string) $gallery->download_pin) && @js($gallery->requiresDownloadPin())" x-cloak
+               class="px-5 pb-4 text-xs text-muted-foreground sm:px-6">
+                Save changes to use the new PIN. The old PIN stops working, so send clients the new one.
+            </p>
+            @error('download_pin')
+                <p class="error-text px-5 pb-4 sm:px-6">{{ $message }}</p>
+            @enderror
         </div>
     </section>
 </div>
