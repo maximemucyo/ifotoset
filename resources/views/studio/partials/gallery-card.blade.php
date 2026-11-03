@@ -3,7 +3,7 @@
     $vis = [
         'public'   => ['label' => 'Public',        'icon' => 'globe'],
         'private'  => ['label' => 'Private',       'icon' => 'lock'],
-        'password' => ['label' => 'PIN protected', 'icon' => 'key'],
+        'password' => ['label' => 'Password', 'icon' => 'key'],
     ][$gallery->visibility] ?? ['label' => ucfirst((string) $gallery->visibility), 'icon' => 'eye'];
     $coverUrl = $gallery->getCoverUrl('md');
     $publicUrl = filled($gallery->user?->username) ? $gallery->public_url : null;

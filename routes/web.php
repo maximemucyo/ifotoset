@@ -215,6 +215,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/invitations/template', [StudioGalleryController::class, 'downloadInvitationTemplate'])->name('galleries.invitations.template');
     Route::get('/galleries/{uuid}', [StudioGalleryController::class, 'show'])->name('galleries.show');
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
+    Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
     Route::delete('/galleries/{uuid}', [StudioGalleryController::class, 'destroy'])->name('galleries.destroy');
     Route::post('/galleries/{uuid}/cover', [StudioGalleryController::class, 'setCover'])->name('galleries.cover');

@@ -112,7 +112,7 @@
                 @if($gallery->visibility === 'public')
                     <span class="badge badge-neutral"><x-icon name="globe" /> Public</span>
                 @elseif($gallery->visibility === 'password')
-                    <span class="badge badge-warning"><x-icon name="lock" /> PIN protected</span>
+                    <span class="badge badge-warning"><x-icon name="lock" /> Password</span>
                 @else
                     <span class="badge badge-neutral"><x-icon name="eye-off" /> Private</span>
                 @endif
@@ -259,7 +259,7 @@
         <div class="glass pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-2xl border border-border p-2 shadow-lg sm:flex-nowrap sm:rounded-full sm:pl-4">
             <span class="hidden items-center gap-2 pr-1 text-[13px] text-muted-foreground sm:flex">
                 <x-icon name="shield" class="size-4 {{ $isTakenDown ? 'text-destructive' : 'text-success' }}" />
-                <span class="whitespace-nowrap">{{ $isTakenDown ? 'Taken down' : 'Live' }} · {{ $gallery->visibility === 'password' ? 'PIN' : ucfirst($gallery->visibility) }}</span>
+                <span class="whitespace-nowrap">{{ $isTakenDown ? 'Taken down' : 'Live' }} · {{ $gallery->visibility === 'password' ? 'Password' : ucfirst($gallery->visibility) }}</span>
             </span>
             <span class="hidden h-5 w-px bg-border sm:block"></span>
 

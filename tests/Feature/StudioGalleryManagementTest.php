@@ -227,6 +227,24 @@ class StudioGalleryManagementTest extends TestCase
         $this->assertNotEquals($hiddenPhoto->id, $this->gallery->fresh()->cover_photo_id);
     }
 
+    public function test_chosen_cover_survives_new_uploads(): void
+    {
+        $first = $this->createPhoto($this->gallery, ['sort_order' => 1]);
+        $chosen = $this->createPhoto($this->gallery, ['sort_order' => 2]);
+
+        $this->actingAs($this->user)
+            ->postJson("/studio/galleries/{$this->gallery->uuid}/cover", ['photo_uuid' => $chosen->uuid])
+            ->assertOk();
+
+        $gallery = $this->gallery->fresh();
+        $this->assertTrue($gallery->has_explicit_cover);
+
+        // The auto-cover pass after an upload must leave a manual choice alone
+        $gallery->update(['cover_photo_id' => null]);
+        app(\App\Services\GalleryCoverService::class)->setAutoCover($gallery);
+        $this->assertNotEquals($first->id, $gallery->fresh()->cover_photo_id);
+    }
+
     public function test_hiding_current_cover_photo_reassigns_to_next_visible_photo(): void
     {
         $photo1 = $this->createPhoto($this->gallery, ['is_hidden' => false, 'sort_order' => 1]);
@@ -317,5 +335,66 @@ class StudioGalleryManagementTest extends TestCase
 
         // Public visible count should be 2
         $this->assertEquals(2, $this->gallery->public_photo_count);
+    }
+
+    public function test_expiry_date_closes_the_gallery_at_the_end_of_that_day_for_the_photographer(): void
+    {
+        $this->user->forceFill(['timezone' => 'Africa/Kigali'])->save();
+        $date = now('Africa/Kigali')->addMonth()->format('Y-m-d');
+
+        $this->actingAs($this->user)->post('/studio/galleries', [
+            'title' => 'Graduation 2026',
+            'visibility' => 'public',
+            'expires_on' => $date,
+        ])->assertRedirect();
+
+        $gallery = Gallery::where('title', 'Graduation 2026')->firstOrFail();
+        $this->assertSame($date . ' 23:59:59', $gallery->expires_at->setTimezone('Africa/Kigali')->format('Y-m-d H:i:s'));
+    }
+
+    public function test_expiry_date_in_the_past_is_rejected_unless_unchanged(): void
+    {
+        $base = ['title' => $this->gallery->title, 'visibility' => 'public'];
+
+        $this->actingAs($this->user)
+            ->patch("/studio/galleries/{$this->gallery->uuid}", $base + ['expires_on' => now()->subDays(3)->format('Y-m-d')])
+            ->assertSessionHasErrors('expires_on');
+
+        // A gallery that already expired can be saved without touching its date
+        $expired = now()->subDays(5)->setTime(12, 0);
+        $this->gallery->update(['expires_at' => $expired]);
+        $keptDate = $expired->copy()->setTimezone(Gallery::expiryTimezone($this->user))->format('Y-m-d');
+
+        $this->patch("/studio/galleries/{$this->gallery->uuid}", $base + ['expires_on' => $keptDate])
+            ->assertSessionHasNoErrors();
+        $this->assertEquals($expired->timestamp, $this->gallery->fresh()->expires_at->timestamp);
+
+        // Never clears it
+        $this->patch("/studio/galleries/{$this->gallery->uuid}", $base + ['expires_on' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertNull($this->gallery->fresh()->expires_at);
+    }
+
+    public function test_extending_expiry_reopens_active_invitations(): void
+    {
+        $gallery = Gallery::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'user_id' => $this->user->id,
+            'title' => 'Kevin & Aline',
+            'slug' => 'kevin-aline',
+            'visibility' => 'private',
+            'expires_at' => now()->subDay(),
+        ]);
+        $active = $gallery->invitations()->create(['email' => 'diane@example.com', 'token' => hash('sha256', 'a'), 'expires_at' => now()->subDay()]);
+        $revoked = $gallery->invitations()->create(['email' => 'kevin@example.com', 'token' => hash('sha256', 'b'), 'expires_at' => now()->subDay(), 'revoked_at' => now()]);
+
+        $this->actingAs($this->user)->patch("/studio/galleries/{$gallery->uuid}", [
+            'title' => $gallery->title,
+            'visibility' => 'private',
+            'expires_on' => now()->addMonths(3)->format('Y-m-d'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($active->fresh()->isValid());
+        $this->assertFalse($revoked->fresh()->isValid());
     }
 }

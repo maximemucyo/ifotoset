@@ -33,6 +33,7 @@ class Gallery extends Model
         'uuid',
         'user_id',
         'cover_photo_id',
+        'has_explicit_cover',
         'title',
         'slug',
         'client_name',
@@ -90,11 +91,34 @@ class Gallery extends Model
         'restored_at' => 'datetime',
         'version' => 'integer',
         'featured_order' => 'integer',
+        'has_explicit_cover' => 'boolean',
         'show_on_profile' => 'boolean',
         'allow_photo_downloads' => 'boolean',
         'allow_gallery_downloads' => 'boolean',
         'allow_google_photos' => 'boolean',
     ];
+
+    /**
+     * Timezone a photographer's "Expires on" date is read in: the gallery closes at the end of that day there.
+     */
+    public static function expiryTimezone(?User $user): string
+    {
+        return $user?->timezone ?: config('app.schedule_timezone', 'UTC');
+    }
+
+    /**
+     * End of the given Y-m-d day in the owner's timezone, as stored in `expires_at`; null when no date is given.
+     */
+    public static function expiryFromDate(?string $date, ?User $user): ?\Carbon\CarbonImmutable
+    {
+        if (blank($date)) {
+            return null;
+        }
+
+        return \Carbon\CarbonImmutable::createFromFormat('Y-m-d', $date, self::expiryTimezone($user))
+            ->endOfDay()
+            ->utc();
+    }
 
     public function isTakenDown(): bool
     {

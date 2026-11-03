@@ -8,7 +8,7 @@
     $visibilityValue = old('visibility', $isEdit ? $gallery->visibility : 'public');
     $visibilityOptions = [
         'public'   => ['label' => 'Public',        'icon' => 'globe', 'description' => 'Anyone with the direct link.'],
-        'password' => ['label' => 'PIN protected', 'icon' => 'key',   'description' => 'Anyone with the link and PIN.'],
+        'password' => ['label' => 'Password',      'icon' => 'key',   'description' => 'Anyone with the link and the password.'],
         'private'  => ['label' => 'Private',       'icon' => 'lock',  'description' => 'Only invited client emails can open it.'],
     ];
     $eventDate = old('event_date', $isEdit
@@ -19,6 +19,10 @@
     $downloadPinEnabled = $isEdit && $gallery->requiresDownloadPin();
     // Suggest a fresh PIN so turning the switch on is all it takes
     $downloadPin = $isEdit && $gallery->download_pin ? $gallery->download_pin : str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+    $expiryTz = \App\Models\Gallery::expiryTimezone(request()->account());
+    $todayLocal = now($expiryTz)->format('Y-m-d');
+    $timezoneLabel = str_replace('_', ' ', $expiryTz);
+    $expiresOn = old('expires_on', $isEdit && $gallery->expires_at ? $gallery->expires_at->copy()->setTimezone($expiryTz)->format('Y-m-d') : '');
     $photoOrder = old('photo_order', $isEdit ? $gallery->photo_order : 'taken');
     $photoOrderHints = [
         'taken'    => 'Follows the camera clock, so the day reads in sequence. Burst shots fall back to file number.',
@@ -38,7 +42,7 @@
     <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <div class="lg:pt-5">
             <h2 class="text-[15px] font-semibold text-foreground">Details</h2>
-            <p class="mt-1 text-[13px] text-muted-foreground">What your client sees at the top of their gallery.</p>
+            <p class="mt-1 text-[13px] text-muted-foreground">The title and date appear at the top of the client's gallery. Only you see the client name.</p>
         </div>
         <div class="card space-y-5 p-5 sm:p-6">
             <x-ui.input label="Gallery title"
@@ -105,9 +109,9 @@
             </div>
 
             @if($isEdit)
-                <p x-show="visibility !== 'private'" x-cloak class="flex items-center gap-2 border-t border-border px-5 py-3 text-xs text-muted-foreground sm:px-6"
-                   style="{{ $visibilityValue === 'private' ? 'display: none;' : '' }}">
-                    <x-icon name="info" class="size-3.5 shrink-0" /> Email invitations are available when the gallery is Private.
+                <p class="border-t border-border px-5 py-3 text-xs text-muted-foreground sm:px-6">
+                    <span x-show="visibility === 'private'" @if($visibilityValue !== 'private') style="display: none;" @endif>Only people you invite can open it.</span>
+                    Invite people and see who opened the gallery on the <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Clients tab</a>.
                 </p>
             @endif
 
@@ -126,89 +130,78 @@
                 </label>
             </div>
 
-            {{-- PIN protection --}}
+            {{-- Gallery password --}}
             <div x-show="visibility === 'password'" class="border-t border-border bg-muted/30 p-5 sm:px-6"
                  style="{{ $visibilityValue === 'password' ? '' : 'display: none;' }}">
                 <div class="max-w-sm">
-                    <x-ui.input :label="$isEdit && $gallery->password_hash ? 'New gallery PIN' : 'Gallery PIN'"
+                    <x-ui.input :label="$isEdit && $gallery->password_hash ? 'New gallery password' : 'Gallery password'"
                                 type="password"
                                 name="password"
                                 icon="key"
                                 autocomplete="new-password"
-                                :placeholder="$isEdit && $gallery->password_hash ? 'Leave blank to keep the current PIN' : 'Choose a PIN of at least 6 characters'"
-                                :hint="$isEdit && $gallery->password_hash ? 'A PIN is already set. Enter a new one only to change it.' : 'Share this PIN with your client together with the gallery link.'"
+                                :placeholder="$isEdit && $gallery->password_hash ? 'Leave blank to keep the current password' : 'At least 6 characters'"
+                                :hint="$isEdit && $gallery->password_hash ? 'A password is already set. Enter a new one only to change it.' : 'Send this password to your client with the gallery link.'"
                                 :error="$errors->first('password')" />
                 </div>
             </div>
 
-            {{-- Private: email invitations --}}
-            <div x-show="visibility === 'private'" class="space-y-4 border-t border-border bg-muted/30 p-5 sm:px-6"
-                 style="{{ $visibilityValue === 'private' ? '' : 'display: none;' }}">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <h3 class="text-sm font-medium text-foreground">{{ $isEdit ? 'Invite more recipients' : 'Invite recipients' }}</h3>
-                        <p class="mt-0.5 text-xs text-muted-foreground">Each person gets a secure, personal link by email.</p>
-                    </div>
-                    <a href="{{ route('studio.galleries.invitations.template') }}" class="btn btn-ghost btn-xs self-start text-muted-foreground">
-                        <x-icon name="download" /> CSV template
-                    </a>
-                </div>
-
-                <div>
-                    <label for="invite_emails" class="label">Email addresses</label>
-                    <textarea id="invite_emails" name="invite_emails" rows="3" placeholder="client1@example.com, client2@example.com" class="textarea text-[13px]">{{ old('invite_emails') }}</textarea>
-                    <p class="help">Separate with commas, semicolons or new lines.</p>
-                    @error('invite_emails') <p class="error-text">{{ $message }}</p> @enderror
-                </div>
-
-                <div>
-                    <label for="invite_file" class="label">Or import a CSV / TSV file</label>
-                    <input id="invite_file" type="file" name="invite_file" accept=".csv,.tsv,.txt"
-                           class="block w-full cursor-pointer rounded-lg border border-dashed border-border-strong bg-card p-2 text-xs text-muted-foreground transition hover:border-foreground/40 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:bg-accent">
-                    @error('invite_file') <p class="error-text">{{ $message }}</p> @enderror
-                </div>
-
-                @if($isEdit && isset($invitations) && $invitations->isNotEmpty())
-                    <div class="overflow-hidden rounded-xl border border-border bg-card">
-                        <div class="flex items-center justify-between border-b border-border px-4 py-2.5">
-                            <span class="text-[13px] font-medium text-foreground">Invited clients</span>
-                            <span class="badge badge-neutral tabular-nums">{{ $invitations->count() }}</span>
+            {{-- Private: email invitations at creation; later they live on the Clients tab --}}
+            @unless($isEdit)
+                <div x-show="visibility === 'private'" class="space-y-4 border-t border-border bg-muted/30 p-5 sm:px-6"
+                     style="{{ $visibilityValue === 'private' ? '' : 'display: none;' }}">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="text-sm font-medium text-foreground">Invite people</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">Each person gets a personal link by email. You can also invite people later.</p>
                         </div>
-                        <ul class="max-h-72 divide-y divide-border overflow-y-auto">
-                            @foreach($invitations as $invitation)
-                                <li class="flex items-center gap-3 px-4 py-2.5">
-                                    <x-ui.avatar :name="$invitation->email" size="xs" />
-                                    <div class="min-w-0 flex-1">
-                                        <p class="truncate text-[13px] font-medium text-foreground">{{ $invitation->email }}</p>
-                                        <p class="mt-0.5 text-[11px] text-muted-foreground">
-                                            @if($invitation->isRevoked())
-                                                <span class="font-medium text-destructive">Revoked</span>
-                                            @elseif($invitation->isExpired())
-                                                <span class="font-medium text-warning">Expired</span>
-                                            @elseif($invitation->accepted_at)
-                                                <span class="font-medium text-success">Opened {{ $invitation->accepted_at->diffForHumans() }}</span>
-                                            @else
-                                                Invited {{ $invitation->created_at->diffForHumans() }} · Pending
-                                            @endif
-                                        </p>
-                                    </div>
-                                    <div class="flex shrink-0 items-center gap-1">
-                                        <button type="submit" form="invitation-resend-{{ $invitation->id }}" class="btn btn-ghost btn-xs">
-                                            <x-icon name="send" /> {{ $invitation->isRevoked() ? 'Re-invite' : 'Resend' }}
-                                        </button>
-                                        @unless($invitation->isRevoked())
-                                            <button type="submit" form="invitation-revoke-{{ $invitation->id }}" class="btn btn-danger-ghost btn-xs"
-                                                    onclick="return confirm(@js('Revoke access for ' . $invitation->email . '?'))">
-                                                Revoke
-                                            </button>
-                                        @endunless
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ul>
+                        <a href="{{ route('studio.galleries.invitations.template') }}" class="btn btn-ghost btn-xs self-start text-muted-foreground">
+                            <x-icon name="download" /> CSV template
+                        </a>
                     </div>
-                @endif
+
+                    @include('studio.galleries.partials.invite-fields')
+                </div>
+            @endunless
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    {{-- Expiry --}}
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <div class="lg:pt-5">
+            <h2 class="text-[15px] font-semibold text-foreground">Expiry</h2>
+            <p class="mt-1 text-[13px] text-muted-foreground">After this date the link stops working, including invitations. Extend it any time to reopen the gallery.</p>
+        </div>
+        <div class="card p-5 sm:p-6"
+             x-data="{
+                expiresOn: @js($expiresOn),
+                today: @js($todayLocal),
+                pick(months) {
+                    if (!months) { this.expiresOn = ''; return; }
+                    const [y, m, d] = this.today.split('-').map(Number);
+                    const date = new Date(Date.UTC(y, m - 1 + months, d));
+                    // Short months roll over (Jan 31 + 1 month): settle on the last day instead
+                    if (date.getUTCDate() !== d) date.setUTCDate(0);
+                    this.expiresOn = date.toISOString().slice(0, 10);
+                },
+             }">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+                <div class="sm:w-52">
+                    <label for="expires_on" class="label">Expires on</label>
+                    <input id="expires_on" type="date" name="expires_on" class="input" x-model="expiresOn"
+                           value="{{ $expiresOn }}" @if(! $isEdit || ! $gallery->expires_at?->isPast()) min="{{ $todayLocal }}" @endif>
+                </div>
+                <div class="flex flex-wrap gap-1.5" role="group" aria-label="Quick picks">
+                    <button type="button" class="btn btn-outline btn-sm" @click="pick(1)">1 month</button>
+                    <button type="button" class="btn btn-outline btn-sm" @click="pick(3)">3 months</button>
+                    <button type="button" class="btn btn-outline btn-sm" @click="pick(6)">6 months</button>
+                    <button type="button" class="btn btn-sm" :class="expiresOn ? 'btn-outline' : 'btn-secondary'" @click="pick(0)">Never</button>
+                </div>
             </div>
+            <p class="help" x-show="!expiresOn" @if($expiresOn) style="display: none;" @endif>The gallery stays open until you change this.</p>
+            <p class="help" x-show="expiresOn" x-cloak>Closes at the end of that day ({{ $timezoneLabel }}).</p>
+            @error('expires_on') <p class="error-text">{{ $message }}</p> @enderror
         </div>
     </section>
 

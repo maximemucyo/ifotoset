@@ -49,8 +49,13 @@ trait VerifiesGalleryAccess
             return GalleryAccessDecision::granted();
         }
 
-        // 3. PIN protected galleries
+        // 3. Password protected galleries
         if ($visibility === 'password' || !empty($gallery->password_hash)) {
+            // A personal invitation stands in for the password, so invite emails never carry it
+            if ($request->hasSession() && GalleryInvitationSession::resolveValidInvitation($gallery)) {
+                return GalleryAccessDecision::granted();
+            }
+
             // Check session unlock with password hash checksum protection
             if ($request->hasSession()) {
                 $sessionUnlock = $request->session()->get("gallery_unlocked_{$gallery->id}");

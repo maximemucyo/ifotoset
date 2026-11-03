@@ -340,7 +340,7 @@ class PublicGalleryController extends Controller
             return response()->json(['success' => true]);
         }
 
-        // Per-gallery limit on top of the per-IP route throttle, so rotating IPs can't brute-force a PIN
+        // Per-gallery limit on top of the per-IP route throttle, so rotating IPs can't brute-force a password
         $limiterKey = "gallery-unlock:{$gallery->id}";
         if (RateLimiter::tooManyAttempts($limiterKey, 30)) {
             return response()->json([
@@ -366,7 +366,7 @@ class PublicGalleryController extends Controller
 
         return response()->json([
             'success' => false,
-            'message' => 'The PIN you entered is incorrect.',
+            'message' => 'That password is incorrect.',
         ], 401);
     }
 

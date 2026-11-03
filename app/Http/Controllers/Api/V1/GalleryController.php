@@ -135,6 +135,45 @@ class GalleryController extends Controller
     }
 
     /**
+     * Record that a visitor shared the gallery or one of its photos.
+     * POST /api/v1/public/galleries/{username}/{slug}/share
+     */
+    public function recordShare(Request $request, string $username, string $slug): JsonResponse
+    {
+        $gallery = $this->galleryQuery->findForUser($username, $slug);
+
+        $errorResponse = $this->verifyGalleryAccess($gallery, $request);
+        if ($errorResponse) {
+            return $errorResponse;
+        }
+
+        $validated = $request->validate([
+            'method' => ['required', 'string', 'in:native,copy,whatsapp,facebook,email'],
+            'photo_uuid' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $visitorSession = $request->header('X-Visitor-Session-ID') ?: $request->cookie('visitor_session_id') ?: session()->getId();
+
+        \Illuminate\Support\Facades\DB::table('activity_logs')->insert([
+            'gallery_id' => $gallery->id,
+            'event' => 'gallery_shared',
+            'visitor_session_id' => $visitorSession,
+            'source' => $request->query('source') ?: $request->query('utm_source') ?: 'direct',
+            'referrer' => $request->header('referer'),
+            'campaign' => $request->query('utm_campaign'),
+            'properties' => json_encode([
+                'method' => $validated['method'],
+                'photo_uuid' => $validated['photo_uuid'] ?? null,
+            ]),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'created_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Share recorded.']);
+    }
+
+    /**
      * Download the entire gallery packaged as a ZIP file.
      * GET /api/v1/public/galleries/{username}/{slug}/download-zip
      */

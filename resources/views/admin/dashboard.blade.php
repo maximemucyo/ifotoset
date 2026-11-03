@@ -221,7 +221,7 @@
                             @elseif($g->visibility === 'public')
                                 <span class="badge badge-success">Public</span>
                             @elseif($g->visibility === 'password')
-                                <span class="badge badge-warning">PIN</span>
+                                <span class="badge badge-warning">Password</span>
                             @else
                                 <span class="badge badge-neutral">Private</span>
                             @endif

@@ -120,11 +120,12 @@ class GalleryController extends Controller
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
+            'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($user)],
             'invite_emails' => ['nullable', 'string'],
-            'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
+            'invite_file' => ['nullable', 'file', 'mimes:csv,tsv,txt', 'max:2048'],
         ], [
-            'password.required_if' => 'A PIN is required when setting privacy to PIN Protected.',
-            'password.min' => 'The PIN must be at least 6 characters.',
+            'password.required_if' => 'Choose a password for a password-protected gallery.',
+            'password.min' => 'The password must be at least 6 characters.',
             'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
             'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
         ]);
@@ -152,6 +153,7 @@ class GalleryController extends Controller
             'allow_gallery_downloads' => $request->boolean('allow_gallery_downloads', true),
             'download_pin' => $request->boolean('download_pin_enabled') ? $validated['download_pin'] : null,
             'photo_order' => $validated['photo_order'] ?? 'taken',
+            'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
             'version' => 1,
         ]);
 
@@ -349,18 +351,27 @@ class GalleryController extends Controller
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('update', $gallery);
 
-        $invitations = $gallery->invitations()->orderBy('created_at', 'desc')->get();
+        return view('studio.galleries.edit', ['gallery' => $gallery]);
+    }
 
-        return view('studio.galleries.edit', [
+    /**
+     * Invite people by email and see who opened the gallery. Works for every visibility.
+     */
+    public function clients(string $uuid): View
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        return view('studio.galleries.clients', [
             'gallery' => $gallery,
-            'invitations' => $invitations,
+            'invitations' => $gallery->invitations()->orderBy('created_at', 'desc')->get(),
         ]);
     }
 
     /**
      * Update gallery metadata.
      */
-    public function update(Request $request, string $uuid, RecipientEmailImportService $importService): RedirectResponse
+    public function update(Request $request, string $uuid): RedirectResponse
     {
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('update', $gallery);
@@ -383,11 +394,11 @@ class GalleryController extends Controller
             'download_pin_enabled' => ['nullable', 'boolean'],
             'download_pin' => ['exclude_unless:download_pin_enabled,1', 'required', 'digits:4'],
             'photo_order' => ['nullable', 'string', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
-            'invite_emails' => ['nullable', 'string'],
-            'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
+            // An already-past date may be kept as is; a changed date must be today or later
+            'expires_on' => ['nullable', 'date_format:Y-m-d', $this->notBeforeToday($gallery->user, $gallery)],
         ], [
-            'password.required' => 'A PIN is required when setting privacy to PIN Protected.',
-            'password.min' => 'The PIN must be at least 6 characters.',
+            'password.required' => 'Choose a password for a password-protected gallery.',
+            'password.min' => 'The password must be at least 6 characters.',
             'download_pin.required' => 'Enter a 4-digit download PIN, or turn the download PIN off.',
             'download_pin.digits' => 'The download PIN must be exactly 4 digits.',
         ]);
@@ -406,6 +417,13 @@ class GalleryController extends Controller
             'photo_order' => $validated['photo_order'] ?? $gallery->photo_order,
         ];
 
+        // Only a changed date is written, so re-saving keeps an expiry set elsewhere to the minute
+        $expiresOn = $validated['expires_on'] ?? null;
+        $currentExpiresOn = $gallery->expires_at?->copy()->setTimezone(Gallery::expiryTimezone($gallery->user))->format('Y-m-d');
+        if ($expiresOn !== $currentExpiresOn) {
+            $updateData['expires_at'] = Gallery::expiryFromDate($expiresOn, $gallery->user);
+        }
+
         if (!empty($validated['password'])) {
             $updateData['password_hash'] = Hash::make($validated['password']);
         } elseif ($validated['visibility'] !== 'password') {
@@ -414,21 +432,30 @@ class GalleryController extends Controller
 
         $gallery->update($updateData);
 
-        // Process any new invitations if visibility is private
-        if ($validated['visibility'] === 'private') {
-            $emailsFromText = $importService->parseFromText($request->input('invite_emails'));
-            $emailsFromFile = $request->hasFile('invite_file')
-                ? $importService->parseFromFile($request->file('invite_file'))
-                : [];
-            $allEmails = array_values(array_unique(array_merge($emailsFromText, $emailsFromFile)));
-
-            if (!empty($allEmails)) {
-                $this->inviteRecipients($gallery, $allEmails);
-            }
+        // Invitations close with the gallery: keep active ones in step with a new expiry date
+        if ($gallery->wasChanged('expires_at')) {
+            $gallery->invitations()->whereNull('revoked_at')->update(['expires_at' => $gallery->expires_at]);
         }
 
         return redirect()->route('studio.galleries.show', $gallery->uuid)
             ->with('success', 'Gallery settings updated successfully.');
+    }
+
+    /**
+     * Expiry dates are picked in the photographer's timezone, so "today" is theirs too.
+     * Editing a gallery may keep a date that has already passed.
+     */
+    private function notBeforeToday(?\App\Models\User $user, ?Gallery $gallery = null): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($user, $gallery) {
+            $tz = Gallery::expiryTimezone($user);
+            if ($gallery?->expires_at && $gallery->expires_at->copy()->setTimezone($tz)->format('Y-m-d') === $value) {
+                return;
+            }
+            if (is_string($value) && $value < now($tz)->format('Y-m-d')) {
+                $fail('Pick today or a later date, or choose Never.');
+            }
+        };
     }
 
     /**
@@ -445,7 +472,7 @@ class GalleryController extends Controller
     }
 
     /**
-     * Add recipient email invitations to a private gallery.
+     * Invite people to a gallery by email, from the Clients tab.
      */
     public function addInvitations(Request $request, string $uuid, RecipientEmailImportService $importService): RedirectResponse
     {
@@ -454,7 +481,7 @@ class GalleryController extends Controller
 
         $request->validate([
             'invite_emails' => ['nullable', 'string'],
-            'invite_file' => ['nullable', 'file', 'mimes:csv,txt', 'max:2048'],
+            'invite_file' => ['nullable', 'file', 'mimes:csv,tsv,txt', 'max:2048'],
         ]);
 
         $emailsFromText = $importService->parseFromText($request->input('invite_emails'));
@@ -464,12 +491,16 @@ class GalleryController extends Controller
         $allEmails = array_values(array_unique(array_merge($emailsFromText, $emailsFromFile)));
 
         if (empty($allEmails)) {
-            return back()->with('error', 'No valid email addresses were found to invite.');
+            return back()->withInput()->with('error', 'No valid email addresses found. Check the list and try again.');
         }
 
         $sentCount = $this->inviteRecipients($gallery, $allEmails);
 
-        return back()->with('success', "Sent {$sentCount} " . Str::plural('invitation', $sentCount) . ' successfully.');
+        if ($sentCount === 0) {
+            return back()->with('success', 'Everyone on that list already has an active invitation.');
+        }
+
+        return back()->with('success', "Sent {$sentCount} " . Str::plural('invitation', $sentCount) . '.');
     }
 
     /**

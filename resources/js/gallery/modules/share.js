@@ -11,6 +11,9 @@ export class GalleryShare {
         this.username = config.username;
         this.galleryUrl = config.galleryUrl || null;
         this.galleryTitle = config.galleryTitle || document.title;
+        // Same-origin path: the session cookie is host-only on the photographer subdomain
+        this.apiBase = `/api/v1/public/galleries/${encodeURIComponent(this.username)}/${encodeURIComponent(this.slug)}`;
+        this.csrfToken = config.csrfToken || document.querySelector('meta[name="csrf-token"]')?.content;
         this.modal = document.getElementById('modal-social-share');
         this.urlInput = document.getElementById('share-url-input');
         this.copyBtn = document.getElementById('btn-copy-share-link');
@@ -39,6 +42,7 @@ export class GalleryShare {
         if (this.copyBtn && this.urlInput) {
             this.copyBtn.addEventListener('click', () => {
                 this.urlInput.select();
+                this.recordShare('copy');
                 navigator.clipboard.writeText(this.urlInput.value).then(() => {
                     if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
                     this.copyBtn.innerHTML = `${icon('check')} Copied`;
@@ -51,6 +55,10 @@ export class GalleryShare {
                 });
             });
         }
+
+        [['share-whatsapp', 'whatsapp'], ['share-facebook', 'facebook'], ['share-email', 'email']].forEach(([id, method]) => {
+            document.getElementById(id)?.addEventListener('click', () => this.recordShare(method));
+        });
 
         // Action Bar Share button (Full gallery)
         const galleryShareBtn = document.getElementById('btn-share-gallery');
@@ -79,12 +87,14 @@ export class GalleryShare {
         if (navigator.share) {
             try {
                 await navigator.share(shareData);
+                this.recordShare('native');
                 return;
             } catch (err) {
                 if (err.name === 'AbortError') return; // User cancelled
             }
         }
 
+        this.activePhotoUuid = null;
         this.openModal(url, 'Share Gallery');
     }
 
@@ -101,12 +111,14 @@ export class GalleryShare {
         if (navigator.share) {
             try {
                 await navigator.share(shareData);
+                this.recordShare('native', photo.uuid);
                 return;
             } catch (err) {
                 if (err.name === 'AbortError') return;
             }
         }
 
+        this.activePhotoUuid = photo.uuid;
         this.openModal(url, `Share Photo: ${filename}`);
     }
 
@@ -136,6 +148,21 @@ export class GalleryShare {
 
         this.modal.classList.remove('hidden');
         setTimeout(() => this.urlInput?.select(), 50);
+    }
+
+    /**
+     * Count a completed share for the photographer's analytics. Fire and forget.
+     */
+    recordShare(method, photoUuid = this.activePhotoUuid) {
+        fetch(`${this.apiBase}/share`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': this.csrfToken
+            },
+            body: JSON.stringify({ method, photo_uuid: photoUuid })
+        }).catch(() => {});
     }
 
     closeModal() {

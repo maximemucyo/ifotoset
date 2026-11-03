@@ -11,7 +11,7 @@
         'all'      => ['label' => 'All',           'count' => $totalCount],
         'public'   => ['label' => 'Public',        'count' => $visibilityCounts['public'] ?? 0],
         'private'  => ['label' => 'Private',       'count' => $visibilityCounts['private'] ?? 0],
-        'password' => ['label' => 'PIN protected', 'count' => $visibilityCounts['password'] ?? 0],
+        'password' => ['label' => 'Password', 'count' => $visibilityCounts['password'] ?? 0],
     ];
     $sorts = [
         'newest'  => 'Newest first',
@@ -24,7 +24,7 @@
     $visMeta = [
         'public'   => ['label' => 'Public',        'icon' => 'globe', 'variant' => 'success'],
         'private'  => ['label' => 'Private',       'icon' => 'lock',  'variant' => 'neutral'],
-        'password' => ['label' => 'PIN protected', 'icon' => 'key',   'variant' => 'warning'],
+        'password' => ['label' => 'Password', 'icon' => 'key',   'variant' => 'warning'],
     ];
     $isFiltered = $search !== '' || $currentVisibility !== 'all';
 @endphp

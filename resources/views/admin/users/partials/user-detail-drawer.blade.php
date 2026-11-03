@@ -301,7 +301,7 @@
                                                   'badge-warning': gal.visibility === 'password',
                                                   'badge-neutral': gal.visibility === 'private'
                                               }"
-                                              x-text="gal.visibility === 'password' ? 'PIN' : gal.visibility"></span>
+                                              x-text="gal.visibility === 'password' ? 'password' : gal.visibility"></span>
                                         <template x-if="gal.is_taken_down">
                                             <span class="badge badge-danger">Taken down</span>
                                         </template>

@@ -26,6 +26,7 @@ class SetGalleryCoverAction
 
         $gallery->update([
             'cover_photo_id' => $photo->id,
+            'has_explicit_cover' => true,
         ]);
 
         return $gallery->fresh(['coverPhoto']);

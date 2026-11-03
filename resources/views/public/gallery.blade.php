@@ -102,10 +102,10 @@
                 <div class="mx-auto mb-7 flex size-14 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
                     <x-icon name="lock" class="size-5" />
                 </div>
-                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Private gallery</p>
+                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Password protected</p>
                 <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gallery->title }}</h1>
                 <p class="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-                    {{ $photographer->name }} has protected this collection. Enter the PIN you were given to continue.
+                    {{ $photographer->name }} has protected this collection. Enter the password you were given to continue.
                 </p>
 
                 <div class="mt-8 text-left" x-data="{ password: '', error: '', unlocking: false }">
@@ -127,7 +127,7 @@
                             if (data.success) {
                                 window.location.reload();
                             } else {
-                                error = data.message || 'The PIN you entered is incorrect.';
+                                error = data.message || 'That password is incorrect.';
                             }
                         })
                         .catch(() => {
@@ -135,14 +135,14 @@
                             error = 'An unexpected error occurred. Please try again.';
                         })
                     " class="space-y-3">
-                        <label for="gallery-pin" class="sr-only">Gallery PIN</label>
+                        <label for="gallery-pin" class="sr-only">Gallery password</label>
                         <input type="password"
                                id="gallery-pin"
                                x-model="password"
                                required
                                autofocus
                                autocomplete="off"
-                               placeholder="Enter PIN"
+                               placeholder="Password"
                                :class="error && 'input-error'"
                                class="input h-12 rounded-xl text-center font-mono text-lg tracking-[0.4em] placeholder:font-sans placeholder:text-sm placeholder:tracking-normal">
                         <p x-show="error" x-text="error" x-cloak class="flex items-center justify-center gap-1.5 text-center text-xs font-medium text-destructive"></p>

@@ -344,7 +344,7 @@
                     @if($galleryRows->isEmpty())
                         <div class="card-body">
                             <x-ui.empty-state icon="images" title="No public galleries yet"
-                                              description="Galleries set to Public can be featured on your portfolio. Private and PIN-protected galleries never appear." />
+                                              description="Galleries set to Public can be featured on your portfolio. Private and password-protected galleries never appear." />
                         </div>
                     @else
                         @if($errors->has('galleries') || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'galleries.')))

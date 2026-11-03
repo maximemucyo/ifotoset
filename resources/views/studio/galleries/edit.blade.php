@@ -1,22 +1,21 @@
-@extends('layouts.app', ['title' => 'Gallery settings · ifotoset'])
+@extends('layouts.app', ['title' => 'Settings · ' . $gallery->title . ' · ifotoset'])
+
+@section('breadcrumbs')
+    <a href="{{ route('studio.galleries.index') }}" class="transition-colors hover:text-foreground">Galleries</a>
+    <x-icon name="chevron-right" class="size-3.5 text-subtle" />
+    <span class="truncate font-medium text-foreground">{{ $gallery->title }}</span>
+@endsection
 
 @section('content')
-<div class="mx-auto max-w-5xl">
-    <x-ui.page-header :title="$gallery->title"
-                      eyebrow="Gallery settings"
-                      description="Update details, client access and download options."
-                      :back="route('studio.galleries.show', $gallery->uuid)" back-label="Back to gallery">
-        <x-slot:actions>
-            <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-outline btn-sm"><x-icon name="images" /> Manage photos</a>
-        </x-slot:actions>
-    </x-ui.page-header>
+<div x-data="{ coverThumb: null, totalPhotos: {{ (int) $gallery->photo_count }} }">
+    @include('studio.galleries.partials.header', ['activeTab' => 'settings'])
 
-    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data"
+    <form method="POST" action="{{ route('studio.galleries.update', $gallery->uuid) }}" enctype="multipart/form-data" class="mt-8"
           x-data="{ visibility: '{{ old('visibility', $gallery->visibility) }}', submitting: false }" @submit="submitting = true">
         @csrf
         @method('PATCH')
 
-        @include('studio.partials.gallery-form', ['gallery' => $gallery, 'invitations' => $invitations ?? collect()])
+        @include('studio.partials.gallery-form', ['gallery' => $gallery])
 
         <div class="divider my-6"></div>
 
@@ -57,13 +56,5 @@
         @csrf
         @method('DELETE')
     </form>
-
-    {{-- Standalone invitation action forms (referenced via the `form` attribute so they don't submit the settings form). --}}
-    @foreach(($invitations ?? collect()) as $invitation)
-        <form id="invitation-resend-{{ $invitation->id }}" method="POST" action="{{ route('studio.galleries.invitations.resend', [$gallery->uuid, $invitation->id]) }}" class="hidden">@csrf</form>
-        @unless($invitation->isRevoked())
-            <form id="invitation-revoke-{{ $invitation->id }}" method="POST" action="{{ route('studio.galleries.invitations.revoke', [$gallery->uuid, $invitation->id]) }}" class="hidden">@csrf</form>
-        @endunless
-    @endforeach
 </div>
 @endsection

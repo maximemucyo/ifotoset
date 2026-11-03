@@ -5,7 +5,7 @@
     $filters = [
         ['label' => 'All', 'value' => null, 'icon' => null],
         ['label' => 'Public', 'value' => 'public', 'icon' => 'globe'],
-        ['label' => 'PIN protected', 'value' => 'password', 'icon' => 'lock'],
+        ['label' => 'Password', 'value' => 'password', 'icon' => 'lock'],
         ['label' => 'Private', 'value' => 'private', 'icon' => 'eye-off'],
     ];
     $fmtBytes = fn ($b) => \App\Support\Bytes::format($b);
@@ -104,7 +104,7 @@
                                     @if($gallery->visibility === 'public')
                                         <span class="badge badge-success"><x-icon name="globe" /> Public</span>
                                     @elseif($gallery->visibility === 'password')
-                                        <span class="badge badge-warning"><x-icon name="lock" /> PIN</span>
+                                        <span class="badge badge-warning"><x-icon name="lock" /> Password</span>
                                     @else
                                         <span class="badge badge-neutral"><x-icon name="eye-off" /> Private</span>
                                     @endif

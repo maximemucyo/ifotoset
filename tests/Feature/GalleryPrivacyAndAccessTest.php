@@ -228,7 +228,7 @@ class GalleryPrivacyAndAccessTest extends TestCase
         // Attempt with wrong PIN
         $wrongUnlock = $this->postJson("{$galleryUrl}/unlock", ['password' => '0000']);
         $wrongUnlock->assertStatus(401);
-        $wrongUnlock->assertJsonPath('message', 'The PIN you entered is incorrect.');
+        $wrongUnlock->assertJsonPath('message', 'That password is incorrect.');
 
         // Attempt with correct PIN
         $correctUnlock = $this->postJson("{$galleryUrl}/unlock", ['password' => '5678']);
@@ -387,5 +387,63 @@ class GalleryPrivacyAndAccessTest extends TestCase
         $this->assertStringContainsString('text/csv', (string) $response->headers->get('Content-Type'));
         $this->assertStringContainsString('email', $response->getContent());
         $this->assertStringContainsString('client1@example.com', $response->getContent());
+    }
+
+    public function test_clients_tab_invites_people_to_a_public_gallery(): void
+    {
+        $gallery = Gallery::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'user_id' => $this->photographerA->id,
+            'title' => 'Open Day',
+            'slug' => 'open-day',
+            'visibility' => 'public',
+        ]);
+
+        $this->actingAs($this->photographerA)
+            ->get("/studio/galleries/{$gallery->uuid}/clients")
+            ->assertOk()
+            ->assertSee('Invite people')
+            ->assertSee('aria-current="page"', false);
+
+        $this->post("/studio/galleries/{$gallery->uuid}/invitations", ['invite_emails' => 'diane@example.com'])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('gallery_invitations', ['gallery_id' => $gallery->id, 'email' => 'diane@example.com']);
+        Mail::assertQueued(\App\Mail\GalleryInvitation::class);
+
+        $this->actingAs($this->photographerB)
+            ->get("/studio/galleries/{$gallery->uuid}/clients")
+            ->assertForbidden();
+    }
+
+    public function test_invitation_opens_a_password_gallery_without_the_password(): void
+    {
+        $gallery = Gallery::create([
+            'uuid' => Uuid::uuid7()->toString(),
+            'user_id' => $this->photographerA->id,
+            'title' => 'Family Portraits',
+            'slug' => 'family-portraits',
+            'visibility' => 'password',
+            'password_hash' => Hash::make('secret-pass'),
+        ]);
+        $rawToken = bin2hex(random_bytes(32));
+        $invitation = GalleryInvitation::create([
+            'gallery_id' => $gallery->id,
+            'email' => 'guest@example.com',
+            'token' => hash('sha256', $rawToken),
+            'invited_by' => $this->photographerA->id,
+        ]);
+        $url = $this->urlService->galleryUrl($this->photographerA->username, $gallery->slug);
+
+        $this->getJson($url . '/photos')->assertStatus(403)->assertJsonPath('code', 'PASSWORD_REQUIRED');
+
+        $this->get($url . '?invite=' . $rawToken)->assertRedirect($url);
+        $this->getJson($url . '/photos')->assertOk();
+        $this->assertNotNull($invitation->fresh()->accepted_at);
+
+        // Revoking puts the password gate back
+        $invitation->update(['revoked_at' => now()]);
+        $this->getJson($url . '/photos')->assertStatus(403)->assertJsonPath('code', 'PASSWORD_REQUIRED');
     }
 }

@@ -369,4 +369,20 @@ class PublicGalleryEndpointTest extends TestCase
             ->get("/p/{$this->user->username}/{$this->privateGallery->slug}/photos/{$photo->uuid}/download");
         $this->assertTrue(in_array($responseWithToken->getStatusCode(), [200, 302]));
     }
+
+    public function test_share_is_recorded_for_analytics(): void
+    {
+        $this->postJson("/api/v1/public/galleries/{$this->user->username}/{$this->publicGallery->slug}/share", ['method' => 'whatsapp'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('activity_logs', ['gallery_id' => $this->publicGallery->id, 'event' => 'gallery_shared']);
+    }
+
+    public function test_share_on_locked_gallery_is_not_recorded(): void
+    {
+        $this->postJson("/api/v1/public/galleries/{$this->user->username}/{$this->privateGallery->slug}/share", ['method' => 'copy'])
+            ->assertStatus(403);
+
+        $this->assertDatabaseMissing('activity_logs', ['gallery_id' => $this->privateGallery->id, 'event' => 'gallery_shared']);
+    }
 }

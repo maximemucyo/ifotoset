@@ -41,21 +41,6 @@
         'alert' => $gmIconHtml('triangle-alert', 'size-4'),
     ];
 
-    $visibilityLabel = match ($gallery->visibility) {
-        'public' => 'Public',
-        'password' => 'PIN protected',
-        default => 'Unlisted',
-    };
-    $visibilityVariant = match ($gallery->visibility) {
-        'public' => 'success',
-        'password' => 'warning',
-        default => 'neutral',
-    };
-    $isTakenDown = $gallery->moderation_status === 'taken_down';
-    $isExpired = $gallery->expires_at && $gallery->expires_at->isPast();
-    $coverThumbUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('sm') : null;
-    $invitationsCount = $gallery->invitations()->count();
-    $publicUrl = $gallery->public_url;
 @endphp
 
 @section('content')
@@ -117,10 +102,11 @@
      class="relative"
      x-data="studioGalleryManager()"
      @keydown.escape.window="if (!lightboxOpen && (selectMode || selectedCount > 0)) clearSelection()"
+     x-init="if (new URLSearchParams(location.search).has('upload')) $nextTick(() => $dispatch('open-modal', 'upload-photos-modal'))"
      @dragenter.window="if ($event.dataTransfer && Array.from($event.dataTransfer.types || []).includes('Files')) isDragging = true">
 
     {{-- ============ Header ============ --}}
-    @include('studio.galleries.partials.header')
+    @include('studio.galleries.partials.header', ['activeTab' => 'photos'])
 
     {{-- ============ Photos tab ============ --}}
     <section class="mt-6" aria-label="Photos and videos">

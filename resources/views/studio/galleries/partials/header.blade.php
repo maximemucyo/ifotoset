@@ -1,4 +1,33 @@
-{{-- Gallery manager header: cover, title, status, share link, primary actions and section tabs. --}}
+{{--
+    Gallery manager header: cover, title, status, share link, primary actions and section tabs.
+    Shared by the Photos, Clients and Settings tabs. Expects $gallery and $activeTab (photos|clients|settings);
+    $totalPhotosCount and $userStorage are optional. Needs an Alpine scope with `coverThumb` and `totalPhotos`.
+--}}
+@php
+    $activeTab ??= 'photos';
+    $totalPhotosCount ??= $gallery->photo_count;
+    $visibilityLabel = match ($gallery->visibility) {
+        'public' => 'Public',
+        'password' => 'Password',
+        default => 'Private',
+    };
+    $visibilityVariant = match ($gallery->visibility) {
+        'public' => 'success',
+        'password' => 'warning',
+        default => 'neutral',
+    };
+    $isTakenDown = $gallery->moderation_status === 'taken_down';
+    $isExpired = $gallery->expires_at && $gallery->expires_at->isPast();
+    $expiresLabel = $gallery->expires_at?->copy()->setTimezone(\App\Models\Gallery::expiryTimezone($gallery->user))->format('M j, Y');
+    $coverThumbUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('sm') : null;
+    $invitationsCount = $gallery->invitations()->count();
+    $publicUrl = $gallery->public_url;
+    $tabs = [
+        'photos' => ['label' => 'Photos', 'icon' => 'images', 'url' => route('studio.galleries.show', $gallery->uuid)],
+        'clients' => ['label' => 'Clients', 'icon' => 'users', 'url' => route('studio.galleries.clients', $gallery->uuid)],
+        'settings' => ['label' => 'Settings', 'icon' => 'settings', 'url' => route('studio.galleries.edit', $gallery->uuid)],
+    ];
+@endphp
 <header>
     <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div class="flex min-w-0 items-start gap-4">
@@ -21,16 +50,16 @@
                 <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
                     <x-ui.badge :variant="$visibilityVariant" dot>{{ $visibilityLabel }}</x-ui.badge>
                     @if(!empty($gallery->password_hash) && $gallery->visibility !== 'password')
-                        <x-ui.badge variant="warning"><x-icon name="lock" class="size-3" /> PIN</x-ui.badge>
+                        <x-ui.badge variant="warning"><x-icon name="lock" class="size-3" /> Password</x-ui.badge>
                     @endif
                     @if($isTakenDown)
                         <x-ui.badge variant="danger"><x-icon name="ban" class="size-3" /> Taken down</x-ui.badge>
                     @endif
                     @if($gallery->expires_at)
                         @if($isExpired)
-                            <x-ui.badge variant="danger"><x-icon name="calendar-x" class="size-3" /> Expired {{ $gallery->expires_at->format('M j, Y') }}</x-ui.badge>
+                            <x-ui.badge variant="danger"><x-icon name="calendar-x" class="size-3" /> Expired {{ $expiresLabel }}</x-ui.badge>
                         @else
-                            <x-ui.badge variant="neutral"><x-icon name="clock" class="size-3" /> Expires {{ $gallery->expires_at->format('M j, Y') }}</x-ui.badge>
+                            <x-ui.badge variant="neutral"><x-icon name="clock" class="size-3" /> Expires {{ $expiresLabel }}</x-ui.badge>
                         @endif
                     @endif
                 </div>
@@ -56,9 +85,15 @@
             <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
                 <x-icon name="eye" /> View as client
             </a>
-            <button type="button" class="btn btn-primary btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
-                <x-icon name="upload" /> Upload
-            </button>
+            @if($activeTab === 'photos')
+                <button type="button" class="btn btn-primary btn-sm" @click="$dispatch('open-modal', 'upload-photos-modal')">
+                    <x-icon name="upload" /> Upload
+                </button>
+            @else
+                <a href="{{ route('studio.galleries.show', ['uuid' => $gallery->uuid, 'upload' => 1]) }}" class="btn btn-primary btn-sm">
+                    <x-icon name="upload" /> Upload
+                </a>
+            @endif
             <div x-data="dropdown" class="relative" @click.outside="close()" @keydown.escape="close()">
                 <button type="button" class="btn btn-outline btn-icon btn-sm" @click="toggle()" :aria-expanded="open" aria-haspopup="menu" aria-label="More actions">
                     <x-icon name="ellipsis" />
@@ -68,7 +103,7 @@
                      x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                      class="menu absolute right-0 top-full mt-2 w-56" role="menu">
                     <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="menu-item" role="menuitem"><x-icon name="pencil" /> Edit details</a>
-                    <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}#invitations" class="menu-item" role="menuitem"><x-icon name="user-plus" /> Invite clients</a>
+                    <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="menu-item" role="menuitem"><x-icon name="user-plus" /> Invite clients</a>
                     <div class="menu-separator"></div>
                     <button type="button" class="menu-item" role="menuitem" @click="$clipboard(@js($publicUrl), 'Gallery link copied'); close()"><x-icon name="link" /> Copy gallery link</button>
                     <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open client view</a>
@@ -126,18 +161,15 @@
 
     {{-- Section tabs --}}
     <nav class="tabs-line mt-6 overflow-x-auto" aria-label="Gallery sections">
-        <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="tab-line is-active shrink-0" aria-current="page">
-            <x-icon name="images" class="size-4" /> Photos
-            <span class="badge badge-neutral !px-1.5 !py-0 tabular-nums" x-text="totalPhotos">{{ $totalPhotosCount }}</span>
-        </a>
-        <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}#invitations" class="tab-line shrink-0">
-            <x-icon name="users" class="size-4" /> Clients &amp; invitations
-            @if($invitationsCount > 0)
-                <span class="badge badge-neutral !px-1.5 !py-0 tabular-nums">{{ $invitationsCount }}</span>
-            @endif
-        </a>
-        <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="tab-line shrink-0">
-            <x-icon name="settings" class="size-4" /> Settings
-        </a>
+        @foreach($tabs as $key => $tab)
+            <a href="{{ $tab['url'] }}" @class(['tab-line shrink-0', 'is-active' => $activeTab === $key]) @if($activeTab === $key) aria-current="page" @endif>
+                <x-icon :name="$tab['icon']" class="size-4" /> {{ $tab['label'] }}
+                @if($key === 'photos')
+                    <span class="badge badge-neutral !px-1.5 !py-0 tabular-nums" x-text="totalPhotos">{{ $totalPhotosCount }}</span>
+                @elseif($key === 'clients' && $invitationsCount > 0)
+                    <span class="badge badge-neutral !px-1.5 !py-0 tabular-nums">{{ $invitationsCount }}</span>
+                @endif
+            </a>
+        @endforeach
     </nav>
 </header>

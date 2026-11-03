@@ -26,6 +26,7 @@ Route::prefix('public/galleries/{username}/{slug}')
     ->group(function () {
         Route::post('/download', [GalleryController::class, 'recordDownload'])->middleware('throttle:120,1')->name('download');
         Route::post('/favorite', [GalleryController::class, 'toggleFavorite'])->middleware('throttle:120,1')->name('favorite');
+        Route::post('/share', [GalleryController::class, 'recordShare'])->middleware('throttle:120,1')->name('share');
 
         Route::post('/download-zip', [GalleryController::class, 'triggerZipDownload'])->middleware('throttle:60,1')->name('zip');
         Route::get('/download-zip/{id}', [GalleryController::class, 'getZipDownloadStatus'])->middleware('throttle:600,1')->whereNumber('id')->name('zip.status');

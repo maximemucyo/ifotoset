@@ -30,8 +30,10 @@ class ToggleGalleryPhotoVisibilityAction
                 ->orderBy('id', 'asc')
                 ->first();
 
+            // The replacement is automatic, so later uploads may replace it again
             $gallery->update([
                 'cover_photo_id' => $replacementCover?->id,
+                'has_explicit_cover' => false,
             ]);
         }
 
