@@ -468,6 +468,9 @@ class GalleryController extends Controller
             'cover_photo_uuid' => ['nullable', 'string', 'max:64'],
             'cover_focal_x' => ['nullable', 'numeric', 'between:0,1'],
             'cover_focal_y' => ['nullable', 'numeric', 'between:0,1'],
+            'template' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::TEMPLATES))],
+            'grid_style' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::GRID_STYLES))],
+            'color_mode' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::COLOR_MODES))],
         ], [
             'password.required' => 'Choose a password for a password-protected gallery.',
             'password.min' => 'The password must be at least 6 characters.',
@@ -478,6 +481,11 @@ class GalleryController extends Controller
         ]);
 
         $updateData = [];
+        foreach (['template', 'grid_style', 'color_mode'] as $field) {
+            if (isset($validated[$field])) {
+                $updateData[$field] = $validated[$field];
+            }
+        }
         foreach (['title', 'event_date', 'photo_order'] as $field) {
             if ($request->has($field)) {
                 $updateData[$field] = $validated[$field] ?? ($field === 'photo_order' ? $gallery->photo_order : null);

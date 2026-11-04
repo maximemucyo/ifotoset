@@ -31,4 +31,20 @@ export function initGalleryHeader() {
     }, { passive: true });
     window.addEventListener('resize', update, { passive: true });
     update();
+
+    initToolbarTitle(hero);
+}
+
+/**
+ * Layouts that set the title on the page (Framed, Split, No cover) would show it twice, close together:
+ * the toolbar's copy fades in once the page's title has scrolled away.
+ */
+function initToolbarTitle(hero) {
+    const pageTitle = hero?.querySelector('h1');
+    const toolbarTitle = document.getElementById('gallery-action-title');
+    if (!pageTitle || !toolbarTitle || !['framed', 'split', 'none'].includes(hero.dataset.variant) || !window.IntersectionObserver) return;
+
+    new IntersectionObserver(([entry]) => {
+        toolbarTitle.style.opacity = entry.isIntersecting ? '0' : '1';
+    }).observe(pageTitle);
 }

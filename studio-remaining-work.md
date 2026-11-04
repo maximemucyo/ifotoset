@@ -56,7 +56,10 @@ Proofing has shipped, so "new favourites" and "picks sent" are real signals now.
 
 ## Templates, gallery defaults and branding (§4.3, §5)
 
-- [ ] Four client gallery templates, on the Design tab under Cover: Full bleed (today's look), Framed, Split, No cover. Each also gets a grid style and a light, dark or automatic colour mode.
+- [x] Four client gallery layouts, in a **Layout** card on the Design tab under Cover: Full bleed (today's look), Framed, Split, No cover. Each has a photo grid (Columns, Rows or Squares) and colours (Light, Dark, Same as the phone). They are stored in `galleries.template`, `grid_style` and `color_mode`, and the defaults are today's look. Picking a layout also picks its usual grid. Changes save as they're made and reload the preview, which always shows the gallery's own colours. Clients can still switch between light and dark.
+  - The three grids share one script (`resources/js/gallery/grid-layout.js`). The page inlines it to place the first photos before the bundle loads.
+  - Framed, Split and No cover set the title on the page, so the toolbar's title only fades in after it scrolls away.
+  - Not yet: the portfolio font on gallery titles.
 - [ ] Gallery defaults in Studio settings, so the photographer chooses once: who can open it, Download PIN on/off, expiry length, photo order and template.
 - [ ] Portfolio logo and brand colour on client galleries. On paid plans, the studio's own mark replaces the ifotoset footer.
 

@@ -83,7 +83,7 @@ export function bootstrapGallery() {
     initGalleryHeader();
 
     // 2. Initialize Layout (Masonry packing - zero whitespace gaps)
-    const layout = new GalleryLayout({ gap: 12 });
+    const layout = new GalleryLayout();
 
     // 3. Initialize Favorites Manager
     const favorites = new GalleryFavorites({

@@ -38,6 +38,34 @@ class Gallery extends Model
         'private' => ['label' => 'Private', 'icon' => 'lock', 'description' => 'Only people you invite by email.'],
     ];
 
+    /**
+     * Client gallery layouts, keyed by the stored `template` value. Each starts with its own photo grid.
+     */
+    public const TEMPLATES = [
+        'full' => ['name' => 'Full bleed', 'description' => 'The cover fills the screen, with the title on it.', 'grid' => 'masonry'],
+        'framed' => ['name' => 'Framed', 'description' => 'The cover sits inside a margin, with the title below.', 'grid' => 'rows'],
+        'split' => ['name' => 'Split', 'description' => 'The cover on one half, the title on the other.', 'grid' => 'masonry'],
+        'none' => ['name' => 'No cover', 'description' => 'Just the title. Photos start right away.', 'grid' => 'square'],
+    ];
+
+    /**
+     * How photos are laid out in the client gallery, keyed by the stored `grid_style` value.
+     */
+    public const GRID_STYLES = [
+        'masonry' => 'Columns',
+        'rows' => 'Rows',
+        'square' => 'Squares',
+    ];
+
+    /**
+     * Light or dark client gallery, keyed by the stored `color_mode` value, with the theme it starts in.
+     */
+    public const COLOR_MODES = [
+        'light' => ['label' => 'Light', 'theme' => 'light'],
+        'dark' => ['label' => 'Dark', 'theme' => 'dark'],
+        'auto' => ['label' => 'Same as the phone', 'theme' => 'system'],
+    ];
+
     protected $fillable = [
         'uuid',
         'user_id',
@@ -73,10 +101,16 @@ class Gallery extends Model
         'version',
         'featured_order',
         'portfolio_category',
+        'template',
+        'grid_style',
+        'color_mode',
     ];
 
     protected $attributes = [
         'photo_order' => 'taken',
+        'template' => 'full',
+        'grid_style' => 'masonry',
+        'color_mode' => 'light',
         'favorites_enabled' => true,
     ];
 
@@ -505,6 +539,20 @@ class Gallery extends Model
                 (bool) $this->favorites_limit => 'Up to ' . $this->favorites_limit,
                 default => 'On',
             },
+        ];
+    }
+
+    /**
+     * The client gallery's look, with unknown stored values read as the defaults.
+     *
+     * @return array{template: string, grid: string, mode: string}
+     */
+    public function design(): array
+    {
+        return [
+            'template' => isset(self::TEMPLATES[$this->template]) ? $this->template : 'full',
+            'grid' => isset(self::GRID_STYLES[$this->grid_style]) ? $this->grid_style : 'masonry',
+            'mode' => isset(self::COLOR_MODES[$this->color_mode]) ? $this->color_mode : 'light',
         ];
     }
 

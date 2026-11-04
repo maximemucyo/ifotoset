@@ -1,5 +1,10 @@
 @php
     $isGranted = $accessDecision->isGranted();
+    $design = $gallery->design();
+    $template = $design['template'];
+    // "No cover" leaves the cover photo out; the others fall back to a title block when there is none
+    $showsCover = ($coverUrl ?? null) && $template !== 'none';
+    $theme = \App\Models\Gallery::COLOR_MODES[$design['mode']]['theme'];
     $eventDate = $gallery->event_date ? \Carbon\Carbon::parse($gallery->event_date) : null;
     $sets ??= collect();
     $activeSet ??= null;
@@ -18,7 +23,9 @@
     'seo' => $seo ?? null,
     'hideNav' => true,
     'hideFooter' => false,
-    'defaultTheme' => 'light',
+    'defaultTheme' => $theme,
+    // The studio preview shows the gallery's own colours, whatever the photographer picked for the studio
+    'forceTheme' => ($isPreview ?? false) ? $theme : null,
 ])
 
 @push('styles')
@@ -42,6 +49,8 @@
         body * { pointer-events: none !important; }
         {{-- The studio frame can be taller than a screen; the cover stays one screen high --}}
         #gallery-hero[data-variant="image"] { height: var(--preview-cover-height, 100svh); min-height: 0; }
+        @media (min-width: 1024px) { #gallery-hero[data-variant="split"] { height: var(--preview-cover-height, 100svh); min-height: 0; } }
+        #gallery-hero[data-variant="framed"] .gallery-framed-photo { max-height: calc(var(--preview-cover-height, 100svh) * .78); }
     @endif
 
     /* Locking scroll for the lightbox must not change the page width (it would re-flow the masonry under it) */
@@ -82,7 +91,7 @@
 
 {{-- Top bar: transparent over the cover, slides away once the sticky toolbar takes over --}}
 <header id="gallery-header"
-        data-state="{{ ($isGranted && $coverUrl) ? 'overlay' : 'plain' }}"
+        data-state="{{ ($isGranted && $showsCover && $template === 'full') ? 'overlay' : 'plain' }}"
         class="fixed inset-x-0 top-0 z-40 text-foreground transition-[transform,color] duration-500 ease-out"
         style="transform: translateY(0);">
     <div class="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" style="padding-top: env(safe-area-inset-top);">
@@ -97,7 +106,7 @@
         <button type="button"
                 x-data
                 @click="$store.theme.toggle()"
-                class="gallery-header-btn inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-muted"
+                @class(['gallery-header-btn inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-muted', 'lg:bg-background/85 lg:backdrop-blur-sm' => $isGranted && $showsCover && $template === 'split'])
                 aria-label="Toggle theme" title="Toggle theme">
             <x-icon name="sun" class="hidden size-[18px] dark:block" />
             <x-icon name="moon" class="block size-[18px] dark:hidden" />
@@ -201,7 +210,7 @@
     </section>
 @else
     {{-- ===================== Cover hero ===================== --}}
-    @if($coverUrl)
+    @if($showsCover && $template === 'full')
         <section id="gallery-hero" data-variant="image" class="relative flex h-svh min-h-[560px] w-full select-none flex-col items-center justify-end overflow-hidden bg-black text-white">
             <img src="{{ $coverUrl }}"
                  @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="{{ $coverSizes }}" @endif
@@ -243,6 +252,56 @@
                 </span>
             </button>
         </section>
+    @elseif($showsCover && $template === 'framed')
+        {{-- Framed: the cover inset like a print, the title set below it --}}
+        <section id="gallery-hero" data-variant="framed" class="px-4 pb-10 pt-20 sm:px-6 sm:pb-16 sm:pt-24 lg:px-10">
+            <div class="mx-auto max-w-6xl">
+                <div class="gallery-framed-photo relative aspect-[4/5] max-h-[78svh] w-full overflow-hidden bg-muted sm:aspect-[3/2]">
+                    <img src="{{ $coverUrl }}"
+                         @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="(min-width: 1200px) 1152px, 100vw" @endif
+                         alt="{{ $gallery->title }}" fetchpriority="high" decoding="async"
+                         class="gallery-hero-img absolute inset-0 size-full object-cover"
+                         style="object-position: {{ $coverPosition ?? '50% 50%' }}">
+                </div>
+                <div class="mx-auto mt-8 max-w-3xl text-center sm:mt-12">
+                    <h1 class="font-serif text-4xl leading-[1.02] tracking-normal text-balance text-foreground sm:text-6xl">{{ $gallery->title }}</h1>
+                    <p class="mt-4 text-sm text-muted-foreground">{{ $photographer->name }}</p>
+                    @if($eventDate)
+                        <p class="mt-0.5 text-sm text-muted-foreground">{{ $eventDate->format('F j, Y') }}</p>
+                    @endif
+                </div>
+            </div>
+        </section>
+    @elseif($showsCover && $template === 'split')
+        {{-- Split: the cover on one half, the title on the other; stacked on phones --}}
+        <section id="gallery-hero" data-variant="split" class="grid pt-16 lg:h-svh lg:min-h-[560px] lg:grid-cols-2 lg:pt-0">
+            <div class="relative h-[62svh] overflow-hidden bg-muted lg:order-2 lg:h-full">
+                <img src="{{ $coverUrl }}"
+                     @if($coverSrcset) srcset="{{ $coverSrcset }}" sizes="(min-width: 1024px) 50vw, 100vw" @endif
+                     alt="{{ $gallery->title }}" fetchpriority="high" decoding="async"
+                     class="gallery-hero-img absolute inset-0 size-full object-cover"
+                     style="object-position: {{ $coverPosition ?? '50% 50%' }}">
+            </div>
+            <div class="flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-16 lg:py-24">
+                <div class="max-w-md">
+                    @if($eventDate)
+                        <p class="text-sm text-muted-foreground">{{ $eventDate->format('F j, Y') }}</p>
+                    @endif
+                    <h1 class="mt-3 font-serif text-5xl leading-[0.98] tracking-normal text-balance text-foreground sm:text-6xl lg:text-7xl">{{ $gallery->title }}</h1>
+                    <p class="mt-6 text-sm text-muted-foreground">Photos by {{ $photographer->name }}</p>
+                    <button type="button" id="btn-scroll-to-gallery" class="btn btn-outline mt-10">View photos</button>
+                </div>
+            </div>
+        </section>
+    @elseif($template === 'none')
+        {{-- No cover: a short title, aligned with the photos that follow --}}
+        <section id="gallery-hero" data-variant="none" class="px-4 pb-6 pt-24 sm:pb-8 sm:pt-28 lg:px-10">
+            <h1 class="font-serif text-4xl leading-[1.02] tracking-normal text-balance text-foreground sm:text-6xl">{{ $gallery->title }}</h1>
+            <p class="mt-3 text-sm text-muted-foreground">{{ $photographer->name }}</p>
+            @if($eventDate)
+                <p class="mt-0.5 text-sm text-muted-foreground">{{ $eventDate->format('F j, Y') }}</p>
+            @endif
+        </section>
     @else
         <section id="gallery-hero" data-variant="plain" class="relative overflow-hidden px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
             <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
@@ -264,7 +323,7 @@
     <div id="gallery-action-bar" class="sticky top-0 z-30 select-none border-b border-border/70 bg-background/85 backdrop-blur-xl backdrop-saturate-150">
         <div class="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
             <div class="min-w-0">
-                <h2 class="truncate font-serif text-xl leading-tight tracking-normal text-foreground sm:text-2xl">{{ $gallery->title }}</h2>
+                <h2 id="gallery-action-title" class="truncate font-serif text-xl leading-tight tracking-normal text-foreground transition-opacity duration-300 sm:text-2xl">{{ $gallery->title }}</h2>
                 <p class="truncate text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                     <span class="tabular-nums">{{ number_format($photoTotal) }}</span> {{ Str::plural('photo', $photoTotal) }}
                     @if($eventDate)<span class="hidden sm:inline"> · {{ $eventDate->format('M j, Y') }}</span>@endif
@@ -359,41 +418,16 @@
          @if($deepLinkedPhoto) data-deep-linked-photo="{{ json_encode($deepLinkedPhoto) }}" @endif>
 
         @php($photoAltFallback = $gallery->title . ' – photo by ' . $photographer->name)
-        <div id="gallery-grid" class="relative w-full" data-alt-fallback="{{ $photoAltFallback }}">
+        <div id="gallery-grid" class="relative w-full" data-layout="{{ $design['grid'] }}" data-alt-fallback="{{ $photoAltFallback }}">
             @foreach($photos as $photo)
-                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :with-originals="$allowPhotoDownloads && ! $downloadPinRequired" :eager="! $coverUrl && $loop->index < 6" :alt-fallback="$photoAltFallback" />
+                <x-gallery.photo-card :photo="$photo" :allow-downloads="$allowPhotoDownloads" :with-originals="$allowPhotoDownloads && ! $downloadPinRequired" :eager="! $showsCover && $loop->index < 6" :alt-fallback="$photoAltFallback" />
             @endforeach
         </div>
 
-        {{-- Instant pre-paint masonry (mirrors GalleryLayout.getColumnsAndGap) to avoid layout shift before the bundle loads --}}
+        {{-- Place the first photos before the bundle loads, so nothing jumps (the bundle runs the same file) --}}
         <script>
-            (function () {
-                var grid = document.getElementById('gallery-grid');
-                if (!grid) return;
-                var w = grid.clientWidth;
-                if (!w) return;
-                var cols = w < 640 ? 2 : (w < 1024 ? 3 : (w >= 1700 ? 5 : 4));
-                var gap = w < 640 ? 4 : (w < 1024 ? 8 : 12);
-                var colWidth = (w - (cols - 1) * gap) / cols;
-                var colHeights = new Array(cols).fill(0);
-                grid.querySelectorAll('.photo-card').forEach(function (card) {
-                    var minCol = 0;
-                    for (var i = 1; i < cols; i++) { if (colHeights[i] < colHeights[minCol]) minCol = i; }
-                    var pw = parseInt(card.dataset.photoWidth || '1920', 10);
-                    var ph = parseInt(card.dataset.photoHeight || '1080', 10);
-                    var h = colWidth / ((pw && ph) ? (pw / ph) : 1.5);
-                    var y = colHeights[minCol];
-                    card.style.position = 'absolute';
-                    card.style.left = Math.round(minCol * (colWidth + gap)) + 'px';
-                    card.style.top = Math.round(y) + 'px';
-                    card.style.width = Math.round(colWidth) + 'px';
-                    card.style.height = Math.round(h) + 'px';
-                    card.style.margin = '0';
-                    colHeights[minCol] = y + h + gap;
-                });
-                var maxH = colHeights.length ? Math.max.apply(null, colHeights) : 0;
-                grid.style.height = Math.max(0, maxH - gap) + 'px';
-            })();
+            {!! file_get_contents(resource_path('js/gallery/grid-layout.js')) !!}
+            (function () { var grid = document.getElementById('gallery-grid'); if (grid) window.ifotosetGridLayout(grid); })();
         </script>
 
         {{-- Favourites filter: nothing selected --}}

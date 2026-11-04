@@ -42,6 +42,8 @@
                     <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="mt-3 block font-medium text-foreground underline underline-offset-2">Add photos</a>
                 </div>
             @endif
+
+            @include('studio.galleries.partials.layout-picker', ['gallery' => $gallery, 'previewUrl' => $previewUrl])
         </div>
 
         <aside class="sticky top-0 hidden h-[calc(100dvh-7rem)] xl:block" aria-label="Preview of the client gallery">
