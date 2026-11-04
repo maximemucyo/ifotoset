@@ -207,7 +207,7 @@ export class GalleryPagination {
                  decoding="async"
                  width="${w}"
                  height="${h}"
-                 class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.025]">
+                 class="pointer-events-none relative size-full object-cover opacity-0 transition-opacity duration-300 ease-out">
             ${isVideo ? `
             <div class="video-duration-badge pointer-events-none absolute bottom-2.5 left-2.5 z-[3] inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
                 ${icon('play', 'size-3 shrink-0 fill-current')}
@@ -217,7 +217,7 @@ export class GalleryPagination {
                  data-badge-uuid="${uuid}">
                 ${icon('heart', 'size-[18px] shrink-0 fill-current')}
             </div>
-            <div class="pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+            <div class="photo-card-actions pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
                 <div class="pointer-events-auto flex items-center gap-0.5">
                     <button type="button" class="btn-favorite ${btnClass}" data-uuid="${uuid}" aria-label="Favorite photo ${filename}" title="Favorite">
                         ${icon('heart', 'size-[18px] shrink-0')}

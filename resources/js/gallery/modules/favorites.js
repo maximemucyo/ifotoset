@@ -166,7 +166,7 @@ export class GalleryFavorites {
         // 3. Update header counter if present
         const counterEl = document.getElementById('favorites-counter');
         if (counterEl) {
-            counterEl.textContent = this.favorites.length;
+            counterEl.textContent = this.favorites.length || '';
         }
 
         this.updateBar();

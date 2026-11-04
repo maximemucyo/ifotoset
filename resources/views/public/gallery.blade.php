@@ -36,13 +36,11 @@
 <link rel="preconnect" href="https://{{ config('filesystems.disks.b2.cdn_domain') }}">
 <style>
     @keyframes gallery-hero-in { from { transform: scale(1.08); opacity: .4; } to { transform: scale(1); opacity: 1; } }
-    @keyframes gallery-cue { 0% { transform: translateY(-100%); } 60%, 100% { transform: translateY(220%); } }
     .gallery-hero-img { animation: gallery-hero-in 2.4s cubic-bezier(.16,1,.3,1) both; }
-    .gallery-cue-line { animation: gallery-cue 2.2s cubic-bezier(.65,0,.35,1) infinite; }
     #gallery-header[data-state="overlay"] { color: #fff; }
     #gallery-header[data-state="overlay"] .gallery-header-sub { color: rgb(255 255 255 / .75); }
     #gallery-header[data-state="overlay"] .gallery-header-btn:hover { background: rgb(255 255 255 / .14); color: #fff; }
-    @media (prefers-reduced-motion: reduce) { .gallery-hero-img, .gallery-cue-line { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .gallery-hero-img { animation: none; } }
     @unless($gallery->favorites_enabled)
         .btn-favorite, .favorite-badge, #lightbox-btn-favorite { display: none !important; }
     @endunless
@@ -76,6 +74,14 @@
         will-change: transform;
     }
     .lightbox-chrome { transition: opacity .25s ease; }
+
+    /* Touch screens have no hover: the heart stays on each photo so picks can be made from the grid.
+       Share and download stay in the photo viewer, where there is room for them. */
+    @media (hover: none) {
+        .photo-card-actions { opacity: 1; background: none; }
+        .photo-card-actions :is(.btn-share-photo, .btn-download-photo), .photo-card .favorite-badge { display: none; }
+        .photo-card-actions .btn-favorite { filter: drop-shadow(0 1px 3px rgb(0 0 0 / .55)); }
+    }
     /* Chrome bars let taps on their empty areas through to the stage; only their buttons are interactive */
     #lightbox-modal[data-chrome="hidden"] .lightbox-chrome { opacity: 0; }
     #lightbox-modal[data-chrome="hidden"] .lightbox-chrome,
@@ -133,7 +139,7 @@
                 <div class="mx-auto mb-7 flex size-14 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
                     <x-icon name="lock" class="size-5" />
                 </div>
-                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Password protected</p>
+                <p class="text-sm text-muted-foreground">Password protected</p>
                 <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gallery->title }}</h1>
                 <p class="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
                     {{ $photographer->name }} has protected this collection. Enter the password you were given to continue.
@@ -207,7 +213,7 @@
                 <div class="mx-auto mb-7 flex size-14 items-center justify-center rounded-full border border-border bg-card shadow-sm {{ $gateTone }}">
                     <x-icon :name="$gateIcon" class="size-5" />
                 </div>
-                <p class="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">{{ $gateEyebrow }}</p>
+                <p class="text-sm text-muted-foreground">{{ $gateEyebrow }}</p>
                 <h1 class="mt-3 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gateTitle }}</h1>
                 <p class="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{{ $gateText }}</p>
                 <a href="{{ $photographer->public_url }}" class="btn btn-outline mt-8">
@@ -230,35 +236,26 @@
             <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/5 to-black/65"></div>
 
             <div class="relative z-10 mx-auto w-full max-w-5xl px-6 pb-[18vh] text-center sm:pb-[16vh]">
-                <p class="animate-fade-up text-[11px] font-medium uppercase tracking-[0.32em] text-white/80" style="animation-delay: .25s">
+                <p class="animate-fade-up text-sm font-medium text-white/85" style="animation-delay: .25s">
                     {{ $photographer->name }}
                 </p>
                 <h1 class="mt-5 animate-fade-up font-serif text-5xl leading-[0.98] tracking-normal text-balance drop-shadow-[0_2px_24px_rgb(0_0_0/0.25)] sm:text-7xl lg:text-8xl" style="animation-delay: .4s">
                     {{ $gallery->title }}
                 </h1>
                 @if($eventDate)
-                    <p class="mt-5 animate-fade-up text-xs uppercase tracking-[0.28em] text-white/80" style="animation-delay: .55s">
+                    <p class="mt-5 animate-fade-up text-sm text-white/80" style="animation-delay: .55s">
                         {{ $eventDate->format('F j, Y') }}
                     </p>
                 @endif
                 <div class="mt-9 animate-fade-up" style="animation-delay: .7s">
                     <button type="button"
                             id="btn-scroll-to-gallery"
-                            class="inline-flex h-11 items-center gap-2 rounded-full border border-white/50 px-7 text-[13px] font-medium uppercase tracking-[0.18em] text-white backdrop-blur-[2px] transition-all duration-300 hover:border-white hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-white">
+                            class="inline-flex h-11 items-center gap-2 rounded-full border border-white/50 px-7 text-sm font-medium text-white backdrop-blur-[2px] transition-all duration-300 hover:border-white hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-white">
                         View gallery
                     </button>
                 </div>
             </div>
 
-            <button type="button"
-                    onclick="document.getElementById('gallery-action-bar')?.scrollIntoView({ behavior: 'smooth' })"
-                    class="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2 text-white/70 transition-colors hover:text-white"
-                    aria-label="Scroll to photos">
-                <span class="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
-                <span class="relative block h-10 w-px overflow-hidden bg-white/25">
-                    <span class="gallery-cue-line absolute inset-x-0 top-0 block h-1/2 bg-white"></span>
-                </span>
-            </button>
         </section>
     @elseif($showsCover && $template === 'framed')
         {{-- Framed: the cover inset like a print, the title set below it --}}
@@ -314,12 +311,12 @@
         <section id="gallery-hero" data-variant="plain" class="relative overflow-hidden px-6 pb-16 pt-36 text-center sm:pb-24 sm:pt-44">
             <div class="pointer-events-none absolute inset-0 bg-dots opacity-40 mask-radial"></div>
             <div class="relative mx-auto max-w-4xl">
-                <p class="animate-fade-up text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground">{{ $photographer->name }}</p>
+                <p class="animate-fade-up text-sm font-medium text-muted-foreground">{{ $photographer->name }}</p>
                 <h1 class="mt-5 animate-fade-up font-serif text-5xl leading-[0.98] tracking-normal text-balance text-foreground sm:text-7xl lg:text-8xl" style="animation-delay: .1s">
                     {{ $gallery->title }}
                 </h1>
                 @if($eventDate)
-                    <p class="mt-5 animate-fade-up text-xs uppercase tracking-[0.28em] text-muted-foreground" style="animation-delay: .2s">
+                    <p class="mt-5 animate-fade-up text-sm text-muted-foreground" style="animation-delay: .2s">
                         {{ $eventDate->format('F j, Y') }}
                     </p>
                 @endif
@@ -332,7 +329,7 @@
         <div class="flex h-16 w-full items-center justify-between gap-3 px-4">
             <div class="min-w-0">
                 <h2 id="gallery-action-title" class="truncate font-serif text-xl leading-tight tracking-normal text-foreground transition-opacity duration-300 sm:text-2xl">{{ $gallery->title }}</h2>
-                <p class="truncate text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                <p class="truncate text-xs text-muted-foreground">
                     <span class="tabular-nums">{{ number_format($photoTotal) }}</span> {{ Str::plural('photo', $photoTotal) }}
                     @if($eventDate)<span class="hidden sm:inline"> · {{ $eventDate->format('M j, Y') }}</span>@endif
                 </p>
@@ -348,7 +345,7 @@
                         class="{{ $iconBtn }} aria-pressed:bg-brand/10 aria-pressed:text-brand">
                     <x-icon name="heart" class="size-[18px]" />
                     <span class="hidden lg:inline">Favorites</span>
-                    <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums">0</span>
+                    <span id="favorites-counter" class="min-w-4 text-[11px] font-semibold tabular-nums empty:hidden"></span>
                 </button>
                 @endif
 
@@ -476,14 +473,14 @@
 
         {{-- Infinite scroll sentinel --}}
         <div id="gallery-sentinel" class="flex items-center justify-center py-14">
-            <div id="gallery-spinner" class="flex hidden items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            <div id="gallery-spinner" class="flex hidden items-center gap-2.5 text-sm text-muted-foreground">
                 <x-icon name="loader-circle" class="size-4 animate-spin" />
-                <span>Loading</span>
+                <span>Loading more photos</span>
             </div>
             <button type="button"
                     id="gallery-end"
                     onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
-                    class="group flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
+                    class="group flex flex-col items-center gap-3 text-sm text-muted-foreground transition-colors hover:text-foreground {{ ($hasMore || count($photos) === 0) ? 'hidden' : '' }}"
                     aria-label="Back to top">
                 <span class="flex size-10 items-center justify-center rounded-full border border-border transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:border-border-strong">
                     <x-icon name="arrow-up" class="size-4" />
@@ -555,11 +552,11 @@
                     <button type="button" id="lightbox-btn-zoom-reset" class="btn btn-ghost btn-xs hidden" aria-label="Reset zoom">Reset</button>
                 </div>
 
-                <button type="button" id="lightbox-btn-slideshow" class="{{ $lbBtn }}" aria-label="Play Slideshow" title="Slideshow (space)">
+                <button type="button" id="lightbox-btn-slideshow" class="{{ $lbBtn }}" aria-label="Play slideshow" title="Slideshow (space)">
                     <x-icon name="play" class="icon-play size-[18px]" />
                     <x-icon name="pause" class="icon-pause hidden size-[18px]" />
                 </button>
-                <button type="button" id="lightbox-btn-favorite" class="{{ $lbBtn }} data-[favorited]:text-brand" aria-label="Favorite image" title="Favorite (F)">
+                <button type="button" id="lightbox-btn-favorite" class="{{ $lbBtn }} data-[favorited]:text-brand" aria-label="Favorite photo" title="Favorite (F)">
                     <x-icon name="heart" class="size-[18px]" />
                 </button>
                 <button type="button" id="lightbox-btn-share" class="{{ $lbBtn }}" aria-label="Share photo" title="Share">
@@ -570,7 +567,7 @@
                         <x-icon name="download" class="size-[18px]" />
                     </button>
                 @endif
-                <button type="button" class="btn-close-lightbox {{ $lbBtn }}" aria-label="Close Lightbox" title="Close (Esc)">
+                <button type="button" class="btn-close-lightbox {{ $lbBtn }}" aria-label="Close photo" title="Close (Esc)">
                     <x-icon name="x" class="size-5" />
                 </button>
             </div>
@@ -632,7 +629,7 @@
     <div id="modal-social-share" class="{{ $backdrop }}" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
         <div class="{{ $panel }}">
             <div class="flex items-center justify-between gap-4">
-                <h3 id="share-modal-title" class="truncate text-base font-semibold text-foreground">Share Gallery</h3>
+                <h3 id="share-modal-title" class="truncate text-base font-semibold text-foreground">Share gallery</h3>
                 <button type="button" id="btn-close-share-modal" class="btn btn-ghost btn-icon btn-sm -mr-2" aria-label="Close dialog">
                     <x-icon name="x" />
                 </button>

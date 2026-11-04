@@ -95,7 +95,7 @@ export class GalleryShare {
         }
 
         this.activePhotoUuid = null;
-        this.openModal(url, 'Share Gallery');
+        this.openModal(url, 'Share gallery');
     }
 
     async sharePhoto(photo) {
@@ -119,10 +119,10 @@ export class GalleryShare {
         }
 
         this.activePhotoUuid = photo.uuid;
-        this.openModal(url, `Share Photo: ${filename}`);
+        this.openModal(url, `Share ${filename}`);
     }
 
-    openModal(url, title = 'Share Gallery') {
+    openModal(url, title = 'Share gallery') {
         if (!this.modal) return;
 
         if (this.modalTitle) {

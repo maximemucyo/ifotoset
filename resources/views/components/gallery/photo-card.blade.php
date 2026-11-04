@@ -57,7 +57,7 @@
          decoding="async"
          width="{{ $w }}"
          height="{{ $h }}"
-         class="pointer-events-none relative size-full object-cover opacity-0 transition-[opacity,transform] duration-300 ease-out group-hover:scale-[1.025]"
+         class="pointer-events-none relative size-full object-cover opacity-0 transition-opacity duration-300 ease-out"
          onload="this.classList.remove('opacity-0'); if (this.previousElementSibling) this.previousElementSibling.classList.add('opacity-0');">
 
     @if($isVideo)
@@ -74,7 +74,7 @@
     </div>
 
     {{-- Hover actions --}}
-    <div class="pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
+    <div class="photo-card-actions pointer-events-none absolute inset-0 z-[2] flex items-end justify-end bg-gradient-to-t from-black/50 via-black/0 to-black/0 p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100">
         <div class="pointer-events-auto flex items-center gap-0.5">
             <button type="button"
                     class="btn-favorite grid size-9 place-items-center rounded-full text-white/90 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white"

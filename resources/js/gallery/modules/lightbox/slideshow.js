@@ -78,7 +78,7 @@ export class LightboxSlideshow {
 
         this.toggleBtn.classList.toggle('text-foreground', this.isPlaying);
         this.toggleBtn.classList.toggle('bg-muted', this.isPlaying);
-        this.toggleBtn.setAttribute('aria-label', this.isPlaying ? 'Pause Slideshow' : 'Play Slideshow');
+        this.toggleBtn.setAttribute('aria-label', this.isPlaying ? 'Pause slideshow' : 'Play slideshow');
         if (playIcon) playIcon.classList.toggle('hidden', this.isPlaying);
         if (pauseIcon) pauseIcon.classList.toggle('hidden', !this.isPlaying);
     }
