@@ -98,7 +98,7 @@
         data-state="{{ $headerOverCover ? 'overlay' : 'plain' }}"
         class="fixed inset-x-0 top-0 z-40 text-foreground transition-[transform,color] duration-500 ease-out"
         style="transform: translateY(0);">
-    <div class="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" style="padding-top: env(safe-area-inset-top);">
+    <div class="flex h-16 w-full items-center justify-between gap-4 px-4" style="padding-top: env(safe-area-inset-top);">
         <a href="{{ $photographer->public_url }}" class="group flex min-w-0 items-center gap-2.5">
             @if($headerLogo)
                 <x-gallery.logo :photographer="$photographer" class="h-7 max-w-[160px] sm:h-8 sm:max-w-[200px]" />
@@ -303,7 +303,7 @@
         </section>
     @elseif($template === 'none')
         {{-- No cover: a short title, aligned with the photos that follow --}}
-        <section id="gallery-hero" data-variant="none" class="px-4 pb-6 pt-24 sm:pb-8 sm:pt-28 lg:px-10">
+        <section id="gallery-hero" data-variant="none" class="px-4 pb-6 pt-24 sm:pb-8 sm:pt-28">
             <h1 class="font-serif text-4xl leading-[1.02] tracking-normal text-balance text-foreground sm:text-6xl">{{ $gallery->title }}</h1>
             <p class="mt-3 text-sm text-muted-foreground">{{ $photographer->name }}</p>
             @if($eventDate)
@@ -329,7 +329,7 @@
 
     {{-- ===================== Sticky toolbar ===================== --}}
     <div id="gallery-action-bar" class="sticky top-0 z-30 select-none border-b border-border/70 bg-background/85 backdrop-blur-xl backdrop-saturate-150">
-        <div class="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
+        <div class="flex h-16 w-full items-center justify-between gap-3 px-4">
             <div class="min-w-0">
                 <h2 id="gallery-action-title" class="truncate font-serif text-xl leading-tight tracking-normal text-foreground transition-opacity duration-300 sm:text-2xl">{{ $gallery->title }}</h2>
                 <p class="truncate text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
@@ -386,7 +386,7 @@
         </div>
 
         @if($isGranted && $sets->isNotEmpty())
-            <nav aria-label="Sets" class="-mt-1 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:px-6 lg:px-10">
+            <nav aria-label="Sets" class="-mt-1 overflow-x-auto px-4 pb-3 [scrollbar-width:none]">
                 <ul class="flex w-max gap-1.5">
                     @foreach([null, ...$sets] as $set)
                         @php($current = $set ? $activeSet?->id === $set->id : ! $activeSet)
@@ -405,7 +405,7 @@
     </div>
 
     {{-- ===================== Photo grid ===================== --}}
-    <div class="w-full px-1 py-1 sm:px-4 sm:py-4 lg:px-10 lg:py-8"
+    <div class="w-full p-0.5 sm:p-2 lg:p-4"
          id="gallery-container"
          data-slug="{{ $gallery->slug }}"
          data-username="{{ $photographer->username }}"

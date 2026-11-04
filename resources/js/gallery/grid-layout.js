@@ -13,7 +13,7 @@ window.ifotosetGridLayout = function (grid) {
     var cards = Array.prototype.filter.call(grid.querySelectorAll('.photo-card'), function (card) {
         return !card.classList.contains('hidden');
     });
-    var gap = width < 640 ? 4 : (width < 1024 ? 8 : 12);
+    var gap = width < 640 ? 2 : (width < 1024 ? 6 : 8);
     var height = 0;
 
     function aspect(card) {
@@ -67,7 +67,14 @@ window.ifotosetGridLayout = function (grid) {
         if (row.length) flush(Math.min(target, (width - (row.length - 1) * gap) / rowAspect));
         height = Math.max(0, y - gap);
     } else {
+        // Mostly portrait photos get one more column from laptop width up, or each one is taller than the screen.
+        // Decided once from the first photos, so loading more never shuffles the columns.
+        if (!grid.dataset.portrait) {
+            var portraits = cards.filter(function (card) { return aspect(card) < 0.95; }).length;
+            grid.dataset.portrait = cards.length && portraits / cards.length >= 0.6 ? 'yes' : 'no';
+        }
         var cols = width < 640 ? 2 : (width < 1024 ? 3 : (width >= 1700 ? 5 : 4));
+        if (width >= 1024 && grid.dataset.portrait === 'yes') cols++;
         var colWidth = (width - (cols - 1) * gap) / cols;
         var colHeights = [];
         for (var c = 0; c < cols; c++) colHeights.push(0);
