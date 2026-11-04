@@ -74,6 +74,10 @@
         will-change: transform;
     }
     .lightbox-chrome { transition: opacity .25s ease; }
+    /* Phones zoom the viewer with the browser's own pinch. Swipes are ours until it is zoomed in,
+       then one finger pans the zoomed page instead (data-zoomed, set from the visual viewport). */
+    #lightbox-modal { touch-action: pinch-zoom; }
+    #lightbox-modal[data-zoomed] { touch-action: pan-x pan-y pinch-zoom; }
 
     /* Touch screens have no hover: the heart stays on each photo so picks can be made from the grid.
        Share and download stay in the photo viewer, where there is room for them. */
@@ -493,7 +497,7 @@
     {{-- ===================== Lightbox ===================== --}}
     {{-- Full-screen stage: chrome floats above the slides so a photo can fly in from (and back to) its grid card. --}}
     <div id="lightbox-modal"
-         class="fixed inset-0 z-50 hidden touch-none select-none overscroll-none focus:outline-none"
+         class="fixed inset-0 z-50 hidden select-none overscroll-none focus:outline-none"
          data-chrome="visible"
          role="dialog"
          aria-modal="true"
@@ -541,7 +545,7 @@
             <span id="lightbox-counter-top" class="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 text-xs tabular-nums tracking-[0.16em] text-muted-foreground sm:block" aria-hidden="true"></span>
 
             <div class="flex items-center gap-0.5">
-                <div id="lightbox-zoom-controls" class="mr-1 hidden items-center gap-0.5 border-r border-border pr-2 md:flex">
+                <div id="lightbox-zoom-controls" class="mr-1 hidden items-center gap-0.5 border-r border-border pr-2 md:flex pointer-coarse:!hidden">
                     <button type="button" id="lightbox-btn-zoom-out" class="{{ $lbBtn }} size-9" aria-label="Zoom out" title="Zoom out">
                         <x-icon name="minus" class="size-4" />
                     </button>

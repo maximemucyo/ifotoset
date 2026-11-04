@@ -140,6 +140,7 @@ export class GalleryLightbox {
         if (this.zoomInBtn) this.zoomInBtn.addEventListener('click', () => this.zoom?.zoomIn());
         if (this.zoomOutBtn) this.zoomOutBtn.addEventListener('click', () => this.zoom?.zoomOut());
         if (this.zoomResetBtn) this.zoomResetBtn.addEventListener('click', () => this.zoom?.reset());
+        window.visualViewport?.addEventListener('resize', () => this.handlePinchZoom());
 
         // Actions: Favorite, Share, Download
         if (this.favoriteBtn) {
@@ -410,22 +411,21 @@ export class GalleryLightbox {
         this.setChrome(!this.chromeVisible);
     }
 
-    /** Single tap toggles the controls; a quick second tap zooms (videos keep native controls). */
-    handleTap(x, y) {
-        const now = performance.now();
-        const last = this.lastTap;
-        if (last && now - last.t < 300 && Math.hypot(x - last.x, y - last.y) < 40) {
-            clearTimeout(this.tapTimer);
-            this.lastTap = null;
-            if (!this.getCurrentPhoto()?.is_video) this.zoom?.toggleAt(x, y);
-            return;
-        }
-        this.lastTap = { t: now, x, y };
-        clearTimeout(this.tapTimer);
-        this.tapTimer = setTimeout(() => {
-            this.lastTap = null;
-            this.toggleChrome();
-        }, 300);
+    /** A tap toggles the controls (phones zoom with the browser's own pinch, so there is no double-tap). */
+    handleTap() {
+        this.toggleChrome();
+    }
+
+    /** Zoomed by the desktop zoom, or by the browser's pinch on a phone. */
+    isZoomed() {
+        return (this.zoom?.scale ?? 1) > 1 || (window.visualViewport?.scale ?? 1) > 1.01;
+    }
+
+    /** Browser pinch-zoom on a phone: let one finger pan while zoomed, and load the full-size photo. */
+    handlePinchZoom() {
+        const zoomed = (window.visualViewport?.scale ?? 1) > 1.01;
+        this.container.toggleAttribute('data-zoomed', zoomed);
+        if (zoomed && this.isOpen && !this.getCurrentPhoto()?.is_video) this.upgradeCurrentToFull();
     }
 
     /** Desktop: clicking the empty stage around the photo closes the viewer. */

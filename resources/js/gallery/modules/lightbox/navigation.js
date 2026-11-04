@@ -3,8 +3,8 @@
  * Pure interaction & physics layer:
  * - 1:1 horizontal drag between photos, snapping on distance or release velocity.
  * - Vertical drag to dismiss (photo follows the finger, backdrop fades).
- * - Tap toggles the controls, double-tap zooms (delegated to the lightbox).
- * - Gestures only start when zoom scale === 1; when zoomed, touches belong to panning.
+ * - Tap toggles the controls; pinching is the browser's own zoom.
+ * - Gestures only start when nothing is zoomed; when zoomed, touches belong to panning.
  * - Protects against rapid-swipe race conditions by respecting lightbox lifecycle state.
  * - Preloads photos beyond the immediate neighbours (which are already rendered in their slots).
  */
@@ -66,7 +66,7 @@ export class LightboxNavigation {
             y0: t.clientY,
             t0: now,
             mode: null,
-            canDrag: this.lightbox.state === 'IDLE' && !(this.lightbox.zoom && this.lightbox.zoom.scale > 1),
+            canDrag: this.lightbox.state === 'IDLE' && !this.lightbox.isZoomed(),
             samples: [{ x: t.clientX, y: t.clientY, t: now }],
         };
     }
@@ -120,7 +120,7 @@ export class LightboxNavigation {
         const dy = t.clientY - g.y0;
 
         if (!g.mode) {
-            if (performance.now() - g.t0 < 350) this.lightbox.handleTap(t.clientX, t.clientY);
+            if (performance.now() - g.t0 < 350) this.lightbox.handleTap();
             return;
         }
 

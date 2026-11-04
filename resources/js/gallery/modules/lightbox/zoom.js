@@ -1,8 +1,8 @@
 /**
  * Lightbox Zoom & Pan Controller
- * Handles mouse wheel and trackpad pinch zoom, mobile pinch-to-zoom, double-click zoom,
- * and mouse/touch panning with boundary clamping. Zooming keeps the point under the cursor
- * or fingers still, like pinching a page.
+ * Desktop zoom: mouse wheel, trackpad pinch, double-click and the zoom buttons, with mouse panning
+ * and boundary clamping. Zooming keeps the point under the cursor still. Phones and tablets use the
+ * browser's own pinch-zoom instead (see #lightbox-modal's touch-action and the lightbox's visual viewport).
  * Strictly separates pan gestures (when scale > 1) from carousel swiping (scale === 1).
  */
 export class LightboxZoom {
@@ -17,7 +17,7 @@ export class LightboxZoom {
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
 
-        // Touch pinch, or Safari's trackpad pinch: where it started, see startPinch()
+        // Safari's trackpad pinch: where it started, see startPinch()
         this.pinch = null;
         this.lastTouchAt = 0;
 
@@ -47,15 +47,16 @@ export class LightboxZoom {
         window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         window.addEventListener('mouseup', () => this.handleMouseUp());
 
-        // Touch pinch & pan (mobile)
-        this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
-        this.container.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-        this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+        // Only to tell a double-tap's emulated dblclick from a real double-click
+        this.container.addEventListener('touchend', () => { this.lastTouchAt = performance.now(); }, { passive: true });
 
-        // Safari sends trackpad pinches as gesture events (Chrome and Firefox send ctrl + wheel)
-        this.container.addEventListener('gesturestart', (e) => this.handleGestureStart(e));
-        this.container.addEventListener('gesturechange', (e) => this.handleGestureChange(e));
-        this.container.addEventListener('gestureend', (e) => this.handleGestureEnd(e));
+        // Safari sends trackpad pinches as gesture events (Chrome and Firefox send ctrl + wheel). iOS sends
+        // them for touch pinches too, which must stay the browser's, so they are left alone on touch screens.
+        if (!window.matchMedia('(pointer: coarse)').matches) {
+            this.container.addEventListener('gesturestart', (e) => this.handleGestureStart(e));
+            this.container.addEventListener('gesturechange', (e) => this.handleGestureChange(e));
+            this.container.addEventListener('gestureend', (e) => this.handleGestureEnd(e));
+        }
     }
 
     clampPosition(currentScale, x, y) {
@@ -200,11 +201,10 @@ export class LightboxZoom {
     }
 
     /** Remember the scale, position and image point under (clientX, clientY) as a pinch starts. */
-    startPinch(clientX, clientY, distance = 1) {
+    startPinch(clientX, clientY) {
         const centre = this.restCentre();
         this.pinch = {
             centre,
-            distance,
             scale: this.scale,
             // The image point under the fingers, in unscaled pixels from the centre
             point: {
@@ -214,10 +214,10 @@ export class LightboxZoom {
         };
     }
 
-    /** Follow the pinch: the starting point stays under the fingers as they spread and move. */
+    /** Follow the pinch: the starting point stays under the cursor as the fingers spread. */
     movePinch(clientX, clientY, ratio) {
         const p = this.pinch;
-        // A little below fit while pinching in, which springs back when the fingers lift
+        // A little below fit while pinching in, which springs back when the pinch ends
         this.scale = Math.max(0.85, Math.min(5, p.scale * ratio));
         if (this.scale > 1.1 && this.onUpgradeResolution) {
             this.onUpgradeResolution();
@@ -237,66 +237,19 @@ export class LightboxZoom {
         }
     }
 
-    handleTouchStart(e) {
-        if (!this.image) return;
-        if (e.touches.length === 2) {
-            const [a, b] = e.touches;
-            this.isDragging = false;
-            this.startPinch((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY));
-        } else if (e.touches.length === 1 && this.scale > 1) {
-            this.isDragging = true;
-            this.dragStart = {
-                x: e.touches[0].clientX - this.position.x,
-                y: e.touches[0].clientY - this.position.y
-            };
-        }
-    }
-
-    handleTouchMove(e) {
-        if (e.touches.length === 2 && this.pinch) {
-            e.preventDefault();
-            const [a, b] = e.touches;
-            const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-            this.movePinch((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, distance / this.pinch.distance);
-        } else if (e.touches.length === 1 && this.isDragging && this.scale > 1) {
-            // When zoomed in, 1-finger drag is dedicated to image panning
-            e.preventDefault();
-            const newX = e.touches[0].clientX - this.dragStart.x;
-            const newY = e.touches[0].clientY - this.dragStart.y;
-            this.position = this.clampPosition(this.scale, newX, newY);
-            this.applyTransform(false);
-        }
-    }
-
-    handleTouchEnd(e) {
-        this.lastTouchAt = performance.now();
-        if (this.pinch) this.endPinch();
-        this.isDragging = false;
-        // Lifting one finger of a pinch carries on as a pan with the other
-        if (e.touches.length === 1 && this.scale > 1) {
-            this.isDragging = true;
-            this.dragStart = {
-                x: e.touches[0].clientX - this.position.x,
-                y: e.touches[0].clientY - this.position.y
-            };
-        }
-    }
-
-    // iOS sends these alongside touches, which already handle the pinch
     handleGestureStart(e) {
         e.preventDefault();
-        if (!this.image || this.pinch || performance.now() - this.lastTouchAt < 800) return;
+        if (!this.image) return;
         this.startPinch(e.clientX, e.clientY);
-        this.pinch.gesture = true;
     }
 
     handleGestureChange(e) {
         e.preventDefault();
-        if (this.pinch?.gesture) this.movePinch(e.clientX, e.clientY, e.scale);
+        if (this.pinch) this.movePinch(e.clientX, e.clientY, e.scale);
     }
 
     handleGestureEnd(e) {
         e.preventDefault();
-        if (this.pinch?.gesture) this.endPinch();
+        if (this.pinch) this.endPinch();
     }
 }
