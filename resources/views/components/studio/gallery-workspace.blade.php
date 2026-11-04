@@ -1,5 +1,5 @@
 {{--
-    Gallery workspace: the frame around a gallery's Photos, Favorites, Design, Clients and Settings tabs. A top bar with the
+    Gallery workspace: the frame around a gallery's Photos, Activity, Design, Clients and Settings tabs. A top bar with the
     title, status and Share, and a rail with the cover, the tabs and the Settings sections with what each is set to.
     Pages using it extend layouts.app with 'workspace' => true and wrap it in an Alpine scope with `coverThumb` and
     `totalPhotos`. The slot can read `section`, the Settings section picked from the URL hash. A `rail` slot
@@ -21,10 +21,9 @@
     };
     $coverUrl = $gallery->cover_photo_id ? $gallery->coverPhoto?->getThumbnailUrl('md') : null;
     $invitationsCount = $gallery->invitations()->count();
-    $favoritePeopleCount = $gallery->favoriteLists()->has('favorites')->count();
     $tabs = [
         'photos' => ['label' => 'Photos', 'icon' => 'images', 'url' => route('studio.galleries.show', $gallery->uuid)],
-        'favorites' => ['label' => 'Favorites', 'icon' => 'heart', 'url' => route('studio.galleries.favorites', $gallery->uuid), 'count' => $favoritePeopleCount ?: null],
+        'activity' => ['label' => 'Activity', 'icon' => 'activity', 'url' => route('studio.galleries.activity', $gallery->uuid)],
         'design' => ['label' => 'Design', 'icon' => 'palette', 'url' => $designUrl],
         'clients' => ['label' => 'Clients', 'icon' => 'users', 'url' => route('studio.galleries.clients', $gallery->uuid), 'count' => $invitationsCount ?: null],
         'settings' => ['label' => 'Settings', 'icon' => 'settings', 'url' => $settingsUrl],

@@ -195,7 +195,9 @@ What shipped:
 - The client's browser still keeps a fast copy. On load it fetches the server list by email, so picks follow the client to another phone. Picks that only the browser had from before this change are sent up once, without being counted again.
 - The limit is checked in the browser and on the server. A client who reaches it sees "You can pick up to 30 photos. Remove one to add another."
 - In the favourites view, a bar shows "12 of 30 picked" and a **Send my picks** button. Sending emails the photographer (Notifications: "Favorites sent to you", on by default). If the client changes their picks afterwards, the tab says "changed since".
-- **Favorites** tab: the rail lists Everyone and each person, with a sent mark. The page shows the file names exactly as they will be pasted, then the photos as a contact sheet. Copy file names joins them with commas, which Lightroom's Text filter reads as "or". The CSV has email, name, file name, set, picked on and sent on.
+- **Activity** tab (it replaced the first Favorites tab): the rail lists Favorites, Downloads and Quick links. In Favorites, people are chips above the photos, each with a sent mark and a Remove action for test or unwanted lists. Downloads lists each photo and whole-gallery download with the client's email when they gave one.
+- **Quick share links**: select photos on the Photos tab, choose "Share link", and the link is copied. It opens only those photos at `/l/{token}`, even for a draft or private gallery, follows the gallery's Download PIN (with a PIN the link is view-only), and stops when deleted or when the gallery expires. The Share panel lists the latest links and a one-line activity summary.
+- In Favorites, the page shows the file names exactly as they will be pasted, then the photos as a contact sheet. Copy file names joins them with commas, which Lightroom's Text filter reads as "or". The CSV has email, name, file name, set, picked on and sent on.
 
 ### 4.5 The gallery workspace photographers already know
 
@@ -256,7 +258,7 @@ Step 3 made creating and sharing a gallery easy. The manager page they land on a
   - Picking a set filters the grid in place, so uploads in progress keep going, and new uploads go into the open set. The bottom bar has "Move to set".
   - Clients see sets that have visible photos as tabs under the gallery title. Each tab is a plain `?set=` link, so it is its own cached page.
 - **Search by filename (P2, done).** A box in the grid toolbar finds "IMG_0412" inside whatever the grid shows.
-- **Not copied:** Store. Pixieset's Activity tab becomes our **Favourites** tab (§4.4).
+- **Not copied:** Store. Pixieset's Activity tab is our **Activity** tab (§4.4).
 
 ---
 

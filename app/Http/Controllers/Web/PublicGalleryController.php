@@ -16,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class PublicGalleryController extends Controller
@@ -548,6 +547,7 @@ class PublicGalleryController extends Controller
             'properties' => json_encode([
                 'photo_uuid' => $photo->uuid,
                 'filename' => $photo->original_filename,
+                'email' => $this->visitorEmail($request),
                 'action' => 'download',
             ]),
             'ip_address' => $request->ip(),
@@ -555,28 +555,16 @@ class PublicGalleryController extends Controller
             'created_at' => now(),
         ]);
 
-        $filename = $photo->original_filename ?: ($photo->filename ?: 'photo.jpg');
-        if ($photo->isVideo()) {
-            $storagePath = $photo->delivery_path ?: $photo->original_path ?: ltrim($photo->path . '/' . ($photo->filename ?? $photo->stored_filename), '/');
-            if (!str_ends_with(strtolower($filename), '.mp4')) {
-                $filename = pathinfo($filename, PATHINFO_FILENAME) . '.mp4';
-            }
-        } else {
-            $storagePath = ltrim($photo->path . '/' . ($photo->filename ?? $photo->stored_filename), '/');
-        }
+        return \App\Support\PhotoDownload::response($photo);
+    }
 
-        // Check if running on local storage disk or mocked storage without S3 credentials
-        if (!config('filesystems.disks.b2.key')) {
-            if (Storage::disk('b2')->exists($storagePath)) {
-                return Storage::disk('b2')->download($storagePath, $filename);
-            }
-        }
+    /**
+     * The email the visitor gave for favorites, sent along with a download so the photographer sees who it was.
+     */
+    private function visitorEmail(Request $request): ?string
+    {
+        $email = strtolower(trim((string) $request->query('email')));
 
-        $storageService = app(\App\Services\StorageService::class);
-        $presignedUrl = $storageService->generatePresignedDownloadUrl($storagePath, $filename, now()->addMinutes(15));
-
-        return redirect()->away($presignedUrl, 302, [
-            'Referrer-Policy' => 'no-referrer',
-        ]);
+        return filter_var($email, FILTER_VALIDATE_EMAIL) && strlen($email) <= 191 ? $email : null;
     }
 }

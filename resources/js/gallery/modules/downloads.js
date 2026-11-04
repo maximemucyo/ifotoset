@@ -280,7 +280,12 @@ export class GalleryDownloads {
             triggerButton.classList.add('opacity-70', 'cursor-wait');
         }
 
-        const downloadUrl = this.getDownloadUrl(photo.uuid);
+        // The email given for favorites lets the photographer see who downloaded
+        let downloadUrl = this.getDownloadUrl(photo.uuid);
+        try {
+            const email = JSON.parse(localStorage.getItem(`visitor_identity_${this.slug}`) || 'null')?.email;
+            if (email) downloadUrl += `?email=${encodeURIComponent(email)}`;
+        } catch {}
 
         // On all platforms (including iOS), triggering the web download URL serves
         // the file with Content-Disposition: attachment, activating the browser's

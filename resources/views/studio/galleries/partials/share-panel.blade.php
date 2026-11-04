@@ -19,6 +19,12 @@
     $currentExpiresOn = $gallery->expires_at?->copy()->setTimezone($tz)->format('Y-m-d') ?? '';
     $photoCount = $gallery->photo_count;
     $openOnLoad = request()->boolean('share') && ! $isDraft;
+    $quickLinks = $gallery->shareLinks()->withCount('photos')->limit(3)->get();
+    $activityUrl = route('studio.galleries.activity', $gallery->uuid);
+    $favoritePeople = $gallery->favoriteLists()->has('favorites')->count();
+    // Same count as the Activity tab's Downloads
+    $downloadsCount = \Illuminate\Support\Facades\DB::table('activity_logs')->where('gallery_id', $gallery->id)
+        ->whereIn('event', \App\Http\Controllers\Web\Studio\GalleryActivityController::DOWNLOAD_EVENTS)->count();
 @endphp
 <div x-data="{
         open: @js($openOnLoad),
@@ -176,6 +182,45 @@
                     </p>
                 @endif
             @endif
+
+            {{-- Quick links to chosen photos: they open even while the gallery is a draft --}}
+            <div class="border-t border-border pt-5">
+                <div class="flex items-baseline justify-between gap-3">
+                    <span class="label mb-0">Quick links</span>
+                    @if($quickLinks->isNotEmpty())
+                        <a href="{{ $activityUrl }}?view=links" class="text-[12px] font-medium text-foreground underline-offset-2 hover:underline">All quick links</a>
+                    @endif
+                </div>
+                @if($quickLinks->isEmpty())
+                    <p class="mt-1 text-[13px] text-muted-foreground">Send a few photos without the whole gallery: select them on the Photos tab and choose Share link.</p>
+                @else
+                    <ul class="mt-2 divide-y divide-border rounded-lg border border-border">
+                        @foreach($quickLinks as $link)
+                            <li class="flex items-center gap-3 px-3 py-2">
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-[13px] text-foreground">{{ $link->photos_count }} {{ \Illuminate\Support\Str::plural('photo', $link->photos_count) }}</span>
+                                    <span class="block text-[12px] text-muted-foreground">{{ $link->views_count ? 'Opened ' . $link->views_count . ' ' . \Illuminate\Support\Str::plural('time', $link->views_count) : 'Not opened yet' }}</span>
+                                </span>
+                                <button type="button" class="btn btn-secondary btn-xs shrink-0" @click="$clipboard(@js($link->url()), 'Link copied')">Copy</button>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+
+            {{-- What clients did --}}
+            @unless($isDraft)
+                <a href="{{ $activityUrl }}" class="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 transition-colors hover:border-border-strong">
+                    <span class="text-[13px] text-foreground">
+                        @if($favoritePeople || $downloadsCount)
+                            {{ $favoritePeople }} {{ \Illuminate\Support\Str::plural('person', $favoritePeople) }} picked favorites, {{ $downloadsCount }} {{ \Illuminate\Support\Str::plural('download', $downloadsCount) }}
+                        @else
+                            No client activity yet
+                        @endif
+                    </span>
+                    <span class="shrink-0 text-[12px] font-medium text-muted-foreground">Activity</span>
+                </a>
+            @endunless
         </div>
 
         <div class="flex items-center justify-between gap-3 border-t border-border px-5 py-3">

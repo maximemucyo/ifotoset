@@ -12,7 +12,9 @@ Already shipped:
 - Settings split into sections that save as you change them, and a Design tab for the cover with the live preview;
 - the password hint (P1-11);
 - sets inside a gallery, shown to clients as tabs, and search by file name;
-- Proofing: favourites stored on the server per email, a Favourites tab with "Copy file names" and CSV, a Favourites settings section (on/off, limit), and "Send my picks" with an email to the photographer.
+- Proofing: favourites stored on the server per email, "Copy file names" and CSV, a Favourites settings section (on/off, limit), and "Send my picks" with an email to the photographer;
+- an **Activity** tab (Favourites by person with Remove, Downloads with the client's email, Quick links);
+- **quick share links**: select photos, choose "Share link", and the link is copied. It opens only those photos, even in a draft or private gallery, and stops when deleted or when the gallery expires. Listed in Activity and in the Share panel.
 
 **Rules for every item**
 - Migrations must be additive (nullable or defaulted). The deploy runs them before the code switches.
@@ -29,10 +31,10 @@ Already shipped:
 ## Proofing (§4.4)
 
 - [x] Store favourites on the server: one `gallery_favorite_lists` row per gallery and email, and `gallery_favorites` rows for the photos.
-- [x] **Favourites** tab in the gallery workspace, grouped by person, with "Copy file names" for Lightroom and a CSV download.
+- [x] Favourites in the **Activity** tab, grouped by person, with "Copy file names" for Lightroom, a CSV download and Remove.
 - [x] **Favourites** section in Settings: on/off and a limit per client.
 - [x] "Send my picks" for clients. It emails the photographer (a new switch under Notifications) and shows "Sent" or "changed since" on the tab.
-- [ ] Next: a **People** panel listing the emails clients gave when they favourited or downloaded, with "Save to Clients" (P1-10). The Favourites tab already shows names from Clients when the email matches.
+- [ ] Next: "Save to Clients" for the emails in Activity (P1-10). Activity already lists who favourited and downloaded, and shows names from Clients when the email matches.
 
 ## Dashboard "Needs you" (§1)
 

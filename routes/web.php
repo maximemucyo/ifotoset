@@ -25,7 +25,8 @@ use App\Http\Controllers\Web\Studio\BookingController as StudioBookingController
 use App\Http\Controllers\Web\Studio\ClientController as StudioClientController;
 use App\Http\Controllers\Web\Studio\DashboardController as StudioDashboardController;
 use App\Http\Controllers\Web\Studio\GalleryController as StudioGalleryController;
-use App\Http\Controllers\Web\Studio\GalleryFavoritesController as StudioGalleryFavoritesController;
+use App\Http\Controllers\Web\Studio\GalleryActivityController as StudioGalleryActivityController;
+use App\Http\Controllers\Web\Studio\GalleryShareLinkController as StudioGalleryShareLinkController;
 use App\Http\Controllers\Web\Studio\GallerySetController as StudioGallerySetController;
 use App\Http\Controllers\Web\Studio\PackageController as StudioPackageController;
 use App\Http\Controllers\Web\Studio\SettingsController as StudioSettingsController;
@@ -181,6 +182,10 @@ Route::get('/p/{username}/{slug}', function (Request $request, string $username,
     return redirect($query ? "{$target}?{$query}" : $target, 301);
 })->name('public.gallery');
 
+// Quick share links to chosen photos
+Route::get('/l/{token}', [\App\Http\Controllers\Web\ShareLinkController::class, 'show'])->middleware('noindex')->name('share-link.show');
+Route::get('/l/{token}/photos/{uuid}/download', [\App\Http\Controllers\Web\ShareLinkController::class, 'download'])->middleware(['noindex', 'throttle:600,1'])->name('share-link.download');
+
 Route::get('/p/{username}/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('public.gallery.photos');
 Route::get('/p/{username}/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('public.gallery.photo.download');
 Route::get('/p/{username}/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('public.gallery.export');
@@ -219,8 +224,12 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
     Route::get('/galleries/{uuid}/design', [StudioGalleryController::class, 'design'])->name('galleries.design');
     Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
-    Route::get('/galleries/{uuid}/favorites', [StudioGalleryFavoritesController::class, 'index'])->name('galleries.favorites');
-    Route::get('/galleries/{uuid}/favorites/export', [StudioGalleryFavoritesController::class, 'export'])->name('galleries.favorites.export');
+    Route::get('/galleries/{uuid}/activity', [StudioGalleryActivityController::class, 'index'])->name('galleries.activity');
+    Route::get('/galleries/{uuid}/favorites', [StudioGalleryActivityController::class, 'favoritesRedirect'])->name('galleries.favorites');
+    Route::get('/galleries/{uuid}/favorites/export', [StudioGalleryActivityController::class, 'export'])->name('galleries.favorites.export');
+    Route::delete('/galleries/{uuid}/favorites/{id}', [StudioGalleryActivityController::class, 'destroyFavorites'])->whereNumber('id')->name('galleries.favorites.destroy');
+    Route::post('/galleries/{uuid}/share-links', [StudioGalleryShareLinkController::class, 'store'])->name('galleries.share-links.store');
+    Route::delete('/galleries/{uuid}/share-links/{id}', [StudioGalleryShareLinkController::class, 'destroy'])->whereNumber('id')->name('galleries.share-links.destroy');
     Route::get('/galleries/{uuid}/preview', [PublicGalleryController::class, 'preview'])->middleware('noindex')->name('galleries.preview');
     Route::post('/galleries/{uuid}/publish', [StudioGalleryController::class, 'publish'])->name('galleries.publish');
     Route::post('/galleries/{uuid}/unpublish', [StudioGalleryController::class, 'unpublish'])->name('galleries.unpublish');

@@ -267,7 +267,7 @@
         <header class="mb-5">
             <h2 id="favorites-title" class="text-lg font-semibold text-foreground">Favorites</h2>
             <p class="mt-1 text-[13px] text-muted-foreground">Clients tap the heart on the photos they like and send you their picks. You see them on the
-                <a href="{{ route('studio.galleries.favorites', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Favorites tab</a>.</p>
+                <a href="{{ route('studio.galleries.activity', $gallery->uuid) }}" class="font-medium text-foreground underline underline-offset-2">Activity tab</a>.</p>
         </header>
 
         <div class="card" x-data="{ enabled: @js((bool) $gallery->favorites_enabled) }">

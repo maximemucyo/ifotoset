@@ -463,6 +463,14 @@ class Gallery extends Model
         return $this->hasMany(GalleryFavoriteList::class);
     }
 
+    /**
+     * Quick share links to chosen photos, newest first.
+     */
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(GalleryShareLink::class)->latest('id');
+    }
+
     public function invitations(): HasMany
     {
         return $this->hasMany(GalleryInvitation::class);

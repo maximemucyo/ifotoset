@@ -1978,6 +1978,41 @@ window.studioGalleryManager = function(inlineConfig) {
             }
         },
 
+        // A link to just the selected photos; copied straight away and listed under Activity
+        async createShareLink() {
+            const photos = [...this.selected];
+            if (!photos.length || this.bulkBusy) return;
+            this.bulkBusy = true;
+            try {
+                const res = await fetch(config.shareLinksUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': this.csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ photos })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    window.toast?.(data.errors ? Object.values(data.errors)[0][0] : (data.message || "Couldn't make the link. Try again."), 'error');
+                    return;
+                }
+                try {
+                    await navigator.clipboard.writeText(data.url);
+                    window.toast?.(`Link to ${data.count} ${data.count === 1 ? 'photo' : 'photos'} copied. Find it under Activity.`, 'success', 4000);
+                } catch (_) {
+                    window.prompt('Copy this link', data.url);
+                }
+                this.clearSelection();
+            } catch (_) {
+                window.toast?.("Couldn't make the link. Check your connection and try again.", 'error');
+            } finally {
+                this.bulkBusy = false;
+            }
+        },
+
         async bulkSetHidden(hidden) {
             if (this.bulkBusy) return;
             this.bulkBusy = true;

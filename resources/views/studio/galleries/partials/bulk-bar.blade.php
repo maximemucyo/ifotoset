@@ -1,4 +1,4 @@
-{{-- Selection action bar: cover, move to set, hide, show and delete for the selected photos. --}}
+{{-- Selection action bar: cover, share link, move to set, hide, show and delete for the selected photos. --}}
 @php
     $bbBtn = 'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium text-background/85 transition-colors hover:bg-background/10 hover:text-background focus-visible:outline-2 focus-visible:outline-background disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4';
 @endphp
@@ -49,6 +49,9 @@
             <button type="button" class="{{ $bbBtn }}" x-show="selectedCount === 1"
                     @click="setCover(selected[0]); clearSelection()" :disabled="bulkBusy" title="Set as cover">
                 <x-icon name="star" /> <span class="hidden sm:inline">Cover</span>
+            </button>
+            <button type="button" class="{{ $bbBtn }}" @click="createShareLink()" :disabled="bulkBusy || selectedCount === 0" title="Copy a link to just these photos">
+                <x-icon name="link" /> <span class="hidden sm:inline">Share link</span>
             </button>
             <button type="button" class="{{ $bbBtn }}" @click="bulkSetHidden(true)" :disabled="bulkBusy || selectedCount === 0" title="Hide from the client gallery">
                 <x-icon name="eye-off" /> <span class="hidden sm:inline">Hide</span>

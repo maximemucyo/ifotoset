@@ -49,6 +49,7 @@
     'sets' => $sets,
     'setsUrl' => route('studio.galleries.sets.store', $gallery->uuid),
     'moveToSetUrl' => route('studio.galleries.photos.set', $gallery->uuid),
+    'shareLinksUrl' => route('studio.galleries.share-links.store', $gallery->uuid),
     'toggleHideUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'deletePhotoUrlBase' => url('/studio/galleries/' . $gallery->uuid . '/photos'),
     'initialTotalCount' => $totalPhotosCount,

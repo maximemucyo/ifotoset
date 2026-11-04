@@ -230,7 +230,7 @@ class GalleryFavoritesTest extends TestCase
         $this->pick($second, 'kevin@example.com');
 
         $this->actingAs($this->user);
-        $url = "/studio/galleries/{$this->gallery->uuid}/favorites";
+        $url = "/studio/galleries/{$this->gallery->uuid}/activity";
 
         $this->get($url)->assertOk()
             ->assertSee('diane@example.com')
@@ -260,7 +260,7 @@ class GalleryFavoritesTest extends TestCase
 
     public function test_other_photographers_cannot_see_favorites(): void
     {
-        $this->actingAs($this->otherUser)->get("/studio/galleries/{$this->gallery->uuid}/favorites")->assertForbidden();
+        $this->actingAs($this->otherUser)->get("/studio/galleries/{$this->gallery->uuid}/activity")->assertForbidden();
         $this->actingAs($this->otherUser)->get("/studio/galleries/{$this->gallery->uuid}/favorites/export")->assertForbidden();
     }
 
@@ -278,5 +278,40 @@ class GalleryFavoritesTest extends TestCase
         $this->assertSame(30, $gallery->favorites_limit);
 
         $this->patchJson($url, ['favorites_enabled' => '1', 'favorites_limit' => ''])->assertOk()->assertJsonPath('summary.favorites', 'On');
+    }
+
+    public function test_old_favorites_links_open_the_activity_tab(): void
+    {
+        $this->actingAs($this->user)
+            ->get("/studio/galleries/{$this->gallery->uuid}/favorites?person=diane@example.com")
+            ->assertRedirect("/studio/galleries/{$this->gallery->uuid}/activity?view=favorites&person=diane%40example.com");
+    }
+
+    public function test_photographer_removes_a_persons_picks(): void
+    {
+        $photo = $this->createPhoto();
+        $this->pick($photo);
+        $this->pick($photo, 'kevin@example.com');
+        $list = GalleryFavoriteList::firstWhere('email', 'diane@example.com');
+
+        $this->actingAs($this->otherUser)->delete("/studio/galleries/{$this->gallery->uuid}/favorites/{$list->id}")->assertForbidden();
+        $this->actingAs($this->user)->delete("/studio/galleries/{$this->gallery->uuid}/favorites/{$list->id}")->assertRedirect();
+
+        $this->assertNull($list->fresh());
+        $this->assertSame(1, $this->gallery->stats->fresh()->favorites_count);
+        $this->getJson($this->api('/favorites?email=diane@example.com'))->assertJsonPath('photos', []);
+    }
+
+    public function test_downloads_view_shows_who_downloaded(): void
+    {
+        $this->gallery->update(['allow_photo_downloads' => true]);
+        $photo = $this->createPhoto(['original_filename' => 'IMG_0777.JPG']);
+
+        $this->get("/p/alice/diane-kevin/photos/{$photo->uuid}/download?email=Diane@Example.com");
+
+        $this->actingAs($this->user)->get("/studio/galleries/{$this->gallery->uuid}/activity?view=downloads")
+            ->assertOk()
+            ->assertSee('IMG_0777.JPG')
+            ->assertSee('diane@example.com');
     }
 }
