@@ -2,16 +2,17 @@
 
 @section('content')
 @php
-    $currentVisibility = in_array(request('visibility'), ['public', 'private', 'password'], true) ? request('visibility') : 'all';
+    $currentStage = in_array(request('stage'), \App\Http\Controllers\Web\Studio\GalleryController::LIFECYCLE_FILTERS, true) ? request('stage') : 'all';
     $currentSort = request('sort', 'newest');
     $search = trim((string) request('q', ''));
-    $visibilityCounts = $visibilityCounts ?? [];
+    $stageCounts = $stageCounts ?? [];
     $totalCount = $totalCount ?? $galleries->total();
     $filters = [
         'all'      => ['label' => 'All',           'count' => $totalCount],
-        'public'   => ['label' => 'Public',        'count' => $visibilityCounts['public'] ?? 0],
-        'private'  => ['label' => 'Private',       'count' => $visibilityCounts['private'] ?? 0],
-        'password' => ['label' => 'Password', 'count' => $visibilityCounts['password'] ?? 0],
+        'drafts'   => ['label' => 'Drafts',        'count' => $stageCounts['drafts'] ?? 0],
+        'shared'   => ['label' => 'Shared',        'count' => $stageCounts['shared'] ?? 0],
+        'expiring' => ['label' => 'Expiring soon', 'count' => $stageCounts['expiring'] ?? 0],
+        'expired'  => ['label' => 'Expired',       'count' => $stageCounts['expired'] ?? 0],
     ];
     $sorts = [
         'newest'  => 'Newest first',
@@ -26,7 +27,7 @@
         'private'  => ['label' => 'Private',       'icon' => 'lock',  'variant' => 'neutral'],
         'password' => ['label' => 'Password', 'icon' => 'key',   'variant' => 'warning'],
     ];
-    $isFiltered = $search !== '' || $currentVisibility !== 'all';
+    $isFiltered = $search !== '' || $currentStage !== 'all';
 @endphp
 
 <x-ui.page-header title="Galleries" description="Manage, proof and deliver photo collections to your clients.">
@@ -41,10 +42,10 @@
      }">
     {{-- Toolbar --}}
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <nav class="tabs max-w-full self-start overflow-x-auto" aria-label="Filter by visibility">
+        <nav class="tabs max-w-full self-start overflow-x-auto" aria-label="Filter by stage">
             @foreach($filters as $key => $f)
-                <a href="{{ route('studio.galleries.index', $key === 'all' ? $baseQuery : array_merge($baseQuery, ['visibility' => $key])) }}"
-                   class="tab whitespace-nowrap" @if($currentVisibility === $key) aria-selected="true" aria-current="page" @endif>
+                <a href="{{ route('studio.galleries.index', $key === 'all' ? $baseQuery : array_merge($baseQuery, ['stage' => $key])) }}"
+                   class="tab whitespace-nowrap" @if($currentStage === $key) aria-selected="true" aria-current="page" @endif>
                     {{ $f['label'] }}
                     <span class="ml-1 text-[11px] tabular-nums text-muted-foreground">{{ $f['count'] }}</span>
                 </a>
@@ -52,8 +53,8 @@
         </nav>
 
         <form method="GET" action="{{ route('studio.galleries.index') }}" class="flex flex-wrap items-center gap-2" x-ref="filterForm">
-            @if($currentVisibility !== 'all')
-                <input type="hidden" name="visibility" value="{{ $currentVisibility }}">
+            @if($currentStage !== 'all')
+                <input type="hidden" name="stage" value="{{ $currentStage }}">
             @endif
             <div class="input-group w-full min-w-0 sm:w-64">
                 <x-icon name="search" />
@@ -80,7 +81,7 @@
     @if($search !== '')
         <div class="mt-4 flex items-center gap-2 text-[13px] text-muted-foreground">
             <span>{{ $galleries->total() }} {{ \Illuminate\Support\Str::plural('result', $galleries->total()) }} for <span class="font-medium text-foreground">“{{ $search }}”</span></span>
-            <a href="{{ route('studio.galleries.index', array_filter(['visibility' => $currentVisibility !== 'all' ? $currentVisibility : null, 'sort' => $currentSort !== 'newest' ? $currentSort : null])) }}" class="btn btn-ghost btn-xs"><x-icon name="x" /> Clear</a>
+            <a href="{{ route('studio.galleries.index', array_filter(['stage' => $currentStage !== 'all' ? $currentStage : null, 'sort' => $currentSort !== 'newest' ? $currentSort : null])) }}" class="btn btn-ghost btn-xs"><x-icon name="x" /> Clear</a>
         </div>
     @endif
 
@@ -88,7 +89,7 @@
         @if($galleries->isEmpty())
             @if($isFiltered)
                 <x-ui.empty-state icon="search" title="No galleries match"
-                                  description="Try a different search term or visibility filter.">
+                                  description="Try a different search or filter.">
                     <a href="{{ route('studio.galleries.index') }}" class="btn btn-outline btn-sm mt-5">Clear filters</a>
                 </x-ui.empty-state>
             @else
@@ -129,16 +130,12 @@
                                 </p>
                             </div>
                             <div class="hidden w-32 shrink-0 md:block">
-                                @if($gallery->isDraft())
-                                    <x-ui.badge variant="neutral">Draft</x-ui.badge>
-                                @else
-                                    <x-ui.badge :variant="$vm['variant']"><x-icon :name="$vm['icon']" class="size-3" /> {{ $vm['label'] }}</x-ui.badge>
-                                @endif
+                                <x-ui.badge :variant="['viewed' => 'info', 'downloaded' => 'success'][$gallery->stage()] ?? 'neutral'" title="{{ $vm['label'] }}"><x-icon :name="$vm['icon']" class="size-3" /> {{ \App\Models\Gallery::STAGES[$gallery->stage()] }}</x-ui.badge>
                             </div>
                             <div class="hidden w-20 shrink-0 text-right text-[13px] tabular-nums text-foreground sm:block">
                                 {{ number_format($gallery->photo_count) }} <span class="text-xs text-muted-foreground">{{ \Illuminate\Support\Str::plural('photo', $gallery->photo_count) }}</span>
                             </div>
-                            <div class="hidden w-28 shrink-0 text-right text-xs text-muted-foreground lg:block">{{ $gallery->updated_at->diffForHumans(short: true) }}</div>
+                            <div class="hidden w-56 shrink-0 truncate text-right text-xs text-muted-foreground lg:block">{{ $gallery->activitySummary() }}</div>
                             <div class="flex shrink-0 items-center gap-0.5">
                                 @if($publicUrl)
                                     <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-icon btn-sm text-muted-foreground" aria-label="Preview as client" title="Preview as client"><x-icon name="eye" /></a>

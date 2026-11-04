@@ -1,6 +1,6 @@
 # Studio: remaining work
 
-Updated November 3, 2026, on the `studio-improvements` branch. The reasons behind each item are in [studio-dashboard-improvements.md](studio-dashboard-improvements.md); the § numbers below point there.
+Updated November 4, 2026, on the `studio-improvements` branch. The reasons behind each item are in [studio-dashboard-improvements.md](studio-dashboard-improvements.md); the § numbers below point there.
 
 Already shipped:
 - all the P0 fixes;
@@ -14,6 +14,7 @@ Already shipped:
 - sets inside a gallery, shown to clients as tabs, and search by file name;
 - Proofing: favourites stored on the server per email, "Copy file names" and CSV, a Favourites settings section (on/off, limit), and "Send my picks" with an email to the photographer;
 - an **Activity** tab (Favourites by person with Remove, Downloads with the client's email, Quick links);
+- the **Overview "Needs you"** dashboard, gallery stages, and lifecycle tabs on the Galleries page;
 - **quick share links**: select photos, choose "Share link", and the link is copied. It opens only those photos, even in a draft or private gallery, and stops when deleted or when the gallery expires. Listed in Activity and in the Share panel.
 
 **Rules for every item**
@@ -40,18 +41,18 @@ Already shipped:
 
 Proofing has shipped, so "new favourites" and "picks sent" are real signals now.
 
-- [ ] Replace the greeting and the four stat cards with a "Needs you" list:
+- [x] The date replaces the greeting, and a "Needs you" list replaces the four stat cards. Each row is one action:
+  - picks clients sent (`gallery_favorite_lists.submitted_at`, last 30 days). A row leaves the list when the photographer opens those picks in Activity (`seen_at`), and comes back as "changed their favorites" if the client changes them;
   - bookings to confirm;
-  - empty galleries;
-  - favourites clients sent (`gallery_favorite_lists.submitted_at`);
-  - galleries expiring within 7 days;
-  - invites nobody opened.
-- [ ] When the list is empty, say "Nothing needs you right now."
-- [ ] Remove "Quick actions", which repeats the app menu. Show client activity in that space instead.
-- [ ] Put an "Upload" button next to "New gallery".
-- [ ] Gallery cards show their stage (Draft, Shared, Viewed, Downloaded, Expired) and their activity ("Viewed 2h ago, 48 favourites").
-- [ ] On the Galleries page, replace the visibility tabs with Drafts, Shared, Expiring soon, Expired and All (§4.2).
-- [ ] Make booking steps optional in the getting-started checklist, and let photographers hide the checklist for good.
+  - galleries closing within 7 days ("Change date" opens Expiry);
+  - invites not opened after 5 days (sent within the last 30);
+  - galleries still empty a day after they were made ("Add photos" opens the uploader).
+- [x] When the list is empty, it says "Nothing needs you right now."
+- [x] "Quick actions" and the Storage card are gone (the sidebar has both). "Client activity" shows the last 7 days, one line per gallery.
+- [x] An "Upload" menu sits in the page actions: pick a recent gallery and its uploader opens. "New gallery" stays in the top bar.
+- [x] Gallery cards show their stage (Draft, Shared, Viewed, Downloaded, Expired) and their activity ("Viewed 2 hours ago, 48 favorites"). No hover lift or zoom.
+- [x] On the Galleries page, the visibility tabs are now All, Drafts, Shared, Expiring soon and Expired (`?stage=`). Visibility stays as a badge.
+- [x] The getting-started checklist counts only the studio steps. Booking steps are listed under "Only if you take bookings", and **Hide** removes the checklist for good (`users.setup_checklist_dismissed_at`).
 
 ## Templates, gallery defaults and branding (§4.3, §5)
 

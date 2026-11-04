@@ -298,8 +298,8 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
      4. Sets. *(Done.)*
      5. Search. *(Done.)*
 4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom. *(Done, except the People panel.)*
-5. **Next: Dashboard "Needs you" redesign.** Steps 1 and 4 have shipped, so the signals exist.
-6. **Templates, gallery defaults and branding.**
+5. **Dashboard "Needs you" redesign.** *(Done.)*
+6. **Next: Templates, gallery defaults and branding.**
 7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
 
 Steps 2 and 3 can run in parallel. Each step is independently shippable, and all migrations are additive.

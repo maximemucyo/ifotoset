@@ -16,10 +16,12 @@ class GalleryFavoriteList extends Model
         'gallery_id',
         'email',
         'submitted_at',
+        'seen_at',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
+        'seen_at' => 'datetime',
     ];
 
     public function gallery(): BelongsTo

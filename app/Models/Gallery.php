@@ -164,6 +164,90 @@ class Gallery extends Model
         return $query->whereNotNull('published_at');
     }
 
+    /**
+     * Where a gallery is in its life, as photographers think of it, keyed by what `stage()` returns.
+     */
+    public const STAGES = [
+        'draft' => 'Draft',
+        'shared' => 'Shared',
+        'viewed' => 'Viewed',
+        'downloaded' => 'Downloaded',
+        'expired' => 'Expired',
+    ];
+
+    /**
+     * Filters of the Galleries page: published galleries count as shared until they expire.
+     */
+    public function scopeLifecycle(\Illuminate\Database\Eloquent\Builder $query, string $filter): \Illuminate\Database\Eloquent\Builder
+    {
+        return match ($filter) {
+            'drafts' => $query->whereNull('published_at'),
+            'shared' => $query->whereNotNull('published_at')->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now())),
+            'expiring' => $query->whereNotNull('published_at')->whereBetween('expires_at', [now(), now()->addDays(7)]),
+            'expired' => $query->where('expires_at', '<=', now()),
+            default => $query,
+        };
+    }
+
+    /**
+     * Adds `last_viewed_at`: when a client last opened the gallery. Used by `stage()` and `activitySummary()`.
+     */
+    public function scopeWithLastViewedAt(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        if ($query->getQuery()->columns === null) {
+            $query->select('galleries.*');
+        }
+
+        return $query->selectSub(
+            \Illuminate\Support\Facades\DB::table('activity_logs')
+                ->selectRaw('MAX(created_at)')
+                ->whereColumn('activity_logs.gallery_id', 'galleries.id')
+                ->where('event', 'gallery_viewed'),
+            'last_viewed_at'
+        );
+    }
+
+    public function lastViewedAt(): ?\Illuminate\Support\Carbon
+    {
+        $value = $this->attributes['last_viewed_at'] ?? null;
+
+        return $value ? \Illuminate\Support\Carbon::parse($value) : null;
+    }
+
+    /**
+     * A key of STAGES. Viewed and Downloaded need `withLastViewedAt()` and the stats relation.
+     */
+    public function stage(): string
+    {
+        return match (true) {
+            $this->expires_at !== null && $this->expires_at->isPast() => 'expired',
+            $this->isDraft() => 'draft',
+            ($this->stats?->downloads_count ?? 0) > 0 => 'downloaded',
+            $this->lastViewedAt() !== null => 'viewed',
+            default => 'shared',
+        };
+    }
+
+    /**
+     * What clients did, in a few words: "Viewed 2 hours ago, 48 favorites, 12 downloads".
+     */
+    public function activitySummary(): string
+    {
+        $favorites = $this->stats?->favorites_count ?? 0;
+        $downloads = $this->stats?->downloads_count ?? 0;
+        $parts = array_filter([
+            ($viewed = $this->lastViewedAt()) ? 'Viewed ' . $viewed->diffForHumans() : null,
+            $favorites > 0 ? number_format($favorites) . ' ' . \Illuminate\Support\Str::plural('favorite', $favorites) : null,
+            $downloads > 0 ? number_format($downloads) . ' ' . \Illuminate\Support\Str::plural('download', $downloads) : null,
+        ]);
+
+        return match (true) {
+            $parts !== [] => ucfirst(implode(', ', $parts)),
+            $this->isDraft() => 'Not shared yet',
+            default => 'Not opened yet',
+        };
+    }
+
     public function isTakenDown(): bool
     {
         return $this->moderation_status === 'taken_down';

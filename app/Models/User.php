@@ -77,6 +77,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'storage_warning_generation' => 'integer',
         'over_quota_since' => 'datetime',
         'phone_prompt_dismissed_at' => 'datetime',
+        'setup_checklist_dismissed_at' => 'datetime',
     ];
 
     /**

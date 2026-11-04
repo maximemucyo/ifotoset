@@ -23,6 +23,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class GalleryController extends Controller
 {
+    /** Filters of the Galleries page, as `Gallery::scopeLifecycle()` reads them. */
+    public const LIFECYCLE_FILTERS = ['drafts', 'shared', 'expiring', 'expired'];
+
     /**
      * List all photographer's galleries.
      */
@@ -31,11 +34,12 @@ class GalleryController extends Controller
         $user = $request->account();
 
         $query = Gallery::where('user_id', $user->id)
+            ->withLastViewedAt()
             ->with(['coverPhoto', 'stats']);
 
-        $visibility = $request->string('visibility')->toString();
-        if (in_array($visibility, ['public', 'private', 'password'], true)) {
-            $query->where('visibility', $visibility);
+        $stage = $request->string('stage')->toString();
+        if (in_array($stage, self::LIFECYCLE_FILTERS, true)) {
+            $query->lifecycle($stage);
         }
 
         $search = trim($request->string('q')->toString());
@@ -58,17 +62,14 @@ class GalleryController extends Controller
         // All galleries belong to this user: avoid lazy-loading the owner for `public_url`.
         $galleries->getCollection()->each->setRelation('user', $user);
 
-        $visibilityCounts = Gallery::where('user_id', $user->id)
-            ->selectRaw('visibility, COUNT(*) as aggregate')
-            ->groupBy('visibility')
-            ->pluck('aggregate', 'visibility')
-            ->map(fn ($c) => (int) $c)
+        $stageCounts = collect(self::LIFECYCLE_FILTERS)
+            ->mapWithKeys(fn ($filter) => [$filter => Gallery::where('user_id', $user->id)->lifecycle($filter)->count()])
             ->all();
 
         return view('studio.galleries.index', [
             'galleries' => $galleries,
-            'visibilityCounts' => $visibilityCounts,
-            'totalCount' => array_sum($visibilityCounts),
+            'stageCounts' => $stageCounts,
+            'totalCount' => Gallery::where('user_id', $user->id)->count(),
         ]);
     }
 

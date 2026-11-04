@@ -214,6 +214,7 @@ Route::middleware('auth')->group(function () {
 // Studio Portal Routes (Authenticated Photographers & Media Houses)
 Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('studio')->as('studio.')->group(function () {
     Route::get('/dashboard', [StudioDashboardController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/checklist/dismiss', [StudioDashboardController::class, 'dismissChecklist'])->name('dashboard.checklist.dismiss');
 
     // Galleries CRUD & Photo Management
     Route::get('/galleries', [StudioGalleryController::class, 'index'])->name('galleries.index');

@@ -80,6 +80,12 @@ class GalleryActivityController extends Controller
         $person = $this->person($request, $lists);
         $photos = $this->photos($gallery, $person)->get();
 
+        // Sent picks leave the Overview's "Needs you" once opened here. Base query, so `updated_at` (changed since) stays.
+        GalleryFavoriteList::whereIn('id', $person ? [$person->id] : $lists->pluck('id'))
+            ->whereNotNull('submitted_at')
+            ->toBase()
+            ->update(['seen_at' => now()]);
+
         return [
             'lists' => $lists,
             'person' => $person,

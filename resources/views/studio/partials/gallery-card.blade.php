@@ -1,4 +1,4 @@
-{{-- Studio gallery cover card. Expects: $gallery (coverPhoto, stats and user relations loaded). --}}
+{{-- Studio gallery cover card. Expects: $gallery (coverPhoto, stats and user relations loaded, and `withLastViewedAt()` for its stage). --}}
 @php
     $vis = [
         'public'   => ['label' => 'Public',        'icon' => 'globe'],
@@ -10,17 +10,18 @@
     $showUrl = route('studio.galleries.show', $gallery->uuid);
     $photoCount = $gallery->photo_count;
     $takenDown = $gallery->isTakenDown();
+    $stage = $gallery->stage();
 @endphp
-<article class="group relative flex flex-col rounded-xl hover:z-10 focus-within:z-20 border border-border bg-card shadow-xs transition duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md">
+<article class="group relative flex flex-col rounded-xl hover:z-10 focus-within:z-20 border border-border bg-card shadow-xs transition-colors hover:border-border-strong">
     <a href="{{ $showUrl }}" class="relative block aspect-[4/3] overflow-hidden rounded-t-[11px] bg-muted" aria-label="Open {{ $gallery->title }}">
         @if($coverUrl)
             <img src="{{ $coverUrl }}" alt="" loading="lazy" decoding="async"
-                 class="absolute inset-0 size-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]" style="object-position: {{ $gallery->coverObjectPosition() }}">
+                 class="absolute inset-0 size-full object-cover" style="object-position: {{ $gallery->coverObjectPosition() }}">
             <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/10"></div>
         @else
             <div class="absolute inset-0 bg-dots opacity-60 mask-radial"></div>
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                <span class="flex size-11 items-center justify-center rounded-xl border border-border bg-card shadow-xs transition group-hover:scale-105">
+                <span class="flex size-11 items-center justify-center rounded-xl border border-border bg-card shadow-xs">
                     <x-icon name="images" class="size-5" />
                 </span>
                 <span class="text-xs">{{ $photoCount > 0 ? 'No cover selected' : 'No photos yet' }}</span>
@@ -28,9 +29,11 @@
         @endif
 
         <div class="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
-            @if($gallery->isDraft())
-                <span class="inline-flex items-center rounded-md bg-white/95 px-1.5 py-0.5 text-[11px] font-medium text-black">Draft</span>
-            @endif
+            <span @class([
+                'inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium',
+                'bg-white/95 text-black' => $stage !== 'expired',
+                'bg-black/70 text-white' => $stage === 'expired',
+            ])>{{ \App\Models\Gallery::STAGES[$stage] }}</span>
             <span class="inline-flex items-center gap-1 rounded-md bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
                 <x-icon :name="$vis['icon']" class="size-3" /> {{ $vis['label'] }}
             </span>
@@ -53,16 +56,9 @@
             <h3 class="truncate text-sm font-semibold text-foreground">
                 <a href="{{ $showUrl }}" class="hover:underline hover:decoration-border-strong hover:underline-offset-4">{{ $gallery->title }}</a>
             </h3>
-            <p class="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <span class="shrink-0 whitespace-nowrap tabular-nums">{{ number_format($photoCount) }} {{ \Illuminate\Support\Str::plural('photo', $photoCount) }}</span>
-                <span class="text-subtle">&middot;</span>
-                @if($gallery->client_name)
-                    <span class="truncate">{{ $gallery->client_name }}</span>
-                @elseif($gallery->event_date)
-                    <span class="truncate">{{ $gallery->event_date->format('M j, Y') }}</span>
-                @else
-                    <span class="truncate">Updated {{ $gallery->updated_at->diffForHumans() }}</span>
-                @endif
+            <p class="mt-1 truncate text-xs text-muted-foreground">{{ $gallery->activitySummary() }}</p>
+            <p class="mt-0.5 truncate text-xs text-subtle">
+                {{ $gallery->client_name ?: ($gallery->event_date?->format('M j, Y') ?? number_format($photoCount) . ' ' . \Illuminate\Support\Str::plural('photo', $photoCount)) }}
             </p>
         </div>
 
