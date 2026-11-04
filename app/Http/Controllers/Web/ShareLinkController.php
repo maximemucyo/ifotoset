@@ -22,6 +22,7 @@ class ShareLinkController extends Controller
     {
         $link = $this->link($token);
         $gallery = $link->gallery;
+        Photo::showWatermarkFor($gallery);
 
         $link->increment('views_count', 1, ['last_viewed_at' => now()]);
 

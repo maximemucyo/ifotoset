@@ -41,6 +41,12 @@ class FeatureSeeder extends Seeder
             'name' => 'Premium Portfolio Templates',
         ]);
 
+        $watermark = Feature::firstOrCreate([
+            'code' => 'watermark',
+        ], [
+            'name' => 'Gallery Watermarks',
+        ]);
+
         $teams = Feature::firstOrCreate([
             'code' => 'teams',
         ], [
@@ -53,9 +59,9 @@ class FeatureSeeder extends Seeder
         $link = fn (Feature $feature) => $feature->wasRecentlyCreated;
 
         $matrix = [
-            'basic' => [$premiumTemplates],
-            'pro' => [$customDomain, $bookingDeposits, $premiumTemplates],
-            'business' => [$customDomain, $bookingManager, $prioritySupport, $bookingDeposits, $premiumTemplates, $teams],
+            'basic' => [$premiumTemplates, $watermark],
+            'pro' => [$customDomain, $bookingDeposits, $premiumTemplates, $watermark],
+            'business' => [$customDomain, $bookingManager, $prioritySupport, $bookingDeposits, $premiumTemplates, $teams, $watermark],
         ];
 
         foreach ($matrix as $slug => $features) {

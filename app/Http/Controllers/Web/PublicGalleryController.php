@@ -33,6 +33,7 @@ class PublicGalleryController extends Controller
     public function show(Request $request, string $username, string $slug): View|RedirectResponse
     {
         $gallery = $this->resolveGallery($username, $slug);
+        Photo::showWatermarkFor($gallery);
 
         $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
@@ -142,6 +143,7 @@ class PublicGalleryController extends Controller
     {
         $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
         $this->authorize('update', $gallery);
+        Photo::showWatermarkFor($gallery);
         $gallery->loadMissing(['coverPhoto', 'stats', 'user.plan']);
 
         [$sets, $activeSet] = $this->setsFor($gallery, $request);
@@ -277,6 +279,7 @@ class PublicGalleryController extends Controller
     public function photos(Request $request, string $username, string $slug): JsonResponse
     {
         $gallery = $this->galleryQuery->findForUser($username, $slug);
+        Photo::showWatermarkFor($gallery);
 
         $accessError = $this->verifyGalleryAccess($gallery, $request);
         if ($accessError) {
@@ -362,6 +365,7 @@ class PublicGalleryController extends Controller
     public function export(Request $request, string $username, string $slug): View|\Illuminate\Http\RedirectResponse
     {
         $gallery = $this->resolveGallery($username, $slug);
+        Photo::showWatermarkFor($gallery);
 
         $accessError = $this->verifyGalleryAccess($gallery, $request);
         if ($accessError || !$this->downloadsUnlocked($gallery, $request)) {

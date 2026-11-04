@@ -105,6 +105,7 @@ class Gallery extends Model
         'grid_style',
         'color_mode',
         'use_branding',
+        'watermark',
     ];
 
     protected $attributes = [
@@ -114,6 +115,7 @@ class Gallery extends Model
         'color_mode' => 'light',
         'favorites_enabled' => true,
         'use_branding' => false,
+        'watermark' => false,
     ];
 
     protected static function booted(): void
@@ -161,6 +163,7 @@ class Gallery extends Model
         'allow_google_photos' => 'boolean',
         'favorites_enabled' => 'boolean',
         'use_branding' => 'boolean',
+        'watermark' => 'boolean',
         'favorites_limit' => 'integer',
     ];
 
@@ -537,6 +540,7 @@ class Gallery extends Model
             'privacy' => (self::VISIBILITIES[$this->visibility] ?? self::VISIBILITIES['private'])['label'],
             'expiry' => $this->expires_at?->copy()->setTimezone(self::expiryTimezone($this->user))->format('M j, Y') ?? 'Never',
             'downloads' => $this->requiresDownloadPin() ? 'PIN ' . $this->download_pin : 'No PIN',
+            'watermark' => $this->watermark ? 'On' : 'Off',
             'favorites' => match (true) {
                 !$this->favorites_enabled => 'Off',
                 (bool) $this->favorites_limit => 'Up to ' . $this->favorites_limit,

@@ -271,10 +271,10 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
 
 | Setting | Status | Notes |
 |---|---|---|
-| **Gallery defaults** | Done | Settings → New galleries: who can open them, Download PIN, how long they stay open (counted from Share), photo order, layout and colours. The watermark joins them once it exists |
+| **Gallery defaults** | Done | Settings → New galleries: who can open them, Download PIN, watermark, brand, how long they stay open (counted from Share), photo order, layout and colours |
 | **Gallery expiry and reminders** | Missing (P0/P1) | "Expires in 7 days" email to invited clients, plus a reminder to the photographer. Expiry has to be settable first (P0-1) |
 | **Download sizes** | Missing (P1) | Web size (2048px) and/or original. On mobile data in Rwanda, a full-res ZIP is a real cost to clients; offering web size by default is a kindness and a differentiator |
-| **Watermark** | Missing (P1) | Upload a PNG or use text; set position and opacity; apply to previews, not to paid downloads. Lets photographers share proofs publicly before payment |
+| **Watermark** | Done | Settings → Watermark (text or logo, middle/corner/all over, opacity, live preview); one switch per gallery. Baked into separate preview files; downloads stay clean |
 | **Client gallery branding** | Done | Design tab → Use my brand. See §4.3.4 |
 | **Contact button on the gallery** | Missing (P2) | WhatsApp or phone button on the client gallery ("Book again" / "Order prints"). The phone number is already collected |
 | **Welcome message per gallery** | Missing (P2) | A short note from the photographer under the cover. Needs a `description` column |
@@ -303,6 +303,6 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
 4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom. *(Done, except the People panel.)*
 5. **Dashboard "Needs you" redesign.** *(Done.)*
 6. **Templates, gallery defaults and branding.** *(Done.)*
-7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
+7. **Watermark, download sizes, bulk gallery actions.** *(Watermark done.)* Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
 
 Steps 2 and 3 can run in parallel. Each step is independently shippable, and all migrations are additive.

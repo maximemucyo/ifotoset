@@ -4,6 +4,7 @@ namespace App\Actions\Studio;
 
 use App\Models\User;
 use App\Services\StorageService;
+use App\Support\Gallery\Watermark;
 use App\Support\Portfolio\LogoTone;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -113,6 +114,7 @@ class UploadPortfolioImageAction
         if ($oldPath && $oldPath !== $processedKey) {
             $this->deleteQuietly($user, $oldPath);
         }
+        $this->refreshLogoWatermarks($user, $kind);
 
         return $user->{$this->urlAttribute($kind)};
     }
@@ -130,6 +132,17 @@ class UploadPortfolioImageAction
 
         if ($oldPath) {
             $this->deleteQuietly($user, $oldPath);
+        }
+        $this->refreshLogoWatermarks($user, $kind);
+    }
+
+    /**
+     * A watermark drawn from the logo changes with it (and falls back to text without one).
+     */
+    protected function refreshLogoWatermarks(User $user, string $kind): void
+    {
+        if ($kind === 'logo' && Watermark::for($user)->storedType() === 'logo') {
+            Watermark::refreshGalleries($user);
         }
     }
 

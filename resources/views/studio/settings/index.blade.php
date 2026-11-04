@@ -2,7 +2,7 @@
 
 @php
     $hasPasswordErrors = $errors->hasAny(['current_password', 'password', 'delete_password', 'confirm']);
-    $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : ($errors->hasAny(['visibility', 'expiry_months', 'photo_order', 'template', 'color_mode']) ? 'galleries' : 'profile'));
+    $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : ($errors->hasAny(['visibility', 'expiry_months', 'photo_order', 'template', 'color_mode']) ? 'galleries' : ($errors->hasAny(['text', 'opacity', 'position', 'type']) ? 'watermark' : 'profile')));
     $publicUrl = $user->username ? $user->public_url : null;
     $rootHost = config('app.public_root_host', 'ifotoset.com');
 
@@ -15,6 +15,7 @@
         ['id' => 'profile', 'label' => 'Profile', 'icon' => 'user', 'hint' => 'Name, photo and contact'],
         Gate::allows('studio.profile.manage') ? ['id' => 'public', 'label' => 'Public profile', 'icon' => 'globe', 'hint' => 'Portfolio link and visibility'] : null,
         Gate::allows('studio.profile.manage') ? ['id' => 'galleries', 'label' => 'New galleries', 'icon' => 'images', 'hint' => 'What new galleries start with'] : null,
+        Gate::allows('studio.profile.manage') ? ['id' => 'watermark', 'label' => 'Watermark', 'icon' => 'stamp', 'hint' => 'Your mark on gallery photos'] : null,
         ['id' => 'security', 'label' => 'Security', 'icon' => 'shield', 'hint' => 'Password'],
         $teamContext ? null : ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'bell', 'hint' => 'Email alerts'],
     ]));
@@ -407,6 +408,20 @@
                         </span>
                     </label>
 
+                    <label for="default-watermark" class="flex cursor-pointer items-center gap-4 border-b border-border px-5 py-4 transition-colors hover:bg-muted/40">
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-center gap-2 text-sm font-medium text-foreground">Watermark
+                                @unless(\App\Support\Gallery\Watermark::allowedFor($user))<x-ui.badge variant="neutral"><x-icon name="lock" class="size-3" /> Paid plans</x-ui.badge>@endunless
+                            </span>
+                            <span class="block text-[13px] text-muted-foreground">Your mark on the photos clients see. Downloads stay clean.</span>
+                        </span>
+                        <span class="switch">
+                            <input type="checkbox" id="default-watermark" name="watermark" value="1" class="sr-only" @checked(old('watermark', $galleryDefaults->watermark()))
+                                   @disabled(! \App\Support\Gallery\Watermark::allowedFor($user) && ! $galleryDefaults->watermark())>
+                            <span></span>
+                        </span>
+                    </label>
+
                     <label for="default-use-branding" class="flex cursor-pointer items-center gap-4 border-b border-border px-5 py-4 transition-colors hover:bg-muted/40">
                         <span class="min-w-0 flex-1">
                             <span class="block text-sm font-medium text-foreground">Use my brand</span>
@@ -442,6 +457,111 @@
                     </div>
                     <div class="card-footer flex items-center justify-end">
                         <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </section>
+            @endcan
+
+            {{-- ============ Watermark ============ --}}
+            @can('studio.profile.manage')
+            @php
+                $watermark = \App\Support\Gallery\Watermark::for($user);
+                $hasLogo = (bool) $user->logo_path;
+                $watermarkAllowed = \App\Support\Gallery\Watermark::allowedFor($user);
+            @endphp
+            <section x-show="tab === 'watermark'" x-cloak class="card" aria-labelledby="watermark-heading"
+                     x-data="{
+                        type: @js(old('type', $hasLogo ? $watermark->storedType() : 'text')),
+                        text: @js(old('text', $watermark->storedText() ?? '')),
+                        position: @js(old('position', $watermark->position())),
+                        opacity: {{ (int) old('opacity', $watermark->opacity()) }},
+                        src: '',
+                        loading: false,
+                        timer: null,
+                        init() {
+                            this.$watch('tab', () => this.tab === 'watermark' && !this.src && this.refresh(0));
+                            if (this.tab === 'watermark') this.refresh(0);
+                            ['type', 'text', 'position', 'opacity'].forEach(key => this.$watch(key, () => this.refresh()));
+                        },
+                        // Drawn by the server with the same code as the gallery previews; the old image stays until the new one loads
+                        refresh(delay = 350) {
+                            clearTimeout(this.timer);
+                            this.timer = setTimeout(() => {
+                                const url = @js(route('studio.settings.watermark.preview')) + '?' + new URLSearchParams({ type: this.type, text: this.text, position: this.position, opacity: this.opacity });
+                                this.loading = true;
+                                const img = new Image();
+                                img.onload = () => { this.src = url; this.loading = false };
+                                img.onerror = () => { this.loading = false };
+                                img.src = url;
+                            }, delay);
+                        },
+                     }">
+                <div class="card-header">
+                    <div>
+                        <h2 id="watermark-heading" class="card-title">Watermark</h2>
+                        <p class="card-description">Your mark on the photos clients see. Turn it on for each gallery in its Settings. Downloads stay clean.</p>
+                    </div>
+                </div>
+
+                {{-- The photographer's own photo with the mark, as clients will see it --}}
+                <div class="relative border-b border-border bg-muted">
+                    <img :src="src" x-show="src" alt="Preview of the watermark on one of your photos" class="mx-auto block max-h-[420px] w-auto transition-opacity" :class="loading && 'opacity-70'">
+                    <div x-show="!src" class="aspect-[3/2] max-h-[420px] w-full"></div>
+                </div>
+
+                <form method="POST" action="{{ route('studio.settings.watermark') }}">
+                    @csrf
+                    <div class="card-body space-y-5">
+                        <fieldset>
+                            <legend class="label">Mark</legend>
+                            <div class="flex gap-1 rounded-lg bg-muted p-1 sm:max-w-xs" role="radiogroup" aria-label="Mark">
+                                @foreach(\App\Support\Gallery\Watermark::TYPES as $key => $label)
+                                    <label class="flex-1">
+                                        <input type="radio" name="type" value="{{ $key }}" x-model="type" class="peer sr-only" @disabled($key === 'logo' && ! $hasLogo)>
+                                        <span class="flex cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors peer-checked:bg-card peer-checked:text-foreground peer-checked:shadow-xs peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:cursor-not-allowed peer-disabled:opacity-50">{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @unless($hasLogo)
+                                <p class="help">To use your logo, <a href="{{ route('studio.portfolio.edit') }}#branding" class="link">add it in Portfolio</a> first.</p>
+                            @endunless
+                        </fieldset>
+
+                        <div x-show="type === 'text'">
+                            <x-ui.input label="Text" name="text" x-model="text" :placeholder="$user->name" maxlength="{{ \App\Support\Gallery\Watermark::MAX_TEXT }}" :error="$errors->first('text')" hint="Leave it empty to use your studio name." />
+                        </div>
+
+                        <fieldset>
+                            <legend class="label">Position</legend>
+                            <div class="flex gap-1 rounded-lg bg-muted p-1 sm:max-w-sm" role="radiogroup" aria-label="Position">
+                                @foreach(\App\Support\Gallery\Watermark::POSITIONS as $key => $label)
+                                    <label class="flex-1">
+                                        <input type="radio" name="position" value="{{ $key }}" x-model="position" class="peer sr-only">
+                                        <span class="flex cursor-pointer items-center justify-center rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors peer-checked:bg-card peer-checked:text-foreground peer-checked:shadow-xs peer-focus-visible:ring-2 peer-focus-visible:ring-ring">{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </fieldset>
+
+                        <div>
+                            <label for="watermark-opacity" class="label flex items-center justify-between sm:max-w-sm">
+                                <span>Opacity</span>
+                                <span class="tabular-nums text-muted-foreground" x-text="opacity + '%'">{{ $watermark->opacity() }}%</span>
+                            </label>
+                            <input type="range" id="watermark-opacity" name="opacity" x-model.number="opacity"
+                                   min="{{ \App\Support\Gallery\Watermark::MIN_OPACITY }}" max="{{ \App\Support\Gallery\Watermark::MAX_OPACITY }}" step="5"
+                                   class="w-full accent-foreground sm:max-w-sm">
+                        </div>
+                    </div>
+                    <div class="card-footer flex flex-wrap items-center justify-end gap-3">
+                        @if($watermarkAllowed)
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        @else
+                            <p class="mr-auto text-[13px] text-muted-foreground">Watermarks come with every paid plan. Try a design above to see it on your photo.</p>
+                            @can('studio.billing')
+                                <a href="{{ route('studio.billing.index') }}" class="btn btn-primary">See plans</a>
+                            @endcan
+                        @endif
                     </div>
                 </form>
             </section>

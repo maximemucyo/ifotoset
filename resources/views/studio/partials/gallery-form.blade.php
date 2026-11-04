@@ -1,5 +1,5 @@
 {{--
-    Sections of the gallery Settings tab: Details, Privacy, Expiry, Downloads and Favorites. Expects $gallery, and the
+    Sections of the gallery Settings tab: Details, Privacy, Expiry, Downloads, Watermark and Favorites. Expects $gallery, and the
     gallery workspace's `section` in scope. Wide screens show the section picked in the rail; phones show them all.
     Each form saves on its own through `settingsForm`: choices and switches as they change, text with a Save button.
 --}}
@@ -262,6 +262,87 @@
             </div>
         </form>
     </section>
+    {{-- ============ Watermark ============ --}}
+    @php
+        $watermark = \App\Support\Gallery\Watermark::for($gallery->user);
+        $watermarkAllowed = \App\Support\Gallery\Watermark::allowedFor($gallery->user);
+        $watermarkProgress = $gallery->watermark && $watermarkAllowed ? $watermark->progress($gallery) : ['done' => 0, 'total' => 0];
+    @endphp
+    <section id="watermark" class="{{ $sectionClass }}" :class="section === 'watermark' ? '' : 'lg:hidden'" aria-labelledby="watermark-title">
+        <header class="mb-5">
+            <h2 id="watermark-title" class="text-lg font-semibold text-foreground">Watermark</h2>
+            <p class="mt-1 text-[13px] text-muted-foreground">Your mark on the photos clients see. Downloads are the clean photos.</p>
+        </header>
+
+        <form method="POST" action="{{ $updateUrl }}" x-data="settingsForm" class="card" @submit.prevent="save()">
+            @csrf
+            @method('PATCH')
+            <div x-data="{
+                    enabled: @js((bool) $gallery->watermark),
+                    done: {{ $watermarkProgress['done'] }},
+                    total: {{ $watermarkProgress['total'] }},
+                    timer: null,
+                    init() { if (this.enabled && this.done < this.total) this.poll() },
+                    toggle() {
+                        this.$nextTick(async () => {
+                            if (await this.save(this.enabled ? 'Watermark on' : 'Watermark off') && this.enabled) this.poll();
+                        });
+                    },
+                    // The previews are made in the background; follow them until every photo has one
+                    poll() {
+                        clearTimeout(this.timer);
+                        this.timer = setTimeout(async () => {
+                            try {
+                                const res = await fetch(@js(route('studio.galleries.watermark', $gallery->uuid)), { headers: { Accept: 'application/json' } });
+                                Object.assign(this, await res.json());
+                            } catch {}
+                            if (this.enabled && this.done < this.total) this.poll();
+                        }, 3000);
+                    },
+                 }">
+                <label @class(['flex items-center justify-between gap-4 p-5 sm:px-6', 'cursor-pointer' => $watermarkAllowed || $gallery->watermark])>
+                    <span>
+                        <span class="flex items-center gap-2 text-sm font-medium text-foreground">Watermark
+                            @unless($watermarkAllowed)<x-ui.badge variant="neutral"><x-icon name="lock" class="size-3" /> Paid plans</x-ui.badge>@endunless
+                        </span>
+                        <span class="mt-0.5 block text-xs text-muted-foreground"
+                              x-text="enabled ? @js('On: ' . $watermark->summary() . '.') : 'Off: clients see the photos without it.'">{{ $gallery->watermark ? 'On: ' . $watermark->summary() . '.' : 'Off: clients see the photos without it.' }}</span>
+                    </span>
+                    <span class="switch">
+                        <input type="hidden" name="watermark" value="0">
+                        <input type="checkbox" name="watermark" value="1" class="sr-only" x-model="enabled" @change="toggle()" @checked($gallery->watermark)
+                               @unless($watermarkAllowed) :disabled="!enabled" @disabled(! $gallery->watermark) @endunless>
+                        <span></span>
+                    </span>
+                </label>
+                <div x-show="enabled && done < total" x-cloak class="border-t border-border px-5 py-4 sm:px-6" aria-live="polite">
+                    <p class="text-[13px] text-foreground">Adding it to your photos: <span class="tabular-nums" x-text="`${done} of ${total}`"></span></p>
+                    <div class="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                        <div class="h-full bg-foreground transition-[width] duration-500" :style="`width: ${total ? Math.round(done / total * 100) : 0}%`"></div>
+                    </div>
+                    <p class="help mt-2">Until a photo has it, clients see that photo without it.</p>
+                </div>
+                <p x-show="enabled && summary.downloads === 'No PIN'" x-cloak class="border-t border-border px-5 py-4 text-[13px] text-muted-foreground sm:px-6">
+                    Clients can still download the clean photos. Turn on the <a href="#downloads" class="font-medium text-foreground underline underline-offset-2">Download PIN</a> to stop that.
+                </p>
+                @unless($watermarkAllowed)
+                    <p class="border-t border-border px-5 py-4 text-[13px] text-muted-foreground sm:px-6">
+                        {{ $gallery->watermark ? "Your plan doesn't include watermarks any more. Photos that have one keep it, but new photos won't get one." : 'Watermarks come with every paid plan.' }}
+                        @can('studio.billing')
+                            <a href="{{ route('studio.billing.index') }}" class="font-medium text-foreground underline underline-offset-2">See plans</a>
+                        @endcan
+                    </p>
+                @endunless
+                @can('studio.profile.manage')
+                    <p class="border-t border-border px-5 py-4 text-[13px] sm:px-6">
+                        <a href="{{ route('studio.settings.index') }}#watermark" class="font-medium text-foreground underline underline-offset-2">Change how it looks</a>
+                        <span class="text-muted-foreground">in Settings. It's the same on every gallery.</span>
+                    </p>
+                @endcan
+            </div>
+        </form>
+    </section>
+
     {{-- ============ Favorites ============ --}}
     <section id="favorites" class="{{ $sectionClass }}" :class="section === 'favorites' ? '' : 'lg:hidden'" aria-labelledby="favorites-title">
         <header class="mb-5">

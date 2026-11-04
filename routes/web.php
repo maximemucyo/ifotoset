@@ -224,6 +224,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::get('/galleries/{uuid}', [StudioGalleryController::class, 'show'])->name('galleries.show');
     Route::get('/galleries/{uuid}/edit', [StudioGalleryController::class, 'edit'])->name('galleries.edit');
     Route::get('/galleries/{uuid}/design', [StudioGalleryController::class, 'design'])->name('galleries.design');
+    Route::get('/galleries/{uuid}/watermark', [StudioGalleryController::class, 'watermarkStatus'])->name('galleries.watermark');
     Route::get('/galleries/{uuid}/clients', [StudioGalleryController::class, 'clients'])->name('galleries.clients');
     Route::get('/galleries/{uuid}/activity', [StudioGalleryActivityController::class, 'index'])->name('galleries.activity');
     Route::get('/galleries/{uuid}/favorites', [StudioGalleryActivityController::class, 'favoritesRedirect'])->name('galleries.favorites');
@@ -320,6 +321,8 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->middleware('can:studio.profile.manage')->name('settings.public-profile');
     Route::post('/settings/notifications', [StudioSettingsController::class, 'updateNotifications'])->name('settings.notifications');
     Route::post('/settings/gallery-defaults', [StudioSettingsController::class, 'updateGalleryDefaults'])->middleware('can:studio.profile.manage')->name('settings.gallery-defaults');
+    Route::post('/settings/watermark', [StudioSettingsController::class, 'updateWatermark'])->middleware('can:studio.profile.manage')->name('settings.watermark');
+    Route::get('/settings/watermark/preview', [StudioSettingsController::class, 'previewWatermark'])->middleware(['can:studio.profile.manage', 'throttle:120,1'])->name('settings.watermark.preview');
     Route::get('/settings/export', [StudioSettingsController::class, 'exportData'])->middleware(['can:studio.account.manage', 'throttle:5,1'])->name('settings.export');
     Route::delete('/settings/account', [StudioSettingsController::class, 'destroyAccount'])->middleware('throttle:5,1')->name('settings.account.destroy');
 

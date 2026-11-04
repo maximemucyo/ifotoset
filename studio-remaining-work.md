@@ -18,6 +18,7 @@ Already shipped:
 - **client gallery layouts** (Full bleed, Framed, Split, No cover) with a photo grid and colours, on the Design tab;
 - **gallery defaults** in Studio settings (New galleries);
 - **branding on client galleries**: one "Use my brand" switch on the Design tab;
+- **watermark**: designed once in Settings → Watermark, turned on per gallery;
 - **quick share links**: select photos, choose "Share link", and the link is copied. It opens only those photos, even in a draft or private gallery, and stops when deleted or when the gallery expires. Listed in Activity and in the Share panel.
 
 **Rules for every item**
@@ -73,7 +74,14 @@ Layouts, defaults and branding are done.
 
 ## Watermark, download sizes, bulk actions (§5, §4.2)
 
-- [ ] **Watermark**: a PNG or text, with position and opacity, applied to previews only. This matters more now that downloads can't be turned off: it's how photographers share proofs before the client pays.
+- [x] **Watermark**: text or the portfolio logo, in the middle, a corner or all over, with an opacity slider. It's designed once in **Settings → Watermark** (`users.watermark`, read through `App\Support\Gallery\Watermark`), with a live preview the server draws on the studio's latest cover. Each gallery has one **Watermark** switch in Settings (`galleries.watermark`, off by default), and there's another under New galleries.
+  - The watermark is baked into separate preview files, `{name}_{size}_w{version}.webp`, next to the clean ones. They are made by `WatermarkPhotoJob` from the clean `xl`, and `version` is a hash of the design. A new design makes new files with new URLs and deletes the old ones. `photos.watermark_version` records which design a photo has.
+  - Clients get the watermarked files on the gallery, its photo feed, quick links, the download page and the link-preview image (`Photo::showWatermarkFor()`). The studio keeps the clean previews, and downloads, ZIPs and Google Photos stay originals. The Design tab preview shows the watermark.
+  - New uploads to a watermarked gallery get the watermark before they're marked ready. When the switch is turned on for a gallery that already has photos, its Settings section shows "Adding it to your photos: 120 of 500". Until a photo has it, clients see that photo clean. If the gallery has no Download PIN, the section says clients can still download the clean photos.
+  - **Paid plans only** (plan feature `watermark`, seeded on Basic, Pro and Business; admins can change that). Free studios can try a design and its live preview, but Save becomes "See plans" and the gallery switch is locked. If a plan lapses, previews that already have the watermark keep it, so clients never suddenly see clean proofs. New photos and new designs stop getting one, and the switch can still be turned off.
+  - **Cost:** about 0.4s of CPU, 100 MB of memory and 0.5 MB of storage per photo, measured locally (re-encoding the five sizes is almost all of it). Expect about 1 to 1.5s and 1 MB for real camera files on the server. Jobs run on their own `watermarks` queue with **one** pm2 worker (`ifotoset-watermark-queue`, started by deploy.sh). However many studios use watermarks, that's at most one core, and uploads on `photos` are never held up. A busy hour means a longer wait, not a slower server. New uploads are the exception: they get the watermark in their own processing job, so they never show clean. A design change only re-stamps galleries that are still open.
+  - Text uses Instrument Serif (`resources/fonts`, OFL), so GD needs FreeType on the server. A cut-out logo is drawn in white. Videos aren't watermarked.
+  - Known limit: the clean previews keep their usual names, so someone who edits the image URL by hand can still reach them. Closing that needs the CDN worker to refuse clean previews for watermarked galleries.
 - [ ] **Download size**: web size (2048px) or original. Web size by default saves clients' mobile data.
 - [ ] Bulk gallery actions on the Galleries page (extend expiry, change who can open it, trash), and **Archive**.
 

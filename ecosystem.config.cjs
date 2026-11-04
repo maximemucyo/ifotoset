@@ -24,6 +24,19 @@ module.exports = {
       watch: false
     },
     {
+      // Watermarked previews (WatermarkPhotoJob on the "watermarks" queue). One process, so however many
+      // studios turn watermarks on or change their design, it uses at most one core and never delays uploads.
+      name: 'ifotoset-watermark-queue',
+      cwd: '.',
+      script: '/www/server/php/84/bin/php',
+      args: 'artisan queue:work --queue=watermarks --sleep=3 --tries=3 --timeout=300 --max-time=3600',
+      exec_mode: 'fork',
+      instances: 1,
+      max_memory_restart: '450M',
+      autorestart: true,
+      watch: false
+    },
+    {
       // Gallery ZIP exports (GenerateGalleryZipJob on the "exports" queue). Kept off the other workers
       // so a 1 GB+ archive (download, pack, upload: 10+ min) never blocks photos or video.
       name: 'ifotoset-export-queue',

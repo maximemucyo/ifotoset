@@ -29,7 +29,7 @@
         'settings' => ['label' => 'Settings', 'icon' => 'settings', 'url' => $settingsUrl],
     ];
     // Settings sections, each shown in the rail with what it is set to
-    $sections = ['details' => 'Details', 'privacy' => 'Privacy', 'expiry' => 'Expiry', 'downloads' => 'Downloads', 'favorites' => 'Favorites'];
+    $sections = ['details' => 'Details', 'privacy' => 'Privacy', 'expiry' => 'Expiry', 'downloads' => 'Downloads', 'watermark' => 'Watermark', 'favorites' => 'Favorites'];
     $summary = $gallery->settingsSummary();
 @endphp
 <div class="flex min-h-0 flex-1 flex-col"

@@ -50,7 +50,7 @@ class GalleryShareImageService
             return null;
         }
 
-        return app(PublicUrlService::class)->gallery($gallery) . '/share.jpg?v=' . $this->version($photo);
+        return app(PublicUrlService::class)->gallery($gallery) . '/share.jpg?v=' . $this->version($photo, $gallery);
     }
 
     /**
@@ -63,11 +63,12 @@ class GalleryShareImageService
         }
 
         $dir = storage_path("app/share-images/{$gallery->id}");
-        $path = "{$dir}/{$this->version($photo)}.jpg";
+        $path = "{$dir}/{$this->version($photo, $gallery)}.jpg";
         if (File::exists($path)) {
             return $path;
         }
 
+        Photo::showWatermarkFor($gallery);
         $key = ltrim((string) parse_url($photo->getThumbnailUrl('lg'), PHP_URL_PATH), '/');
         $source = Storage::disk('b2')->get(rawurldecode($key));
         if (!$source) {
@@ -92,8 +93,9 @@ class GalleryShareImageService
         return $path;
     }
 
-    private function version(Photo $photo): string
+    private function version(Photo $photo, Gallery $gallery): string
     {
-        return $photo->id . '-' . $photo->updated_at?->timestamp;
+        // A new watermark updates the photo; turning it off only changes the gallery
+        return $photo->id . '-' . $photo->updated_at?->timestamp . ($gallery->watermark ? '-w' : '');
     }
 }

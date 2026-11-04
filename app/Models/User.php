@@ -47,6 +47,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'share_image_path',
         'notification_preferences',
         'gallery_defaults',
+        'watermark',
         'timezone',
         'slot_interval_minutes',
     ];
@@ -68,6 +69,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'profile_public' => 'boolean',
         'notification_preferences' => 'array',
         'gallery_defaults' => 'array',
+        'watermark' => 'array',
         'portfolio_settings' => 'array',
         'specialties' => 'array',
         'storage_used_bytes' => 'integer',

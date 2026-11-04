@@ -43,6 +43,9 @@ class StorageKeyResolver
             $baseName = pathinfo($filename, PATHINFO_FILENAME);
             foreach ($this->variantSizes as $size) {
                 $objects[] = "{$prefix}/{$baseName}_{$size}.webp";
+                if ($photo->watermark_version) {
+                    $objects[] = "{$prefix}/{$baseName}_{$size}" . \App\Services\PhotoWatermarkService::suffix($photo->watermark_version) . '.webp';
+                }
             }
 
             // Also check stored_filename if different

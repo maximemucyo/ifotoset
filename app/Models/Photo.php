@@ -63,6 +63,7 @@ class Photo extends Model
         'taken_at',
         'sort_order',
         'status',
+        'watermark_version',
         'processing_error',
         'processed_at',
         'is_hidden',
@@ -175,10 +176,35 @@ class Photo extends Model
 
         return app(\App\Services\StorageService::class)->getCdnUrl(
             $this->path,
-            ($size && $this->status === \App\Enums\PhotoStatus::Ready->value) ? $size : null,
+            ($size && $this->status === \App\Enums\PhotoStatus::Ready->value) ? $size . $this->watermarkSuffix() : null,
             $this->filename ?? $this->stored_filename,
             $this->diskCdnDomain()
         );
+    }
+
+    /** Request attribute naming the gallery whose photos this page shows to clients with a watermark */
+    public const WATERMARK_ATTRIBUTE = 'watermark_gallery_id';
+
+    /**
+     * Pages a client sees call this, so their photo previews come with the gallery's watermark when it's on.
+     * The studio never does, and keeps the clean previews.
+     */
+    public static function showWatermarkFor(\App\Models\Gallery $gallery): void
+    {
+        if ($gallery->watermark) {
+            request()->attributes->set(self::WATERMARK_ATTRIBUTE, $gallery->id);
+        }
+    }
+
+    /**
+     * "_w{version}" for a watermarked preview, or nothing. A photo whose watermark isn't made yet shows the
+     * last design it has; one that never had a watermark shows the clean preview until its job runs.
+     */
+    protected function watermarkSuffix(): string
+    {
+        return $this->watermark_version && request()->attributes->get(self::WATERMARK_ATTRIBUTE) === $this->gallery_id
+            ? \App\Services\PhotoWatermarkService::suffix($this->watermark_version)
+            : '';
     }
 
     public function getPosterUrl(?string $size = null): ?string

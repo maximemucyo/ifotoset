@@ -59,6 +59,11 @@ class GalleryDefaults
         return $this->pick('color_mode', array_keys(Gallery::COLOR_MODES), 'light');
     }
 
+    public function watermark(): bool
+    {
+        return (bool) ($this->data['watermark'] ?? false);
+    }
+
     public function useBranding(): bool
     {
         return (bool) ($this->data['use_branding'] ?? false);
@@ -77,6 +82,7 @@ class GalleryDefaults
             'grid_style' => Gallery::TEMPLATES[$this->template()]['grid'],
             'color_mode' => $this->colorMode(),
             'use_branding' => $this->useBranding(),
+            'watermark' => $this->watermark(),
         ];
     }
 

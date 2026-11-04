@@ -186,7 +186,10 @@ class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
             unset($image);
             gc_collect_cycles();
 
-            // 7. Update database records in transaction
+            // 7. A watermarked gallery never lists this photo clean: its watermark is made before it's ready
+            $this->watermarkIfNeeded($photo);
+
+            // 8. Update database records in transaction
             $updateProgress('Updating Statistics');
             \Illuminate\Support\Facades\DB::transaction(function () use ($photo, $width, $height, $blurhash, $exifData, $verifiedMimeType) {
                 $photo->update([
@@ -239,6 +242,22 @@ class ProcessPhotoJob implements ShouldQueue, ShouldBeUnique
             } catch (Throwable $cleanupError) {
                 Log::warning("Failed to delete temp folder {$tempDir}: " . $cleanupError->getMessage());
             }
+        }
+    }
+
+    private function watermarkIfNeeded(Photo $photo): void
+    {
+        $gallery = $photo->gallery;
+        if (!$gallery?->watermark || !$gallery->user || $photo->isVideo() || !\App\Support\Gallery\Watermark::allowedFor($gallery->user)) {
+            return;
+        }
+
+        try {
+            app(\App\Services\PhotoWatermarkService::class)->apply($photo, \App\Support\Gallery\Watermark::for($gallery->user));
+        } catch (Throwable $e) {
+            // The photo is still good; its watermark is tried again on its own
+            Log::warning("Watermark failed for photo [{$photo->uuid}], retrying separately: " . $e->getMessage());
+            \App\Jobs\WatermarkPhotoJob::dispatch($photo)->delay(now()->addMinute());
         }
     }
 

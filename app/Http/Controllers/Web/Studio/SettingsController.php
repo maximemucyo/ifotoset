@@ -7,6 +7,8 @@ use App\Models\Gallery;
 use App\Rules\StudioPhone;
 use App\Services\StorageStatisticsService;
 use App\Support\Gallery\GalleryDefaults;
+use App\Support\Gallery\Watermark;
+use App\Support\Gallery\WatermarkRenderer;
 use App\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -187,6 +189,7 @@ class SettingsController extends Controller
             'template' => ['required', Rule::in(array_keys(Gallery::TEMPLATES))],
             'color_mode' => ['required', Rule::in(array_keys(Gallery::COLOR_MODES))],
             'use_branding' => ['nullable', 'boolean'],
+            'watermark' => ['nullable', 'boolean'],
         ]);
 
         $request->account()->update([
@@ -194,11 +197,87 @@ class SettingsController extends Controller
                 ...$validated,
                 'download_pin' => $request->boolean('download_pin'),
                 'use_branding' => $request->boolean('use_branding'),
+                'watermark' => $request->boolean('watermark'),
                 'expiry_months' => isset($validated['expiry_months']) ? (int) $validated['expiry_months'] : null,
             ],
         ]);
 
         return redirect()->to(route('studio.settings.index') . '#galleries')->with('success', 'New gallery settings saved.');
+    }
+
+    /**
+     * How the studio's watermark looks. Galleries that show it get new previews in the background.
+     */
+    public function updateWatermark(Request $request): RedirectResponse
+    {
+        $settings = $this->validatedWatermark($request);
+        $user = $request->account();
+        abort_unless(Watermark::allowedFor($user), 403, 'Watermarks come with every paid plan.');
+        $before = Watermark::for($user)->version();
+
+        $user->update(['watermark' => $settings]);
+        if (Watermark::for($user->fresh())->version() !== $before) {
+            Watermark::refreshGalleries($user);
+        }
+
+        return redirect()->to(route('studio.settings.index') . '#watermark')->with('success', 'Watermark saved.');
+    }
+
+    /**
+     * The watermark as it would look with the form's unsaved choices, drawn on one of the studio's photos.
+     */
+    public function previewWatermark(Request $request, WatermarkRenderer $renderer): \Illuminate\Http\Response
+    {
+        $user = $request->account();
+        $watermark = Watermark::for($user, $this->validatedWatermark($request));
+
+        $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+        $image = $manager->read($this->previewSample($user));
+        $image->scaleDown(width: 1200, height: 1200);
+        $logo = $watermark->type() === 'logo' ? $manager->read(\Illuminate\Support\Facades\Storage::disk('b2')->get($user->logo_path))->core()->native() : null;
+        $renderer->apply($image->core()->native(), $watermark, $logo);
+
+        return response((string) $image->toJpeg(80), 200, ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'private, max-age=300']);
+    }
+
+    private function validatedWatermark(Request $request): array
+    {
+        $validated = $request->validate([
+            'type' => ['nullable', Rule::in(array_keys(Watermark::TYPES))],
+            'text' => ['nullable', 'string', 'max:' . Watermark::MAX_TEXT],
+            'position' => ['nullable', Rule::in(array_keys(Watermark::POSITIONS))],
+            'opacity' => ['nullable', 'integer', 'between:' . Watermark::MIN_OPACITY . ',' . Watermark::MAX_OPACITY],
+        ], [
+            'text.max' => 'Keep the text to ' . Watermark::MAX_TEXT . ' characters.',
+        ]);
+
+        return [
+            'type' => $validated['type'] ?? 'text',
+            'text' => trim((string) ($validated['text'] ?? '')) ?: null,
+            'position' => $validated['position'] ?? 'center',
+            'opacity' => (int) ($validated['opacity'] ?? Watermark::DEFAULT_OPACITY),
+        ];
+    }
+
+    /**
+     * The studio's latest cover, kept for an hour so moving the slider doesn't fetch it again; else a sample photo.
+     */
+    private function previewSample(\App\Models\User $user): string
+    {
+        $cached = \Illuminate\Support\Facades\Cache::remember("watermark-sample:{$user->id}", now()->addHour(), function () use ($user) {
+            $coverId = $user->galleries()->whereNotNull('cover_photo_id')->latest()->value('cover_photo_id');
+            $photo = $coverId ? \App\Models\Photo::where('status', \App\Enums\PhotoStatus::Ready->value)->find($coverId) : null;
+            if (!$photo || $photo->isVideo()) {
+                return '';
+            }
+            try {
+                return base64_encode((string) \Illuminate\Support\Facades\Storage::disk('b2')->get("{$photo->path}/" . pathinfo($photo->filename, PATHINFO_FILENAME) . '_md.webp'));
+            } catch (\Throwable) {
+                return '';
+            }
+        });
+
+        return $cached !== '' ? base64_decode($cached) : file_get_contents(public_path('images/marketing/hero-1.webp'));
     }
 
     /**

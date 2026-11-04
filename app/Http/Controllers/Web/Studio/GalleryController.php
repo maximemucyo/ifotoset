@@ -162,6 +162,7 @@ class GalleryController extends Controller
             'grid_style' => $defaults['grid_style'],
             'color_mode' => $defaults['color_mode'],
             'use_branding' => $defaults['use_branding'],
+            'watermark' => $defaults['watermark'] && \App\Support\Gallery\Watermark::allowedFor($user),
             'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
             // A draft until the photographer presses Share
             'published_at' => null,
@@ -427,6 +428,17 @@ class GalleryController extends Controller
     }
 
     /**
+     * How many of the gallery's photos have the current watermark, for the Watermark section's progress line.
+     */
+    public function watermarkStatus(string $uuid): \Illuminate\Http\JsonResponse
+    {
+        $gallery = Gallery::where('uuid', $uuid)->firstOrFail();
+        $this->authorize('update', $gallery);
+
+        return response()->json(\App\Support\Gallery\Watermark::for($gallery->user)->progress($gallery));
+    }
+
+    /**
      * Invite people by email and see who opened the gallery. Works for every visibility.
      */
     public function clients(string $uuid): View
@@ -482,6 +494,7 @@ class GalleryController extends Controller
             'grid_style' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::GRID_STYLES))],
             'color_mode' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::COLOR_MODES))],
             'use_branding' => ['nullable', 'boolean'],
+            'watermark' => ['nullable', 'boolean'],
         ], [
             'password.required' => 'Choose a password for a password-protected gallery.',
             'password.min' => 'The password must be at least 6 characters.',
@@ -531,6 +544,13 @@ class GalleryController extends Controller
             $updateData += Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null);
         }
 
+        if ($request->has('watermark')) {
+            // Turning it off is always allowed, so a studio whose plan lapsed can still take it away
+            if ($request->boolean('watermark') && !$gallery->watermark && !\App\Support\Gallery\Watermark::allowedFor($gallery->user)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['watermark' => 'Watermarks come with every paid plan.']);
+            }
+            $updateData['watermark'] = $request->boolean('watermark');
+        }
         if ($request->has('use_branding')) {
             $updateData['use_branding'] = $request->boolean('use_branding');
         }
@@ -568,6 +588,9 @@ class GalleryController extends Controller
         // Invitations close with the gallery: keep active ones in step with a new expiry date
         if ($gallery->wasChanged('expires_at')) {
             $gallery->invitations()->whereNull('revoked_at')->update(['expires_at' => $gallery->expires_at]);
+        }
+        if ($gallery->wasChanged('watermark') && $gallery->watermark) {
+            \App\Jobs\WatermarkGalleryJob::dispatch($gallery);
         }
 
         if ($request->wantsJson()) {
