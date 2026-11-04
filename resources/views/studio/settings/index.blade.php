@@ -2,7 +2,7 @@
 
 @php
     $hasPasswordErrors = $errors->hasAny(['current_password', 'password', 'delete_password', 'confirm']);
-    $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : 'profile');
+    $initialTab = $hasPasswordErrors ? 'security' : ($errors->has('username') ? 'public' : ($errors->hasAny(['visibility', 'expiry_months', 'photo_order', 'template', 'color_mode']) ? 'galleries' : 'profile'));
     $publicUrl = $user->username ? $user->public_url : null;
     $rootHost = config('app.public_root_host', 'ifotoset.com');
 
@@ -14,6 +14,7 @@
     $sections = array_values(array_filter([
         ['id' => 'profile', 'label' => 'Profile', 'icon' => 'user', 'hint' => 'Name, photo and contact'],
         Gate::allows('studio.profile.manage') ? ['id' => 'public', 'label' => 'Public profile', 'icon' => 'globe', 'hint' => 'Portfolio link and visibility'] : null,
+        Gate::allows('studio.profile.manage') ? ['id' => 'galleries', 'label' => 'New galleries', 'icon' => 'images', 'hint' => 'What new galleries start with'] : null,
         ['id' => 'security', 'label' => 'Security', 'icon' => 'shield', 'hint' => 'Password'],
         $teamContext ? null : ['id' => 'notifications', 'label' => 'Notifications', 'icon' => 'bell', 'hint' => 'Email alerts'],
     ]));
@@ -363,6 +364,77 @@
                 </form>
             </section>
             @endif
+
+            {{-- ============ New galleries ============ --}}
+            @can('studio.profile.manage')
+            @php
+                $galleryDefaults = \App\Support\Gallery\GalleryDefaults::for($user);
+            @endphp
+            <section x-show="tab === 'galleries'" x-cloak class="card" aria-labelledby="galleries-heading">
+                <div class="card-header">
+                    <div>
+                        <h2 id="galleries-heading" class="card-title">New galleries</h2>
+                        <p class="card-description">Choose once what every new gallery starts with. You can still change each gallery.</p>
+                    </div>
+                </div>
+                <form method="POST" action="{{ route('studio.settings.gallery-defaults') }}">
+                    @csrf
+                    <div class="border-b border-border">
+                    <fieldset>
+                        <legend class="px-5 pt-4 text-sm font-medium text-foreground">Who can open them</legend>
+                        @foreach(\App\Models\Gallery::VISIBILITIES as $value => $opt)
+                            <label class="flex cursor-pointer items-center gap-4 px-5 py-3 transition-colors hover:bg-muted/40">
+                                <x-icon :name="$opt['icon']" class="size-[18px] shrink-0 text-muted-foreground" />
+                                <span class="min-w-0 flex-1">
+                                    <span class="block text-sm text-foreground">{{ $opt['label'] }}</span>
+                                    <span class="block text-xs text-muted-foreground">{{ $opt['description'] }}</span>
+                                </span>
+                                <input type="radio" name="visibility" value="{{ $value }}" class="size-4 shrink-0" @checked(old('visibility', $galleryDefaults->visibility()) === $value)>
+                            </label>
+                        @endforeach
+                        <p class="px-5 pb-4 text-xs text-muted-foreground">Clients can't open a new gallery until you share it.</p>
+                    </fieldset>
+                    </div>
+
+                    <label for="default-download-pin" class="flex cursor-pointer items-center gap-4 border-b border-border px-5 py-4 transition-colors hover:bg-muted/40">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-medium text-foreground">Download PIN</span>
+                            <span class="block text-[13px] text-muted-foreground">Clients need a 4-digit PIN to download. Each gallery gets its own.</span>
+                        </span>
+                        <span class="switch">
+                            <input type="checkbox" id="default-download-pin" name="download_pin" value="1" class="sr-only" @checked(old('download_pin', $galleryDefaults->downloadPin()))>
+                            <span></span>
+                        </span>
+                    </label>
+
+                    <div class="card-body grid gap-5 sm:grid-cols-2">
+                        <x-ui.select label="Closes after" name="expiry_months" id="default-expiry" hint="Counted from the day you share it." :error="$errors->first('expiry_months')">
+                            @foreach(\App\Support\Gallery\GalleryDefaults::EXPIRY_MONTHS as $value => $label)
+                                <option value="{{ $value }}" @selected((string) old('expiry_months', $galleryDefaults->expiryMonths()) === (string) $value)>{{ $label }}</option>
+                            @endforeach
+                        </x-ui.select>
+                        <x-ui.select label="Photo order" name="photo_order" id="default-photo-order" :error="$errors->first('photo_order')">
+                            @foreach(\App\Models\Gallery::PHOTO_ORDERS as $value => $label)
+                                <option value="{{ $value }}" @selected(old('photo_order', $galleryDefaults->photoOrder()) === $value)>{{ $label }}</option>
+                            @endforeach
+                        </x-ui.select>
+                        <x-ui.select label="Layout" name="template" id="default-template" :error="$errors->first('template')">
+                            @foreach(\App\Models\Gallery::TEMPLATES as $value => $t)
+                                <option value="{{ $value }}" @selected(old('template', $galleryDefaults->template()) === $value)>{{ $t['name'] }}</option>
+                            @endforeach
+                        </x-ui.select>
+                        <x-ui.select label="Colours" name="color_mode" id="default-colours" :error="$errors->first('color_mode')">
+                            @foreach(\App\Models\Gallery::COLOR_MODES as $value => $mode)
+                                <option value="{{ $value }}" @selected(old('color_mode', $galleryDefaults->colorMode()) === $value)>{{ $mode['label'] }}</option>
+                            @endforeach
+                        </x-ui.select>
+                    </div>
+                    <div class="card-footer flex items-center justify-end">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </section>
+            @endcan
 
             {{-- ============ Notifications ============ --}}
             @unless($teamContext)

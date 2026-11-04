@@ -16,7 +16,10 @@
         $gallery->download_pin ? "Download PIN: {$gallery->download_pin}" : null,
         $expiresLabel ? "You can download them until {$expiresLabel}." : null,
     ])->filter()->implode("\n");
-    $currentExpiresOn = $gallery->expires_at?->copy()->setTimezone($tz)->format('Y-m-d') ?? '';
+    // A draft without a date starts with the studio's usual expiry, counted from the day it's shared
+    $currentExpiresOn = $gallery->expires_at?->copy()->setTimezone($tz)->format('Y-m-d')
+        ?? ($isDraft ? \App\Support\Gallery\GalleryDefaults::for($gallery->user)->expiryDateFromToday($gallery->user) : null)
+        ?? '';
     $photoCount = $gallery->photo_count;
     $openOnLoad = request()->boolean('share') && ! $isDraft;
     $quickLinks = $gallery->shareLinks()->withCount('photos')->limit(3)->get();

@@ -15,6 +15,8 @@
         </include>
     </source>
     <php>
+        <!-- The whole suite in one process outgrows the 128M default once the share-image tests draw their images -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="CDN_PROTOCOL" value="https" force="true"/>
         <env name="APP_KEY" value="base64:w/M3o1q4LhE2g9R2P8T1v8v0x1z3A5B5C5D5E5F5G5H=" force="true"/>

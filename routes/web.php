@@ -319,6 +319,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::post('/settings/phone/dismiss', [StudioSettingsController::class, 'dismissPhonePrompt'])->name('settings.phone.dismiss');
     Route::post('/settings/public-profile', [StudioSettingsController::class, 'updatePublicProfile'])->middleware('can:studio.profile.manage')->name('settings.public-profile');
     Route::post('/settings/notifications', [StudioSettingsController::class, 'updateNotifications'])->name('settings.notifications');
+    Route::post('/settings/gallery-defaults', [StudioSettingsController::class, 'updateGalleryDefaults'])->middleware('can:studio.profile.manage')->name('settings.gallery-defaults');
     Route::get('/settings/export', [StudioSettingsController::class, 'exportData'])->middleware(['can:studio.account.manage', 'throttle:5,1'])->name('settings.export');
     Route::delete('/settings/account', [StudioSettingsController::class, 'destroyAccount'])->middleware('throttle:5,1')->name('settings.account.destroy');
 

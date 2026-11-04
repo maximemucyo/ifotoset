@@ -155,7 +155,7 @@ Today every client gallery looks the same. There is a full-bleed `h-svh` cover w
    - Add `cover_focal_x` and `cover_focal_y` (decimals, nullable, default 0.5) to `galleries`, and render `object-position: {x}% {y}%` on the hero.
    - UI: a "Cover" panel in gallery settings with the current cover. Click "Change" to open a photo picker (reusing the manager grid). Click on the image to set the focal point, showing a crosshair and live phone and desktop crops side by side.
 
-2. **Four gallery templates (P1).** Each template must differ in *layout*, not just colour:
+2. **Four gallery templates (P1, done).** Each template must differ in *layout*, not just colour:
 
    | Template | Cover | Grid | Feel |
    |---|---|---|---|
@@ -268,7 +268,7 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
 
 | Setting | Status | Notes |
 |---|---|---|
-| **Gallery defaults** | Missing (P1) | Default visibility, download PIN on/off (§4.5), expiry length, photo order, template, watermark. Today these are hard-coded in `gallery-form.blade.php` and the controller |
+| **Gallery defaults** | Done | Settings → New galleries: who can open them, Download PIN, how long they stay open (counted from Share), photo order, layout and colours. The watermark joins them once it exists |
 | **Gallery expiry and reminders** | Missing (P0/P1) | "Expires in 7 days" email to invited clients, plus a reminder to the photographer. Expiry has to be settable first (P0-1) |
 | **Download sizes** | Missing (P1) | Web size (2048px) and/or original. On mobile data in Rwanda, a full-res ZIP is a real cost to clients; offering web size by default is a kindness and a differentiator |
 | **Watermark** | Missing (P1) | Upload a PNG or use text; set position and opacity; apply to previews, not to paid downloads. Lets photographers share proofs publicly before payment |
@@ -299,7 +299,7 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
      5. Search. *(Done.)*
 4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom. *(Done, except the People panel.)*
 5. **Dashboard "Needs you" redesign.** *(Done.)*
-6. **Next: Templates, gallery defaults and branding.**
+6. **Templates, gallery defaults and branding.** *(Templates and defaults done. Next: branding.)*
 7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
 
 Steps 2 and 3 can run in parallel. Each step is independently shippable, and all migrations are additive.

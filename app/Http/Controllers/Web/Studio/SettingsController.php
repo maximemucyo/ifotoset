@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Web\Studio;
 
 use App\Http\Controllers\Controller;
+use App\Models\Gallery;
 use App\Rules\StudioPhone;
 use App\Services\StorageStatisticsService;
+use App\Support\Gallery\GalleryDefaults;
 use App\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 use App\Support\StudioUsername;
@@ -169,6 +172,31 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'Notification preferences saved successfully.');
+    }
+
+    /**
+     * What new galleries start with. Galleries made before keep their own settings.
+     */
+    public function updateGalleryDefaults(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'visibility' => ['required', Rule::in(array_keys(Gallery::VISIBILITIES))],
+            'download_pin' => ['nullable', 'boolean'],
+            'expiry_months' => ['nullable', Rule::in(array_filter(array_keys(GalleryDefaults::EXPIRY_MONTHS)))],
+            'photo_order' => ['required', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
+            'template' => ['required', Rule::in(array_keys(Gallery::TEMPLATES))],
+            'color_mode' => ['required', Rule::in(array_keys(Gallery::COLOR_MODES))],
+        ]);
+
+        $request->account()->update([
+            'gallery_defaults' => [
+                ...$validated,
+                'download_pin' => $request->boolean('download_pin'),
+                'expiry_months' => isset($validated['expiry_months']) ? (int) $validated['expiry_months'] : null,
+            ],
+        ]);
+
+        return redirect()->to(route('studio.settings.index') . '#galleries')->with('success', 'New gallery settings saved.');
     }
 
     /**

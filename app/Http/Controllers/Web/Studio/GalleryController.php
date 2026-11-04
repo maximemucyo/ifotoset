@@ -10,9 +10,11 @@ use App\Models\GalleryInvitation;
 use App\Models\Photo;
 use App\Services\PublicUrlService;
 use App\Services\RecipientEmailImportService;
+use App\Support\Gallery\GalleryDefaults;
 use App\Support\GoogleAnalytics;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -130,7 +132,9 @@ class GalleryController extends Controller
         ]);
 
         $client = $this->resolveClient($user, $validated, $createClient);
-        $visibility = $validated['visibility'] ?? 'public';
+        // The New gallery dialog asks only for a title, date and client: the rest comes from the studio's defaults
+        $defaults = GalleryDefaults::for($user)->attributes();
+        $visibility = $validated['visibility'] ?? $defaults['visibility'];
 
         $baseSlug = Str::slug($validated['title']);
         $slug = $baseSlug;
@@ -150,8 +154,13 @@ class GalleryController extends Controller
             'visibility' => $visibility,
             'show_on_profile' => $visibility === 'public' && $request->boolean('show_on_profile'),
             'password_hash' => ($visibility === 'password' && !empty($validated['password'])) ? Hash::make($validated['password']) : null,
-            ...Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null),
-            'photo_order' => $validated['photo_order'] ?? 'taken',
+            ...($request->has('download_pin_enabled')
+                ? Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null)
+                : Arr::only($defaults, ['download_pin', 'allow_photo_downloads', 'allow_gallery_downloads'])),
+            'photo_order' => $validated['photo_order'] ?? $defaults['photo_order'],
+            'template' => $defaults['template'],
+            'grid_style' => $defaults['grid_style'],
+            'color_mode' => $defaults['color_mode'],
             'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
             // A draft until the photographer presses Share
             'published_at' => null,
