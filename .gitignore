@@ -37,3 +37,6 @@ storage/*.zip
 # deploy.sh builds assets here before swapping them into public/build
 /public/build-next
 /public/build-prev
+
+# Social posts live in their own repo (ifotoset-marketing) and never deploy
+/marketing/
