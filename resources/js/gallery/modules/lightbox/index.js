@@ -2,10 +2,9 @@
  * Gallery Lightbox Main Controller
  * Owns photo state, 3-slide carousel slot recycling, responsive image resolution,
  * progressive layering (blurhash -> cached grid thumbnail -> full-res), open/close
- * transitions that fly the photo from/to its grid card, and orchestrates zoom,
- * navigation, slideshow, and deep-linking.
+ * transitions that fly the photo from/to its grid card, and orchestrates navigation,
+ * slideshow, and deep-linking. Zoom is the browser's own pinch-zoom (see handlePinchZoom).
  */
-import { LightboxZoom } from './zoom.js';
 import { LightboxNavigation } from './navigation.js';
 import { LightboxSlideshow } from './slideshow.js';
 import { LightboxDeepLink } from './deepLink.js';
@@ -93,11 +92,6 @@ export class GalleryLightbox {
         this.favoriteBtn = document.getElementById('lightbox-btn-favorite');
         this.shareBtn = document.getElementById('lightbox-btn-share');
         this.downloadBtn = document.getElementById('lightbox-btn-download');
-        this.zoomInBtn = document.getElementById('lightbox-btn-zoom-in');
-        this.zoomOutBtn = document.getElementById('lightbox-btn-zoom-out');
-        this.zoomResetBtn = document.getElementById('lightbox-btn-zoom-reset');
-        this.zoomValEl = document.getElementById('lightbox-zoom-val');
-        this.zoomControlsContainer = document.getElementById('lightbox-zoom-controls');
         this.activeVideo = null;
         this.activeArtplayer = null;
 
@@ -108,24 +102,13 @@ export class GalleryLightbox {
     initSubmodules() {
         if (!this.container || !this.track) return;
 
-        // 1. Zoom module (with early 1.1x resolution upgrade callback)
-        this.zoom = new LightboxZoom(
-            this.frameOf(this.slots[this.slotMap.current]),
-            this.viewport,
-            (scale) => {
-                if (this.zoomValEl) this.zoomValEl.textContent = `${Math.round(scale * 100)}%`;
-                if (this.zoomResetBtn) this.zoomResetBtn.classList.toggle('hidden', scale <= 1);
-            },
-            () => this.upgradeCurrentToFull()
-        );
-
-        // 2. Navigation module (pure interaction & physics layer)
+        // 1. Navigation module (pure interaction & physics layer)
         this.navigation = new LightboxNavigation(this);
 
-        // 3. Slideshow module
+        // 2. Slideshow module
         this.slideshow = new LightboxSlideshow(this);
 
-        // 4. Deep-link module
+        // 3. Deep-link module
         this.deepLink = new LightboxDeepLink(this);
     }
 
@@ -136,10 +119,7 @@ export class GalleryLightbox {
         const closeBtns = this.container.querySelectorAll('.btn-close-lightbox');
         closeBtns.forEach(btn => btn.addEventListener('click', () => this.close()));
 
-        // Zoom controls
-        if (this.zoomInBtn) this.zoomInBtn.addEventListener('click', () => this.zoom?.zoomIn());
-        if (this.zoomOutBtn) this.zoomOutBtn.addEventListener('click', () => this.zoom?.zoomOut());
-        if (this.zoomResetBtn) this.zoomResetBtn.addEventListener('click', () => this.zoom?.reset());
+        // Browser pinch-zoom (trackpad or touch screen)
         window.visualViewport?.addEventListener('resize', () => this.handlePinchZoom());
 
         // Actions: Favorite, Share, Download
@@ -217,7 +197,6 @@ export class GalleryLightbox {
         // Already open (e.g. history navigation): jump without the entrance animation
         if (this.isOpen) {
             if (this.isClosing || this.state !== 'IDLE') return;
-            this.zoom?.reset();
             this.currentIndex = index;
             this.renderAllSlots();
             this.navigation?.preloadAdjacent(this.currentIndex);
@@ -329,7 +308,6 @@ export class GalleryLightbox {
                 this.backdrop.style.opacity = '';
             }
             this.restoreCard();
-            this.zoom?.reset();
             this.dismissBase = null;
             this.isOpen = false;
             this.isClosing = false;
@@ -346,10 +324,9 @@ export class GalleryLightbox {
             return;
         }
 
-        // Rect of the frame without any drag/zoom transform applied
+        // Rect of the frame without any drag transform applied
         let base = this.dismissBase;
         if (!base) {
-            this.zoom?.reset();
             frame.style.transition = 'none';
             frame.style.transform = '';
             base = frame.getBoundingClientRect();
@@ -411,26 +388,26 @@ export class GalleryLightbox {
         this.setChrome(!this.chromeVisible);
     }
 
-    /** A tap toggles the controls (phones zoom with the browser's own pinch, so there is no double-tap). */
+    /** A tap toggles the controls (zoom is the browser's own pinch, so there is no double-tap). */
     handleTap() {
         this.toggleChrome();
     }
 
-    /** Zoomed by the desktop zoom, or by the browser's pinch on a phone. */
+    /** Pinch-zoomed by the browser, on a phone or with a trackpad. */
     isZoomed() {
-        return (this.zoom?.scale ?? 1) > 1 || (window.visualViewport?.scale ?? 1) > 1.01;
+        return (window.visualViewport?.scale ?? 1) > 1.01;
     }
 
-    /** Browser pinch-zoom on a phone: let one finger pan while zoomed, and load the full-size photo. */
+    /** Browser pinch-zoom: let one finger pan while zoomed, and load the full-size photo. */
     handlePinchZoom() {
-        const zoomed = (window.visualViewport?.scale ?? 1) > 1.01;
+        const zoomed = this.isZoomed();
         this.container.toggleAttribute('data-zoomed', zoomed);
         if (zoomed && this.isOpen && !this.getCurrentPhoto()?.is_video) this.upgradeCurrentToFull();
     }
 
     /** Desktop: clicking the empty stage around the photo closes the viewer. */
     handleBackdropClick(x, y) {
-        if (this.state !== 'IDLE' || (this.zoom && this.zoom.scale > 1)) return;
+        if (this.state !== 'IDLE' || this.isZoomed()) return;
         const rect = this.currentFrame()?.getBoundingClientRect();
         if (rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return;
         this.close();
@@ -599,6 +576,7 @@ export class GalleryLightbox {
         // Layer 3: display rendition, revealed only once decoded
         const targetUrl = this.pickUrl(photo);
         if (img && img.dataset.src !== targetUrl) {
+            delete frame.dataset.loaded;
             img.style.transition = 'none';
             img.classList.add('opacity-0');
             img.dataset.src = targetUrl;
@@ -609,6 +587,10 @@ export class GalleryLightbox {
                 this.syncAspect(frame, photo, img);
                 img.style.transition = '';
                 img.classList.remove('opacity-0');
+                // Once it has faded in, the placeholder layers under it stop being drawn (zooming redraws less)
+                setTimeout(() => {
+                    if (img.dataset.src === targetUrl) frame.dataset.loaded = '';
+                }, 550);
             });
         }
 
@@ -618,13 +600,8 @@ export class GalleryLightbox {
         this.teardownActiveVideo();
 
         if (photo.is_video) {
-            if (this.zoomControlsContainer) this.zoomControlsContainer.classList.add('!hidden');
             this.slideshow?.stop();
-            this.zoom?.setImage(null);
             this.mountVideo(frame, photo);
-        } else {
-            if (this.zoomControlsContainer) this.zoomControlsContainer.classList.remove('!hidden');
-            this.zoom?.setImage(frame);
         }
 
         if (this.filenameEl) this.filenameEl.textContent = photo.filename || '';
@@ -852,7 +829,6 @@ export class GalleryLightbox {
             return;
         }
         this.state = 'ANIMATING';
-        this.zoom?.reset();
         this.teardownActiveVideo();
 
         const incoming = this.slots[direction === 1 ? this.slotMap.next : this.slotMap.prev];
@@ -878,14 +854,12 @@ export class GalleryLightbox {
 
     next() {
         if (this.state !== 'IDLE' || this.photos.length <= 1) return;
-        this.zoom?.reset();
         this.snapTo(1);
         this.slideshow?.restartTimer();
     }
 
     prev() {
         if (this.state !== 'IDLE' || this.photos.length <= 1) return;
-        this.zoom?.reset();
         this.snapTo(-1);
         this.slideshow?.restartTimer();
     }

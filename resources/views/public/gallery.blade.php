@@ -71,10 +71,11 @@
         aspect-ratio: var(--ar);
         width: min(100cqw, 100cqh * var(--ar));
         transform-origin: 50% 50%;
-        will-change: transform;
     }
+    /* Once the photo has faded in, the blurhash and thumbnail under it are no longer drawn */
+    .lightbox-frame[data-loaded] :is(.lightbox-blurhash-canvas, .lightbox-slide-thumb) { visibility: hidden; }
     .lightbox-chrome { transition: opacity .25s ease; }
-    /* Phones zoom the viewer with the browser's own pinch. Swipes are ours until it is zoomed in,
+    /* Zoom is the browser's own pinch (touch screen or trackpad). Swipes are ours until it is zoomed in,
        then one finger pans the zoomed page instead (data-zoomed, set from the visual viewport). */
     #lightbox-modal { touch-action: pinch-zoom; }
     #lightbox-modal[data-zoomed] { touch-action: pan-x pan-y pinch-zoom; }
@@ -545,17 +546,6 @@
             <span id="lightbox-counter-top" class="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 text-xs tabular-nums tracking-[0.16em] text-muted-foreground sm:block" aria-hidden="true"></span>
 
             <div class="flex items-center gap-0.5">
-                <div id="lightbox-zoom-controls" class="mr-1 hidden items-center gap-0.5 border-r border-border pr-2 md:flex pointer-coarse:!hidden">
-                    <button type="button" id="lightbox-btn-zoom-out" class="{{ $lbBtn }} size-9" aria-label="Zoom out" title="Zoom out">
-                        <x-icon name="minus" class="size-4" />
-                    </button>
-                    <span id="lightbox-zoom-val" class="w-11 text-center text-xs tabular-nums text-muted-foreground">100%</span>
-                    <button type="button" id="lightbox-btn-zoom-in" class="{{ $lbBtn }} size-9" aria-label="Zoom in" title="Zoom in">
-                        <x-icon name="plus" class="size-4" />
-                    </button>
-                    <button type="button" id="lightbox-btn-zoom-reset" class="btn btn-ghost btn-xs hidden" aria-label="Reset zoom">Reset</button>
-                </div>
-
                 <button type="button" id="lightbox-btn-slideshow" class="{{ $lbBtn }}" aria-label="Play slideshow" title="Slideshow (space)">
                     <x-icon name="play" class="icon-play size-[18px]" />
                     <x-icon name="pause" class="icon-pause hidden size-[18px]" />
