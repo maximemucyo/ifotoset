@@ -17,6 +17,9 @@
     $lbBtn = 'inline-flex size-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring';
     $panel = 'w-full max-w-sm animate-scale-in max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-xl';
     $backdrop = 'fixed inset-0 z-[60] flex hidden items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center';
+    $headerOverCover = $isGranted && $showsCover && $template === 'full';
+    // A logo with its own background would sit on the cover like a sticker; the name reads better there
+    $headerLogo = $gallery->brand() && $photographer->logo_url && (! $headerOverCover || $photographer->portfolio()->logoTone());
 @endphp
 
 @extends('layouts.public', [
@@ -79,6 +82,7 @@
     #lightbox-modal[data-chrome="hidden"] .lightbox-chrome * { pointer-events: none; }
 </style>
 @endpush
+@include('public.partials.gallery-brand')
 
 @section('content')
 
@@ -91,16 +95,20 @@
 
 {{-- Top bar: transparent over the cover, slides away once the sticky toolbar takes over --}}
 <header id="gallery-header"
-        data-state="{{ ($isGranted && $showsCover && $template === 'full') ? 'overlay' : 'plain' }}"
+        data-state="{{ $headerOverCover ? 'overlay' : 'plain' }}"
         class="fixed inset-x-0 top-0 z-40 text-foreground transition-[transform,color] duration-500 ease-out"
         style="transform: translateY(0);">
     <div class="flex h-16 w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" style="padding-top: env(safe-area-inset-top);">
         <a href="{{ $photographer->public_url }}" class="group flex min-w-0 items-center gap-2.5">
-            <x-ui.avatar :name="$photographer->name" :src="$photographer->avatar_url" size="sm" class="ring-1 ring-white/20" />
-            <span class="min-w-0">
-                <span class="block truncate text-[13px] font-semibold tracking-tight">{{ $photographer->name }}</span>
-                <span class="gallery-header-sub block truncate text-[11px] text-muted-foreground">Photography</span>
-            </span>
+            @if($headerLogo)
+                <x-gallery.logo :photographer="$photographer" class="h-7 max-w-[160px] sm:h-8 sm:max-w-[200px]" />
+            @else
+                <x-ui.avatar :name="$photographer->name" :src="$photographer->avatar_url" size="sm" class="ring-1 ring-white/20" />
+                <span class="min-w-0">
+                    <span class="block truncate text-[13px] font-semibold tracking-tight">{{ $photographer->name }}</span>
+                    <span class="gallery-header-sub block truncate text-[11px] text-muted-foreground">Photography</span>
+                </span>
+            @endif
         </a>
 
         <button type="button"

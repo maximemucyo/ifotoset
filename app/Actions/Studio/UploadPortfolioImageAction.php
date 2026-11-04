@@ -4,6 +4,7 @@ namespace App\Actions\Studio;
 
 use App\Models\User;
 use App\Services\StorageService;
+use App\Support\Portfolio\LogoTone;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -94,6 +95,7 @@ class UploadPortfolioImageAction
         $image->orient(); // Auto-rotate from EXIF
 
         [$encoded, $extension] = $this->process($kind, $image);
+        $logoTone = $kind === 'logo' ? LogoTone::detect($image->core()->native()) : null;
 
         $processedKey = preg_replace('/\.[^.]+$/', '', $objectKey) . "_{$kind}.{$extension}";
         Storage::disk('b2')->put($processedKey, $encoded);
@@ -106,7 +108,7 @@ class UploadPortfolioImageAction
 
         $column = self::KINDS[$kind];
         $oldPath = $user->{$column};
-        $user->update([$column => $processedKey]);
+        $user->update([$column => $processedKey] + $this->toneAttributes($user, $kind, $logoTone));
 
         if ($oldPath && $oldPath !== $processedKey) {
             $this->deleteQuietly($user, $oldPath);
@@ -124,7 +126,7 @@ class UploadPortfolioImageAction
 
         $column = self::KINDS[$kind];
         $oldPath = $user->{$column};
-        $user->update([$column => null]);
+        $user->update([$column => null] + $this->toneAttributes($user, $kind, null));
 
         if ($oldPath) {
             $this->deleteQuietly($user, $oldPath);
@@ -143,6 +145,19 @@ class UploadPortfolioImageAction
             // Link previews: the 1.91:1 size Facebook, WhatsApp and X expect, as JPEG for older crawlers
             'share' => [(string) $image->cover(1200, 630)->toJpeg(85), 'jpg'],
         };
+    }
+
+    /**
+     * Client galleries read the logo's tone to keep it readable on dark and light backgrounds.
+     */
+    protected function toneAttributes(User $user, string $kind, ?string $tone): array
+    {
+        if ($kind !== 'logo') {
+            return [];
+        }
+        $user->forgetPortfolio();
+
+        return ['portfolio_settings' => array_merge($user->portfolio_settings ?? [], ['logo_tone' => $tone])];
     }
 
     protected function urlAttribute(string $kind): string

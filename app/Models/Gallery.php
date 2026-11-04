@@ -104,6 +104,7 @@ class Gallery extends Model
         'template',
         'grid_style',
         'color_mode',
+        'use_branding',
     ];
 
     protected $attributes = [
@@ -112,6 +113,7 @@ class Gallery extends Model
         'grid_style' => 'masonry',
         'color_mode' => 'light',
         'favorites_enabled' => true,
+        'use_branding' => false,
     ];
 
     protected static function booted(): void
@@ -158,6 +160,7 @@ class Gallery extends Model
         'allow_gallery_downloads' => 'boolean',
         'allow_google_photos' => 'boolean',
         'favorites_enabled' => 'boolean',
+        'use_branding' => 'boolean',
         'favorites_limit' => 'integer',
     ];
 
@@ -554,6 +557,14 @@ class Gallery extends Model
             'grid' => isset(self::GRID_STYLES[$this->grid_style]) ? $this->grid_style : 'masonry',
             'mode' => isset(self::COLOR_MODES[$this->color_mode]) ? $this->color_mode : 'light',
         ];
+    }
+
+    /**
+     * The studio's portfolio look (logo, colour, title font) when this gallery uses it, otherwise null.
+     */
+    public function brand(): ?\App\Support\Portfolio\PortfolioSettings
+    {
+        return $this->use_branding && $this->user ? $this->user->portfolio() : null;
     }
 
     public function coverObjectPosition(?float $x = null, ?float $y = null): string

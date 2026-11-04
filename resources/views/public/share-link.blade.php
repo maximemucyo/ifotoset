@@ -22,6 +22,7 @@
 @push('styles')
 <link rel="preconnect" href="https://{{ config('filesystems.disks.b2.cdn_domain') }}">
 @endpush
+@include('public.partials.gallery-brand')
 
 @section('content')
 <div x-data="{
@@ -37,7 +38,11 @@
      @keydown.arrow-left.window="index !== null && step(-1)">
 
     <header class="px-4 pb-8 pt-12 sm:px-6 sm:pt-16 lg:px-10">
-        <p class="text-sm text-muted-foreground">{{ $photographer->name }}</p>
+        @if($gallery->brand() && $photographer->logo_url)
+            <x-gallery.logo :photographer="$photographer" class="mb-6 h-8 max-w-[200px]" />
+        @else
+            <p class="text-sm text-muted-foreground">{{ $photographer->name }}</p>
+        @endif
         <h1 class="mt-2 font-serif text-4xl leading-[1.05] tracking-normal text-foreground sm:text-5xl">{{ $gallery->title }}</h1>
         <p class="mt-3 text-sm text-muted-foreground">
             {{ $photos->count() }} {{ Str::plural('photo', $photos->count()) }} shared with you

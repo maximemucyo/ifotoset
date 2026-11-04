@@ -161,6 +161,7 @@ class GalleryController extends Controller
             'template' => $defaults['template'],
             'grid_style' => $defaults['grid_style'],
             'color_mode' => $defaults['color_mode'],
+            'use_branding' => $defaults['use_branding'],
             'expires_at' => Gallery::expiryFromDate($validated['expires_on'] ?? null, $user),
             // A draft until the photographer presses Share
             'published_at' => null,
@@ -480,6 +481,7 @@ class GalleryController extends Controller
             'template' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::TEMPLATES))],
             'grid_style' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::GRID_STYLES))],
             'color_mode' => ['sometimes', 'required', 'string', Rule::in(array_keys(Gallery::COLOR_MODES))],
+            'use_branding' => ['nullable', 'boolean'],
         ], [
             'password.required' => 'Choose a password for a password-protected gallery.',
             'password.min' => 'The password must be at least 6 characters.',
@@ -529,6 +531,9 @@ class GalleryController extends Controller
             $updateData += Gallery::downloadAttributes($request->boolean('download_pin_enabled') ? $validated['download_pin'] : null);
         }
 
+        if ($request->has('use_branding')) {
+            $updateData['use_branding'] = $request->boolean('use_branding');
+        }
         if ($request->has('favorites_enabled')) {
             $updateData['favorites_enabled'] = $request->boolean('favorites_enabled');
         }

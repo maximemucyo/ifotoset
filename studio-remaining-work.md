@@ -17,6 +17,7 @@ Already shipped:
 - the **Overview "Needs you"** dashboard, gallery stages, and lifecycle tabs on the Galleries page;
 - **client gallery layouts** (Full bleed, Framed, Split, No cover) with a photo grid and colours, on the Design tab;
 - **gallery defaults** in Studio settings (New galleries);
+- **branding on client galleries**: one "Use my brand" switch on the Design tab;
 - **quick share links**: select photos, choose "Share link", and the link is copied. It opens only those photos, even in a draft or private gallery, and stops when deleted or when the gallery expires. Listed in Activity and in the Share panel.
 
 **Rules for every item**
@@ -58,15 +59,17 @@ Proofing has shipped, so "new favourites" and "picks sent" are real signals now.
 
 ## Templates, gallery defaults and branding (§4.3, §5)
 
-Layouts and defaults are done. **Next: branding.**
+Layouts, defaults and branding are done.
 
 
 - [x] Four client gallery layouts, in a **Layout** card on the Design tab under Cover: Full bleed (today's look), Framed, Split, No cover. Each has a photo grid (Columns, Rows or Squares) and colours (Light, Dark, Same as the phone). They are stored in `galleries.template`, `grid_style` and `color_mode`, and the defaults are today's look. Picking a layout also picks its usual grid. Changes save as they're made and reload the preview, which always shows the gallery's own colours. Clients can still switch between light and dark.
   - The three grids share one script (`resources/js/gallery/grid-layout.js`). The page inlines it to place the first photos before the bundle loads.
   - Framed, Split and No cover set the title on the page, so the toolbar's title only fades in after it scrolls away.
-  - Not yet: the portfolio font on gallery titles.
 - [x] Gallery defaults in Studio settings (**New galleries**, for owners and managers): who can open them, Download PIN on/off, how long they stay open, photo order, layout and colours. They're stored in `users.gallery_defaults` and read through `App\Support\Gallery\GalleryDefaults`. A new gallery takes them when it's created; the layout brings its usual grid, and a PIN gets its own 4 digits. The expiry is counted from the day the gallery is shared: a draft's Share panel starts with that date filled in. Without defaults, new galleries start exactly as before.
-- [ ] **Next:** portfolio logo, brand colour and font on client galleries. On paid plans, the studio's own mark replaces the ifotoset footer.
+- [x] **Use my brand**: one switch on the Design tab, under Layout (`galleries.use_branding`, off by default, so existing galleries don't change). When it's on, the gallery takes the portfolio's logo, brand colour and title font. The same applies to its quick links and download page. The card shows the gallery's title in that font with the logo and colour, and links to Portfolio for anything missing. It is also a switch under New galleries.
+  - The logo replaces the name at the top and in the footer. Paid plans already had no ifotoset mark in the footer. On Free, "Delivered with ifotoset" stays, and the card says so.
+  - On upload, a logo is checked for a transparent background (`App\Support\Portfolio\LogoTone`, stored as `portfolio_settings.logo_tone`). A cut-out dark logo turns white over a full-bleed cover and in dark mode, and a cut-out light one turns black on a light page. A logo with its own background shows the name over a full-bleed cover instead, so it doesn't sit on the photo like a sticker.
+  - **After deploy:** run `php artisan portfolio:backfill-logo-tones` once, for logos uploaded before this change. Until then they count as having their own background.
 
 ## Watermark, download sizes, bulk actions (§5, §4.2)
 

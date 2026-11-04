@@ -178,7 +178,10 @@ Today every client gallery looks the same. There is a full-bleed `h-svh` cover w
    - Reload the iframe (debounced) when a template, cover or focal-point control changes. Start with a reload; switch to `postMessage` later only if it feels slow.
    - Put the panel on the gallery Settings tab as a two-column layout: controls on the left, sticky preview on the right. On mobile it becomes a "Preview" button that opens a full-screen sheet.
 
-4. **Branding on client galleries (P1, together with templates).** Apply the portfolio logo and brand colour. On paid plans, offer to replace the ifotoset footer mark (`public/partials/gallery-footer.blade.php:5-8`) with the studio's own. This is a natural upgrade lever.
+4. **Branding on client galleries (P1, done).** Apply the portfolio logo and brand colour. On paid plans, offer to replace the ifotoset footer mark (`public/partials/gallery-footer.blade.php:5-8`) with the studio's own. This is a natural upgrade lever.
+   - Shipped as one **Use my brand** switch per gallery on the Design tab (also a New galleries default). It brings the portfolio's logo, brand colour and title font. It's off by default, so existing galleries look the same.
+   - Paid plans already showed no ifotoset mark. With the brand on, the studio's logo takes the footer's name spot. On Free, "Delivered with ifotoset" stays.
+   - Logos are checked for a transparent background when they're uploaded, so a cut-out logo can turn white over a cover or in dark mode.
 
 **Rollout note.** The deploy runs migrations before the code switch (`deploy.sh`), so every new column must be nullable or defaulted. The current look should be the default template, so existing galleries render unchanged.
 
@@ -272,7 +275,7 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
 | **Gallery expiry and reminders** | Missing (P0/P1) | "Expires in 7 days" email to invited clients, plus a reminder to the photographer. Expiry has to be settable first (P0-1) |
 | **Download sizes** | Missing (P1) | Web size (2048px) and/or original. On mobile data in Rwanda, a full-res ZIP is a real cost to clients; offering web size by default is a kindness and a differentiator |
 | **Watermark** | Missing (P1) | Upload a PNG or use text; set position and opacity; apply to previews, not to paid downloads. Lets photographers share proofs publicly before payment |
-| **Client gallery branding** | Missing (P1) | See §4.3.4 |
+| **Client gallery branding** | Done | Design tab → Use my brand. See §4.3.4 |
 | **Contact button on the gallery** | Missing (P2) | WhatsApp or phone button on the client gallery ("Book again" / "Order prints"). The phone number is already collected |
 | **Welcome message per gallery** | Missing (P2) | A short note from the photographer under the cover. Needs a `description` column |
 | **Password hint** | Done | Under the password in Privacy |
@@ -299,7 +302,7 @@ Today Studio settings has Profile, Public profile, Security, Notifications, Your
      5. Search. *(Done.)*
 4. **Proofing.** Server-side favourites, a Favourites tab, and lists for Lightroom. *(Done, except the People panel.)*
 5. **Dashboard "Needs you" redesign.** *(Done.)*
-6. **Templates, gallery defaults and branding.** *(Templates and defaults done. Next: branding.)*
+6. **Templates, gallery defaults and branding.** *(Done.)*
 7. **Watermark, download sizes, bulk gallery actions.** Sets moved into 3b. The watermark matters more now that downloads can't be turned off (§4.5).
 
 Steps 2 and 3 can run in parallel. Each step is independently shippable, and all migrations are additive.

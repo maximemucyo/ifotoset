@@ -5,6 +5,7 @@
     'robots' => 'noindex, nofollow',
     'defaultTheme' => 'light',
 ])
+@include('public.partials.gallery-brand')
 
 @section('content')
 <div class="relative flex min-h-svh flex-col"

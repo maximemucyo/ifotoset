@@ -98,6 +98,7 @@ class GalleryDefaultsTest extends TestCase
             'photo_order' => 'filename',
             'template' => 'none',
             'color_mode' => 'dark',
+            'use_branding' => '1',
         ], $overrides));
     }
 
@@ -117,6 +118,7 @@ class GalleryDefaultsTest extends TestCase
         $this->assertNull($gallery->expires_at);
         $this->assertSame('taken', $gallery->photo_order);
         $this->assertSame(['template' => 'full', 'grid' => 'masonry', 'mode' => 'light'], $gallery->design());
+        $this->assertFalse($gallery->use_branding);
     }
 
     public function test_new_galleries_start_with_the_studio_defaults(): void
@@ -131,6 +133,7 @@ class GalleryDefaultsTest extends TestCase
         $this->assertSame('filename', $gallery->photo_order);
         // The layout brings its usual grid
         $this->assertSame(['template' => 'none', 'grid' => 'square', 'mode' => 'dark'], $gallery->design());
+        $this->assertTrue($gallery->use_branding);
         // Expiry waits for Share, so it counts from that day
         $this->assertNull($gallery->expires_at);
         $this->assertTrue($gallery->isDraft());

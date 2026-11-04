@@ -407,6 +407,17 @@
                         </span>
                     </label>
 
+                    <label for="default-use-branding" class="flex cursor-pointer items-center gap-4 border-b border-border px-5 py-4 transition-colors hover:bg-muted/40">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-medium text-foreground">Use my brand</span>
+                            <span class="block text-[13px] text-muted-foreground">Your logo, colour and title font from your portfolio.</span>
+                        </span>
+                        <span class="switch">
+                            <input type="checkbox" id="default-use-branding" name="use_branding" value="1" class="sr-only" @checked(old('use_branding', $galleryDefaults->useBranding()))>
+                            <span></span>
+                        </span>
+                    </label>
+
                     <div class="card-body grid gap-5 sm:grid-cols-2">
                         <x-ui.select label="Closes after" name="expiry_months" id="default-expiry" hint="Counted from the day you share it." :error="$errors->first('expiry_months')">
                             @foreach(\App\Support\Gallery\GalleryDefaults::EXPIRY_MONTHS as $value => $label)

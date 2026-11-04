@@ -143,6 +143,16 @@ class PortfolioSettings
         return $onWhite >= $onDark ? '#ffffff' : '#0c0c0e';
     }
 
+    /**
+     * LogoTone::DARK or LIGHT for a cut-out logo, null for one with its own background (or none checked yet).
+     */
+    public function logoTone(): ?string
+    {
+        $tone = $this->data['logo_tone'] ?? null;
+
+        return in_array($tone, [LogoTone::DARK, LogoTone::LIGHT], true) ? $tone : null;
+    }
+
     public function roleLabel(): string
     {
         return $this->text('role_label') ?? self::DEFAULT_ROLE;

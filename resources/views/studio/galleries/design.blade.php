@@ -44,6 +44,7 @@
             @endif
 
             @include('studio.galleries.partials.layout-picker', ['gallery' => $gallery, 'previewUrl' => $previewUrl])
+            @include('studio.galleries.partials.brand-picker', ['gallery' => $gallery, 'previewUrl' => $previewUrl])
         </div>
 
         <aside class="sticky top-0 hidden h-[calc(100dvh-7rem)] xl:block" aria-label="Preview of the client gallery">

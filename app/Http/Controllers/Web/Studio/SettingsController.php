@@ -186,12 +186,14 @@ class SettingsController extends Controller
             'photo_order' => ['required', Rule::in(array_keys(Gallery::PHOTO_ORDERS))],
             'template' => ['required', Rule::in(array_keys(Gallery::TEMPLATES))],
             'color_mode' => ['required', Rule::in(array_keys(Gallery::COLOR_MODES))],
+            'use_branding' => ['nullable', 'boolean'],
         ]);
 
         $request->account()->update([
             'gallery_defaults' => [
                 ...$validated,
                 'download_pin' => $request->boolean('download_pin'),
+                'use_branding' => $request->boolean('use_branding'),
                 'expiry_months' => isset($validated['expiry_months']) ? (int) $validated['expiry_months'] : null,
             ],
         ]);

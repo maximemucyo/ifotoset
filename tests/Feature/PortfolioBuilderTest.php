@@ -393,6 +393,9 @@ class PortfolioBuilderTest extends TestCase
 
         [$width, $height] = getimagesizefromstring(Storage::disk('b2')->get($path));
         $this->assertSame([800, 200], [$width, $height]);
+        // A solid red block has its own background, so client galleries show it as it is
+        $this->assertArrayHasKey('logo_tone', $this->photographer->fresh()->portfolio_settings);
+        $this->assertNull($this->photographer->fresh()->portfolio_settings['logo_tone']);
 
         // Keys issued to someone else are refused
         $this->actingAs($this->photographer)
@@ -403,6 +406,7 @@ class PortfolioBuilderTest extends TestCase
             ->deleteJson(route('studio.portfolio.images.destroy', 'logo'))
             ->assertOk();
         $this->assertNull($this->photographer->fresh()->logo_path);
+        $this->assertNull($this->photographer->fresh()->portfolio()->logoTone());
         Storage::disk('b2')->assertMissing($path);
     }
 

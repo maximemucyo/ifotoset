@@ -59,6 +59,11 @@ class GalleryDefaults
         return $this->pick('color_mode', array_keys(Gallery::COLOR_MODES), 'light');
     }
 
+    public function useBranding(): bool
+    {
+        return (bool) ($this->data['use_branding'] ?? false);
+    }
+
     /**
      * Columns a new gallery starts with. The grid is the layout's usual one.
      */
@@ -71,6 +76,7 @@ class GalleryDefaults
             'template' => $this->template(),
             'grid_style' => Gallery::TEMPLATES[$this->template()]['grid'],
             'color_mode' => $this->colorMode(),
+            'use_branding' => $this->useBranding(),
         ];
     }
 
