@@ -1,7 +1,7 @@
 @extends('legal.layout', [
     'pageTitle' => 'Privacy Policy',
     'pageDescription' => 'What data ifotoset collects, why, and the choices you have.',
-    'updated' => 'November 4, 2026',
+    'updated' => 'November 7, 2026',
 ])
 
 @section('legal')
