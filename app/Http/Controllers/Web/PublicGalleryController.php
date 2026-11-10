@@ -7,6 +7,7 @@ use App\Models\Gallery;
 use App\Models\Photo;
 use App\Queries\GalleryPhotoQuery;
 use App\Support\EdgeCache;
+use App\Support\GalleryOwnerAccess;
 use App\Queries\GalleryQuery;
 use App\Traits\VerifiesGalleryAccess;
 use App\ValueObjects\GalleryAccessDecision;
@@ -47,8 +48,11 @@ class PublicGalleryController extends Controller
             }
         }
 
+        // The photographer's own visit, handed over from the studio: no PIN, and not counted as a client view
+        $viewingAsOwner = GalleryOwnerAccess::viewing($gallery, $request);
+
         // Only galleries anyone with the link can open are shared from Cloudflare's cache
-        if (!$gallery->hasPublicLink()) {
+        if (!$gallery->hasPublicLink() || $viewingAsOwner) {
             EdgeCache::skip($request);
         }
         // A cached page is shared, so its view is counted by a beacon from the browser instead
@@ -90,7 +94,7 @@ class PublicGalleryController extends Controller
             }
 
             // Non-blocking telemetry view log
-            if (!$trackViewInBrowser) {
+            if (!$trackViewInBrowser && !$viewingAsOwner) {
                 try {
                     DB::table('activity_logs')->insert([
                         'gallery_id' => $gallery->id,
@@ -125,7 +129,8 @@ class PublicGalleryController extends Controller
             'downloadsUnlocked' => $downloadsUnlocked,
             'passwordHint' => $decision->passwordHint,
             'deepLinkedPhoto' => $deepLinkedPhoto,
-            'trackViewInBrowser' => $trackViewInBrowser && $decision->isGranted(),
+            'trackViewInBrowser' => $trackViewInBrowser && $decision->isGranted() && !$viewingAsOwner,
+            'viewingAsOwner' => $viewingAsOwner,
             'seo' => \App\Support\Seo\SeoMetadata::forGallery(
                 $gallery,
                 app(\App\Services\GalleryShareImageService::class)->url($gallery),
@@ -530,6 +535,11 @@ class PublicGalleryController extends Controller
                 'code' => 'PHOTO_NOT_FOUND',
                 'message' => 'Photo not found.',
             ], 404);
+        }
+
+        // The photographer's own downloads stay out of their analytics
+        if (GalleryOwnerAccess::viewing($gallery, $request)) {
+            return \App\Support\PhotoDownload::response($photo);
         }
 
         // 4. Telemetry: record download only after all authorizations succeed

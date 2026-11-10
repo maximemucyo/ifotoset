@@ -122,6 +122,18 @@
             @endif
         </a>
 
+        @if($viewingAsOwner ?? false)
+            {{-- Only the photographer sees this: they came from the studio, so no PIN or invitation was asked --}}
+            {{-- route() would use this gallery host; the studio lives on the main one --}}
+            <a href="{{ rtrim(config('app.url'), '/') . route('studio.galleries.show', $gallery->uuid, false) }}"
+               class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-foreground/85 px-3 py-1 text-[11px] font-medium text-background backdrop-blur-sm transition-colors hover:bg-foreground"
+               title="Only you see this. Clients still need the PIN or their invitation.">
+                <x-icon name="eye" class="size-3.5" />
+                <span>Viewing as owner</span>
+                <span class="hidden opacity-70 sm:inline">· Back to studio</span>
+            </a>
+        @endif
+
         <button type="button"
                 x-data
                 @click="$store.theme.toggle()"

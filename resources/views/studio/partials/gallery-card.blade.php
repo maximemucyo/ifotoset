@@ -74,7 +74,7 @@
                 <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="menu-item"><x-icon name="settings" /> Gallery settings</a>
                 @if($publicUrl)
                     <div class="menu-separator"></div>
-                    <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="menu-item"><x-icon name="eye" /> Preview as client <x-icon name="arrow-up-right" class="ml-auto !size-3.5" /></a>
+                    <a href="{{ route('studio.galleries.open', $gallery->uuid) }}" target="_blank" rel="noopener" class="menu-item"><x-icon name="eye" /> Open gallery <x-icon name="arrow-up-right" class="ml-auto !size-3.5" /></a>
                     <button type="button" class="menu-item" @click="$clipboard(@js($publicUrl), 'Gallery link copied'); close()"><x-icon name="link" /> Copy gallery link</button>
                 @endif
             </div>

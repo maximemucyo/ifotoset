@@ -138,7 +138,7 @@
                             <div class="hidden w-56 shrink-0 truncate text-right text-xs text-muted-foreground lg:block">{{ $gallery->activitySummary() }}</div>
                             <div class="flex shrink-0 items-center gap-0.5">
                                 @if($publicUrl)
-                                    <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-icon btn-sm text-muted-foreground" aria-label="Preview as client" title="Preview as client"><x-icon name="eye" /></a>
+                                    <a href="{{ route('studio.galleries.open', $gallery->uuid) }}" target="_blank" rel="noopener" class="btn btn-ghost btn-icon btn-sm text-muted-foreground" aria-label="Open gallery" title="Open gallery (no PIN needed for you)"><x-icon name="eye" /></a>
                                 @endif
                                 <a href="{{ route('studio.galleries.edit', $gallery->uuid) }}" class="btn btn-ghost btn-icon btn-sm text-muted-foreground" aria-label="Gallery settings" title="Settings"><x-icon name="settings" /></a>
                                 <a href="{{ route('studio.galleries.show', $gallery->uuid) }}" class="btn btn-ghost btn-icon btn-sm text-muted-foreground" aria-label="Manage photos" title="Manage photos"><x-icon name="chevron-right" /></a>

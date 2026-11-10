@@ -118,7 +118,7 @@
                     <a href="{{ $previewUrl }}" target="_blank" rel="noopener" class="menu-item sm:hidden" role="menuitem"><x-icon name="eye" /> Preview</a>
                     <button type="button" class="menu-item" role="menuitem" @click="$clipboard(@js($publicUrl), 'Gallery link copied'); close()"><x-icon name="link" /> Copy gallery link</button>
                     @unless($isDraft)
-                        <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open client link</a>
+                        <a href="{{ route('studio.galleries.open', $gallery->uuid) }}" target="_blank" rel="noopener" class="menu-item" role="menuitem"><x-icon name="external-link" /> Open gallery</a>
                     @endunless
                     <a href="{{ route('studio.galleries.clients', $gallery->uuid) }}" class="menu-item" role="menuitem"><x-icon name="user-plus" /> Invite by email</a>
                     <div class="menu-separator"></div>

@@ -5,6 +5,7 @@ namespace App\Traits;
 use App\Models\Gallery;
 use App\Models\GalleryInvitation;
 use App\Services\GalleryInvitationSession;
+use App\Support\GalleryOwnerAccess;
 use App\ValueObjects\GalleryAccessDecision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,11 @@ trait VerifiesGalleryAccess
         // Free-plan owner over quota past the archive day: galleries are offline until they upgrade or free up space
         if ($gallery->user?->overQuotaStage()?->hidesGalleries()) {
             return GalleryAccessDecision::denied('This gallery is temporarily unavailable. Please contact the photographer.', 'GALLERY_ARCHIVED');
+        }
+
+        // The photographer, handed over from the studio, opens their own gallery without a PIN or invitation
+        if (GalleryOwnerAccess::viewing($gallery, $request)) {
+            return GalleryAccessDecision::granted();
         }
 
         // Drafts stay closed until the photographer shares them
@@ -151,7 +157,7 @@ trait VerifiesGalleryAccess
      */
     protected function downloadsUnlocked(Gallery $gallery, Request $request): bool
     {
-        if (!$gallery->requiresDownloadPin()) {
+        if (!$gallery->requiresDownloadPin() || GalleryOwnerAccess::viewing($gallery, $request)) {
             return true;
         }
 

@@ -92,6 +92,8 @@ Route::domain('{username}.' . $rootHost)
         Route::get('/{slug}/photos/{uuid}/download', [PublicGalleryController::class, 'downloadPhoto'])->middleware('noindex')->name('subdomain.gallery.photo.download');
         Route::get('/{slug}/photos', [PublicGalleryController::class, 'photos'])->middleware('noindex')->name('subdomain.gallery.photos');
         Route::get('/{slug}/export', [PublicGalleryController::class, 'export'])->middleware('noindex')->name('subdomain.gallery.export');
+        // Signed hand-off from the studio: the photographer opens their gallery without its PIN or invitation
+        Route::get('/{slug}/owner', [\App\Http\Controllers\Web\GalleryOwnerAccessController::class, 'grant'])->middleware(['noindex', 'throttle:60,1'])->name('subdomain.gallery.owner');
         // Beacon from cached gallery pages; sessionless so it never sets a cookie that would end caching for the visitor
         Route::post('/{slug}/viewed', [PublicGalleryController::class, 'recordView'])
             ->withoutMiddleware([
@@ -233,6 +235,7 @@ Route::middleware(['auth', 'active', 'verified', 'studio.account'])->prefix('stu
     Route::post('/galleries/{uuid}/share-links', [StudioGalleryShareLinkController::class, 'store'])->name('galleries.share-links.store');
     Route::delete('/galleries/{uuid}/share-links/{id}', [StudioGalleryShareLinkController::class, 'destroy'])->whereNumber('id')->name('galleries.share-links.destroy');
     Route::get('/galleries/{uuid}/preview', [PublicGalleryController::class, 'preview'])->middleware('noindex')->name('galleries.preview');
+    Route::get('/galleries/{uuid}/open', [\App\Http\Controllers\Web\GalleryOwnerAccessController::class, 'open'])->name('galleries.open');
     Route::post('/galleries/{uuid}/publish', [StudioGalleryController::class, 'publish'])->name('galleries.publish');
     Route::post('/galleries/{uuid}/unpublish', [StudioGalleryController::class, 'unpublish'])->name('galleries.unpublish');
     Route::patch('/galleries/{uuid}', [StudioGalleryController::class, 'update'])->name('galleries.update');
