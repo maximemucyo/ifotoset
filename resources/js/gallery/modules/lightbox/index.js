@@ -22,6 +22,56 @@ function loadVideoPlayer() {
     return videoPlayerPromise;
 }
 
+/**
+ * Adds a quality picker to the control bar for the HLS ladder: "Auto" (adaptive, shows the
+ * level currently playing) plus one entry per rendition. Hidden when there is only one level.
+ */
+function attachQualityControl(art, hls, Hls) {
+    const NAME = 'hls-quality';
+    // The ladder is keyed by the frame's short side, so portrait clips read 720p, not 1280p
+    const label = (level) => `${Math.min(level.width, level.height) || level.height}p`;
+
+    const render = () => {
+        const levels = hls.levels || [];
+        if (levels.length < 2) return;
+
+        // manualLevel is the visitor's pick (-1 = Auto); currentLevel lags it until the switch lands
+        const pinned = hls.manualLevel;
+        const auto = pinned < 0;
+        const playing = levels[hls.currentLevel];
+        const autoHtml = auto && playing ? `Auto (${label(playing)})` : 'Auto';
+
+        const options = levels
+            .map((level, index) => ({ level, index }))
+            .sort((a, b) => (b.level.height - a.level.height) || (b.level.bitrate - a.level.bitrate))
+            .map(({ level, index }) => ({
+                html: label(level),
+                level: index,
+                default: index === pinned,
+            }));
+
+        art.controls.update({
+            name: NAME,
+            position: 'right',
+            index: 10,
+            style: { marginRight: '10px' },
+            tooltip: 'Quality',
+            html: auto ? autoHtml : label(levels[pinned]),
+            selector: [{ html: autoHtml, level: -1, default: auto }, ...options],
+            onSelect: (item) => {
+                // -1 hands control back to the adaptive algorithm; anything else pins that level now
+                hls.currentLevel = item.level;
+                // Re-render on the next tick so the ticked item and the Auto label stay in sync
+                setTimeout(render, 0);
+                return item.html;
+            },
+        });
+    };
+
+    hls.on(Hls.Events.MANIFEST_PARSED, render);
+    hls.on(Hls.Events.LEVEL_SWITCHED, render);
+}
+
 const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SLIDE_GAP = 24; // px between neighbouring photos while swiping
 const LG_WIDTH = 1600; // 'lg' rendition width; above this the 'xl' (2560) rendition is used
@@ -660,6 +710,7 @@ export class GalleryLightbox {
                                 hls.loadSource(url);
                                 hls.attachMedia(video);
                                 artInstance.hls = hls;
+                                attachQualityControl(artInstance, hls, Hls);
                                 artInstance.on('destroy', () => hls.destroy());
                             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                                 video.src = url;
