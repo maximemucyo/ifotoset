@@ -407,7 +407,8 @@ window.studioGalleryManager = function(inlineConfig) {
 
         setupInfiniteScroll() {
             this.$nextTick(() => {
-                const sentinelEl = this.$refs.sentinel;
+                // By id: the workspace layout has its own x-data, so an x-ref here would land on it, not on this component
+                const sentinelEl = document.getElementById('infinite-scroll-sentinel');
                 if (!sentinelEl) return;
 
                 this.observer = new IntersectionObserver((entries) => {
@@ -473,10 +474,11 @@ window.studioGalleryManager = function(inlineConfig) {
                 this.nextCursor = data.next_cursor || null;
                 this.hasMore = Boolean(data.has_more && this.nextCursor);
 
-                if (this.observer && this.$refs.sentinel) {
-                    this.observer.unobserve(this.$refs.sentinel);
+                const sentinelEl = document.getElementById('infinite-scroll-sentinel');
+                if (this.observer && sentinelEl) {
+                    this.observer.unobserve(sentinelEl);
                     // Re-observing re-checks a sentinel that is still in view after a short page
-                    if (this.hasMore) this.observer.observe(this.$refs.sentinel);
+                    if (this.hasMore) this.observer.observe(sentinelEl);
                 }
             } catch (err) {
                 console.error('Failed to load more photos:', err);

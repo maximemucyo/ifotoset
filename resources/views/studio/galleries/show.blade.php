@@ -293,7 +293,6 @@
 
         <!-- Infinite Scroll Sentinel -->
         <div id="infinite-scroll-sentinel"
-             x-ref="sentinel"
              class="py-8 text-center"
              x-show="hasMore">
             <div x-show="loadingPhotos" class="inline-flex items-center justify-center gap-2 text-xs text-muted-foreground">
